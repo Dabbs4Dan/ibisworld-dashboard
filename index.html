@@ -20,195 +20,503 @@
     --surface: #f4f6f9;
     --bg: #f0f2f5;
     --header-bg: #ffffff;
-    --tag-decision: #dbeafe; --tag-decision-text: #1d4ed8;
-    --tag-consideration: #d1fae5; --tag-consideration-text: #065f46;
-    --tag-awareness: #fef3c7; --tag-awareness-text: #92400e;
-    --tag-other: #ede9fe; --tag-other-text: #5b21b6;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text-primary); min-height:100vh; font-size:14px; }
-
-  /* HEADER */
-  .header { background:var(--header-bg); border-bottom:1px solid var(--border); padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:56px; position:sticky; top:0; z-index:100; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-  .header-left { display:flex; align-items:center; gap:16px; }
-  .ibis-logo { height:28px; width:auto; }
-  .divider { width:1px; height:20px; background:var(--border); }
-  .header-title { color:var(--text-secondary); font-size:13px; font-weight:400; }
-  .header-right { display:flex; align-items:center; gap:10px; }
-  .upload-btn { background:var(--ibis-red); color:white; border:none; padding:7px 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; transition:opacity 0.15s; display:flex; align-items:center; gap:6px; }
-  .upload-btn:hover { opacity:0.88; }
-  .view-toggle { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
-  .view-btn { padding:6px 12px; border:none; background:transparent; color:var(--text-secondary); cursor:pointer; font-size:13px; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
-  .view-btn.active { background:var(--ibis-red); color:white; }
-
-  /* STATS BAR */
-  .stats-bar { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--header-bg); padding:0 24px; overflow-x:auto; }
-  .stat-item { padding:12px 28px 12px 0; margin-right:28px; border-right:1px solid var(--border); white-space:nowrap; }
-  .stat-item:last-child { border-right:none; }
-  .stat-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.7px; margin-bottom:3px; }
-  .stat-value { font-size:22px; font-weight:600; color:var(--text-primary); font-family:'DM Mono',monospace; }
-  .stat-value.red { color:var(--ibis-red); }
-
-  /* CONTROLS */
-  .controls { padding:12px 24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--border); background:var(--header-bg); }
-  .search-wrap { position:relative; flex:1; min-width:200px; max-width:300px; }
-  .search-wrap input { width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text-primary); padding:7px 12px 7px 32px; border-radius:6px; font-size:13px; font-family:'DM Sans',sans-serif; outline:none; transition:border-color 0.15s; }
-  .search-wrap input:focus { border-color:var(--ibis-red); }
-  .search-wrap input::placeholder { color:var(--text-muted); }
-  .search-icon { position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:13px; opacity:0.4; }
-  select { background:var(--surface); border:1px solid var(--border); color:var(--text-secondary); padding:7px 10px; border-radius:6px; font-size:13px; font-family:'DM Sans',sans-serif; outline:none; cursor:pointer; }
-  select:focus { border-color:var(--ibis-red); }
-  .filter-chips { display:flex; gap:6px; flex-wrap:wrap; }
-  .chip { padding:4px 10px; border-radius:20px; font-size:12px; border:1px solid var(--border); cursor:pointer; transition:all 0.15s; background:transparent; color:var(--text-secondary); font-family:'DM Sans',sans-serif; }
-  .chip:hover { border-color:var(--border-hover); color:var(--text-primary); background:var(--surface); }
-  .chip.active { background:var(--ibis-red-light); border-color:var(--ibis-red); color:var(--ibis-red); font-weight:500; }
-
-  /* CHANGE BANNER */
-  .change-banner { margin:12px 24px; background:#d1fae5; border:1px solid #6ee7b7; border-radius:8px; padding:10px 16px; display:none; align-items:center; gap:10px; font-size:13px; color:#065f46; }
-
-  /* CONTENT */
-  .content { padding:16px 24px; }
-  .cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
-
-  /* CARDS */
-  .account-card { background:var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:14px; cursor:pointer; transition:all 0.18s; position:relative; }
-  .account-card:hover { background:var(--card-hover); border-color:var(--border-hover); box-shadow:0 2px 8px rgba(0,0,0,0.07); transform:translateY(-1px); }
-  .account-card.new-account { border-color:#6ee7b7; background:#f0fdf9; }
-  .card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; gap:8px; }
-  .card-identity { display:flex; align-items:center; gap:10px; }
-  .company-logo { width:36px; height:36px; border-radius:7px; background:var(--surface); border:1px solid var(--border); overflow:hidden; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--text-secondary); }
-  .company-logo img { width:100%; height:100%; object-fit:contain; padding:4px; }
-  .company-name { font-size:14px; font-weight:500; color:var(--text-primary); line-height:1.3; }
-  .company-vertical { margin-top:5px; }
-  .vert-bubble { display:inline-block; font-size:11px; font-weight:500; padding:2px 8px; border-radius:20px; color:#374151; white-space:nowrap; }
-  .card-flags { display:flex; gap:3px; flex-wrap:wrap; justify-content:flex-end; }
-  .flag { font-size:15px; cursor:pointer; transition:transform 0.1s; }
-  .flag:hover { transform:scale(1.2); }
-
-  /* CARD STATS */
-  .card-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; border-top:1px solid var(--border); padding-top:10px; }
-  .stat-cell .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:2px; }
-  .stat-cell .val { font-size:13px; font-weight:500; font-family:'DM Mono',monospace; color:var(--text-primary); }
-  .val.hot { color:#dc2626; }
-  .val.warm { color:#d97706; }
-  .val.cool { color:#059669; }
-  .val.cold { color:var(--text-muted); }
-  .card-footer { margin-top:10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:4px; }
-
-  /* REVENUE ROW ON CARD */
-  .card-revenue { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; }
-  .revenue-val { font-size:12px; font-weight:500; font-family:'DM Mono',monospace; color:var(--text-primary); }
-  .revenue-meta { display:flex; align-items:center; gap:5px; }
-  .rev-badge { font-size:10px; font-weight:600; padding:2px 6px; border-radius:4px; white-space:nowrap; }
-  .rev-badge.verified { background:#d1fae5; color:#065f46; }
-  .rev-badge.stale { background:#fef3c7; color:#92400e; }
-  .enrich-btn { font-size:10px; padding:2px 7px; border-radius:4px; border:1px solid var(--border); background:var(--surface); cursor:pointer; color:var(--text-secondary); font-family:'DM Sans',sans-serif; transition:all 0.15s; white-space:nowrap; }
-  .enrich-btn:hover { border-color:var(--ibis-red); color:var(--ibis-red); background:var(--ibis-red-light); }
-  .enrich-btn:disabled { opacity:0.5; cursor:not-allowed; }
-
-  /* STAGE / BADGES */
-  .stage-tag { font-size:11px; font-weight:500; padding:3px 8px; border-radius:4px; }
-  .stage-Decision { background:var(--tag-decision); color:var(--tag-decision-text); }
-  .stage-Consideration { background:var(--tag-consideration); color:var(--tag-consideration-text); }
-  .stage-Awareness { background:var(--tag-awareness); color:var(--tag-awareness-text); }
-  .stage-Other, .stage-unknown { background:var(--tag-other); color:var(--tag-other-text); }
-  .client-badge { font-size:10px; font-weight:600; padding:2px 7px; border-radius:4px; background:var(--ibis-red-light); color:var(--ibis-red); letter-spacing:0.3px; }
-
-  /* TABLE */
-  .table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); background:white; }
-  table { width:100%; border-collapse:collapse; }
-  thead tr { background:var(--surface); border-bottom:1px solid var(--border); }
-  thead th { padding:10px 14px; text-align:left; font-size:11px; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; cursor:pointer; user-select:none; }
-  thead th:hover { color:var(--text-secondary); }
-  tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; cursor:pointer; }
-  tbody tr:last-child { border-bottom:none; }
-  tbody tr:hover { background:var(--card-hover); }
-  tbody tr.new-account { background:#f0fdf9; }
-  td { padding:10px 14px; font-size:13px; color:var(--text-primary); }
-  .td-company { display:flex; align-items:center; gap:10px; }
-  .td-logo { width:28px; height:28px; border-radius:5px; background:var(--surface); border:1px solid var(--border); overflow:hidden; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; color:var(--text-muted); }
-  .td-logo img { width:100%; height:100%; object-fit:contain; padding:3px; }
-  .td-name { font-weight:500; color:var(--text-primary); }
-
-  /* TIER DIAMOND */
-  .tier-badge { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; font-size:10px; font-weight:600; font-family:'DM Mono',monospace; transform:rotate(45deg); border-radius:3px; flex-shrink:0; }
-  .tier-badge span { transform:rotate(-45deg); display:inline-flex; align-items:center; justify-content:center; line-height:1; }
-  .tier-1 { background:linear-gradient(135deg,#1e3a5f,#2d5a9e); color:#fff; }
-  .tier-2 { background:linear-gradient(135deg,#1a6b4a,#2d9e6b); color:#fff; }
-  .tier-3 { background:linear-gradient(135deg,#7c3d0f,#c4651a); color:#fff; }
-  .tier-4 { background:linear-gradient(135deg,#5c5c5c,#9a9a9a); color:#fff; }
-  .tier-other { background:var(--surface); color:var(--text-muted); }
-
-  .days-val { font-family:'DM Mono',monospace; }
-  .flags-cell { display:flex; gap:3px; }
-
-  /* EMPTY STATE */
-  .empty-state { text-align:center; padding:80px 24px; color:var(--text-muted); }
-  .empty-icon { font-size:48px; margin-bottom:16px; }
-  .empty-title { font-size:18px; font-weight:500; color:var(--text-secondary); margin-bottom:8px; }
-  .empty-desc { font-size:14px; line-height:1.6; max-width:360px; margin:0 auto 24px; color:var(--text-muted); }
-
-  /* MODAL */
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:200; display:none; align-items:center; justify-content:center; }
-  .modal-overlay.open { display:flex; }
-  .modal { background:white; border:1px solid var(--border); border-radius:12px; padding:20px; width:340px; max-width:90vw; box-shadow:0 8px 32px rgba(0,0,0,0.15); }
-  .modal-title { font-size:15px; font-weight:500; margin-bottom:4px; color:var(--text-primary); }
-  .modal-sub { font-size:12px; color:var(--text-muted); margin-bottom:16px; }
-  .flag-options { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
-  .flag-option { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:7px; cursor:pointer; transition:all 0.15s; font-size:13px; color:var(--text-secondary); background:var(--surface); }
-  .flag-option:hover { border-color:var(--border-hover); background:var(--card-hover); }
-  .flag-option.selected { border-color:var(--ibis-red); background:var(--ibis-red-light); color:var(--ibis-red); font-weight:500; }
-  .flag-option .fe { font-size:18px; }
-  .notes-area { width:100%; background:var(--surface); border:1px solid var(--border); color:var(--text-primary); padding:8px 10px; border-radius:6px; font-size:13px; font-family:'DM Sans',sans-serif; resize:vertical; min-height:60px; outline:none; margin-bottom:14px; }
-  .notes-area:focus { border-color:var(--ibis-red); }
-  .modal-actions { display:flex; gap:8px; justify-content:flex-end; }
-  .btn-cancel { padding:7px 14px; border-radius:6px; border:1px solid var(--border); background:none; color:var(--text-secondary); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:13px; }
-  .btn-cancel:hover { background:var(--surface); }
-  .btn-save { padding:7px 14px; border-radius:6px; border:none; background:var(--ibis-red); color:white; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; }
-
-  /* REVENUE MODAL SECTION */
-  .modal-section { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
-  .modal-section-title { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px; }
-  .modal-revenue-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .modal-revenue-val { font-size:14px; font-weight:600; font-family:'DM Mono',monospace; color:var(--text-primary); }
-  .enrich-modal-btn { flex:1; min-width:120px; padding:7px 12px; border-radius:6px; border:1px solid var(--border); background:var(--surface); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:12px; color:var(--text-secondary); transition:all 0.15s; text-align:center; }
-  .enrich-modal-btn:hover { border-color:var(--ibis-red); color:var(--ibis-red); background:var(--ibis-red-light); }
-  .enrich-modal-btn:disabled { opacity:0.5; cursor:not-allowed; }
-  .enrich-result { margin-top:8px; font-size:12px; color:var(--text-secondary); line-height:1.5; background:var(--surface); padding:8px 10px; border-radius:6px; border:1px solid var(--border); }
-
-  /* CUSTOM VERTICAL DROPDOWN */
-  .vert-dropdown { position:relative; }
-  .vert-dropdown-btn {
-    display:flex; align-items:center; gap:8px;
-    background:var(--surface); border:1px solid var(--border);
-    color:var(--text-secondary); padding:7px 10px;
-    border-radius:6px; font-size:13px; font-family:'DM Sans',sans-serif;
-    cursor:pointer; white-space:nowrap; min-width:160px;
-    justify-content:space-between;
-  }
-  .vert-dropdown-btn:focus, .vert-dropdown-btn.open { border-color:var(--ibis-red); outline:none; }
-  .vert-dropdown-menu {
-    position:absolute; top:calc(100% + 4px); left:0; z-index:150;
-    background:white; border:1px solid var(--border); border-radius:8px;
-    box-shadow:0 4px 16px rgba(0,0,0,0.12);
-    min-width:220px; max-height:320px; overflow-y:auto;
-    padding:4px;
-  }
-  .vert-option {
-    display:flex; align-items:center; gap:8px;
-    padding:6px 8px; border-radius:5px; cursor:pointer;
-    font-size:13px; color:var(--text-primary);
-    transition:background 0.1s;
-  }
-  .vert-option:hover { background:var(--surface); }
-  .vert-option.selected { background:var(--ibis-red-light); }
-  .vert-option .vert-dot {
-    width:10px; height:10px; border-radius:50%; flex-shrink:0;
+    --tag-decision: #dbeafe;
+    --tag-decision-text: #1d4ed8;
+    --tag-consideration: #d1fae5;
+    --tag-consideration-text: #065f46;
+    --tag-awareness: #fef3c7;
+    --tag-awareness-text: #92400e;
+    --tag-other: #ede9fe;
+    --tag-other-text: #5b21b6;
   }
 
-  #file-input { display:none; }
-  .hidden { display:none !important; }
-  .count-label { font-size:12px; color:var(--text-muted); margin-bottom:12px; }
+  /* === LICENSE LAYER STYLES === */
+  .view-nav {
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 38px;
+    gap: 16px;
+  }
+  .view-nav-tabs { display: flex; gap: 0; height: 100%; }
+  .vnav-btn {
+    padding: 0 20px;
+    height: 100%;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .vnav-btn:hover { color: var(--text-secondary); }
+  .vnav-btn.active { color: var(--ibis-red); border-bottom-color: var(--ibis-red); }
+
+  .upload-btn-secondary {
+    background: white;
+    color: var(--ibis-red);
+    border: 1.5px solid var(--ibis-red);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .upload-btn-secondary:hover { background: var(--ibis-red-light); }
+  .upload-btn-secondary.loaded { border-color: #059669; color: #059669; }
+
+  .lic-type-badge {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 9px; border-radius: 20px;
+    white-space: nowrap;
+  }
+  .ltype-us   { background: #fef3c7; color: #92400e; }
+  .ltype-piq  { background: #dbeafe; color: #1d4ed8; }
+  .ltype-intl { background: #ccfbf1; color: #0d9488; }
+  .ltype-migration { background: #f3f4f6; color: #9ca3af; }
+  .ltype-trial { background: #ede9fe; color: #5b21b6; }
+  .ltype-unknown { background: #f3f4f6; color: #9ca3af; }
+
+  .lic-status-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 11px; font-weight: 500;
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .lic-active   { background: #d1fae5; color: #065f46; }
+  .lic-churned  { background: #fee2e2; color: #991b1b; }
+
+  .lic-signal { font-size: 13px; letter-spacing: -1px; }
+
+  .lic-acv { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-primary); }
+  .lic-acv.zero { color: var(--text-muted); }
+
+  .in-territory {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 600; color: #059669;
+    background: #d1fae5; padding: 1px 6px; border-radius: 3px;
+    letter-spacing: 0.2px; margin-left: 6px;
+  }
+
+  .lic-name-main { font-weight: 500; color: var(--text-primary); font-size: 13px; }
+  .lic-name-sub  { font-size: 11px; color: var(--text-muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+
+  .lic-empty { text-align: center; padding: 80px 24px; color: var(--text-muted); }
+  .lic-empty .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .lic-empty .empty-title { font-size: 18px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
+  .lic-empty .empty-desc  { font-size: 14px; line-height: 1.6; max-width: 380px; margin: 0 auto 24px; }
+
+  .lic-sort-arrow { font-size: 10px; opacity: 0.5; }
+  .lic-sort-active { color: var(--ibis-red); opacity: 1; }
+
+  .hidden { display: none !important; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  .header {
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .header-left { display: flex; align-items: center; gap: 16px; }
+
+  .ibis-logo { height: 28px; width: auto; }
+
+  .divider { width: 1px; height: 20px; background: var(--border); }
+
+  .header-title { color: var(--text-secondary); font-size: 13px; font-weight: 400; }
+
+  .header-right { display: flex; align-items: center; gap: 10px; }
+
+  .upload-btn {
+    background: var(--ibis-red);
+    color: white;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: opacity 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .upload-btn:hover { opacity: 0.88; }
+
+  .view-toggle {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .view-btn {
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .view-btn.active { background: var(--ibis-red); color: white; }
+
+  .stats-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--header-bg);
+    padding: 0 24px;
+    overflow-x: auto;
+  }
+
+  .stat-item {
+    padding: 12px 28px 12px 0;
+    margin-right: 28px;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .stat-item:last-child { border-right: none; }
+
+  .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 3px; }
+  .stat-value { font-size: 22px; font-weight: 600; color: var(--text-primary); font-family: 'DM Mono', monospace; }
+  .stat-value.red { color: var(--ibis-red); }
+
+  .controls {
+    padding: 12px 24px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    background: var(--header-bg);
+  }
+
+  .search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 300px; }
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 7px 12px 7px 32px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-wrap input:focus { border-color: var(--ibis-red); }
+  .search-wrap input::placeholder { color: var(--text-muted); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: 0.4; }
+
+  select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--ibis-red); }
+
+  .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .chip {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+  }
+  .chip:hover { border-color: var(--border-hover); color: var(--text-primary); background: var(--surface); }
+  .chip.active { background: var(--ibis-red-light); border-color: var(--ibis-red); color: var(--ibis-red); font-weight: 500; }
+
+  .change-banner {
+    margin: 12px 24px;
+    background: #d1fae5;
+    border: 1px solid #6ee7b7;
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #065f46;
+  }
+
+  .content { padding: 16px 24px; }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .account-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.18s;
+    position: relative;
+  }
+  .account-card:hover { background: var(--card-hover); border-color: var(--border-hover); box-shadow: 0 2px 8px rgba(0,0,0,0.07); transform: translateY(-1px); }
+  .account-card.new-account { border-color: #6ee7b7; background: #f0fdf9; }
+
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+  .card-identity { display: flex; align-items: center; gap: 10px; }
+
+  .company-logo {
+    width: 36px; height: 36px;
+    border-radius: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  }
+  .company-logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+
+  .company-name { font-size: 14px; font-weight: 500; color: var(--text-primary); line-height: 1.3; }
+  .company-vertical { margin-top: 5px; }
+  .vert-bubble {
+    display: inline-block;
+    font-size: 11px; font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    color: #374151;
+    white-space: nowrap;
+  }
+
+  .card-flags { display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+  .flag { font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+  .flag:hover { transform: scale(1.2); }
+
+  .card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  .stat-cell .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+  .stat-cell .val { font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; color: var(--text-primary); }
+  .val.hot { color: #dc2626; }
+  .val.warm { color: #d97706; }
+  .val.cool { color: #059669; }
+  .val.cold { color: var(--text-muted); }
+
+  .card-footer { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; }
+
+  .stage-tag {
+    font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 4px;
+  }
+  .stage-Decision { background: var(--tag-decision); color: var(--tag-decision-text); }
+  .stage-Consideration { background: var(--tag-consideration); color: var(--tag-consideration-text); }
+  .stage-Awareness { background: var(--tag-awareness); color: var(--tag-awareness-text); }
+  .stage-Other, .stage-unknown { background: var(--tag-other); color: var(--tag-other-text); }
+
+  .client-badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 4px;
+    background: var(--ibis-red-light);
+    color: var(--ibis-red);
+    letter-spacing: 0.3px;
+  }
+
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); background: white; }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  thead tr { background: var(--surface); border-bottom: 1px solid var(--border); }
+  thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  thead th:hover { color: var(--text-secondary); }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+    cursor: pointer;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--card-hover); }
+  tbody tr.new-account { background: #f0fdf9; }
+
+  td { padding: 10px 14px; font-size: 13px; color: var(--text-primary); }
+
+  .td-company { display: flex; align-items: center; gap: 10px; }
+  .td-logo {
+    width: 28px; height: 28px; border-radius: 5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; color: var(--text-muted);
+  }
+  .td-logo img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+  .td-name { font-weight: 500; color: var(--text-primary); }
+  .td-sub { font-size: 11px; color: var(--text-muted); }
+
+  .tier-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px;
+    font-size: 10px; font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    transform: rotate(45deg);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .tier-badge span {
+    transform: rotate(-45deg);
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .tier-1 { background: linear-gradient(135deg, #1e3a5f, #2d5a9e); color: #ffffff; }
+  .tier-2 { background: linear-gradient(135deg, #1a6b4a, #2d9e6b); color: #ffffff; }
+  .tier-3 { background: linear-gradient(135deg, #7c3d0f, #c4651a); color: #ffffff; }
+  .tier-4 { background: linear-gradient(135deg, #5c5c5c, #9a9a9a); color: #ffffff; }
+  
+  .tier-other { background: var(--surface); color: var(--text-muted); }
+
+  .days-val { font-family: 'DM Mono', monospace; }
+
+  .flags-cell { display: flex; gap: 3px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 80px 24px;
+    color: var(--text-muted);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-title { font-size: 18px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
+  .empty-desc { font-size: 14px; line-height: 1.6; max-width: 360px; margin: 0 auto 24px; color: var(--text-muted); }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    width: 320px;
+    max-width: 90vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  .modal-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; color: var(--text-primary); }
+  .modal-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+
+  .flag-options {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-bottom: 16px;
+  }
+
+  .flag-option {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--surface);
+  }
+  .flag-option:hover { border-color: var(--border-hover); background: var(--card-hover); }
+  .flag-option.selected { border-color: var(--ibis-red); background: var(--ibis-red-light); color: var(--ibis-red); font-weight: 500; }
+  .flag-option .fe { font-size: 18px; }
+
+  .notes-area {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    resize: vertical;
+    min-height: 60px;
+    outline: none;
+    margin-bottom: 14px;
+  }
+  .notes-area:focus { border-color: var(--ibis-red); }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-cancel {
+    padding: 7px 14px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: none; color: var(--text-secondary);
+    cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px;
+  }
+  .btn-cancel:hover { background: var(--surface); }
+  .btn-save {
+    padding: 7px 14px; border-radius: 6px;
+    border: none; background: var(--ibis-red);
+    color: white; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  }
+
+  #file-input { display: none; }
+  .hidden { display: none !important; }
+  .count-label { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -219,26 +527,83 @@
     <div class="divider"></div>
     <span class="header-title">Account Dashboard · Daniel Starr · US Major Markets</span>
   </div>
-  <div class="header-right">
-    <div class="view-toggle">
+    <div class="header-right">
+    <div class="view-toggle" id="cards-table-toggle">
       <button class="view-btn active" onclick="setView('cards')" id="btn-cards">⊞ Cards</button>
       <button class="view-btn" onclick="setView('table')" id="btn-table">☰ Table</button>
     </div>
-    <button class="upload-btn" onclick="document.getElementById('file-input').click()">↑ Upload CSV</button>
+    <button class="upload-btn-secondary" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload Licenses & Products CSV">🔑 Licenses CSV</button>
+    <button class="upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
+    <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)" style="display:none;">
   </div>
 </div>
 
-<div class="stats-bar">
-  <div class="stat-item"><div class="stat-label">Total Accounts</div><div class="stat-value red" id="stat-total">—</div></div>
-  <div class="stat-item"><div class="stat-label">Tier 1</div><div class="stat-value" id="stat-tier1">—</div></div>
-  <div class="stat-item"><div class="stat-label">Active Opps</div><div class="stat-value" id="stat-opps">—</div></div>
-  <div class="stat-item"><div class="stat-label">Existing Clients</div><div class="stat-value" id="stat-clients">—</div></div>
-  <div class="stat-item"><div class="stat-label">Avg Intent Score</div><div class="stat-value" id="stat-intent">—</div></div>
-  <div class="stat-item"><div class="stat-label">Last Updated</div><div class="stat-value" id="stat-updated" style="font-size:13px;padding-top:5px;">—</div></div>
+<div class="view-nav">
+  <div class="view-nav-tabs">
+    <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
+    <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 License Intelligence</button>
+  </div>
+  <span id="lic-nav-status" style="font-size:12px;color:var(--text-muted);"></span>
 </div>
 
-<div class="controls">
+<div class="stats-bar" id="stats-accounts">
+  <div class="stat-item">
+    <div class="stat-label">Total Accounts</div>
+    <div class="stat-value red" id="stat-total">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Tier 1</div>
+    <div class="stat-value" id="stat-tier1">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Active Opps</div>
+    <div class="stat-value" id="stat-opps">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Existing Clients</div>
+    <div class="stat-value" id="stat-clients">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Avg Intent Score</div>
+    <div class="stat-value" id="stat-intent">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Last Updated</div>
+    <div class="stat-value" id="stat-updated" style="font-size:13px;padding-top:5px;">—</div>
+  </div>
+</div>
+
+<!-- LICENSE STATS BAR -->
+<div class="stats-bar hidden" id="stats-licenses">
+  <div class="stat-item">
+    <div class="stat-label">Total Licenses</div>
+    <div class="stat-value red" id="lstat-total">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">🔥 US Churned</div>
+    <div class="stat-value" id="lstat-us-churned">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Recent (2022+)</div>
+    <div class="stat-value" id="lstat-recent">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">🔵 PIQ Active</div>
+    <div class="stat-value" id="lstat-piq">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">🌍 International</div>
+    <div class="stat-value" id="lstat-intl">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Active ACV</div>
+    <div class="stat-value" id="lstat-acv" style="font-size:14px;padding-top:4px;">—</div>
+  </div>
+</div>
+
+<!-- ACCOUNTS CONTROLS -->
+<div class="controls" id="controls-accounts">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search accounts..." id="search-input" oninput="renderAll()">
@@ -250,15 +615,10 @@
     <option value="tier">Sort: Tier</option>
     <option value="name">Sort: Name A–Z</option>
     <option value="opps">Sort: Open Opps</option>
-    <option value="revenue">Sort: Revenue</option>
   </select>
-  <div class="vert-dropdown" id="vert-dropdown">
-    <button class="vert-dropdown-btn" id="vert-dropdown-btn" onclick="toggleVertDropdown(event)">
-      <span id="vert-selected-label">All Verticals</span>
-      <span style="opacity:0.5;font-size:11px;">▼</span>
-    </button>
-    <div class="vert-dropdown-menu hidden" id="vert-dropdown-menu"></div>
-  </div>
+  <select id="vertical-filter" onchange="renderAll()">
+    <option value="">All Verticals</option>
+  </select>
   <div class="filter-chips">
     <button class="chip" onclick="toggleChip(this,'🔥')" data-flag="🔥">🔥 Hot</button>
     <button class="chip" onclick="toggleChip(this,'✅')" data-flag="✅">✅ Opp</button>
@@ -266,24 +626,48 @@
     <button class="chip" onclick="toggleChip(this,'👀')" data-flag="👀">👀 Watching</button>
     <button class="chip" onclick="toggleChip(this,'💤')" data-flag="💤">💤 Cold</button>
     <button class="chip" onclick="toggleChip(this,'🆕')" data-flag="🆕">🆕 New</button>
-    <button class="chip" onclick="toggleChip(this,'⚡')" data-flag="⚡">⚡ Urgent</button>
-    <button class="chip" onclick="toggleChip(this,'🎯')" data-flag="🎯">🎯 Target</button>
     <button class="chip" onclick="toggleChip(this,'CLIENT')" data-flag="CLIENT">⭐ Clients Only</button>
   </div>
+</div>
+
+<!-- LICENSE CONTROLS -->
+<div class="controls hidden" id="controls-licenses">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search company..." id="lic-search-input" oninput="renderLicenses()">
+  </div>
+  <select id="lic-sort-select" onchange="renderLicenses()">
+    <option value="signal">Sort: Signal ↓</option>
+    <option value="name">Sort: Company A–Z</option>
+    <option value="acv">Sort: ACV ↓</option>
+    <option value="enddate_desc">Sort: End Date (newest)</option>
+    <option value="enddate_asc">Sort: End Date (oldest)</option>
+  </select>
+  <div class="filter-chips">
+    <button class="chip" onclick="toggleLicChip(this,'us_churned')">🔥 US Churned</button>
+    <button class="chip" onclick="toggleLicChip(this,'piq')">🔵 PIQ</button>
+    <button class="chip" onclick="toggleLicChip(this,'intl')">🌍 International</button>
+    <button class="chip" onclick="toggleLicChip(this,'active')">✅ Active</button>
+    <button class="chip" onclick="toggleLicChip(this,'hide_junk')">🙈 Hide Junk</button>
+    <button class="chip" onclick="toggleLicChip(this,'territory')" id="chip-territory" style="display:none;">📋 My Territory</button>
+  </div>
+  <span id="lic-count-label" style="margin-left:auto;font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
 </div>
 
 <div class="change-banner" id="change-banner">
   <span>📊</span>
   <span id="change-text" style="flex:1;"></span>
-  <button onclick="document.getElementById('change-banner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:#065f46;padding:0 4px;line-height:1;opacity:0.6;">✕</button>
+  <button onclick="document.getElementById('change-banner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:#065f46;padding:0 4px;line-height:1;opacity:0.6;" title="Dismiss">✕</button>
 </div>
 
+<!-- ACCOUNTS CONTENT -->
+<div id="content-accounts">
 <div class="content">
   <div id="empty-state" class="empty-state">
     <div class="empty-icon">📂</div>
     <div class="empty-title">Upload your Account CSV to get started</div>
-    <div class="empty-desc">Export your DA$ Account Stalker report from Salesforce as CSV, then click Upload CSV above.</div>
-    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('file-input').click()">↑ Upload CSV</button>
+    <div class="empty-desc">Export your DA$ Account Stalker report from Salesforce as CSV, then click Accounts CSV above.</div>
+    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('file-input').click()">↑ Upload Accounts CSV</button>
   </div>
   <div id="count-label" class="count-label hidden"></div>
   <div id="cards-view" class="cards-grid hidden"></div>
@@ -293,12 +677,11 @@
         <thead>
           <tr>
             <th>Company</th>
-            <th onclick="setSortCol('vertical')">Vertical ↕</th>
-            <th onclick="setSortCol('tier')">Tier ↕</th>
-            <th onclick="setSortCol('revenue')">Revenue ↕</th>
-            <th onclick="setSortCol('intent')">Intent ↕</th>
-            <th onclick="setSortCol('days')">Days Inactive ↕</th>
-            <th onclick="setSortCol('opps')">Opps ↕</th>
+            <th onclick="setSortCol('vertical')">Vertical</th>
+            <th onclick="setSortCol('tier')">Tier</th>
+            <th onclick="setSortCol('intent')">Intent</th>
+            <th onclick="setSortCol('days')">Days Inactive</th>
+            <th onclick="setSortCol('opps')">Opps</th>
             <th>Stage</th>
             <th>Status</th>
             <th>Flags</th>
@@ -309,12 +692,42 @@
     </div>
   </div>
 </div>
+</div>
 
-<!-- MODAL -->
+<!-- LICENSE CONTENT -->
+<div id="content-licenses" class="hidden">
+<div class="content">
+  <div id="lic-empty-state" class="lic-empty">
+    <div class="empty-icon">🔑</div>
+    <div class="empty-title">Upload your License CSV to get started</div>
+    <div class="empty-desc">Export the "Account with Licenses &amp; Products" report from Salesforce, then click Licenses CSV above.</div>
+    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('lic-file-input').click()">🔑 Upload Licenses CSV</button>
+  </div>
+  <div id="lic-table-wrap" class="hidden">
+    <div class="table-wrap">
+      <table id="lic-table">
+        <thead>
+          <tr>
+            <th onclick="setLicSort('name')" style="min-width:180px;">Company <span class="lic-sort-arrow" id="lsort-name"></span></th>
+            <th style="min-width:220px;">License</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th onclick="setLicSort('acv')" style="cursor:pointer;">ACV <span class="lic-sort-arrow" id="lsort-acv"></span></th>
+            <th onclick="setLicSort('enddate_desc')" style="cursor:pointer;">End Date <span class="lic-sort-arrow" id="lsort-enddate_desc"></span></th>
+            <th onclick="setLicSort('signal')" style="cursor:pointer;">Signal <span class="lic-sort-arrow" id="lsort-signal"></span></th>
+          </tr>
+        </thead>
+        <tbody id="lic-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="modal-company-name">Edit Account</div>
-    <div class="modal-sub">Set flags, add notes, and enrich revenue</div>
+    <div class="modal-sub">Set flags and add notes</div>
     <div class="flag-options" id="flag-options">
       <div class="flag-option" onclick="toggleFlag('🔥')" id="fo-🔥"><span class="fe">🔥</span> Hot Priority</div>
       <div class="flag-option" onclick="toggleFlag('✅')" id="fo-✅"><span class="fe">✅</span> Active Opp</div>
@@ -326,19 +739,7 @@
       <div class="flag-option" onclick="toggleFlag('🎯')" id="fo-🎯"><span class="fe">🎯</span> Target</div>
     </div>
     <textarea class="notes-area" id="notes-area" placeholder="Add notes about this account..."></textarea>
-
-    <!-- REVENUE ENRICHMENT SECTION -->
-    <div class="modal-section" id="modal-rev-section">
-      <div class="modal-section-title" id="modal-rev-title">💰 Revenue</div>
-      <div class="modal-revenue-row">
-        <div id="modal-rev-display" class="modal-revenue-val">—</div>
-        <div id="modal-rev-badge"></div>
-        <button class="enrich-modal-btn" id="enrich-modal-btn" onclick="enrichRevenue()">🤖 Enrich with AI</button>
-      </div>
-      <div id="enrich-result" class="enrich-result hidden"></div>
-    </div>
-
-    <div class="modal-actions" style="margin-top:16px;">
+    <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModalBtn()">Cancel</button>
       <button class="btn-save" onclick="saveModal()">Save</button>
     </div>
@@ -349,264 +750,67 @@
 let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(), modalAccount = null, modalFlags = new Set();
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
+
 const VERT_COLORS = {
-  'Academic':'#dbeafe','Accounting':'#e0e7ff','Advertising, Media or Entertainment':'#fce7f3',
-  'Business Support Services':'#f3f4f6','Commercial Banking':'#d1fae5',
-  'Construction, Engineering & Real Estate':'#fef3c7','Consulting':'#ede9fe',
-  'Energy & Waste':'#fef9c3','Finance':'#dcfce7','Insurance':'#ccfbf1',
-  'Government':'#dbeafe','Health & Community Services':'#fee2e2','Legal':'#f1f5f9',
-  'Manufacturing':'#ffedd5','Biomedical & Pharma':'#fce7f3','Food & Beverage':'#fef9c3',
-  'Retail':'#ffe4e6','Transportation, Logistics or Storage':'#e0f2fe','Wholesale':'#f0fdf4',
+  'Academic': '#dbeafe',
+  'Accounting': '#e0e7ff',
+  'Advertising, Media or Entertainment': '#fce7f3',
+  'Business Support Services': '#f3f4f6',
+  'Commercial Banking': '#d1fae5',
+  'Construction, Engineering & Real Estate': '#fef3c7',
+  'Consulting': '#ede9fe',
+  'Energy & Waste': '#fef9c3',
+  'Finance': '#dcfce7',
+  'Insurance': '#ccfbf1',
+  'Government': '#dbeafe',
+  'Health & Community Services': '#fee2e2',
+  'Legal': '#f1f5f9',
+  'Manufacturing': '#ffedd5',
+  'Biomedical & Pharma': '#fce7f3',
+  'Food & Beverage': '#fef9c3',
+  'Retail': '#ffe4e6',
+  'Transportation, Logistics or Storage': '#e0f2fe',
+  'Wholesale': '#f0fdf4',
 };
 
 function getTrueVertical(acc) {
-  const v = getField(acc,'Vertical').trim(), sv = getField(acc,'Sub-Vertical').trim();
-  if (v==='Finance' && sv==='Insurance') return 'Insurance';
-  if (v==='Manufacturing' && sv==='Healthcare') return 'Biomedical & Pharma';
-  if (v==='Manufacturing' && (sv==='Food and Beverages'||sv==='Food & Beverage')) return 'Food & Beverage';
+  const v = getField(acc, 'Vertical').trim();
+  const sv = getField(acc, 'Sub-Vertical').trim();
+  if (v === 'Finance' && sv === 'Insurance') return 'Insurance';
+  if (v === 'Manufacturing' && sv === 'Healthcare') return 'Biomedical & Pharma';
+  if (v === 'Manufacturing' && (sv === 'Food and Beverages' || sv === 'Food & Beverage')) return 'Food & Beverage';
   return v;
 }
 
 function vertBubble(acc) {
   const tv = getTrueVertical(acc);
-  return `<span class="vert-bubble" style="background:${VERT_COLORS[tv]||'#f3f4f6'};">${tv}</span>`;
+  const color = VERT_COLORS[tv] || '#f3f4f6';
+  return `<span class="vert-bubble" style="background:${color};">${tv}</span>`;
 }
 
-function getField(acc,...keys) { for (const k of keys) { if (acc[k]!==undefined&&acc[k]!=='') return acc[k]; } return ''; }
-
-// ── REVENUE ENGINE ───────────────────────────────────────────────
-// Source priority:
-//   1. SEED TABLE — known-correct values (instant, no API call)
-//   2. Claude AI with web search — primary enrichment for everything else
-//   3. SF CSV — last-resort display while enrichment is pending
-
-function getRevData(name) { return localData[name]?.rev || null; }
-
-function fmtMoney(n) {
-  if (!n || isNaN(n)) return null;
-  if (n >= 1e12) return `USD ${(n/1e12).toFixed(1)}T`;
-  if (n >= 1e9)  return `USD ${(n/1e9).toFixed(1)}B`;
-  if (n >= 1e6)  return `USD ${(n/1e6).toFixed(0)}M`;
-  if (n >= 1e3)  return `USD ${(n/1e3).toFixed(0)}K`;
-  return `USD ${n.toLocaleString()}`;
-}
-
-const NO_REV_VERTICALS = new Set(['Academic','Government']);
-function isNoRevAccount(acc) { return NO_REV_VERTICALS.has(getTrueVertical(acc)); }
-
-// SF revenue is stale if < $50M
-function isSFRevStale(raw) { return raw > 0 && raw < 50_000_000; }
-
-// ── SEED TABLE — curated correct revenues (web-verified) ─────────
-// Format: 'Company Name Exactly As In CSV': [revenue_usd, 'Source · Year']
-const REVENUE_SEEDS = {
-  // ── Exact names from Salesforce CSV ──────────────────────────────
-  'Lyft':                          [5800000000,  'Lyft 2024 Full Year Results'],
-  'Burger King':                   [2300000000,  'Restaurant Brands International 2024'],
-  "BJ's Wholesale Club":           [20200000000, "BJ's Wholesale Club FY2024 Annual Report"],
-  'Lloyds Bank':                   [19800000000, 'Lloyds Banking Group 2024 Annual Report'],
-  'Rolls Royce':                   [23700000000, 'Rolls-Royce Holdings 2024 Full Year Results'],
-  'Booz Allen Hamilton':           [11300000000, 'Booz Allen Hamilton FY2024 Annual Report'],
-  'Embraer S.A.':                  [6100000000,  'Embraer 2024 Annual Report'],
-  'The Vanguard Group, Inc.':      [7200000000,  'Vanguard 2024 Revenue Estimate'],
-  'Turner Construction Company':   [16000000000, 'Turner Construction 2024 Revenue Estimate'],
-  'Mediterranean Shipping Company':[91000000000, 'MSC Estimated Revenue 2022 (private co.)'],
-  'Labcorp':                       [13009000000, 'Labcorp 2024 Full Year Results'],
-  'MGM Resorts International':     [17200000000, 'MGM Resorts 2024 Annual Report'],
-  'StoneX':                        [1700000000,  'StoneX FY2024 Net Operating Revenue'],
-  'Cleveland Clinic':              [14000000000, 'Cleveland Clinic 2023 Annual Report'],
-  'Authentic Brands Group':        [750000000,   'Authentic Brands 2024 Revenue Estimate'],
-  'DRS Technologies, Inc.':        [3200000000,  'Leonardo DRS 2024 Full Year Results'],
-  'Conocophillips':                [54700000000, 'ConocoPhillips 2024 Annual Report'],
-  'Danone':                        [17700000000, 'Danone 2024 Annual Report (EUR→USD)'],
-  'Blackrock':                     [20400000000, 'BlackRock 2024 Annual Report'],
-  'Berkshire Hathaway':            [364500000000,'Berkshire Hathaway 2024 Annual Report'],
-  'Panasonic':                     [65000000000, 'Panasonic FY2024 Annual Report (JPY→USD)'],
-  'WPP':                           [19000000000, 'WPP 2024 Annual Report'],
-  'Aflac':                         [22900000000, 'Aflac 2024 Annual Report'],
-};
-
-// Apply seeds on first load (overwrites bad cached data)
-function applySeedsToLocalData() {
-  let changed = false;
-  Object.entries(REVENUE_SEEDS).forEach(([name, [rev, src]]) => {
-    // Only apply if no Claude-enriched value already saved for this name
-    if (localData[name]?.rev?.source === 'claude') return;
-    const label = fmtMoney(rev);
-    if (localData[name]?.rev?.label === label) return; // already correct
-    if (!localData[name]) localData[name] = {};
-    localData[name].rev = { label, raw: rev, source: 'seed', srcNote: src };
-    changed = true;
-  });
-  if (changed) localStorage.setItem('ibis_local', JSON.stringify(localData));
-}
-
-function getRevDisplay(acc) {
-  if (isNoRevAccount(acc)) return { label: '—', source: 'none', raw: 0, noRev: true };
-  const name = getField(acc,'Account Name','AccountName');
-  const saved = getRevData(name);
-  if (saved) return { label: saved.label, source: saved.source, raw: saved.raw };
-  const sfRev = getField(acc,'Annual Revenue');
-  const sfCur = getField(acc,'Annual Revenue Currency') || 'USD';
-  const sfRaw = parseFloat(sfRev);
-  if (sfRev && sfRaw > 0) {
-    const stale = isSFRevStale(sfRaw);
-    return { label: fmtMoney(sfRaw) || `${sfCur} ${sfRaw.toLocaleString()}`, source: stale ? 'stale' : 'sf', raw: sfRaw, stale };
-  }
-  return null;
-}
-
-function sourceBadge(source) {
-  if (source === 'claude')   return '<span class="rev-badge verified">✅</span>';
-  if (source === 'seed')     return '<span class="rev-badge verified">✅</span>';
-  if (source === 'wikidata') return '<span class="rev-badge verified">🌐</span>';
-  if (source === 'stale')    return '<span class="rev-badge stale">⚠️</span>';
-  return '';
-}
-
-// ── CLAUDE AI — primary enrichment, auto-queued for stale/missing ─
-const claudeQueue = [];
-let claudeRunning = false;
-
-function queueClaudeEnrich(accName, priority = false) {
-  const saved = localData[accName]?.rev?.source;
-  if (saved === 'claude' || saved === 'seed') return; // already good
-  if (claudeQueue.includes(accName)) return;
-  if (priority) claudeQueue.unshift(accName);
-  else claudeQueue.push(accName);
-  if (!claudeRunning) runClaudeQueue();
-}
-
-async function runClaudeQueue() {
-  claudeRunning = true;
-  const total = claudeQueue.length;
-  let done = 0;
-  showEnrichProgress(done, total + done);
-
-  while (claudeQueue.length) {
-    const name = claudeQueue.shift();
-    const saved = localData[name]?.rev?.source;
-    if (saved === 'claude' || saved === 'seed') { done++; continue; }
-    await fetchRevenueFromClaude(name);
-    done++;
-    showEnrichProgress(done, total);
-    // Re-render every 5 completions so updates appear in batches
-    if (done % 5 === 0) renderAllQuiet();
-    await new Promise(r => setTimeout(r, 900));
-  }
-  claudeRunning = false;
-  hideEnrichProgress();
-  renderAllQuiet();
-}
-
-function showEnrichProgress(done, total) {
-  let bar = document.getElementById('enrich-progress');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'enrich-progress';
-    bar.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#1a1a2e;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:DM Sans,sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);';
-    document.body.appendChild(bar);
-  }
-  const remaining = total - done;
-  bar.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block;">🔄</span> Enriching revenue… <strong>${remaining}</strong> remaining`;
-  if (!document.getElementById('spin-style')) {
-    const s = document.createElement('style');
-    s.id = 'spin-style';
-    s.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
-    document.head.appendChild(s);
-  }
-}
-
-function hideEnrichProgress() {
-  const bar = document.getElementById('enrich-progress');
-  if (bar) {
-    bar.innerHTML = '✅ Revenue enrichment complete';
-    bar.style.background = '#065f46';
-    setTimeout(() => bar.remove(), 3000);
-  }
-}
-
-async function fetchRevenueFromClaude(companyName) {
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: `You are a financial data assistant. Find the most recent annual revenue in USD.
-Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news.
-For private companies, use best publicly reported estimates. Convert non-USD to USD.
-Return ONLY valid JSON (no markdown, no explanation):
-{"value_usd": <number in USD>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>"}
-If unavailable after searching: {"value_usd": null}`,
-        messages: [{ role: 'user', content: `Annual revenue of "${companyName}"? JSON only.` }]
-      })
-    });
-    const data = await resp.json();
-    let parsed = null;
-    for (const b of (data.content||[]).filter(b => b.type === 'text')) {
-      try { parsed = JSON.parse(b.text.replace(/```json|```/g,'').trim()); break; } catch(e) {}
-    }
-    if (parsed?.value_usd) {
-      const label = fmtMoney(parsed.value_usd) || parsed.label;
-      if (!localData[companyName]) localData[companyName] = {};
-      localData[companyName].rev = { label, raw: parsed.value_usd, source: 'claude', year: parsed.year, srcNote: parsed.source };
-      localStorage.setItem('ibis_local', JSON.stringify(localData));
-      return { label, raw: parsed.value_usd, srcNote: parsed.source, year: parsed.year };
-    }
-  } catch(e) { /* silent fail */ }
-  return null;
-}
-
-function renderAllQuiet() {
-  const list = getFiltered();
-  document.getElementById('count-label').textContent = `Showing ${list.length} of ${accounts.length} accounts`;
-  if (currentView==='cards') renderCards(list); else renderTable(list);
-}
-
-// ── MANUAL ENRICH (modal button) ────────────────────────────────
-async function enrichRevenue() {
-  if (!modalAccount) return;
-  const btn = document.getElementById('enrich-modal-btn');
-  const resultEl = document.getElementById('enrich-result');
-  btn.disabled = true; btn.textContent = '⏳ Searching…';
-  resultEl.classList.remove('hidden');
-  resultEl.textContent = 'Searching the web for revenue…';
-
-  const result = await fetchRevenueFromClaude(modalAccount);
-  if (result) {
-    document.getElementById('modal-rev-display').textContent = localData[modalAccount].rev.label;
-    document.getElementById('modal-rev-badge').innerHTML = sourceBadge('claude');
-    resultEl.textContent = `📌 ${result.srcNote || 'Web search'}${result.year ? ' · ' + result.year : ''}`;
-    btn.textContent = '🔄 Re-check';
-    renderAllQuiet();
-  } else {
-    resultEl.textContent = '⚠️ Could not find revenue. Company may be private with no public estimates.';
-    btn.textContent = '🤖 Try Again';
-  }
-  btn.disabled = false;
-}
-
-// ── INIT & CSV ───────────────────────────────────────────────────
 function init() {
   const saved = localStorage.getItem('ibis_accounts');
   const savedLocal = localStorage.getItem('ibis_local');
-  if (saved) {
-    accounts = JSON.parse(saved);
-    let localRaw = savedLocal ? JSON.parse(savedLocal) : {};
-    // Clear old Wikidata-sourced values (had currency bugs). Keep Claude-verified ones.
-    Object.keys(localRaw).forEach(k => {
-      if (localRaw[k]?.rev?.source === 'wikidata') delete localRaw[k].rev;
+  const savedLic = localStorage.getItem('ibis_licenses');
+  if (saved) { accounts = JSON.parse(saved); localData = savedLocal ? JSON.parse(savedLocal) : {}; updateStats(); populateVerticals(); renderAll(); document.getElementById('empty-state').classList.add('hidden'); document.getElementById('count-label').classList.remove('hidden'); }
+  if (savedLic) {
+    // Re-decode on restore (dates need re-parsing from strings)
+    const raw = JSON.parse(savedLic);
+    const today = new Date();
+    licenses = raw.map(l => {
+      l._endDate = l._endDate ? new Date(l._endDate) : null;
+      l._startDate = l._startDate ? new Date(l._startDate) : null;
+      l._active = l._endDate ? l._endDate > today : false;
+      l._signal = calcSignal(l);
+      return l;
     });
-    localData = localRaw;
-    applySeedsToLocalData(); // apply known-correct seed values instantly
-    updateStats(); populateVerticals(); renderAll();
-    document.getElementById('empty-state').classList.add('hidden');
-    document.getElementById('count-label').classList.remove('hidden');
-    // Queue all accounts that still need enrichment
-    queueAllAccounts();
+    document.getElementById('lic-upload-btn').textContent = '✅ Licenses CSV';
+    document.getElementById('lic-upload-btn').classList.add('loaded');
+    document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
+    if (accounts.length > 0) document.getElementById('chip-territory').style.display = '';
+    updateLicenseStats();
+    document.getElementById('lic-empty-state').classList.add('hidden');
+    document.getElementById('lic-table-wrap').classList.remove('hidden');
   }
 }
 
@@ -614,59 +818,57 @@ function handleCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    const newAccounts = parseCSV(ev.target.result);
+    let text = ev.target.result;
+    // Fix mangled special characters from latin-1 encoded CSVs
+    text = text.replace(/�/g, match => match);
+    const newAccounts = parseCSV(text);
     if (accounts.length > 0) detectChanges(accounts, newAccounts);
     accounts = newAccounts;
     localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
     localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
-    applySeedsToLocalData(); // apply known-correct seed values instantly
     updateStats(); populateVerticals(); renderAll();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
-    // Queue ALL accounts for Claude enrichment — not just visible ones
-    queueAllAccounts();
   };
-  reader.readAsText(file, 'latin1');
-  e.target.value = '';
+  // Try UTF-8 first, latin-1 as fallback for French/special chars
+  reader.readAsText(file, 'latin1'); e.target.value = '';
 }
 
 function parseCSV(text) {
-  // Decode latin-1 mojibake → proper characters
-  text = text.replace(/Ã©/g,'é').replace(/Ã¨/g,'è').replace(/Ã /g,'à').replace(/Ã®/g,'î')
-             .replace(/Ã¢/g,'â').replace(/Ã«/g,'ë').replace(/Ã¼/g,'ü').replace(/Ã¶/g,'ö');
-  const lines = text.split('\n').filter(l=>l.trim());
-  if (lines.length < 2) return [];
-  const headers = parseCSVLine(lines[0]).map(h=>h.trim().replace(/"/g,''));
+  // Normalize special characters
+  text = text.normalize('NFC');
+  const lines = text.split('\n').filter(l => l.trim()); if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
   const rows = [];
-  for (let i=1; i<lines.length; i++) {
+  for (let i = 1; i < lines.length; i++) {
     const vals = parseCSVLine(lines[i]); if (vals.length < 2) continue;
-    const obj = {}; headers.forEach((h,idx)=>{ obj[h]=(vals[idx]||'').trim().replace(/^"|"$/g,''); });
-    if (obj['Account Name']||obj['AccountName']) rows.push(obj);
+    const obj = {}; headers.forEach((h,idx) => { obj[h] = (vals[idx]||'').trim().replace(/^"|"$/g,''); });
+    if (obj['Account Name'] || obj['AccountName']) rows.push(obj);
   }
   return rows;
 }
 
 function parseCSVLine(line) {
-  const result=[]; let cur='', inQ=false;
-  for (let i=0; i<line.length; i++) {
-    const c=line[i];
-    if (c==='"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else { inQ=!inQ; } }
-    else if (c===','&&!inQ) { result.push(cur); cur=''; }
-    else { cur+=c; }
+  const result = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; } else if (c === ',' && !inQ) { result.push(cur); cur = ''; } else { cur += c; }
   }
   result.push(cur); return result;
 }
 
+function getField(acc, ...keys) { for (const k of keys) { if (acc[k] !== undefined && acc[k] !== '') return acc[k]; } return ''; }
+
 function detectChanges(old, newArr) {
-  const oldNames = new Set(old.map(a=>getField(a,'Account Name','AccountName')));
-  const newNames = new Set(newArr.map(a=>getField(a,'Account Name','AccountName')));
-  const added = [...newNames].filter(n=>!oldNames.has(n));
-  const removed = [...oldNames].filter(n=>!newNames.has(n));
-  added.forEach(n=>{ if(!localData[n]) localData[n]={}; if(!localData[n].flags) localData[n].flags=[]; if(!localData[n].flags.includes('🆕')) localData[n].flags.push('🆕'); });
-  if (added.length||removed.length) {
-    const parts=[];
-    if(added.length) parts.push(`🆕 ${added.length} new account${added.length>1?'s':''} added`);
-    if(removed.length) parts.push(`❌ ${removed.length} account${removed.length>1?'s':''} removed`);
+  const oldNames = new Set(old.map(a => getField(a,'Account Name','AccountName')));
+  const newNames = new Set(newArr.map(a => getField(a,'Account Name','AccountName')));
+  const added = [...newNames].filter(n => !oldNames.has(n));
+  const removed = [...oldNames].filter(n => !newNames.has(n));
+  added.forEach(n => { if (!localData[n]) localData[n] = {}; if (!localData[n].flags) localData[n].flags = []; if (!localData[n].flags.includes('🆕')) localData[n].flags.push('🆕'); });
+  if (added.length || removed.length) {
+    const parts = [];
+    if (added.length) parts.push(`🆕 ${added.length} new account${added.length>1?'s':''} added`);
+    if (removed.length) parts.push(`❌ ${removed.length} account${removed.length>1?'s':''} removed`);
     document.getElementById('change-text').textContent = parts.join(' · ') + ' since last upload';
     document.getElementById('change-banner').style.display = 'flex';
     localStorage.setItem('ibis_local', JSON.stringify(localData));
@@ -674,96 +876,49 @@ function detectChanges(old, newArr) {
 }
 
 function updateStats() {
+  const updated = localStorage.getItem('ibis_updated') || '—';
   document.getElementById('stat-total').textContent = accounts.length;
-  document.getElementById('stat-tier1').textContent = accounts.filter(a=>getField(a,'Major Markets Tier')=='1').length;
-  document.getElementById('stat-opps').textContent = accounts.filter(a=>parseFloat(getField(a,'# Core Opportunities')||0)>0).length;
-  document.getElementById('stat-clients').textContent = accounts.filter(a=>parseFloat(getField(a,'# Core Clients')||0)>0).length;
-  const scores = accounts.map(a=>parseFloat(getField(a,'6sense Account Intent Score NA')||0)).filter(v=>v>0);
+  document.getElementById('stat-tier1').textContent = accounts.filter(a => getField(a,'Major Markets Tier') == '1').length;
+  document.getElementById('stat-opps').textContent = accounts.filter(a => parseFloat(getField(a,'# Core Opportunities')||0) > 0).length;
+  document.getElementById('stat-clients').textContent = accounts.filter(a => parseFloat(getField(a,'# Core Clients')||0) > 0).length;
+  const scores = accounts.map(a => parseFloat(getField(a,'6sense Account Intent Score NA')||0)).filter(v => v > 0);
   document.getElementById('stat-intent').textContent = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
-  document.getElementById('stat-updated').textContent = localStorage.getItem('ibis_updated')||'—';
+  document.getElementById('stat-updated').textContent = updated;
 }
-
-let activeVertical = '';
 
 function populateVerticals() {
-  const verts = [...new Set(accounts.map(a=>getTrueVertical(a)).filter(Boolean))].sort();
-  const menu = document.getElementById('vert-dropdown-menu');
-  menu.innerHTML = '';
-
-  // "All Verticals" option
-  const allOpt = document.createElement('div');
-  allOpt.className = 'vert-option' + (!activeVertical ? ' selected' : '');
-  allOpt.innerHTML = `<span class="vert-dot" style="background:#e5e7eb;border:1px solid #d1d5db;"></span><span>All Verticals</span>`;
-  allOpt.onclick = () => selectVertical('');
-  menu.appendChild(allOpt);
-
-  verts.forEach(v => {
-    const color = VERT_COLORS[v] || '#f3f4f6';
-    const opt = document.createElement('div');
-    opt.className = 'vert-option' + (activeVertical === v ? ' selected' : '');
-    opt.innerHTML = `<span class="vert-dot" style="background:${color};border:1px solid ${color}dd;"></span><span class="vert-bubble" style="background:${color};font-size:12px;">${v}</span>`;
-    opt.onclick = () => selectVertical(v);
-    menu.appendChild(opt);
+  const verts = [...new Set(accounts.map(a => getTrueVertical(a)).filter(Boolean))].sort();
+  const sel = document.getElementById('vertical-filter');
+  sel.innerHTML = '<option value="">All Verticals</option>';
+  verts.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); });
+  // Also add special sub-verticals
+  ['Insurance','Biomedical & Pharma','Food & Beverage'].forEach(v => {
+    if (!verts.includes(v)) { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); }
   });
 }
-
-function selectVertical(v) {
-  activeVertical = v;
-  const btn = document.getElementById('vert-selected-label');
-  const color = VERT_COLORS[v] || null;
-  if (v && color) {
-    btn.innerHTML = `<span class="vert-bubble" style="background:${color};font-size:12px;">${v}</span>`;
-  } else {
-    btn.textContent = 'All Verticals';
-  }
-  closeVertDropdown();
-  populateVerticals(); // refresh selected state
-  renderAll();
-}
-
-function toggleVertDropdown(e) {
-  e.stopPropagation();
-  const menu = document.getElementById('vert-dropdown-menu');
-  const btn = document.getElementById('vert-dropdown-btn');
-  const isOpen = !menu.classList.contains('hidden');
-  if (isOpen) { menu.classList.add('hidden'); btn.classList.remove('open'); }
-  else { menu.classList.remove('hidden'); btn.classList.add('open'); }
-}
-
-function closeVertDropdown() {
-  document.getElementById('vert-dropdown-menu').classList.add('hidden');
-  document.getElementById('vert-dropdown-btn').classList.remove('open');
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', () => closeVertDropdown());
 
 function getFiltered() {
   const q = document.getElementById('search-input').value.toLowerCase();
-  const vert = activeVertical;
+  const vert = document.getElementById('vertical-filter').value;
   const sort = document.getElementById('sort-select').value;
-  let list = accounts.filter(a=>{
+  let list = accounts.filter(a => {
     const name = getField(a,'Account Name','AccountName').toLowerCase();
     if (q && !name.includes(q) && !getField(a,'Vertical').toLowerCase().includes(q)) return false;
-    if (vert && getTrueVertical(a)!==vert) return false;
-    if (activeFlags.size>0) {
-      const flags = localData[getField(a,'Account Name','AccountName')]?.flags||[];
-      const isClient = parseFloat(getField(a,'# Core Clients')||0)>0;
-      for (const f of activeFlags) { if(f==='CLIENT'){if(!isClient)return false;} else if(!flags.includes(f))return false; }
+    if (vert && getTrueVertical(a) !== vert) return false;
+    if (activeFlags.size > 0) {
+      const flags = localData[getField(a,'Account Name','AccountName')]?.flags || [];
+      const isClient = parseFloat(getField(a,'# Core Clients')||0) > 0;
+      for (const f of activeFlags) { if (f === 'CLIENT') { if (!isClient) return false; } else if (!flags.includes(f)) return false; }
     }
     return true;
   });
-  list.sort((a,b)=>{
+  list.sort((a,b) => {
     if (sort==='intent') return parseFloat(getField(b,'6sense Account Intent Score NA')||0)-parseFloat(getField(a,'6sense Account Intent Score NA')||0);
     if (sort==='days') return parseFloat(getField(b,'US Days Since Last Activity')||0)-parseFloat(getField(a,'US Days Since Last Activity')||0);
     if (sort==='tier') return parseFloat(getField(a,'Major Markets Tier')||9)-parseFloat(getField(b,'Major Markets Tier')||9);
     if (sort==='name') return getField(a,'Account Name','AccountName').localeCompare(getField(b,'Account Name','AccountName'));
     if (sort==='vertical') return getTrueVertical(a).localeCompare(getTrueVertical(b));
     if (sort==='opps') return parseFloat(getField(b,'# Core Opportunities')||0)-parseFloat(getField(a,'# Core Opportunities')||0);
-    if (sort==='revenue') {
-      const ra = getRevDisplay(a)?.raw||0, rb = getRevDisplay(b)?.raw||0;
-      return rb-ra;
-    }
     return 0;
   });
   return list;
@@ -772,217 +927,355 @@ function getFiltered() {
 function renderAll() {
   const list = getFiltered();
   document.getElementById('count-label').textContent = `Showing ${list.length} of ${accounts.length} accounts`;
-  if (currentView==='cards') renderCards(list); else renderTable(list);
-}
-
-// Queue ALL accounts that need enrichment — runs after CSV upload and on init
-function queueAllAccounts() {
-  // Sort by tier (1 first), then by stale/missing priority so best accounts enrich first
-  const sorted = [...accounts].sort((a,b) => {
-    const ta = parseFloat(getField(a,'Major Markets Tier')||9);
-    const tb = parseFloat(getField(b,'Major Markets Tier')||9);
-    return ta - tb;
-  });
-  sorted.forEach(acc => {
-    const name = getField(acc,'Account Name','AccountName');
-    if (isNoRevAccount(acc)) return;
-    const rev = getRevDisplay(acc);
-    // Skip if already Claude-verified or seeded
-    if (rev && (rev.source === 'claude' || rev.source === 'seed')) return;
-    queueClaudeEnrich(name);
-  });
+  if (currentView === 'cards') renderCards(list); else renderTable(list);
 }
 
 function getDomain(w) {
-  if (!w||w.trim()==='') return null;
-  try { w=w.trim().replace(/\/.*$/,''); if(!w.startsWith('http')) w='https://'+w; return new URL(w).hostname.replace('www.',''); }
-  catch { return null; }
-}
-
-// Manual domain overrides for companies with missing/wrong CSV websites
-const LOGO_DOMAIN_OVERRIDES = {
-  'Alibaba Group':        'alibabagroup.com',
-  'Berkshire Hathaway':   'berkshirehathaway.com',
-  'Conocophillips':       'conocophillips.com',
-  'Dow':                  'dow.com',
-  'Steel Dynamics, Inc.': 'steeldynamics.com',
-  'Enterprise Mobility':  'enterprisemobility.com',
-  'Novelis':              'novelis.com',
-  'Vitol, Inc.':          'vitol.com',
-  'Glencore':             'glencore.com',
-};
-
-function getLogoDomain(acc) {
-  const name = getField(acc,'Account Name','AccountName');
-  if (LOGO_DOMAIN_OVERRIDES[name]) return LOGO_DOMAIN_OVERRIDES[name];
-  return getDomain(getField(acc,'Website'));
-}
-
-// Logo cascade: UpLead (high-res) → DuckDuckGo → Google Favicon → Initials
-function logoSrc(domain) {
-  return `https://logo.uplead.com/${domain}`;
-}
-function logoFallbackChain(domain, initials) {
-  return `onerror="this.src='https://icons.duckduckgo.com/ip3/${domain}.ico';this.onerror=function(){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64';this.onerror=function(){this.parentNode.innerHTML='${initials}'}}"`;
+  if (!w || w.trim() === '') return null;
+  try {
+    w = w.trim().replace(/\/.*$/, '');
+    if (!w.startsWith('http')) w = 'https://' + w;
+    return new URL(w).hostname.replace('www.','');
+  } catch { return null; }
 }
 
 function logoHTML(acc, size=36, radius=7) {
   const name = getField(acc,'Account Name','AccountName');
-  const domain = getLogoDomain(acc);
+  const domain = getDomain(getField(acc,'Website'));
   const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  if (!domain) return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">${initials}</div>`;
-  return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">
-    <img src="${logoSrc(domain)}" ${logoFallbackChain(domain, initials)} alt="${name}" style="width:100%;height:100%;object-fit:contain;padding:4px;">
-  </div>`;
+  if (domain) return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${name}"></div>`;
+  return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">${initials}</div>`;
 }
 
-function daysColor(d) { if(!d) return ''; const n=parseFloat(d); if(n<=14) return 'cool'; if(n<=30) return 'warm'; if(n<=60) return 'hot'; return 'cold'; }
+function daysColor(d) { if (!d) return ''; const n=parseFloat(d); if(n<=14) return 'cool'; if(n<=30) return 'warm'; if(n<=60) return 'hot'; return 'cold'; }
+
 function stageClass(s) { if(!s) return 'stage-unknown'; if(s.includes('Decision')) return 'stage-Decision'; if(s.includes('Consideration')) return 'stage-Consideration'; if(s.includes('Awareness')) return 'stage-Awareness'; return 'stage-Other'; }
 
 function renderCards(list) {
-  const c = document.getElementById('cards-view');
-  c.classList.remove('hidden'); document.getElementById('table-view').classList.add('hidden');
-  if (!list.length) { c.innerHTML='<div style="color:var(--text-muted);padding:40px;text-align:center;">No accounts match your filters</div>'; return; }
-  const frag = document.createDocumentFragment();
-  list.forEach(acc=>{
-    const name = getField(acc,'Account Name','AccountName');
-    const local = localData[name]||{}, flags = local.flags||[];
-    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity');
-    const intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities');
-    const clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA');
-    const revInfo = getRevDisplay(acc);
-    const safeName = name.replace(/'/g,"\\'").replace(/"/g,'&quot;');
-
-    const div = document.createElement('div');
-    div.className = 'account-card' + (flags.includes('🆕')?' new-account':'');
-    div.onclick = ()=>openModal(name);
-    div.innerHTML = `
-      <div class="card-top">
-        <div class="card-identity">${logoHTML(acc)}
-          <div>
-            <div class="company-name">${name}</div>
-            <div class="company-vertical">${vertBubble(acc)}</div>
-          </div>
-        </div>
-        <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div>
-      </div>
+  const c = document.getElementById('cards-view'); c.classList.remove('hidden'); document.getElementById('table-view').classList.add('hidden');
+  if (!list.length) { c.innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center;">No accounts match your filters</div>'; return; }
+  c.innerHTML = list.map(acc => {
+    const name = getField(acc,'Account Name','AccountName'), key = name;
+    const local = localData[key]||{}, flags = local.flags||[];
+    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical'), sub=getField(acc,'Sub-Vertical');
+    return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div></div></div>
+      <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
         <div class="stat-cell"><div class="label">Tier</div><div class="val"><span class="tier-badge ${tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other'}"><span>${tier||'—'}</span></span></div></div>
-        <div class="stat-cell"><div class="label">Revenue</div><div class="val" style="font-size:11px;">
-          ${revInfo && !revInfo.noRev
-            ? `<span style="display:flex;align-items:center;gap:3px;">${revInfo.label}${revInfo.stale?'<span class="rev-badge stale" style="font-size:9px;">⚠️</span>':revInfo.source==='wikidata'||revInfo.source==='claude'?`<span class="rev-badge verified" style="font-size:9px;">${revInfo.source==='wikidata'?'🌐':'✅'}</span>`:''}</span>`
-            : '<span style="color:var(--text-muted)">—</span>'}
-        </div></div>
         <div class="stat-cell"><div class="label">Intent</div><div class="val">${intent||'—'}</div></div>
         <div class="stat-cell"><div class="label">Days Out</div><div class="val ${daysColor(days)}">${days||'—'}</div></div>
         <div class="stat-cell"><div class="label">Opps</div><div class="val">${opps||'0'}</div></div>
         <div class="stat-cell"><div class="label">Clients</div><div class="val">${clients>0?clients:'—'}</div></div>
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
-        <div class="stat-cell"><div class="label">Enrich</div><div class="val">${revInfo && !revInfo.noRev ? `<button class="enrich-btn" onclick="event.stopPropagation();openModal('${safeName}')">${revInfo.stale?'⚠️ Fix':'💰'}</button>` : '<span style="color:var(--text-muted)">—</span>'}</div></div>
       </div>
-      <div class="card-footer">
-        <span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>
-        ${clients>0?'<span class="client-badge">CLIENT</span>':''}
-      </div>
+      <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${clients>0?'<span class="client-badge">CLIENT</span>':''}</div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
-    `;
-    frag.appendChild(div);
-  });
-  c.innerHTML=''; c.appendChild(frag);
+    </div>`;
+  }).join('');
 }
 
 function renderTable(list) {
-  document.getElementById('cards-view').classList.add('hidden');
-  document.getElementById('table-view').classList.remove('hidden');
+  document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match</td></tr>'; return; }
-  const frag = document.createDocumentFragment();
-  list.forEach(acc=>{
-    const name = getField(acc,'Account Name','AccountName');
-    const local = localData[name]||{}, flags = local.flags||[];
-    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity');
-    const intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities');
-    const clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA');
-    const domain=getLogoDomain(acc), initials=name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const tierClass=tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
-    const revInfo = getRevDisplay(acc);
-    const tr = document.createElement('tr');
-    if (flags.includes('🆕')) tr.className='new-account';
-    tr.onclick = ()=>openModal(name);
-    const logoCell = domain
-      ? `<img src="${logoSrc(domain)}" ${logoFallbackChain(domain, initials)} alt="${name}" style="width:100%;height:100%;object-fit:contain;padding:3px;">`
-      : `${initials}`;
-    tr.innerHTML = `
-      <td><div class="td-company"><div class="td-logo">${logoCell}</div><div class="td-name">${name}</div></div></td>
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match</td></tr>'; return; }
+  tbody.innerHTML = list.map(acc => {
+    const name = getField(acc,'Account Name','AccountName'), key = name;
+    const local = localData[key]||{}, flags = local.flags||[];
+    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical');
+    const domain = getDomain(getField(acc,'Website')), initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
+    return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+      <td><div class="td-company"><div class="td-logo">${domain?`<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${name}">`:`${initials}`}</div><div><div class="td-name">${name}</div></div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
-      <td><div style="display:flex;align-items:center;gap:4px;">
-        ${revInfo && !revInfo.noRev
-          ? `<span style="font-family:'DM Mono',monospace;font-size:12px;">${revInfo.label}</span>${revInfo.stale?'<span class="rev-badge stale">⚠️ Verify</span>':(revInfo.source==='wikidata'||revInfo.source==='claude')?`<span class="rev-badge verified">${revInfo.source==='wikidata'?'🌐':'✅'}</span>`:''}`
-          : `<span style="color:var(--text-muted);">—</span>`}
-      </div></td>
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
       <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
       <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
       <td>${clients>0?'<span class="client-badge">CLIENT</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td><div class="flags-cell">${flags.map(f=>`<span style="font-size:14px;">${f}</span>`).join('')}${!flags.length?'<span style="color:var(--text-muted);font-size:12px;">—</span>':''}</div></td>
-    `;
-    frag.appendChild(tr);
-  });
-  tbody.innerHTML=''; tbody.appendChild(frag);
+    </tr>`;
+  }).join('');
 }
 
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
-function setSortCol(col) { document.getElementById('sort-select').value=col; renderAll(); }
-
-function openModal(name) {
-  modalAccount=name;
-  const local=localData[name]||{};
-  modalFlags=new Set(local.flags||[]);
-  document.getElementById('modal-company-name').textContent=name;
-  document.getElementById('notes-area').value=local.notes||'';
-  FLAGS.forEach(f=>{const el=document.getElementById(`fo-${f}`);if(el)el.classList.toggle('selected',modalFlags.has(f));});
-
-  // Populate revenue in modal
-  const accData = accounts.find(a=>getField(a,'Account Name','AccountName')===name) || {};
-  const revInfo = getRevDisplay({ 'Account Name': name, ...accData });
-  const modalRevSection = document.getElementById('modal-rev-section');
-  if (revInfo && revInfo.noRev) {
-    modalRevSection.style.display = 'none';
-  } else {
-    modalRevSection.style.display = '';
-    document.getElementById('modal-rev-display').textContent = revInfo ? revInfo.label : '—';
-    document.getElementById('modal-rev-badge').innerHTML = revInfo ? sourceBadge(revInfo.source) : '';
-    if (revInfo?.stale) {
-      document.getElementById('enrich-result').classList.remove('hidden');
-      document.getElementById('enrich-result').innerHTML = '⚠️ <strong>SF revenue looks off</strong> — click Enrich to cross-reference real-world data.';
-    } else {
-      document.getElementById('enrich-result').classList.add('hidden');
-      document.getElementById('enrich-result').textContent = '';
-    }
-  document.getElementById('modal-rev-title').textContent = '💰 Revenue';
-  const btn = document.getElementById('enrich-modal-btn');
-  btn.disabled=false;
-  const hasWiki = false; // Wikidata disabled
-  const hasClaude = local.rev?.source === 'claude';
-  btn.textContent = (hasWiki || hasClaude) ? '🔄 Re-check' : revInfo?.stale ? '⚠️ Fix Revenue' : '🤖 Enrich with AI';
-  }
-
-  document.getElementById('modal-overlay').classList.add('open');
-}
+function openModal(name) { modalAccount=name; const local=localData[name]||{}; modalFlags=new Set(local.flags||[]); document.getElementById('modal-company-name').textContent=name; document.getElementById('notes-area').value=local.notes||''; FLAGS.forEach(f=>{const el=document.getElementById(`fo-${f}`);if(el)el.classList.toggle('selected',modalFlags.has(f));}); document.getElementById('modal-overlay').classList.add('open'); }
 function toggleFlag(f) { if(modalFlags.has(f)) modalFlags.delete(f); else modalFlags.add(f); const el=document.getElementById(`fo-${f}`); if(el) el.classList.toggle('selected',modalFlags.has(f)); }
 function closeModal(e) { if(e.target===document.getElementById('modal-overlay')) closeModalBtn(); }
 function closeModalBtn() { document.getElementById('modal-overlay').classList.remove('open'); modalAccount=null; }
-function saveModal() {
-  if(!modalAccount) return;
-  if(!localData[modalAccount]) localData[modalAccount]={};
-  localData[modalAccount].flags=[...modalFlags];
-  localData[modalAccount].notes=document.getElementById('notes-area').value;
-  localStorage.setItem('ibis_local',JSON.stringify(localData));
-  closeModalBtn(); renderAll();
+function saveModal() { if(!modalAccount) return; if(!localData[modalAccount]) localData[modalAccount]={}; localData[modalAccount].flags=[...modalFlags]; localData[modalAccount].notes=document.getElementById('notes-area').value; localStorage.setItem('ibis_local',JSON.stringify(localData)); closeModalBtn(); renderAll(); }
+function setSortCol(col) { document.getElementById('sort-select').value=col; renderAll(); }
+
+/* ============================================================
+   LICENSE INTELLIGENCE ENGINE
+   ============================================================ */
+
+let licenses = [];
+let licFilters = new Set();
+let licSortCol = 'signal';
+let mainView = 'accounts'; // 'accounts' | 'licenses'
+
+// --- Parse & Decode ---
+
+function handleLicenseCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    licenses = parseLicenseCSV(ev.target.result);
+    localStorage.setItem('ibis_licenses', JSON.stringify(licenses));
+    document.getElementById('lic-upload-btn').textContent = '✅ Licenses CSV';
+    document.getElementById('lic-upload-btn').classList.add('loaded');
+    document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
+    // Show territory chip if accounts also loaded
+    if (accounts.length > 0) document.getElementById('chip-territory').style.display = '';
+    updateLicenseStats();
+    renderLicenses();
+    document.getElementById('lic-empty-state').classList.add('hidden');
+    document.getElementById('lic-table-wrap').classList.remove('hidden');
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
 }
+
+function parseLicenseCSV(text) {
+  text = text.normalize('NFC');
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
+  const rows = [];
+  const today = new Date();
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i]);
+    if (vals.length < 2) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (vals[idx]||'').trim().replace(/^"|"$/g,''); });
+    if (!obj['Account Name'] && !obj['AccountName']) continue;
+    // Decode
+    obj._name = obj['Account Name'] || obj['AccountName'] || '';
+    obj._licenseName = obj['License Name'] || '';
+    obj._oppName = obj['Opportunity Name'] || '';
+    obj._type = decodeLicenseType(obj._licenseName);
+    obj._acv = parseFloat(obj['Annualized Amount'] || '0') || 0;
+    obj._currency = obj['Annualized Amount Currency'] || 'USD';
+    const endRaw = obj['License End Date'] || '';
+    const startRaw = obj['License Start Date'] || '';
+    obj._endDate = parseDate(endRaw);
+    obj._startDate = parseDate(startRaw);
+    obj._active = obj._endDate ? obj._endDate > today : false;
+    obj._signal = calcSignal(obj);
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function parseDate(str) {
+  if (!str || !str.trim()) return null;
+  // Handle M/D/YYYY or YYYY-MM-DD
+  const mdy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) return new Date(parseInt(mdy[3]), parseInt(mdy[1])-1, parseInt(mdy[2]));
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2])-1, parseInt(iso[3]));
+  return null;
+}
+
+function decodeLicenseType(licenseName) {
+  const ln = licenseName || '';
+  if (/migration/i.test(ln)) return 'MIGRATION';
+  if (/trial/i.test(ln)) return 'TRIAL';
+  if (/ - USP - /i.test(ln) || / - PIQ/i.test(ln) || /procurement/i.test(ln)) return 'PIQ';
+  if (/ - US - /i.test(ln)) return 'US';
+  if (/ - (AU|UK|DE|CN|CA|NZ|SG|IE|FR|JP|IN|EU|HK|ZA|MX|BR|CH|SE|NO|DK|FI|NL|BE|AT|PL|ES|IT|PT|KR|TW|TH|MY|ID|PH|VN) - /i.test(ln)) return 'INTL';
+  return 'UNKNOWN';
+}
+
+function calcSignal(lic) {
+  const { _type, _active, _endDate, _acv } = lic;
+  // Junk: migrations or zero-dollar non-trials
+  if (_type === 'MIGRATION') return { weight: 0, label: '—', cls: 'signal-0' };
+  if (_acv === 0 && _type !== 'TRIAL') return { weight: 0, label: '—', cls: 'signal-0' };
+
+  if (_type === 'US') {
+    if (_active) return { weight: 4, label: '⚠️ Active', cls: 'signal-4' }; // anomaly
+    const year = _endDate ? _endDate.getFullYear() : 0;
+    if (year >= 2022) return { weight: 5, label: '🔥🔥🔥', cls: 'signal-5' };
+    if (year >= 2017) return { weight: 3, label: '🔥🔥', cls: 'signal-3' };
+    return { weight: 1, label: '🔥', cls: 'signal-1' };
+  }
+  if (_type === 'PIQ') {
+    if (_active) return { weight: 4, label: '🔵 Active', cls: 'signal-4' };
+    return { weight: 1, label: '🔵 Former', cls: 'signal-1' };
+  }
+  if (_type === 'INTL') {
+    if (_active) return { weight: 2, label: '🌍 Active', cls: 'signal-2' };
+    return { weight: 0, label: '—', cls: 'signal-0' };
+  }
+  if (_type === 'TRIAL') return { weight: 3, label: '🧪 Trial', cls: 'signal-3' };
+  if (_type === 'UNKNOWN') {
+    if (_active) return { weight: 2, label: '🌍 Active', cls: 'signal-2' };
+    return { weight: 0, label: '—', cls: 'signal-0' };
+  }
+  return { weight: 0, label: '—', cls: 'signal-0' };
+}
+
+// --- Stats ---
+
+function updateLicenseStats() {
+  const all = licenses;
+  document.getElementById('lstat-total').textContent = all.length;
+  const usChurned = all.filter(l => l._type === 'US' && !l._active);
+  document.getElementById('lstat-us-churned').textContent = usChurned.length;
+  const recent = usChurned.filter(l => l._endDate && l._endDate.getFullYear() >= 2022);
+  document.getElementById('lstat-recent').textContent = recent.length;
+  document.getElementById('lstat-piq').textContent = all.filter(l => l._type === 'PIQ' && l._active).length;
+  document.getElementById('lstat-intl').textContent = all.filter(l => l._type === 'INTL').length;
+  const activeACV = all.filter(l => l._active).reduce((s, l) => s + l._acv, 0);
+  document.getElementById('lstat-acv').textContent = activeACV > 0 ? formatACV(activeACV) : '—';
+}
+
+function formatACV(n) {
+  if (n >= 1000000) return '$' + (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return '$' + Math.round(n/1000) + 'K';
+  return '$' + Math.round(n);
+}
+
+// --- Filtering & Sort ---
+
+const LIC_FILTER_FNS = {
+  'us_churned': l => l._type === 'US' && !l._active,
+  'piq':        l => l._type === 'PIQ',
+  'intl':       l => l._type === 'INTL',
+  'active':     l => l._active,
+  'hide_junk':  l => l._signal.weight > 0,
+  'territory':  l => isInTerritory(l._name),
+};
+
+function isInTerritory(name) {
+  if (!accounts.length) return false;
+  const n = name.toLowerCase().trim();
+  return accounts.some(a => (getField(a,'Account Name','AccountName') || '').toLowerCase().trim() === n);
+}
+
+function toggleLicChip(el, key) {
+  el.classList.toggle('active');
+  if (licFilters.has(key)) licFilters.delete(key); else licFilters.add(key);
+  renderLicenses();
+}
+
+function setLicSort(col) {
+  licSortCol = col;
+  document.getElementById('lic-sort-select').value = col;
+  // Update arrow indicators
+  ['signal','name','acv','enddate_desc'].forEach(c => {
+    const el = document.getElementById('lsort-' + c);
+    if (el) el.textContent = c === col ? ' ↓' : '';
+    if (el) el.className = 'lic-sort-arrow' + (c === col ? ' lic-sort-active' : '');
+  });
+  renderLicenses();
+}
+
+function getLicFiltered() {
+  const q = (document.getElementById('lic-search-input')?.value || '').toLowerCase();
+  const sortVal = document.getElementById('lic-sort-select')?.value || 'signal';
+  licSortCol = sortVal;
+
+  let list = licenses.filter(l => {
+    if (q && !l._name.toLowerCase().includes(q) && !l._licenseName.toLowerCase().includes(q)) return false;
+    for (const key of licFilters) {
+      const fn = LIC_FILTER_FNS[key];
+      if (fn && !fn(l)) return false;
+    }
+    return true;
+  });
+
+  list.sort((a, b) => {
+    if (licSortCol === 'signal') return b._signal.weight - a._signal.weight;
+    if (licSortCol === 'name') return a._name.localeCompare(b._name);
+    if (licSortCol === 'acv') return b._acv - a._acv;
+    if (licSortCol === 'enddate_desc') {
+      const ad = a._endDate ? a._endDate.getTime() : 0;
+      const bd = b._endDate ? b._endDate.getTime() : 0;
+      return bd - ad;
+    }
+    if (licSortCol === 'enddate_asc') {
+      const ad = a._endDate ? a._endDate.getTime() : Infinity;
+      const bd = b._endDate ? b._endDate.getTime() : Infinity;
+      return ad - bd;
+    }
+    return 0;
+  });
+  return list;
+}
+
+// --- Render ---
+
+function renderLicenses() {
+  if (!licenses.length) return;
+  const list = getLicFiltered();
+  const tbody = document.getElementById('lic-table-body');
+  document.getElementById('lic-count-label').textContent = `${list.length} of ${licenses.length} licenses`;
+
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px;">No licenses match your filters</td></tr>';
+    return;
+  }
+
+  const today = new Date();
+  const territory = new Set(accounts.map(a => (getField(a,'Account Name','AccountName') || '').toLowerCase().trim()));
+
+  tbody.innerHTML = list.map(l => {
+    const inTerritory = territory.size > 0 && territory.has(l._name.toLowerCase().trim());
+    const typeCls = { US:'ltype-us', PIQ:'ltype-piq', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
+    const typeLabel = { US:'US Industry', PIQ:'PIQ', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', UNKNOWN:'Other' }[l._type] || l._type;
+    const statusHtml = l._active
+      ? `<span class="lic-status-badge lic-active">✅ Active</span>`
+      : `<span class="lic-status-badge lic-churned">❌ Churned</span>`;
+    const acvHtml = l._acv > 0
+      ? `<span class="lic-acv">${l._currency !== 'USD' ? l._currency + ' ' : ''}${formatACV(l._acv)}</span>`
+      : `<span class="lic-acv zero">$0</span>`;
+    const endDateStr = l._endDate ? l._endDate.toLocaleDateString('en-US', {month:'short', year:'numeric'}) : '—';
+    const sig = l._signal;
+    const licNameShort = l._licenseName.length > 45 ? l._licenseName.slice(0,45) + '…' : l._licenseName;
+
+    return `<tr>
+      <td>
+        <div class="lic-name-main">${l._name}${inTerritory ? '<span class="in-territory">MY ACCT</span>' : ''}</div>
+      </td>
+      <td>
+        <div class="lic-name-main" style="font-weight:400;">${licNameShort}</div>
+        ${l._oppName ? `<div class="lic-name-sub">${l._oppName}</div>` : ''}
+      </td>
+      <td><span class="lic-type-badge ${typeCls}">${typeLabel}</span></td>
+      <td>${statusHtml}</td>
+      <td>${acvHtml}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${endDateStr}</td>
+      <td><span class="lic-signal ${sig.cls}">${sig.label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// --- Main View Switcher ---
+
+function setMainView(v) {
+  mainView = v;
+  const isLic = v === 'licenses';
+  // Tab nav
+  document.getElementById('vnav-accounts').classList.toggle('active', !isLic);
+  document.getElementById('vnav-licenses').classList.toggle('active', isLic);
+  // Stats bars
+  document.getElementById('stats-accounts').classList.toggle('hidden', isLic);
+  document.getElementById('stats-licenses').classList.toggle('hidden', !isLic);
+  // Controls
+  document.getElementById('controls-accounts').classList.toggle('hidden', isLic);
+  document.getElementById('controls-licenses').classList.toggle('hidden', !isLic);
+  // Content
+  document.getElementById('content-accounts').classList.toggle('hidden', isLic);
+  document.getElementById('content-licenses').classList.toggle('hidden', !isLic);
+  // Cards/table toggle only relevant on accounts
+  document.getElementById('cards-table-toggle').style.visibility = isLic ? 'hidden' : '';
+}
+
 
 init();
 </script>
