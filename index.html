@@ -126,8 +126,19 @@
 
   .hidden { display: none !important; }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
+/* ── REVENUE ENGINE STYLES ───────────────────── */
+  .rev-badge { font-size:11px; }
+  .rev-badge.verified { }
+  .rev-badge.stale { }
+  .card-revenue { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .revenue-val { font-size:12px; font-weight:500; font-family:'DM Mono',monospace; color:var(--text-primary); }
+  .revenue-meta { display:flex; align-items:center; gap:5px; }
+  .modal-revenue-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .modal-revenue-val { font-size:14px; font-weight:600; font-family:'DM Mono',monospace; color:var(--text-primary); }
+  .enrich-modal-btn { font-size:12px; padding:4px 10px; border:1px solid var(--border); border-radius:5px; background:white; cursor:pointer; font-family:'DM Sans',sans-serif; color:var(--text-secondary); }
+  .enrich-modal-btn:hover { border-color:var(--ibis-red); color:var(--ibis-red); }
+  .enrich-result { font-size:11px; color:var(--text-muted); margin-top:4px; }
+  @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
   body {
     font-family: 'DM Sans', sans-serif;
     background: var(--bg);
@@ -605,6 +616,7 @@
   </div>
   <select id="sort-select" onchange="renderAll()">
     <option value="intent">Sort: Intent Score</option>
+    <option value="revenue">Sort: Revenue</option>
     <option value="vertical">Sort: Vertical A–Z</option>
     <option value="days">Sort: Days Inactive</option>
     <option value="tier">Sort: Tier</option>
@@ -675,6 +687,7 @@
             <th>Company</th>
             <th onclick="setSortCol('vertical')">Vertical</th>
             <th onclick="setSortCol('tier')">Tier</th>
+            <th onclick="setSortCol('revenue')">Revenue ↕</th>
             <th onclick="setSortCol('intent')">Intent</th>
             <th onclick="setSortCol('days')">Days Inactive</th>
             <th onclick="setSortCol('opps')">Opps</th>
@@ -723,7 +736,7 @@
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="modal-company-name">Edit Account</div>
-    <div class="modal-sub">Set flags and add notes</div>
+    <div class="modal-sub">Set flags, add notes, and enrich revenue</div>
     <div class="flag-options" id="flag-options">
       <div class="flag-option" onclick="toggleFlag('🔥')" id="fo-🔥"><span class="fe">🔥</span> Hot Priority</div>
       <div class="flag-option" onclick="toggleFlag('✅')" id="fo-✅"><span class="fe">✅</span> Active Opp</div>
@@ -735,6 +748,15 @@
       <div class="flag-option" onclick="toggleFlag('🎯')" id="fo-🎯"><span class="fe">🎯</span> Target</div>
     </div>
     <textarea class="notes-area" id="notes-area" placeholder="Add notes about this account..."></textarea>
+    <div id="modal-rev-section" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;" id="modal-rev-title">💰 Revenue</div>
+      <div class="modal-revenue-row">
+        <div id="modal-rev-display" class="modal-revenue-val">—</div>
+        <div id="modal-rev-badge"></div>
+        <button class="enrich-modal-btn" id="enrich-modal-btn" onclick="enrichRevenue()">🤖 Enrich with AI</button>
+      </div>
+      <div id="enrich-result" class="enrich-result hidden"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModalBtn()">Cancel</button>
       <button class="btn-save" onclick="saveModal()">Save</button>
@@ -788,7 +810,7 @@ function init() {
   const saved = localStorage.getItem('ibis_accounts');
   const savedLocal = localStorage.getItem('ibis_local');
   const savedLic = localStorage.getItem('ibis_licenses');
-  if (saved) { accounts = JSON.parse(saved); localData = savedLocal ? JSON.parse(savedLocal) : {}; updateStats(); populateVerticals(); renderAll(); document.getElementById('empty-state').classList.add('hidden'); document.getElementById('count-label').classList.remove('hidden'); }
+  if (saved) { accounts = JSON.parse(saved); localData = savedLocal ? JSON.parse(savedLocal) : {}; applySeedsToLocalData(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); document.getElementById('empty-state').classList.add('hidden'); document.getElementById('count-label').classList.remove('hidden'); }
   if (savedLic) {
     // Re-decode on restore (dates need re-parsing from strings)
     const raw = JSON.parse(savedLic);
@@ -827,7 +849,9 @@ function handleCSV(e) {
     localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
     document.getElementById('acct-upload-btn').innerHTML = '✅ Accounts CSV';
     document.getElementById('acct-upload-btn').classList.add('fresh');
+    applySeedsToLocalData();
     updateStats(); populateVerticals(); renderAll();
+    autoQueueAccounts();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
   };
@@ -914,7 +938,11 @@ function getFiltered() {
     return true;
   });
   list.sort((a,b) => {
-    if (sort==='intent') return parseFloat(getField(b,'6sense Account Intent Score NA')||0)-parseFloat(getField(a,'6sense Account Intent Score NA')||0);
+    if (sort==='revenue') {
+      const ra = getRevDisplay(a)?.raw || 0;
+      const rb = getRevDisplay(b)?.raw || 0;
+      return rb - ra;
+    }
     if (sort==='days') return parseFloat(getField(b,'US Days Since Last Activity')||0)-parseFloat(getField(a,'US Days Since Last Activity')||0);
     if (sort==='tier') return parseFloat(getField(a,'Major Markets Tier')||9)-parseFloat(getField(b,'Major Markets Tier')||9);
     if (sort==='name') return getField(a,'Account Name','AccountName').localeCompare(getField(b,'Account Name','AccountName'));
@@ -959,6 +987,8 @@ function renderCards(list) {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
     const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical'), sub=getField(acc,'Sub-Vertical');
+    const revInfo = getRevDisplay(acc);
+    const revHtml = revInfo ? `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revInfo.label}</span><span>${sourceBadge(revInfo.source)}</span></div></div>` : '';
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
       <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div></div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
@@ -970,6 +1000,7 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Clients</div><div class="val">${clients>0?clients:'—'}</div></div>
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
+      ${revHtml}
       <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${clients>0?'<span class="client-badge">CLIENT</span>':''}</div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
@@ -986,10 +1017,13 @@ function renderTable(list) {
     const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical');
     const domain = getDomain(getField(acc,'Website')), initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
+    const revInfo = getRevDisplay(acc);
+    const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
       <td><div class="td-company"><div class="td-logo">${domain?`<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${name}">`:`${initials}`}</div><div><div class="td-name">${name}</div></div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
+      <td style="white-space:nowrap;">${revCell}</td>
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
       <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
@@ -1002,11 +1036,221 @@ function renderTable(list) {
 
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
-function openModal(name) { modalAccount=name; const local=localData[name]||{}; modalFlags=new Set(local.flags||[]); document.getElementById('modal-company-name').textContent=name; document.getElementById('notes-area').value=local.notes||''; FLAGS.forEach(f=>{const el=document.getElementById(`fo-${f}`);if(el)el.classList.toggle('selected',modalFlags.has(f));}); document.getElementById('modal-overlay').classList.add('open'); }
+function openModal(name) {
+  modalAccount=name;
+  const local=localData[name]||{};
+  modalFlags=new Set(local.flags||[]);
+  document.getElementById('modal-company-name').textContent=name;
+  document.getElementById('notes-area').value=local.notes||'';
+  FLAGS.forEach(f=>{const el=document.getElementById(`fo-${f}`);if(el)el.classList.toggle('selected',modalFlags.has(f));});
+  // Revenue
+  const revInfo = local.rev;
+  document.getElementById('modal-rev-display').textContent = revInfo ? revInfo.label : '—';
+  document.getElementById('modal-rev-badge').innerHTML = revInfo ? sourceBadge(revInfo.source) : '';
+  document.getElementById('enrich-modal-btn').textContent = '🤖 Enrich with AI';
+  document.getElementById('enrich-modal-btn').disabled = false;
+  const resultEl = document.getElementById('enrich-result');
+  resultEl.classList.add('hidden'); resultEl.textContent='';
+  document.getElementById('modal-overlay').classList.add('open');
+}
 function toggleFlag(f) { if(modalFlags.has(f)) modalFlags.delete(f); else modalFlags.add(f); const el=document.getElementById(`fo-${f}`); if(el) el.classList.toggle('selected',modalFlags.has(f)); }
 function closeModal(e) { if(e.target===document.getElementById('modal-overlay')) closeModalBtn(); }
 function closeModalBtn() { document.getElementById('modal-overlay').classList.remove('open'); modalAccount=null; }
 function saveModal() { if(!modalAccount) return; if(!localData[modalAccount]) localData[modalAccount]={}; localData[modalAccount].flags=[...modalFlags]; localData[modalAccount].notes=document.getElementById('notes-area').value; localStorage.setItem('ibis_local',JSON.stringify(localData)); closeModalBtn(); renderAll(); }
+/* ============================================================
+   REVENUE ENGINE
+   1. Seed table (instant) → 2. Claude AI (web search) → 3. SF CSV fallback
+   ============================================================ */
+function getRevData(name) { return localData[name]?.rev || null; }
+
+function fmtMoney(n) {
+  if (!n || isNaN(n)) return null;
+  if (n >= 1e12) return `USD ${(n/1e12).toFixed(1)}T`;
+  if (n >= 1e9)  return `USD ${(n/1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `USD ${(n/1e6).toFixed(0)}M`;
+  if (n >= 1e3)  return `USD ${(n/1e3).toFixed(0)}K`;
+  return `USD ${n.toLocaleString()}`;
+}
+
+const NO_REV_VERTICALS = new Set(['Academic','Government']);
+function isNoRevAccount(acc) { return NO_REV_VERTICALS.has(getTrueVertical(acc)); }
+function isSFRevStale(raw) { return raw > 0 && raw < 50_000_000; }
+
+const REVENUE_SEEDS = {
+  'Lyft':                          [5800000000,  'Lyft 2024 Full Year Results'],
+  'Burger King':                   [2300000000,  'Restaurant Brands International 2024'],
+  "BJ's Wholesale Club":           [20200000000, "BJ's Wholesale Club FY2024 Annual Report"],
+  'Lloyds Bank':                   [19800000000, 'Lloyds Banking Group 2024 Annual Report'],
+  'Rolls Royce':                   [23700000000, 'Rolls-Royce Holdings 2024 Full Year Results'],
+  'Booz Allen Hamilton':           [11300000000, 'Booz Allen Hamilton FY2024 Annual Report'],
+  'Embraer S.A.':                  [6100000000,  'Embraer 2024 Annual Report'],
+  'The Vanguard Group, Inc.':      [7200000000,  'Vanguard 2024 Revenue Estimate'],
+  'Turner Construction Company':   [16000000000, 'Turner Construction 2024 Revenue Estimate'],
+  'Mediterranean Shipping Company':[91000000000, 'MSC Estimated Revenue 2022 (private co.)'],
+  'Labcorp':                       [13009000000, 'Labcorp 2024 Full Year Results'],
+  'MGM Resorts International':     [17200000000, 'MGM Resorts 2024 Annual Report'],
+  'StoneX':                        [1700000000,  'StoneX FY2024 Net Operating Revenue'],
+  'Cleveland Clinic':              [14000000000, 'Cleveland Clinic 2023 Annual Report'],
+  'Authentic Brands Group':        [750000000,   'Authentic Brands 2024 Revenue Estimate'],
+  'DRS Technologies, Inc.':        [3200000000,  'Leonardo DRS 2024 Full Year Results'],
+  'Conocophillips':                [54700000000, 'ConocoPhillips 2024 Annual Report'],
+  'Danone':                        [17700000000, 'Danone 2024 Annual Report (EUR→USD)'],
+  'Blackrock':                     [20400000000, 'BlackRock 2024 Annual Report'],
+  'Berkshire Hathaway':            [364500000000,'Berkshire Hathaway 2024 Annual Report'],
+  'Panasonic':                     [65000000000, 'Panasonic FY2024 Annual Report (JPY→USD)'],
+  'WPP':                           [19000000000, 'WPP 2024 Annual Report'],
+  'Aflac':                         [22900000000, 'Aflac 2024 Annual Report'],
+};
+
+function applySeedsToLocalData() {
+  let changed = false;
+  Object.entries(REVENUE_SEEDS).forEach(([name, [rev, src]]) => {
+    if (localData[name]?.rev?.source === 'claude') return;
+    const label = fmtMoney(rev);
+    if (localData[name]?.rev?.label === label) return;
+    if (!localData[name]) localData[name] = {};
+    localData[name].rev = { label, raw: rev, source: 'seed', srcNote: src };
+    changed = true;
+  });
+  if (changed) localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
+
+function getRevDisplay(acc) {
+  if (isNoRevAccount(acc)) return { label: '—', source: 'none', raw: 0, noRev: true };
+  const name = getField(acc,'Account Name','AccountName');
+  const saved = getRevData(name);
+  if (saved) return { label: saved.label, source: saved.source, raw: saved.raw };
+  const sfRev = getField(acc,'Annual Revenue');
+  const sfCur = getField(acc,'Annual Revenue Currency') || 'USD';
+  const sfRaw = parseFloat(sfRev);
+  if (sfRev && sfRaw > 0) {
+    const stale = isSFRevStale(sfRaw);
+    return { label: fmtMoney(sfRaw) || `${sfCur} ${sfRaw.toLocaleString()}`, source: stale ? 'stale' : 'sf', raw: sfRaw, stale };
+  }
+  return null;
+}
+
+function sourceBadge(source) {
+  if (source === 'claude' || source === 'seed') return '<span class="rev-badge verified">✅</span>';
+  if (source === 'stale') return '<span class="rev-badge stale">⚠️</span>';
+  return '';
+}
+
+const claudeQueue = [];
+let claudeRunning = false;
+
+function queueClaudeEnrich(accName, priority = false) {
+  const saved = localData[accName]?.rev?.source;
+  if (saved === 'claude' || saved === 'seed') return;
+  if (claudeQueue.includes(accName)) return;
+  if (priority) claudeQueue.unshift(accName); else claudeQueue.push(accName);
+  if (!claudeRunning) runClaudeQueue();
+}
+
+async function runClaudeQueue() {
+  claudeRunning = true;
+  const total = claudeQueue.length;
+  let done = 0;
+  showEnrichProgress(done, total);
+  while (claudeQueue.length) {
+    const name = claudeQueue.shift();
+    const saved = localData[name]?.rev?.source;
+    if (saved === 'claude' || saved === 'seed') { done++; continue; }
+    await fetchRevenueFromClaude(name);
+    done++;
+    showEnrichProgress(done, total);
+    if (done % 5 === 0) renderAllQuiet();
+    await new Promise(r => setTimeout(r, 900));
+  }
+  claudeRunning = false;
+  hideEnrichProgress();
+  renderAllQuiet();
+}
+
+function showEnrichProgress(done, total) {
+  let bar = document.getElementById('enrich-progress');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'enrich-progress';
+    bar.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#1a1a2e;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:DM Sans,sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);';
+    document.body.appendChild(bar);
+  }
+  const remaining = total - done;
+  bar.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block;">🔄</span> Enriching revenue… <strong>${remaining}</strong> remaining`;
+}
+
+function hideEnrichProgress() {
+  const bar = document.getElementById('enrich-progress');
+  if (bar) {
+    bar.innerHTML = '✅ Revenue enrichment complete';
+    bar.style.background = '#065f46';
+    setTimeout(() => bar.remove(), 3000);
+  }
+}
+
+async function fetchRevenueFromClaude(companyName) {
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        system: `You are a financial data assistant. Find the most recent annual revenue in USD. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD. Return ONLY valid JSON (no markdown, no explanation): {"value_usd": <number in USD>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>"}. If unavailable: {"value_usd": null}`,
+        messages: [{ role: 'user', content: `Annual revenue of "${companyName}"? JSON only.` }]
+      })
+    });
+    const data = await resp.json();
+    let parsed = null;
+    for (const b of (data.content||[]).filter(b => b.type === 'text')) {
+      try { parsed = JSON.parse(b.text.replace(/```json|```/g,'').trim()); break; } catch(e) {}
+    }
+    if (parsed?.value_usd) {
+      const label = fmtMoney(parsed.value_usd) || parsed.label;
+      if (!localData[companyName]) localData[companyName] = {};
+      localData[companyName].rev = { label, raw: parsed.value_usd, source: 'claude', year: parsed.year, srcNote: parsed.source };
+      localStorage.setItem('ibis_local', JSON.stringify(localData));
+      return { label, raw: parsed.value_usd };
+    }
+  } catch(e) {}
+  return null;
+}
+
+function renderAllQuiet() {
+  const list = getFiltered();
+  document.getElementById('count-label').textContent = `Showing ${list.length} of ${accounts.length} accounts`;
+  if (currentView==='cards') renderCards(list); else renderTable(list);
+}
+
+async function enrichRevenue() {
+  if (!modalAccount) return;
+  const btn = document.getElementById('enrich-modal-btn');
+  const resultEl = document.getElementById('enrich-result');
+  btn.disabled = true; btn.textContent = '⏳ Searching…';
+  resultEl.classList.remove('hidden');
+  resultEl.textContent = 'Searching the web for revenue…';
+  const result = await fetchRevenueFromClaude(modalAccount);
+  if (result) {
+    document.getElementById('modal-rev-display').textContent = localData[modalAccount].rev.label;
+    document.getElementById('modal-rev-badge').innerHTML = sourceBadge('claude');
+    resultEl.textContent = `📌 ${localData[modalAccount].rev.srcNote || 'Web search'} · ${localData[modalAccount].rev.year || ''}`;
+    btn.textContent = '🔄 Re-check';
+    renderAllQuiet();
+  } else {
+    resultEl.textContent = '⚠️ Could not find revenue.';
+    btn.textContent = '🤖 Try Again';
+  }
+  btn.disabled = false;
+}
+
+function autoQueueAccounts() {
+  // Tier-1 first, then rest
+  const tier1 = accounts.filter(a => getField(a,'Major Markets Tier') == '1');
+  const rest   = accounts.filter(a => getField(a,'Major Markets Tier') != '1');
+  [...tier1, ...rest].forEach(a => queueClaudeEnrich(getField(a,'Account Name','AccountName')));
+}
+
 function setSortCol(col) { document.getElementById('sort-select').value=col; renderAll(); }
 
 /* ============================================================
