@@ -799,12 +799,41 @@ function getDomain(w) {
   catch { return null; }
 }
 
+// Manual domain overrides for companies with missing/wrong CSV websites
+const LOGO_DOMAIN_OVERRIDES = {
+  'Alibaba Group':        'alibabagroup.com',
+  'Berkshire Hathaway':   'berkshirehathaway.com',
+  'Conocophillips':       'conocophillips.com',
+  'Dow':                  'dow.com',
+  'Steel Dynamics, Inc.': 'steeldynamics.com',
+  'Enterprise Mobility':  'enterprisemobility.com',
+  'Novelis':              'novelis.com',
+  'Vitol, Inc.':          'vitol.com',
+  'Glencore':             'glencore.com',
+};
+
+function getLogoDomain(acc) {
+  const name = getField(acc,'Account Name','AccountName');
+  if (LOGO_DOMAIN_OVERRIDES[name]) return LOGO_DOMAIN_OVERRIDES[name];
+  return getDomain(getField(acc,'Website'));
+}
+
+// Logo cascade: UpLead (high-res) → DuckDuckGo → Google Favicon → Initials
+function logoSrc(domain) {
+  return `https://logo.uplead.com/${domain}`;
+}
+function logoFallbackChain(domain, initials) {
+  return `onerror="this.src='https://icons.duckduckgo.com/ip3/${domain}.ico';this.onerror=function(){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64';this.onerror=function(){this.parentNode.innerHTML='${initials}'}}"`;
+}
+
 function logoHTML(acc, size=36, radius=7) {
   const name = getField(acc,'Account Name','AccountName');
-  const domain = getDomain(getField(acc,'Website'));
+  const domain = getLogoDomain(acc);
   const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  if (domain) return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;"><img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${name}"></div>`;
-  return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">${initials}</div>`;
+  if (!domain) return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">${initials}</div>`;
+  return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">
+    <img src="${logoSrc(domain)}" ${logoFallbackChain(domain, initials)} alt="${name}" style="width:100%;height:100%;object-fit:contain;padding:4px;">
+  </div>`;
 }
 
 function daysColor(d) { if(!d) return ''; const n=parseFloat(d); if(n<=14) return 'cool'; if(n<=30) return 'warm'; if(n<=60) return 'hot'; return 'cold'; }
@@ -874,14 +903,17 @@ function renderTable(list) {
     const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity');
     const intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities');
     const clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA');
-    const domain=getDomain(getField(acc,'Website')), initials=name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const domain=getLogoDomain(acc), initials=name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const tierClass=tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
     const revInfo = getRevDisplay(acc);
     const tr = document.createElement('tr');
     if (flags.includes('🆕')) tr.className='new-account';
     tr.onclick = ()=>openModal(name);
+    const logoCell = domain
+      ? `<img src="${logoSrc(domain)}" ${logoFallbackChain(domain, initials)} alt="${name}" style="width:100%;height:100%;object-fit:contain;padding:3px;">`
+      : `${initials}`;
     tr.innerHTML = `
-      <td><div class="td-company"><div class="td-logo">${domain?`<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${name}">`:`${initials}`}</div><div class="td-name">${name}</div></div></td>
+      <td><div class="td-company"><div class="td-logo">${logoCell}</div><div class="td-name">${name}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td><div style="display:flex;align-items:center;gap:4px;">
