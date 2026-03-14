@@ -806,8 +806,8 @@ function init() {
     });
     document.getElementById('lic-upload-btn').innerHTML = '🔑 License CSV';
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
-    if (accounts.length > 0) document.getElementById('chip-territory').style.display = '';
     updateLicenseStats();
+    renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
   }
@@ -1025,12 +1025,19 @@ function handleLicenseCSV(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     licenses = parseLicenseCSV(ev.target.result);
-    localStorage.setItem('ibis_licenses', JSON.stringify(licenses));
+    // Store slim version — only computed fields to avoid bloat
+    const slim = licenses.map(l => ({
+      _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
+      _type: l._type, _acv: l._acv, _currency: l._currency,
+      _endDate: l._endDate ? l._endDate.toISOString() : null,
+      _startDate: l._startDate ? l._startDate.toISOString() : null,
+      _active: l._active, _churnTier: l._churnTier,
+      _confirmedProcurement: l._confirmedProcurement || false
+    }));
+    try { localStorage.setItem('ibis_licenses', JSON.stringify(slim)); } catch(e) { console.warn('License localStorage save failed:', e); }
     document.getElementById('lic-upload-btn').innerHTML = '✅ License CSV';
     document.getElementById('lic-upload-btn').classList.add('fresh');
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
-    // Show territory chip if accounts also loaded
-    if (accounts.length > 0) document.getElementById('chip-territory').style.display = '';
     updateLicenseStats();
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
