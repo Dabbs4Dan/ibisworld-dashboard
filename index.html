@@ -40,6 +40,10 @@
     justify-content: space-between;
     height: 38px;
     gap: 16px;
+    position: sticky;
+    top: 56px;
+    z-index: 99;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
   .view-nav-tabs { display: flex; gap: 0; height: 100%; }
   .vnav-btn {
@@ -58,21 +62,21 @@
   .vnav-btn:hover { color: var(--text-secondary); }
   .vnav-btn.active { color: var(--ibis-red); border-bottom-color: var(--ibis-red); }
 
-  .upload-btn-secondary {
-    background: white;
-    color: var(--ibis-red);
-    border: 1.5px solid var(--ibis-red);
-    padding: 6px 14px;
+  .upload-btn-license {
+    background: var(--ibis-red);
+    color: white;
+    border: none;
+    padding: 7px 16px;
     border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
-    transition: all 0.15s;
+    transition: opacity 0.15s;
     display: flex; align-items: center; gap: 6px;
   }
-  .upload-btn-secondary:hover { background: var(--ibis-red-light); }
-  .upload-btn-secondary.loaded { border-color: #059669; color: #059669; }
+  .upload-btn-license:hover { opacity: 0.88; }
+  .upload-btn-license.fresh { background: #059669; }
 
   .lic-type-badge {
     display: inline-flex; align-items: center;
@@ -81,6 +85,7 @@
     white-space: nowrap;
   }
   .ltype-us   { background: #fef3c7; color: #92400e; }
+  .ltype-procurement { background: #dbeafe; color: #1d4ed8; }
   .ltype-piq  { background: #dbeafe; color: #1d4ed8; }
   .ltype-intl { background: #ccfbf1; color: #0d9488; }
   .ltype-migration { background: #f3f4f6; color: #9ca3af; }
@@ -532,7 +537,7 @@
       <button class="view-btn active" onclick="setView('cards')" id="btn-cards">⊞ Cards</button>
       <button class="view-btn" onclick="setView('table')" id="btn-table">☰ Table</button>
     </div>
-    <button class="upload-btn-secondary" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload Licenses & Products CSV">🔑 Licenses CSV</button>
+    <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 License CSV</button>
     <button class="upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)" style="display:none;">
@@ -708,13 +713,14 @@
       <table id="lic-table">
         <thead>
           <tr>
-            <th onclick="setLicSort('name')" style="min-width:180px;">Company <span class="lic-sort-arrow" id="lsort-name"></span></th>
+            <th onclick="setLicSort('name')" style="min-width:220px;">Company <span class="lic-sort-arrow" id="lsort-name"></span></th>
             <th style="min-width:220px;">License</th>
             <th>Type</th>
             <th>Status</th>
             <th onclick="setLicSort('acv')" style="cursor:pointer;">ACV <span class="lic-sort-arrow" id="lsort-acv"></span></th>
+            <th onclick="setLicSort('enddate_asc')" style="cursor:pointer;">Start Date <span class="lic-sort-arrow" id="lsort-enddate_asc"></span></th>
             <th onclick="setLicSort('enddate_desc')" style="cursor:pointer;">End Date <span class="lic-sort-arrow" id="lsort-enddate_desc"></span></th>
-            <th onclick="setLicSort('signal')" style="cursor:pointer;">Signal <span class="lic-sort-arrow" id="lsort-signal"></span></th>
+            <th onclick="setLicSort('signal')" style="cursor:pointer;">Signal <span class="lic-sort-arrow" id="lsort-signal">↓</span></th>
           </tr>
         </thead>
         <tbody id="lic-table-body"></tbody>
@@ -804,8 +810,7 @@ function init() {
       l._signal = calcSignal(l);
       return l;
     });
-    document.getElementById('lic-upload-btn').textContent = '✅ Licenses CSV';
-    document.getElementById('lic-upload-btn').classList.add('loaded');
+    document.getElementById('lic-upload-btn').innerHTML = '🔑 License CSV';
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
     if (accounts.length > 0) document.getElementById('chip-territory').style.display = '';
     updateLicenseStats();
@@ -1025,8 +1030,8 @@ function handleLicenseCSV(e) {
   reader.onload = ev => {
     licenses = parseLicenseCSV(ev.target.result);
     localStorage.setItem('ibis_licenses', JSON.stringify(licenses));
-    document.getElementById('lic-upload-btn').textContent = '✅ Licenses CSV';
-    document.getElementById('lic-upload-btn').classList.add('loaded');
+    document.getElementById('lic-upload-btn').innerHTML = '✅ License CSV';
+    document.getElementById('lic-upload-btn').classList.add('fresh');
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
     // Show territory chip if accounts also loaded
     if (accounts.length > 0) document.getElementById('chip-territory').style.display = '';
@@ -1067,7 +1072,27 @@ function parseLicenseCSV(text) {
     obj._signal = calcSignal(obj);
     rows.push(obj);
   }
-  return rows;
+
+  // --- PIQ Migration dedup pass ---
+  // A "PIQ Migration" opp with $0 always pairs with a real USP license on the same account + same dates.
+  // Hide the $0 Migration row; the paired license is already typed as PIQ (US Procurement).
+  const migrationKeys = new Set();
+  rows.forEach(r => {
+    if (r._type === 'MIGRATION' && r._acv === 0) {
+      const key = r._name + '|' + (r._startDate ? r._startDate.getTime() : '') + '|' + (r._endDate ? r._endDate.getTime() : '');
+      migrationKeys.add(key);
+    }
+  });
+  // Mark paired real licenses so we know they're confirmed procurement clients
+  rows.forEach(r => {
+    if (r._type === 'PIQ' && r._acv > 0) {
+      const key = r._name + '|' + (r._startDate ? r._startDate.getTime() : '') + '|' + (r._endDate ? r._endDate.getTime() : '');
+      if (migrationKeys.has(key)) r._confirmedProcurement = true;
+    }
+  });
+  // Filter out all Migration rows (they're always $0 junk once paired)
+  const filtered = rows.filter(r => r._type !== 'MIGRATION');
+  return filtered;
 }
 
 function parseDate(str) {
@@ -1104,6 +1129,7 @@ function calcSignal(lic) {
     return { weight: 1, label: '🔥', cls: 'signal-1' };
   }
   if (_type === 'PIQ') {
+    if (_active && lic._confirmedProcurement) return { weight: 5, label: '🔵🔵 Client', cls: 'signal-5' };
     if (_active) return { weight: 4, label: '🔵 Active', cls: 'signal-4' };
     return { weight: 1, label: '🔵 Former', cls: 'signal-1' };
   }
@@ -1226,21 +1252,33 @@ function renderLicenses() {
 
   tbody.innerHTML = list.map(l => {
     const inTerritory = territory.size > 0 && territory.has(l._name.toLowerCase().trim());
-    const typeCls = { US:'ltype-us', PIQ:'ltype-piq', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
-    const typeLabel = { US:'US Industry', PIQ:'PIQ', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', UNKNOWN:'Other' }[l._type] || l._type;
+    const typeCls = { US:'ltype-us', PIQ:'ltype-procurement', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
+    const typeLabel = { US:'US Industry', PIQ:'US Procurement', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', UNKNOWN:'Other' }[l._type] || l._type;
     const statusHtml = l._active
       ? `<span class="lic-status-badge lic-active">✅ Active</span>`
       : `<span class="lic-status-badge lic-churned">❌ Churned</span>`;
     const acvHtml = l._acv > 0
       ? `<span class="lic-acv">${l._currency !== 'USD' ? l._currency + ' ' : ''}${formatACV(l._acv)}</span>`
       : `<span class="lic-acv zero">$0</span>`;
+    const startDateStr = l._startDate ? l._startDate.toLocaleDateString('en-US', {month:'short', year:'numeric'}) : '—';
     const endDateStr = l._endDate ? l._endDate.toLocaleDateString('en-US', {month:'short', year:'numeric'}) : '—';
     const sig = l._signal;
     const licNameShort = l._licenseName.length > 45 ? l._licenseName.slice(0,45) + '…' : l._licenseName;
 
+    // Logo: match against accounts for domain, fallback to initials
+    const acctMatch = accounts.find(a => (getField(a,'Account Name','AccountName')||'').toLowerCase().trim() === l._name.toLowerCase().trim());
+    const logoDomain = acctMatch ? getDomain(getField(acctMatch,'Website')) : null;
+    const initials = l._name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const logoHtml = logoDomain
+      ? `<div class="td-logo"><img src="https://www.google.com/s2/favicons?domain=${logoDomain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${l._name}"></div>`
+      : `<div class="td-logo">${initials}</div>`;
+
     return `<tr>
       <td>
-        <div class="lic-name-main">${l._name}${inTerritory ? '<span class="in-territory">MY ACCT</span>' : ''}</div>
+        <div class="td-company">
+          ${logoHtml}
+          <div class="lic-name-main">${l._name}</div>
+        </div>
       </td>
       <td>
         <div class="lic-name-main" style="font-weight:400;">${licNameShort}</div>
@@ -1249,6 +1287,7 @@ function renderLicenses() {
       <td><span class="lic-type-badge ${typeCls}">${typeLabel}</span></td>
       <td>${statusHtml}</td>
       <td>${acvHtml}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${startDateStr}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${endDateStr}</td>
       <td><span class="lic-signal ${sig.cls}">${sig.label}</span></td>
     </tr>`;
