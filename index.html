@@ -99,6 +99,7 @@
   }
   .lic-active   { background: #d1fae5; color: #065f46; }
   .lic-churned  { background: #fee2e2; color: #991b1b; }
+  .lic-dead     { background: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; }
 
   .lic-signal { font-size: 13px; letter-spacing: -1px; }
 
@@ -159,20 +160,9 @@
 
   .header-right { display: flex; align-items: center; gap: 10px; }
 
-  .upload-btn {
-    background: var(--ibis-red);
-    color: white;
-    border: none;
-    padding: 7px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    transition: opacity 0.15s;
-    display: flex; align-items: center; gap: 6px;
-  }
+  .upload-btn { background: var(--ibis-red); color: white; border: none; padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.15s; display: flex; align-items: center; gap: 6px; }
   .upload-btn:hover { opacity: 0.88; }
+  .upload-btn.fresh { background: #059669; }
 
   .view-toggle {
     display: flex;
@@ -538,7 +528,7 @@
       <button class="view-btn" onclick="setView('table')" id="btn-table">☰ Table</button>
     </div>
     <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 License CSV</button>
-    <button class="upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
+    <button class="upload-btn" id="acct-upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)" style="display:none;">
   </div>
@@ -642,19 +632,20 @@
     <input type="text" placeholder="Search company..." id="lic-search-input" oninput="renderLicenses()">
   </div>
   <select id="lic-sort-select" onchange="renderLicenses()">
-    <option value="signal">Sort: Signal ↓</option>
+    <option value="churn_recency">Sort: Churn Recency</option>
     <option value="name">Sort: Company A–Z</option>
     <option value="acv">Sort: ACV ↓</option>
+    <option value="type">Sort: Type</option>
+    <option value="status">Sort: Status</option>
     <option value="enddate_desc">Sort: End Date (newest)</option>
     <option value="enddate_asc">Sort: End Date (oldest)</option>
   </select>
   <div class="filter-chips">
-    <button class="chip" onclick="toggleLicChip(this,'us_churned')">🔥 US Churned</button>
+    <button class="chip" onclick="toggleLicChip(this,'newchurn')">🔥 New Churn</button>
+    <button class="chip" onclick="toggleLicChip(this,'us_churned')">📉 US Churned</button>
     <button class="chip" onclick="toggleLicChip(this,'piq')">🔵 PIQ</button>
     <button class="chip" onclick="toggleLicChip(this,'intl')">🌍 International</button>
     <button class="chip" onclick="toggleLicChip(this,'active')">✅ Active</button>
-    <button class="chip" onclick="toggleLicChip(this,'hide_junk')">🙈 Hide Junk</button>
-    <button class="chip" onclick="toggleLicChip(this,'territory')" id="chip-territory" style="display:none;">📋 My Territory</button>
   </div>
   <span id="lic-count-label" style="margin-left:auto;font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
 </div>
@@ -715,12 +706,11 @@
           <tr>
             <th onclick="setLicSort('name')" style="min-width:220px;">Company <span class="lic-sort-arrow" id="lsort-name"></span></th>
             <th style="min-width:220px;">License</th>
-            <th>Type</th>
-            <th>Status</th>
+            <th onclick="setLicSort('type')" style="cursor:pointer;">Type</th>
+            <th onclick="setLicSort('status')" style="cursor:pointer;">Status</th>
             <th onclick="setLicSort('acv')" style="cursor:pointer;">ACV <span class="lic-sort-arrow" id="lsort-acv"></span></th>
             <th onclick="setLicSort('enddate_asc')" style="cursor:pointer;">Start Date <span class="lic-sort-arrow" id="lsort-enddate_asc"></span></th>
             <th onclick="setLicSort('enddate_desc')" style="cursor:pointer;">End Date <span class="lic-sort-arrow" id="lsort-enddate_desc"></span></th>
-            <th onclick="setLicSort('signal')" style="cursor:pointer;">Signal <span class="lic-sort-arrow" id="lsort-signal">↓</span></th>
           </tr>
         </thead>
         <tbody id="lic-table-body"></tbody>
@@ -807,6 +797,10 @@ function init() {
       l._endDate = l._endDate ? new Date(l._endDate) : null;
       l._startDate = l._startDate ? new Date(l._startDate) : null;
       l._active = l._endDate ? l._endDate > today : false;
+      if (!l._active && l._endDate) {
+        const yr = l._endDate.getFullYear();
+        l._churnTier = yr >= 2024 ? 'newchurn' : yr >= 2020 ? 'churned' : 'dead';
+      } else { l._churnTier = l._active ? 'active' : 'dead'; }
       l._signal = calcSignal(l);
       return l;
     });
@@ -831,6 +825,8 @@ function handleCSV(e) {
     accounts = newAccounts;
     localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
     localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
+    document.getElementById('acct-upload-btn').innerHTML = '✅ Accounts CSV';
+    document.getElementById('acct-upload-btn').classList.add('fresh');
     updateStats(); populateVerticals(); renderAll();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
@@ -1069,6 +1065,13 @@ function parseLicenseCSV(text) {
     obj._endDate = parseDate(endRaw);
     obj._startDate = parseDate(startRaw);
     obj._active = obj._endDate ? obj._endDate > today : false;
+    // Churn tier: newchurn=2024+, churned=2020-2023, dead=pre-2020
+    if (!obj._active && obj._endDate) {
+      const yr = obj._endDate.getFullYear();
+      obj._churnTier = yr >= 2024 ? 'newchurn' : yr >= 2020 ? 'churned' : 'dead';
+    } else {
+      obj._churnTier = obj._active ? 'active' : 'dead';
+    }
     obj._signal = calcSignal(obj);
     rows.push(obj);
   }
@@ -1169,12 +1172,11 @@ function formatACV(n) {
 // --- Filtering & Sort ---
 
 const LIC_FILTER_FNS = {
+  'newchurn':   l => l._churnTier === 'newchurn',
   'us_churned': l => l._type === 'US' && !l._active,
   'piq':        l => l._type === 'PIQ',
   'intl':       l => l._type === 'INTL',
   'active':     l => l._active,
-  'hide_junk':  l => l._signal.weight > 0,
-  'territory':  l => isInTerritory(l._name),
 };
 
 function isInTerritory(name) {
@@ -1203,7 +1205,7 @@ function setLicSort(col) {
 
 function getLicFiltered() {
   const q = (document.getElementById('lic-search-input')?.value || '').toLowerCase();
-  const sortVal = document.getElementById('lic-sort-select')?.value || 'signal';
+  const sortVal = document.getElementById('lic-sort-select')?.value || 'churn_recency';
   licSortCol = sortVal;
 
   let list = licenses.filter(l => {
@@ -1216,7 +1218,19 @@ function getLicFiltered() {
   });
 
   list.sort((a, b) => {
-    if (licSortCol === 'signal') return b._signal.weight - a._signal.weight;
+    if (licSortCol === 'churn_recency') {
+      const tierOrder = { newchurn: 0, churned: 1, active: 2, dead: 3 };
+      const ta = tierOrder[a._churnTier] ?? 9, tb = tierOrder[b._churnTier] ?? 9;
+      if (ta !== tb) return ta - tb;
+      const ad = a._endDate ? a._endDate.getTime() : 0;
+      const bd = b._endDate ? b._endDate.getTime() : 0;
+      return bd - ad;
+    }
+    if (licSortCol === 'type') return (a._type||'').localeCompare(b._type||'');
+    if (licSortCol === 'status') {
+      const so = { newchurn:0, active:1, churned:2, dead:3 };
+      return (so[a._churnTier]??9) - (so[b._churnTier]??9);
+    }
     if (licSortCol === 'name') return a._name.localeCompare(b._name);
     if (licSortCol === 'acv') return b._acv - a._acv;
     if (licSortCol === 'enddate_desc') {
@@ -1256,7 +1270,11 @@ function renderLicenses() {
     const typeLabel = { US:'US Industry', PIQ:'US Procurement', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', UNKNOWN:'Other' }[l._type] || l._type;
     const statusHtml = l._active
       ? `<span class="lic-status-badge lic-active">✅ Active</span>`
-      : `<span class="lic-status-badge lic-churned">❌ Churned</span>`;
+      : l._churnTier === 'newchurn'
+        ? `<span class="lic-status-badge lic-churned" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">🔥 New Churn</span>`
+        : l._churnTier === 'churned'
+          ? `<span class="lic-status-badge lic-churned">❌ Churned</span>`
+          : `<span class="lic-status-badge lic-dead">· Dead</span>`;
     const acvHtml = l._acv > 0
       ? `<span class="lic-acv">${l._currency !== 'USD' ? l._currency + ' ' : ''}${formatACV(l._acv)}</span>`
       : `<span class="lic-acv zero">$0</span>`;
@@ -1289,7 +1307,6 @@ function renderLicenses() {
       <td>${acvHtml}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${startDateStr}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${endDateStr}</td>
-      <td><span class="lic-signal ${sig.cls}">${sig.label}</span></td>
     </tr>`;
   }).join('');
 }
