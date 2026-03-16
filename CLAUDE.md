@@ -30,7 +30,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - **No external dependencies** except Google Fonts + DuckDuckGo favicon API
 - **localStorage** for persistence — four keys, all in one logical namespace:
   - `ibis_accounts` → raw account rows from the SF CSV
-  - `ibis_local` → flags, notes, **and revenue cache** (per-account, keyed by Account Name)
+  - `ibis_local` → flags, notes, revenue cache, **and `_lastSeen` date** (per-account, keyed by Account Name)
   - `ibis_licenses` → slim decoded license rows
   - `ibis_updated` → date string of last accounts CSV upload
   - ⚠️ There is **no separate `ibis_revenue` key** — revenue lives inside `ibis_local`
@@ -181,8 +181,40 @@ License Start Date, License End Date
 - Account name matching uses case-insensitive trim (`normName()`)
 
 ### Territory Rules — applied via `applyLicenseRules(lic)` at parse + restore time:
+
 1. **Active US Industry → PIQ**: If `_type === 'US'` AND `_active === true`, reclassify to PIQ. No active US Industry clients exist in Dan's territory — these are actually US Procurement accounts.
 2. **Churned US trial → TRIAL**: If `_type === 'US'` AND `_active === false` AND `_acv === 0` AND Opportunity Name contains "trial", reclassify to TRIAL. These are $0 churned US Industry rows that are actually expired trials.
+
+---
+
+## SORT / FILTER PATTERN — ESTABLISHED CONVENTION
+Both tabs implement sort state independently. Follow this pattern for any future tab:
+
+### State variables (declare near top of JS, near existing `licSortCol`)
+```javascript
+let fooSortCol = 'someDefault';
+let fooSortDir = 'desc';
+const FOO_SORT_DEFAULT_DIR = { col1:'asc', col2:'desc' }; // sensible default per column
+```
+
+### Toggle function (click on column header → toggles direction; new column → reset to default)
+```javascript
+function setFooSortCol(col) {
+  if (fooSortCol === col) { fooSortDir = fooSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { fooSortCol = col; fooSortDir = FOO_SORT_DEFAULT_DIR[col] || 'desc'; }
+  saveSortPref(); renderFoo();
+}
+```
+
+### Persistence — `saveSortPref()` and `restoreSortPref()` write to `ibis_sort` (JSON, keyed by tab name)
+- Add `prefs.foo = { col: fooSortCol, dir: fooSortDir }` in `saveSortPref`
+- Restore in `restoreSortPref` similarly
+
+### Sort arrows — `updateFooSortArrows()` sets `▲` / `▼` on active header; clears others
+- Each `<th>` gets `<span class="acct-sort-arrow" id="fsort-colname"></span>`
+- Function mirrors `updateAcctSortArrows()` / `updateLicSortArrows()` pattern
+
+### Full `TableControls` refactor is deferred until a 3rd tab is built.
 
 ---
 
@@ -253,13 +285,13 @@ When a new session begins, Claude Code should:
 | Priority | Item | Notes |
 |---|---|---|
 | ✅ Done | Licenses count on Accounts | Shown in card stat (replaces Clients) + table column, sortable. Uses `getLicCount(name)` via `normName()` matching. |
-| 🔜 Next | License badges on Account rows | Show `💰 $28K · churned 2024` `🔵 PIQ Active` badges on each account card/row. Logic exists in license engine — just needs to surface. Match key: Account Name (case-insensitive trim) |
-| 🛠️ Tech debt | Stale `ibis_local` cleanup | Entries for removed accounts accumulate forever. On CSV upload, purge entries for accounts not seen in >6 months. Must not delete notes for accounts temporarily missing from a report. |
+| ✅ Done | License badges on Account rows | `.alb-piq`, `.alb-intl`, `.alb-churn`, `.alb-trial` on cards + table. `getLicBadgeSpans()` / `getLicBadgesForAccount()`. |
+| ✅ Done | Stale `ibis_local` cleanup | `stampLastSeen()` + `pruneStaleLocalData()` on CSV upload. Prunes entries not seen in >180 days with no notes/flags. |
 | ✅ Done | Sort state persistence | Saved to `ibis_sort` key; restored on init via `restoreSortPref()`. |
 | ✅ Done | Storage warning banner | Shows amber banner when any key >2MB or total >4MB; Clear Cache button strips only rev data. |
 | ✅ Done | Update Claude model ID | Updated to `claude-sonnet-4-6`. |
+| ✅ Done | Shared sort/filter pattern | Documented above under SORT / FILTER PATTERN. Full `TableControls` refactor deferred to 3rd tab. |
 | 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
-| 🗺️ Future | Shared sort/filter pattern | Accounts and Licenses built with different sort/filter code. Extract shared `TableControls` helper before adding more tabs. |
 | 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
 | 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |

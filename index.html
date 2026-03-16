@@ -193,6 +193,15 @@
   }
   #storage-warning-banner .swb-dismiss:hover { opacity: 1; }
 
+/* ── LICENSE BADGES ON ACCOUNT ROWS ─────────── */
+  .acct-lic-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
+  .alb { font-size:10px; font-weight:600; font-family:'DM Sans',sans-serif; padding:2px 7px; border-radius:5px; white-space:nowrap; }
+  .alb-piq   { background:#dbeafe; color:#1d4ed8; }
+  .alb-intl  { background:#dcfce7; color:#15803d; }
+  .alb-churn { background:#fef3c7; color:#b45309; }
+  .alb-trial { background:#f3e8ff; color:#7c3aed; }
+  .td-lic-badges { display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
+
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
   .card-revenue { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; }
@@ -1133,8 +1142,11 @@ function handleCSV(e) {
     const newAccounts = parseCSV(text);
     if (accounts.length > 0) detectChanges(accounts, newAccounts);
     accounts = newAccounts;
+    stampLastSeen(accounts);
+    pruneStaleLocalData();
     localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
     localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
+    localStorage.setItem('ibis_local', JSON.stringify(localData));
     document.getElementById('acct-upload-btn').innerHTML = '✅ Accounts CSV';
     document.getElementById('acct-upload-btn').classList.add('fresh');
     applySeedsToLocalData();
@@ -1171,6 +1183,37 @@ function parseCSVLine(line) {
 }
 
 function getField(acc, ...keys) { for (const k of keys) { if (acc[k] !== undefined && acc[k] !== '') return acc[k]; } return ''; }
+
+// Stamp _lastSeen on every account present in the current upload
+function stampLastSeen(accountList) {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  accountList.forEach(a => {
+    const n = getField(a, 'Account Name', 'AccountName');
+    if (!n) return;
+    if (!localData[n]) localData[n] = {};
+    localData[n]._lastSeen = today;
+  });
+}
+
+// Remove stale ibis_local entries — accounts not seen in >6 months with no user data
+function pruneStaleLocalData() {
+  const STALE_DAYS = 180;
+  const now = Date.now();
+  let pruned = 0;
+  Object.keys(localData).forEach(name => {
+    const entry = localData[name];
+    if (!entry._lastSeen) return; // never stamped — leave it alone
+    const daysSince = (now - new Date(entry._lastSeen).getTime()) / 86400000;
+    if (daysSince < STALE_DAYS) return; // seen recently enough
+    // Check for user-generated data worth keeping
+    const hasNotes = !!(entry.notes && entry.notes.trim());
+    const userFlags = (entry.flags || []).filter(f => f !== '🆕');
+    if (hasNotes || userFlags.length > 0) return; // has real user data — keep
+    delete localData[name];
+    pruned++;
+  });
+  if (pruned > 0) console.log(`[ibis] Pruned ${pruned} stale ibis_local entries`);
+}
 
 function detectChanges(old, newArr) {
   const oldNames = new Set(old.map(a => getField(a,'Account Name','AccountName')));
@@ -1339,6 +1382,7 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
       ${revHtml}
+      ${getLicBadgesForAccount(name)}
       <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${clients>0?'<span class="client-badge">CLIENT</span>':''}</div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
@@ -1361,7 +1405,7 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div></div></div></td>
+      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${getLicBadgeSpans(name)?`<div class="td-lic-badges">${getLicBadgeSpans(name)}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -1792,6 +1836,56 @@ function getLicCount(accountName) {
   if (!licenses.length) return 0;
   const n = normName(accountName);
   return licenses.filter(l => normName(l._name) === n).length;
+}
+
+// Build license badge spans for a given account (inner HTML only — no wrapper)
+function getLicBadgeSpans(accountName) {
+  if (!licenses.length) return '';
+  const n = normName(accountName);
+  const acctLics = licenses.filter(l => normName(l._name) === n);
+  if (!acctLics.length) return '';
+
+  const badges = [];
+
+  // Active PIQ — sum ACV, show one badge
+  const activePIQ = acctLics.filter(l => l._type === 'PIQ' && l._active);
+  if (activePIQ.length) {
+    const acv = activePIQ.reduce((s, l) => s + l._acv, 0);
+    const acvStr = acv > 0 ? ' · ' + formatACV(acv) : '';
+    badges.push(`<span class="alb alb-piq">🔵 PIQ${acvStr}</span>`);
+  }
+
+  // Active INTL — sum ACV, show one badge
+  const activeINTL = acctLics.filter(l => l._type === 'INTL' && l._active);
+  if (activeINTL.length) {
+    const acv = activeINTL.reduce((s, l) => s + l._acv, 0);
+    const acvStr = acv > 0 ? ' · ' + formatACV(acv) : '';
+    badges.push(`<span class="alb alb-intl">🌍 INTL${acvStr}</span>`);
+  }
+
+  // If no active licenses, show most recent newchurn row
+  if (!activePIQ.length && !activeINTL.length) {
+    const churned = acctLics
+      .filter(l => l._churnTier === 'newchurn' && l._endDate)
+      .sort((a, b) => b._endDate - a._endDate);
+    if (churned.length) {
+      const top = churned[0];
+      const yr = top._endDate.getFullYear();
+      const acvStr = top._acv > 0 ? ' · ' + formatACV(top._acv) : '';
+      badges.push(`<span class="alb alb-churn">🔥 churned ${yr}${acvStr}</span>`);
+    }
+  }
+
+  // Trial
+  if (acctLics.some(l => l._type === 'TRIAL')) badges.push(`<span class="alb alb-trial">🧪 Trial</span>`);
+
+  return badges.join('');
+}
+
+// Wrapped version for cards (includes border-top strip container)
+function getLicBadgesForAccount(accountName) {
+  const inner = getLicBadgeSpans(accountName);
+  return inner ? `<div class="acct-lic-badges">${inner}</div>` : '';
 }
 
 // Territory business rules: correct license types before signal calc.
