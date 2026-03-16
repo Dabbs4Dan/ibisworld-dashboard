@@ -90,6 +90,7 @@
   .ltype-intl { background: #ccfbf1; color: #0d9488; }
   .ltype-migration { background: #f3f4f6; color: #9ca3af; }
   .ltype-trial { background: #ede9fe; color: #5b21b6; }
+  .ltype-renewal { background: #ffedd5; color: #c2410c; }
   .ltype-unknown { background: #f3f4f6; color: #9ca3af; }
 
   .lic-status-badge {
@@ -139,10 +140,10 @@
   .lic-filter-trigger:hover { background: var(--surface); border-color: var(--border-hover); color: var(--text-secondary); }
   .lic-filter-trigger.active { color: var(--ibis-red); border-color: var(--ibis-red); background: #fef2f4; font-weight: 700; }
   .lic-dropdown {
-    position: absolute; top: calc(100% + 2px); left: 0;
+    position: fixed;
     background: white; border: 1px solid var(--border); border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 6px 0;
-    min-width: 170px; z-index: 200;
+    min-width: 170px; z-index: 1000;
   }
   .lic-dropdown label {
     display: flex; align-items: center; gap: 8px;
@@ -196,10 +197,11 @@
 /* ── LICENSE BADGES ON ACCOUNT ROWS ─────────── */
   .acct-lic-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
   .alb { font-size:10px; font-weight:600; font-family:'DM Sans',sans-serif; padding:2px 7px; border-radius:5px; white-space:nowrap; }
-  .alb-piq   { background:#dbeafe; color:#1d4ed8; }
-  .alb-intl  { background:#dcfce7; color:#15803d; }
-  .alb-churn { background:#fef3c7; color:#b45309; }
-  .alb-trial { background:#f3e8ff; color:#7c3aed; }
+  .alb-piq     { background:#dbeafe; color:#1d4ed8; }
+  .alb-intl    { background:#dcfce7; color:#15803d; }
+  .alb-churn   { background:#fef3c7; color:#b45309; }
+  .alb-trial   { background:#f3e8ff; color:#7c3aed; }
+  .alb-renewal { background:#ffedd5; color:#c2410c; }
   .td-lic-badges { display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
 
 /* ── REVENUE ENGINE STYLES ───────────────────── */
@@ -969,6 +971,7 @@
                 <label><input type="checkbox" value="PIQ"     onchange="applyLicTypeFilter()"> PIQ / Procurement</label>
                 <label><input type="checkbox" value="INTL"    onchange="applyLicTypeFilter()"> International</label>
                 <label><input type="checkbox" value="TRIAL"   onchange="applyLicTypeFilter()"> Trial</label>
+                <label><input type="checkbox" value="RENEWAL" onchange="applyLicTypeFilter()"> 🔄 Lost Renewal</label>
                 <div class="lic-dropdown-divider"></div>
                 <button class="lic-dropdown-clear" onclick="clearLicFilter('type')">Clear filter</button>
               </div>
@@ -1717,7 +1720,7 @@ function restoreSortPref() {
    ============================================================ */
 
 let licenses = [];
-let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
+let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','RENEWAL','UNKNOWN'
 let licStatusFilters = new Set(); // values: 'active','newchurn','churned','dead'
 let openLicDropdown = null;
 let licSortCol = 'churn_recency';
@@ -1879,6 +1882,9 @@ function getLicBadgeSpans(accountName) {
   // Trial
   if (acctLics.some(l => l._type === 'TRIAL')) badges.push(`<span class="alb alb-trial">🧪 Trial</span>`);
 
+  // Lost renewal
+  if (acctLics.some(l => l._type === 'RENEWAL')) badges.push(`<span class="alb alb-renewal">🔄 Renewal</span>`);
+
   return badges.join('');
 }
 
@@ -1893,9 +1899,19 @@ function getLicBadgesForAccount(accountName) {
 //   1. Active US Industry → PIQ (no active US Industry exists in Dan's territory)
 //   2. Churned US Industry + $0 ACV + opp mentions "trial" → TRIAL
 function applyLicenseRules(lic) {
+  // Rule 0: Lost renewal — $0 US Industry with "renewal" in opp name (active or not)
+  // Must fire before Rule 1 to prevent false PIQ promotion
+  if (lic._type === 'US' && lic._acv === 0 && /renewal/i.test(lic._oppName || '')) {
+    lic._type = 'RENEWAL';
+    lic._active = false;
+    lic._churnTier = 'newchurn';
+    return lic;
+  }
+  // Rule 1: Active US Industry → PIQ (no real active US Industry in Dan's territory)
   if (lic._type === 'US' && lic._active) {
     lic._type = 'PIQ';
   }
+  // Rule 2: Churned US Industry + $0 + opp mentions "trial" → TRIAL
   if (lic._type === 'US' && !lic._active && lic._acv === 0 && /trial/i.test(lic._oppName || '')) {
     lic._type = 'TRIAL';
   }
@@ -1979,6 +1995,11 @@ function toggleLicDropdown(which, e) {
     dropdown.classList.add('hidden');
     openLicDropdown = null;
   } else {
+    // Use fixed positioning to escape table overflow clipping
+    const btn = document.getElementById('lfbtn-' + which);
+    const rect = btn.getBoundingClientRect();
+    dropdown.style.top  = (rect.bottom + 4) + 'px';
+    dropdown.style.left = rect.left + 'px';
     dropdown.classList.remove('hidden');
     openLicDropdown = id;
   }
@@ -2116,8 +2137,8 @@ function renderLicenses() {
 
   tbody.innerHTML = list.map(l => {
     const inTerritory = territory.size > 0 && territory.has(l._name.toLowerCase().trim());
-    const typeCls = { US:'ltype-us', PIQ:'ltype-procurement', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
-    const typeLabel = { US:'US Industry', PIQ:'US Procurement', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', UNKNOWN:'Other' }[l._type] || l._type;
+    const typeCls = { US:'ltype-us', PIQ:'ltype-procurement', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', RENEWAL:'ltype-renewal', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
+    const typeLabel = { US:'US Industry', PIQ:'US Procurement', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', RENEWAL:'Lost Renewal', UNKNOWN:'Other' }[l._type] || l._type;
     const statusHtml = l._active
       ? `<span class="lic-status-badge lic-active">✅ Active</span>`
       : l._churnTier === 'newchurn'
