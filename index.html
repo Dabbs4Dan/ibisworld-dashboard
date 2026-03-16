@@ -57,7 +57,7 @@
     font-weight: 500;
     font-family: 'DM Sans', sans-serif;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: color 0.15s, border-bottom-color 0.15s;
   }
   .vnav-btn:hover { color: var(--text-secondary); }
   .vnav-btn.active { color: var(--ibis-red); border-bottom-color: var(--ibis-red); }
@@ -121,8 +121,8 @@
   .lic-empty .empty-title { font-size: 18px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
   .lic-empty .empty-desc  { font-size: 14px; line-height: 1.6; max-width: 380px; margin: 0 auto 24px; }
 
-  .lic-sort-arrow { font-size: 10px; opacity: 0.35; vertical-align: middle; margin-left: 2px; }
-  .lic-sort-active {
+  .lic-sort-arrow, .acct-sort-arrow { font-size: 10px; opacity: 0.35; vertical-align: middle; margin-left: 2px; }
+  .lic-sort-active, .acct-sort-active {
     display: inline-flex; align-items: center; justify-content: center;
     color: var(--ibis-red); opacity: 1;
     background: #fef2f4; border: 1px solid #fca5a5;
@@ -228,7 +228,7 @@
     cursor: pointer;
     font-size: 13px;
     font-family: 'DM Sans', sans-serif;
-    transition: all 0.15s;
+    transition: background 0.15s, color 0.15s;
   }
   .view-btn.active { background: var(--ibis-red); color: white; }
 
@@ -312,7 +312,7 @@
     font-weight: 500;
     border: 1px solid var(--border);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
     background: transparent;
     color: var(--text-muted);
     font-family: 'DM Sans', sans-serif;
@@ -350,7 +350,8 @@
     border-radius: 10px;
     padding: 14px;
     cursor: pointer;
-    transition: all 0.18s;
+    transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+    will-change: transform;
     position: relative;
   }
   .account-card:hover { background: var(--card-hover); border-color: var(--border-hover); box-shadow: 0 4px 14px rgba(0,0,0,0.09); transform: translateY(-2px); }
@@ -724,10 +725,6 @@
     <span class="header-title">Account Dashboard · Daniel Starr · US Major Markets</span>
   </div>
     <div class="header-right">
-    <div class="view-toggle" id="cards-table-toggle">
-      <button class="view-btn active" onclick="setView('cards')" id="btn-cards">⊞ Cards</button>
-      <button class="view-btn" onclick="setView('table')" id="btn-table">☰ Table</button>
-    </div>
     <div class="csv-btn-group">
       <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 Licenses CSV</button>
       <button class="clear-csv-btn" onclick="clearLicensesData()" title="Clear license data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -737,7 +734,7 @@
       <button class="clear-csv-btn" onclick="clearAccountsData()" title="Clear account data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
-    <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)" style="display:none;">
+    <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
   </div>
 </div>
 
@@ -806,6 +803,10 @@
 
 <!-- ACCOUNTS CONTROLS -->
 <div class="controls" id="controls-accounts">
+  <div class="view-toggle" id="cards-table-toggle">
+    <button class="view-btn active" onclick="setView('cards')" id="btn-cards">⊞ Cards</button>
+    <button class="view-btn" onclick="setView('table')" id="btn-table">☰ Table</button>
+  </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search accounts..." id="search-input" oninput="renderAll()">
@@ -874,12 +875,12 @@
         <thead>
           <tr>
             <th>Company</th>
-            <th onclick="setSortCol('vertical')">Vertical</th>
-            <th onclick="setSortCol('tier')">Tier</th>
-            <th onclick="setSortCol('revenue')">Revenue ↕</th>
-            <th onclick="setSortCol('intent')">Intent</th>
-            <th onclick="setSortCol('days')">Days Inactive</th>
-            <th onclick="setSortCol('opps')">Opps</th>
+            <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
+            <th onclick="setSortCol('tier')" style="cursor:pointer;">Tier <span class="acct-sort-arrow" id="asort-tier"></span></th>
+            <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
+            <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
+            <th onclick="setSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
+            <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th>Stage</th>
             <th>Status</th>
             <th>Flags</th>
@@ -1046,10 +1047,22 @@ function init() {
   const saved = localStorage.getItem('ibis_accounts');
   const savedLocal = localStorage.getItem('ibis_local');
   const savedLic = localStorage.getItem('ibis_licenses');
-  if (saved) { accounts = JSON.parse(saved); localData = savedLocal ? JSON.parse(savedLocal) : {}; applySeedsToLocalData(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); document.getElementById('empty-state').classList.add('hidden'); document.getElementById('count-label').classList.remove('hidden'); }
+  if (saved) {
+    try {
+      accounts = JSON.parse(saved);
+      localData = savedLocal ? JSON.parse(savedLocal) : {};
+    } catch(e) {
+      console.error('localStorage data corrupted, resetting:', e);
+      accounts = []; localData = {};
+    }
+    applySeedsToLocalData(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts();
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('count-label').classList.remove('hidden');
+  }
   if (savedLic) {
     // Re-decode on restore (dates need re-parsing from strings)
-    const raw = JSON.parse(savedLic);
+    let raw;
+    try { raw = JSON.parse(savedLic); } catch(e) { console.error('License localStorage corrupted:', e); raw = []; }
     const today = new Date();
     licenses = raw.map(l => {
       l._endDate = l._endDate ? new Date(l._endDate) : null;
@@ -1094,8 +1107,7 @@ function handleCSV(e) {
 }
 
 function parseCSV(text) {
-  // Normalize special characters
-  text = text.normalize('NFC');
+  text = text.replace(/^\ufeff/, '').normalize('NFC'); // strip BOM (Excel CSV)
   const lines = text.split('\n').filter(l => l.trim()); if (lines.length < 2) return [];
   const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
   const rows = [];
@@ -1191,6 +1203,7 @@ function getFiltered() {
 function renderAll() {
   const list = getFiltered();
   document.getElementById('count-label').textContent = `Showing ${list.length} of ${accounts.length} accounts`;
+  updateAcctSortArrows();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
 }
 
@@ -1311,7 +1324,7 @@ function renderTable(list) {
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
       <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
       <td>${clients>0?'<span class="client-badge">CLIENT</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
-      <td><div class="flags-cell">${flags.map(f=>`<span style="font-size:14px;">${f}</span>`).join('')}${!flags.length?'<span style="color:var(--text-muted);font-size:12px;">—</span>':''}</div></td>
+      <td><div class="flags-cell">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}${!flags.length?'<span style="color:var(--text-muted);font-size:12px;">—</span>':''}</div></td>
     </tr>`;
   }).join('');
 }
@@ -1495,7 +1508,7 @@ async function fetchRevenueFromClaude(companyName) {
       localStorage.setItem('ibis_local', JSON.stringify(localData));
       return { label, raw: parsed.value_usd };
     }
-  } catch(e) {}
+  } catch(e) { console.error('Revenue enrichment failed for', companyName, e); }
   return null;
 }
 
@@ -1527,6 +1540,21 @@ function autoQueueAccounts() {
   [...tier1, ...rest].forEach(a => queueClaudeEnrich(getField(a,'Account Name','AccountName')));
 }
 
+const ACCT_SORT_NATURAL_DIR = { vertical:'↑', tier:'↑', name:'↑', revenue:'↓', intent:'↓', days:'↓', opps:'↓' };
+function updateAcctSortArrows() {
+  const activeSort = document.getElementById('sort-select')?.value;
+  ['vertical','tier','revenue','intent','days','opps'].forEach(c => {
+    const el = document.getElementById('asort-' + c);
+    if (!el) return;
+    if (c === activeSort) {
+      el.textContent = ' ' + (ACCT_SORT_NATURAL_DIR[c] || '↓');
+      el.className = 'acct-sort-arrow acct-sort-active';
+    } else {
+      el.textContent = '';
+      el.className = 'acct-sort-arrow';
+    }
+  });
+}
 function setSortCol(col) { document.getElementById('sort-select').value=col; renderAll(); }
 
 /* ============================================================
@@ -1577,7 +1605,7 @@ function handleLicenseCSV(e) {
 }
 
 function parseLicenseCSV(text) {
-  text = text.normalize('NFC');
+  text = text.replace(/^\ufeff/, '').normalize('NFC'); // strip BOM (Excel CSV)
   const lines = text.split('\n').filter(l => l.trim());
   if (lines.length < 2) return [];
   const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
@@ -1918,8 +1946,6 @@ function setMainView(v) {
   // Content
   document.getElementById('content-accounts').classList.toggle('hidden', isLic);
   document.getElementById('content-licenses').classList.toggle('hidden', !isLic);
-  // Cards/table toggle only relevant on accounts
-  document.getElementById('cards-table-toggle').style.visibility = isLic ? 'hidden' : '';
 }
 
 
