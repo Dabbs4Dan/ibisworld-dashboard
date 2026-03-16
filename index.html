@@ -132,12 +132,12 @@
 
   .lic-th-inner { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
   .lic-filter-trigger {
-    background: none; border: none; cursor: pointer; padding: 1px 5px;
-    font-size: 14px; color: var(--text-muted); border-radius: 3px;
-    line-height: 1; opacity: 0.75; transition: opacity 0.1s, background 0.1s;
+    background: none; border: 1px solid #d1d5db; cursor: pointer; padding: 2px 7px;
+    font-size: 11px; color: var(--text-muted); border-radius: 5px;
+    line-height: 1.5; opacity: 1; transition: all 0.15s; font-weight: 600;
   }
-  .lic-filter-trigger:hover { opacity: 1; background: var(--surface); }
-  .lic-filter-trigger.active { opacity: 1; color: var(--ibis-red); font-weight: 700; }
+  .lic-filter-trigger:hover { background: var(--surface); border-color: var(--border-hover); color: var(--text-secondary); }
+  .lic-filter-trigger.active { color: var(--ibis-red); border-color: var(--ibis-red); background: #fef2f4; font-weight: 700; }
   .lic-dropdown {
     position: absolute; top: calc(100% + 2px); left: 0;
     background: white; border: 1px solid var(--border); border-radius: 8px;
@@ -262,9 +262,10 @@
     border-bottom: 1px solid var(--border);
     background: var(--header-bg);
   }
-  #controls-accounts { flex-wrap: nowrap; overflow-x: auto; }
+  #controls-accounts { flex-wrap: wrap; }
   #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
-  #controls-licenses { flex-wrap: nowrap; overflow-x: auto; }
+  #controls-licenses { flex-wrap: nowrap; }
+  #controls-licenses .search-wrap { min-width: 0; max-width: none; }
   #controls-licenses select { flex-shrink: 0; }
 
   .search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 300px; }
@@ -1128,9 +1129,20 @@ const LOGO_DOMAIN_OVERRIDES = {
   'SkyKnight Capital':    'skyknightcapital.com',
 };
 
+function getDomainOverride(name) {
+  if (!name) return null;
+  if (LOGO_DOMAIN_OVERRIDES[name]) return LOGO_DOMAIN_OVERRIDES[name];
+  const lower = name.toLowerCase().trim();
+  for (const k in LOGO_DOMAIN_OVERRIDES) {
+    if (k.toLowerCase().trim() === lower) return LOGO_DOMAIN_OVERRIDES[k];
+  }
+  return null;
+}
+
 function getLogoDomain(acc) {
   const name = getField(acc,'Account Name','AccountName');
-  if (LOGO_DOMAIN_OVERRIDES[name]) return LOGO_DOMAIN_OVERRIDES[name];
+  const override = getDomainOverride(name);
+  if (override) return override;
   return getDomain(getField(acc,'Website'));
 }
 
@@ -1769,7 +1781,7 @@ function renderLicenses() {
 
     // Logo: match against accounts for domain; cascade UpLead → DuckDuckGo → Google → Initials
     const acctMatch = accounts.find(a => (getField(a,'Account Name','AccountName')||'').toLowerCase().trim() === l._name.toLowerCase().trim());
-    const logoDomain = acctMatch ? getLogoDomain(acctMatch) : (LOGO_DOMAIN_OVERRIDES[l._name] || null);
+    const logoDomain = acctMatch ? getLogoDomain(acctMatch) : getDomainOverride(l._name);
     const initials = l._name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const logoHtml = logoDomain
       ? `<div class="td-logo"><img src="https://logo.uplead.com/${logoDomain}" ${logoFallbackChain(logoDomain, initials)} alt="${l._name}"></div>`
