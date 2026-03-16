@@ -124,12 +124,43 @@
   .lic-sort-arrow { font-size: 10px; opacity: 0.5; }
   .lic-sort-active { color: var(--ibis-red); opacity: 1; }
 
+  .lic-th-inner { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+  .lic-filter-trigger {
+    background: none; border: none; cursor: pointer; padding: 1px 4px;
+    font-size: 11px; color: var(--text-muted); border-radius: 3px;
+    line-height: 1; opacity: 0.6; transition: opacity 0.1s, background 0.1s;
+  }
+  .lic-filter-trigger:hover { opacity: 1; background: var(--surface); }
+  .lic-filter-trigger.active { opacity: 1; color: var(--ibis-red); }
+  .lic-dropdown {
+    position: absolute; top: calc(100% + 2px); left: 0;
+    background: white; border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 6px 0;
+    min-width: 170px; z-index: 200;
+  }
+  .lic-dropdown label {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; font-size: 13px; cursor: pointer;
+    color: var(--text-secondary); white-space: nowrap;
+    transition: background 0.1s;
+  }
+  .lic-dropdown label:hover { background: var(--surface); }
+  .lic-dropdown label input[type=checkbox] { accent-color: var(--ibis-red); margin: 0; }
+  .lic-dropdown-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .lic-dropdown-clear {
+    display: block; width: calc(100% - 28px); margin: 2px 14px;
+    padding: 5px 8px; font-size: 12px; text-align: left;
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted); border-radius: 4px; font-family: 'DM Sans', sans-serif;
+    transition: background 0.1s, color 0.1s;
+  }
+  .lic-dropdown-clear:hover { background: var(--surface); color: var(--ibis-red); }
+  .lic-th-filter-active { background: #fef2f4 !important; }
+
   .hidden { display: none !important; }
 
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
-  .rev-badge.verified { }
-  .rev-badge.stale { }
   .card-revenue { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; }
   .revenue-val { font-size:12px; font-weight:500; font-family:'DM Mono',monospace; color:var(--text-primary); }
   .revenue-meta { display:flex; align-items:center; gap:5px; }
@@ -247,12 +278,15 @@
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text-secondary);
-    padding: 7px 10px;
+    padding: 6px 10px;
     border-radius: 6px;
     font-size: 13px;
     font-family: 'DM Sans', sans-serif;
     outline: none;
     cursor: pointer;
+    height: 34px;
+    box-sizing: border-box;
+    vertical-align: middle;
   }
   select:focus { border-color: var(--ibis-red); }
 
@@ -518,10 +552,11 @@
     border: none; background: var(--ibis-red);
     color: white; cursor: pointer;
     font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    transition: opacity 0.15s;
   }
+  .btn-save:hover { opacity: 0.88; }
 
   #file-input { display: none; }
-  .hidden { display: none !important; }
   .count-label { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 </style>
 </head>
@@ -615,13 +650,13 @@
     <input type="text" placeholder="Search accounts..." id="search-input" oninput="renderAll()">
   </div>
   <select id="sort-select" onchange="renderAll()">
-    <option value="intent">Sort: Intent Score</option>
-    <option value="revenue">Sort: Revenue</option>
-    <option value="vertical">Sort: Vertical A–Z</option>
-    <option value="days">Sort: Days Inactive</option>
-    <option value="tier">Sort: Tier</option>
-    <option value="name">Sort: Name A–Z</option>
-    <option value="opps">Sort: Open Opps</option>
+    <option value="intent">Intent Score</option>
+    <option value="revenue">Revenue</option>
+    <option value="vertical">Vertical A–Z</option>
+    <option value="days">Days Inactive</option>
+    <option value="tier">Tier</option>
+    <option value="name">Name A–Z</option>
+    <option value="opps">Open Opps</option>
   </select>
   <select id="vertical-filter" onchange="renderAll()">
     <option value="">All Verticals</option>
@@ -643,22 +678,15 @@
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search company..." id="lic-search-input" oninput="renderLicenses()">
   </div>
-  <select id="lic-sort-select" onchange="renderLicenses()">
-    <option value="churn_recency">Sort: Churn Recency</option>
-    <option value="name">Sort: Company A–Z</option>
-    <option value="acv">Sort: ACV ↓</option>
-    <option value="type">Sort: Type</option>
-    <option value="status">Sort: Status</option>
-    <option value="enddate_desc">Sort: End Date (newest)</option>
-    <option value="enddate_asc">Sort: End Date (oldest)</option>
+  <select id="lic-sort-select" onchange="onLicSortSelectChange()">
+    <option value="churn_recency">Churn Recency</option>
+    <option value="name">Company A–Z</option>
+    <option value="acv">ACV ↓</option>
+    <option value="type">Type</option>
+    <option value="status">Status</option>
+    <option value="enddate_desc">End Date (newest)</option>
+    <option value="enddate_asc">End Date (oldest)</option>
   </select>
-  <div class="filter-chips">
-    <button class="chip" onclick="toggleLicChip(this,'newchurn')">🔥 New Churn</button>
-    <button class="chip" onclick="toggleLicChip(this,'us_churned')">📉 US Churned</button>
-    <button class="chip" onclick="toggleLicChip(this,'piq')">🔵 PIQ</button>
-    <button class="chip" onclick="toggleLicChip(this,'intl')">🌍 International</button>
-    <button class="chip" onclick="toggleLicChip(this,'active')">✅ Active</button>
-  </div>
   <span id="lic-count-label" style="margin-left:auto;font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
 </div>
 
@@ -717,13 +745,39 @@
       <table id="lic-table">
         <thead>
           <tr>
-            <th onclick="setLicSort('name')" style="min-width:220px;">Company <span class="lic-sort-arrow" id="lsort-name"></span></th>
+            <th onclick="setLicSort('name')" style="min-width:220px;cursor:pointer;">Company <span class="lic-sort-arrow" id="lsort-name"></span></th>
             <th style="min-width:220px;">License</th>
-            <th onclick="setLicSort('type')" style="cursor:pointer;">Type</th>
-            <th onclick="setLicSort('status')" style="cursor:pointer;">Status</th>
+            <th style="cursor:pointer;position:relative;" id="lth-type">
+              <div class="lic-th-inner">
+                <span onclick="setLicSort('type')">Type <span class="lic-sort-arrow" id="lsort-type"></span></span>
+                <button class="lic-filter-trigger" id="lfbtn-type" onclick="toggleLicDropdown('type',event)" title="Filter by type">▾</button>
+              </div>
+              <div class="lic-dropdown hidden" id="lic-dropdown-type">
+                <label><input type="checkbox" value="US"      onchange="applyLicTypeFilter()"> US Industry</label>
+                <label><input type="checkbox" value="PIQ"     onchange="applyLicTypeFilter()"> PIQ / Procurement</label>
+                <label><input type="checkbox" value="INTL"    onchange="applyLicTypeFilter()"> International</label>
+                <label><input type="checkbox" value="TRIAL"   onchange="applyLicTypeFilter()"> Trial</label>
+                <div class="lic-dropdown-divider"></div>
+                <button class="lic-dropdown-clear" onclick="clearLicFilter('type')">Clear filter</button>
+              </div>
+            </th>
+            <th style="cursor:pointer;position:relative;" id="lth-status">
+              <div class="lic-th-inner">
+                <span onclick="setLicSort('status')">Status <span class="lic-sort-arrow" id="lsort-status"></span></span>
+                <button class="lic-filter-trigger" id="lfbtn-status" onclick="toggleLicDropdown('status',event)" title="Filter by status">▾</button>
+              </div>
+              <div class="lic-dropdown hidden" id="lic-dropdown-status">
+                <label><input type="checkbox" value="active"   onchange="applyLicStatusFilter()"> ✅ Active</label>
+                <label><input type="checkbox" value="newchurn" onchange="applyLicStatusFilter()"> 🔥 New Churn</label>
+                <label><input type="checkbox" value="churned"  onchange="applyLicStatusFilter()"> ❌ Churned</label>
+                <label><input type="checkbox" value="dead"     onchange="applyLicStatusFilter()"> · Dead</label>
+                <div class="lic-dropdown-divider"></div>
+                <button class="lic-dropdown-clear" onclick="clearLicFilter('status')">Clear filter</button>
+              </div>
+            </th>
             <th onclick="setLicSort('acv')" style="cursor:pointer;">ACV <span class="lic-sort-arrow" id="lsort-acv"></span></th>
-            <th onclick="setLicSort('enddate_asc')" style="cursor:pointer;">Start Date <span class="lic-sort-arrow" id="lsort-enddate_asc"></span></th>
-            <th onclick="setLicSort('enddate_desc')" style="cursor:pointer;">End Date <span class="lic-sort-arrow" id="lsort-enddate_desc"></span></th>
+            <th onclick="setLicSort('startdate')" style="cursor:pointer;">Start Date <span class="lic-sort-arrow" id="lsort-startdate"></span></th>
+            <th onclick="setLicSort('enddate')" style="cursor:pointer;">End Date <span class="lic-sort-arrow" id="lsort-enddate"></span></th>
           </tr>
         </thead>
         <tbody id="lic-table-body"></tbody>
@@ -768,6 +822,14 @@
 let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(), modalAccount = null, modalFlags = new Set();
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
+// ── Named constants ───────────────────────────────────────────────────────────
+const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
+const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
+const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
+const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
+const CHURN_YEAR_CHURNED     = 2020;       // historical churn: end year >= this
+const CHURN_YEAR_RECENT_STAT = 2022;       // "recent churn" filter in stats bar
+// ─────────────────────────────────────────────────────────────────────────────
 
 const VERT_COLORS = {
   'Academic': '#dbeafe',
@@ -821,14 +883,13 @@ function init() {
       l._active = l._endDate ? l._endDate > today : false;
       if (!l._active && l._endDate) {
         const yr = l._endDate.getFullYear();
-        l._churnTier = yr >= 2024 ? 'newchurn' : yr >= 2020 ? 'churned' : 'dead';
+        l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
       } else { l._churnTier = l._active ? 'active' : 'dead'; }
       l._signal = calcSignal(l);
       return l;
     });
     document.getElementById('lic-upload-btn').innerHTML = '🔑 License CSV';
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
-    updateLicenseStats();
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
@@ -839,9 +900,7 @@ function handleCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    let text = ev.target.result;
-    // Fix mangled special characters from latin-1 encoded CSVs
-    text = text.replace(/�/g, match => match);
+    const text = ev.target.result;
     const newAccounts = parseCSV(text);
     if (accounts.length > 0) detectChanges(accounts, newAccounts);
     accounts = newAccounts;
@@ -854,6 +913,7 @@ function handleCSV(e) {
     autoQueueAccounts();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
+    checkStorageSize();
   };
   // Try UTF-8 first, latin-1 as fallback for French/special chars
   reader.readAsText(file, 'latin1'); e.target.value = '';
@@ -938,6 +998,7 @@ function getFiltered() {
     return true;
   });
   list.sort((a,b) => {
+    if (sort==='intent') return parseFloat(getField(b,'6sense Account Intent Score NA')||0) - parseFloat(getField(a,'6sense Account Intent Score NA')||0);
     if (sort==='revenue') {
       const ra = getRevDisplay(a)?.raw || 0;
       const rb = getRevDisplay(b)?.raw || 0;
@@ -1004,7 +1065,7 @@ function stageClass(s) { if(!s) return 'stage-unknown'; if(s.includes('Decision'
 
 function renderCards(list) {
   const c = document.getElementById('cards-view'); c.classList.remove('hidden'); document.getElementById('table-view').classList.add('hidden');
-  if (!list.length) { c.innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center;">No accounts match your filters</div>'; return; }
+  if (!list.length) { c.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No accounts match</div><div class="empty-desc">Try adjusting your search, vertical filter, or flag chips.</div></div>'; return; }
   c.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -1032,7 +1093,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -1099,7 +1160,7 @@ function fmtMoney(n) {
 
 const NO_REV_VERTICALS = new Set(['Academic','Government']);
 function isNoRevAccount(acc) { return NO_REV_VERTICALS.has(getTrueVertical(acc)); }
-function isSFRevStale(raw) { return raw > 0 && raw < 50_000_000; }
+function isSFRevStale(raw) { return raw > 0 && raw < SF_REV_STALE_THRESHOLD; }
 
 const REVENUE_SEEDS = {
   'Lyft':                          [5800000000,  'Lyft 2024 Full Year Results'],
@@ -1184,12 +1245,12 @@ async function runClaudeQueue() {
     await fetchRevenueFromClaude(name);
     done++;
     showEnrichProgress(done, total);
-    if (done % 5 === 0) renderAllQuiet();
-    await new Promise(r => setTimeout(r, 900));
+    if (done % 5 === 0) renderAll();
+    await new Promise(r => setTimeout(r, ENRICH_DELAY_MS));
   }
   claudeRunning = false;
   hideEnrichProgress();
-  renderAllQuiet();
+  renderAll();
 }
 
 function showEnrichProgress(done, total) {
@@ -1197,7 +1258,7 @@ function showEnrichProgress(done, total) {
   if (!bar) {
     bar = document.createElement('div');
     bar.id = 'enrich-progress';
-    bar.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#1a1a2e;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:DM Sans,sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);';
+    bar.style.cssText = "position:fixed;bottom:16px;right:16px;background:#1a1a2e;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);";
     document.body.appendChild(bar);
   }
   const remaining = total - done;
@@ -1242,12 +1303,6 @@ async function fetchRevenueFromClaude(companyName) {
   return null;
 }
 
-function renderAllQuiet() {
-  const list = getFiltered();
-  document.getElementById('count-label').textContent = `Showing ${list.length} of ${accounts.length} accounts`;
-  if (currentView==='cards') renderCards(list); else renderTable(list);
-}
-
 async function enrichRevenue() {
   if (!modalAccount) return;
   const btn = document.getElementById('enrich-modal-btn');
@@ -1261,7 +1316,7 @@ async function enrichRevenue() {
     document.getElementById('modal-rev-badge').innerHTML = sourceBadge('claude');
     resultEl.textContent = `📌 ${localData[modalAccount].rev.srcNote || 'Web search'} · ${localData[modalAccount].rev.year || ''}`;
     btn.textContent = '🔄 Re-check';
-    renderAllQuiet();
+    renderAll();
   } else {
     resultEl.textContent = '⚠️ Could not find revenue.';
     btn.textContent = '🤖 Try Again';
@@ -1283,9 +1338,18 @@ function setSortCol(col) { document.getElementById('sort-select').value=col; ren
    ============================================================ */
 
 let licenses = [];
-let licFilters = new Set();
-let licSortCol = 'signal';
+let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
+let licStatusFilters = new Set(); // values: 'active','newchurn','churned','dead'
+let openLicDropdown = null;
+let licSortCol = 'churn_recency';
+let licSortDir = 'asc'; // 'asc' | 'desc'
 let mainView = 'accounts'; // 'accounts' | 'licenses'
+
+// Default sort direction per column (first click)
+const LIC_SORT_DEFAULT_DIR = {
+  churn_recency: 'asc', name: 'asc', type: 'asc', status: 'asc',
+  acv: 'desc', startdate: 'asc', enddate: 'desc',
+};
 
 // --- Parse & Decode ---
 
@@ -1307,10 +1371,10 @@ function handleLicenseCSV(e) {
     document.getElementById('lic-upload-btn').innerHTML = '✅ License CSV';
     document.getElementById('lic-upload-btn').classList.add('fresh');
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
-    updateLicenseStats();
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
+    checkStorageSize();
   };
   reader.readAsText(file, 'latin1');
   e.target.value = '';
@@ -1341,10 +1405,10 @@ function parseLicenseCSV(text) {
     obj._endDate = parseDate(endRaw);
     obj._startDate = parseDate(startRaw);
     obj._active = obj._endDate ? obj._endDate > today : false;
-    // Churn tier: newchurn=2024+, churned=2020-2023, dead=pre-2020
+    // Churn tier: newchurn=CHURN_YEAR_NEW+, churned=CHURN_YEAR_CHURNED+, dead=pre
     if (!obj._active && obj._endDate) {
       const yr = obj._endDate.getFullYear();
-      obj._churnTier = yr >= 2024 ? 'newchurn' : yr >= 2020 ? 'churned' : 'dead';
+      obj._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
     } else {
       obj._churnTier = obj._active ? 'active' : 'dead';
     }
@@ -1403,7 +1467,7 @@ function calcSignal(lic) {
   if (_type === 'US') {
     if (_active) return { weight: 4, label: '⚠️ Active', cls: 'signal-4' }; // anomaly
     const year = _endDate ? _endDate.getFullYear() : 0;
-    if (year >= 2022) return { weight: 5, label: '🔥🔥🔥', cls: 'signal-5' };
+    if (year >= CHURN_YEAR_RECENT_STAT) return { weight: 5, label: '🔥🔥🔥', cls: 'signal-5' };
     if (year >= 2017) return { weight: 3, label: '🔥🔥', cls: 'signal-3' };
     return { weight: 1, label: '🔥', cls: 'signal-1' };
   }
@@ -1426,12 +1490,12 @@ function calcSignal(lic) {
 
 // --- Stats ---
 
-function updateLicenseStats() {
-  const all = licenses;
+function updateLicenseStats(list) {
+  const all = list || licenses;
   document.getElementById('lstat-total').textContent = all.length;
   const usChurned = all.filter(l => l._type === 'US' && !l._active);
   document.getElementById('lstat-us-churned').textContent = usChurned.length;
-  const recent = usChurned.filter(l => l._endDate && l._endDate.getFullYear() >= 2022);
+  const recent = usChurned.filter(l => l._endDate && l._endDate.getFullYear() >= CHURN_YEAR_RECENT_STAT);
   document.getElementById('lstat-recent').textContent = recent.length;
   document.getElementById('lstat-piq').textContent = all.filter(l => l._type === 'PIQ' && l._active).length;
   document.getElementById('lstat-intl').textContent = all.filter(l => l._type === 'INTL').length;
@@ -1447,77 +1511,130 @@ function formatACV(n) {
 
 // --- Filtering & Sort ---
 
-const LIC_FILTER_FNS = {
-  'newchurn':   l => l._churnTier === 'newchurn',
-  'us_churned': l => l._type === 'US' && !l._active,
-  'piq':        l => l._type === 'PIQ',
-  'intl':       l => l._type === 'INTL',
-  'active':     l => l._active,
-};
-
-function isInTerritory(name) {
-  if (!accounts.length) return false;
-  const n = name.toLowerCase().trim();
-  return accounts.some(a => (getField(a,'Account Name','AccountName') || '').toLowerCase().trim() === n);
+function toggleLicDropdown(which, e) {
+  e.stopPropagation();
+  const id = 'lic-dropdown-' + which;
+  const dropdown = document.getElementById(id);
+  if (!dropdown) return;
+  const isOpen = !dropdown.classList.contains('hidden');
+  // Close any open dropdown first
+  if (openLicDropdown && openLicDropdown !== id) {
+    document.getElementById(openLicDropdown)?.classList.add('hidden');
+  }
+  if (isOpen) {
+    dropdown.classList.add('hidden');
+    openLicDropdown = null;
+  } else {
+    dropdown.classList.remove('hidden');
+    openLicDropdown = id;
+  }
 }
 
-function toggleLicChip(el, key) {
-  el.classList.toggle('active');
-  if (licFilters.has(key)) licFilters.delete(key); else licFilters.add(key);
+function applyLicTypeFilter() {
+  const checks = document.querySelectorAll('#lic-dropdown-type input[type=checkbox]');
+  licTypeFilters = new Set([...checks].filter(c => c.checked).map(c => c.value));
+  updateLicFilterIndicator('type', licTypeFilters.size > 0);
   renderLicenses();
+}
+
+function applyLicStatusFilter() {
+  const checks = document.querySelectorAll('#lic-dropdown-status input[type=checkbox]');
+  licStatusFilters = new Set([...checks].filter(c => c.checked).map(c => c.value));
+  updateLicFilterIndicator('status', licStatusFilters.size > 0);
+  renderLicenses();
+}
+
+function clearLicFilter(which) {
+  const checks = document.querySelectorAll(`#lic-dropdown-${which} input[type=checkbox]`);
+  checks.forEach(c => c.checked = false);
+  if (which === 'type') { licTypeFilters = new Set(); }
+  else { licStatusFilters = new Set(); }
+  updateLicFilterIndicator(which, false);
+  document.getElementById('lic-dropdown-' + which)?.classList.add('hidden');
+  openLicDropdown = null;
+  renderLicenses();
+}
+
+function updateLicFilterIndicator(which, active) {
+  const btn = document.getElementById('lfbtn-' + which);
+  const th  = document.getElementById('lth-' + which);
+  if (btn) btn.classList.toggle('active', active);
+  if (th)  th.classList.toggle('lic-th-filter-active', active);
 }
 
 function setLicSort(col) {
-  licSortCol = col;
-  document.getElementById('lic-sort-select').value = col;
-  // Update arrow indicators
-  ['signal','name','acv','enddate_desc'].forEach(c => {
-    const el = document.getElementById('lsort-' + c);
-    if (el) el.textContent = c === col ? ' ↓' : '';
-    if (el) el.className = 'lic-sort-arrow' + (c === col ? ' lic-sort-active' : '');
-  });
+  if (licSortCol === col) {
+    licSortDir = licSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    licSortCol = col;
+    licSortDir = LIC_SORT_DEFAULT_DIR[col] || 'asc';
+  }
+  updateLicSortArrows();
   renderLicenses();
+}
+
+function onLicSortSelectChange() {
+  const val = document.getElementById('lic-sort-select').value;
+  if (val === 'enddate_desc') { licSortCol = 'enddate'; licSortDir = 'desc'; }
+  else if (val === 'enddate_asc') { licSortCol = 'enddate'; licSortDir = 'asc'; }
+  else { licSortCol = val; licSortDir = LIC_SORT_DEFAULT_DIR[val] || 'asc'; }
+  updateLicSortArrows();
+  renderLicenses();
+}
+
+function updateLicSortArrows() {
+  ['name','acv','enddate','startdate','type','status'].forEach(c => {
+    const el = document.getElementById('lsort-' + c);
+    if (!el) return;
+    if (c === licSortCol) {
+      el.textContent = licSortDir === 'asc' ? ' ↑' : ' ↓';
+      el.className = 'lic-sort-arrow lic-sort-active';
+    } else {
+      el.textContent = '';
+      el.className = 'lic-sort-arrow';
+    }
+  });
 }
 
 function getLicFiltered() {
   const q = (document.getElementById('lic-search-input')?.value || '').toLowerCase();
-  const sortVal = document.getElementById('lic-sort-select')?.value || 'churn_recency';
-  licSortCol = sortVal;
+  const col = licSortCol;
+  const dir = licSortDir;
 
   let list = licenses.filter(l => {
     if (q && !l._name.toLowerCase().includes(q) && !l._licenseName.toLowerCase().includes(q)) return false;
-    for (const key of licFilters) {
-      const fn = LIC_FILTER_FNS[key];
-      if (fn && !fn(l)) return false;
-    }
+    if (licTypeFilters.size   > 0 && !licTypeFilters.has(l._type))     return false;
+    if (licStatusFilters.size > 0 && !licStatusFilters.has(l._churnTier)) return false;
     return true;
   });
 
   list.sort((a, b) => {
-    if (licSortCol === 'churn_recency') {
+    const flip = dir === 'desc' ? -1 : 1;
+    if (col === 'churn_recency') {
+      // fixed compound sort — direction toggle reverses the whole result
       const tierOrder = { newchurn: 0, churned: 1, active: 2, dead: 3 };
       const ta = tierOrder[a._churnTier] ?? 9, tb = tierOrder[b._churnTier] ?? 9;
-      if (ta !== tb) return ta - tb;
+      if (ta !== tb) return (ta - tb) * flip;
       const ad = a._endDate ? a._endDate.getTime() : 0;
       const bd = b._endDate ? b._endDate.getTime() : 0;
-      return bd - ad;
+      return (bd - ad) * flip;
     }
-    if (licSortCol === 'type') return (a._type||'').localeCompare(b._type||'');
-    if (licSortCol === 'status') {
+    if (col === 'name')   return a._name.localeCompare(b._name) * flip;
+    if (col === 'type')   return (a._type||'').localeCompare(b._type||'') * flip;
+    if (col === 'status') {
       const so = { newchurn:0, active:1, churned:2, dead:3 };
-      return (so[a._churnTier]??9) - (so[b._churnTier]??9);
+      return ((so[a._churnTier]??9) - (so[b._churnTier]??9)) * flip;
     }
-    if (licSortCol === 'name') return a._name.localeCompare(b._name);
-    if (licSortCol === 'acv') return b._acv - a._acv;
-    if (licSortCol === 'enddate_desc') {
+    if (col === 'acv')  return (a._acv - b._acv) * flip;
+    if (col === 'enddate') {
       const ad = a._endDate ? a._endDate.getTime() : 0;
       const bd = b._endDate ? b._endDate.getTime() : 0;
-      return bd - ad;
+      return (ad - bd) * flip;
     }
-    if (licSortCol === 'enddate_asc') {
-      const ad = a._endDate ? a._endDate.getTime() : Infinity;
-      const bd = b._endDate ? b._endDate.getTime() : Infinity;
-      return ad - bd;
+    if (col === 'startdate') {
+      const as_ = a._startDate ? a._startDate.getTime() : (dir === 'asc' ? Infinity : 0);
+      const bs_ = b._startDate ? b._startDate.getTime() : (dir === 'asc' ? Infinity : 0);
+      return (as_ - bs_) * flip;
     }
     return 0;
   });
@@ -1529,6 +1646,7 @@ function getLicFiltered() {
 function renderLicenses() {
   if (!licenses.length) return;
   const list = getLicFiltered();
+  updateLicenseStats(list);
   const tbody = document.getElementById('lic-table-body');
   document.getElementById('lic-count-label').textContent = `${list.length} of ${licenses.length} licenses`;
 
@@ -1557,14 +1675,14 @@ function renderLicenses() {
     const startDateStr = l._startDate ? l._startDate.toLocaleDateString('en-US', {month:'short', year:'numeric'}) : '—';
     const endDateStr = l._endDate ? l._endDate.toLocaleDateString('en-US', {month:'short', year:'numeric'}) : '—';
     const sig = l._signal;
-    const licNameShort = l._licenseName.length > 45 ? l._licenseName.slice(0,45) + '…' : l._licenseName;
+    const licNameShort = l._licenseName.length > LIC_NAME_MAX_LEN ? l._licenseName.slice(0, LIC_NAME_MAX_LEN) + '…' : l._licenseName;
 
-    // Logo: match against accounts for domain, fallback to initials
+    // Logo: match against accounts for domain; cascade DuckDuckGo → Google → Initials
     const acctMatch = accounts.find(a => (getField(a,'Account Name','AccountName')||'').toLowerCase().trim() === l._name.toLowerCase().trim());
-    const logoDomain = acctMatch ? getDomain(getField(acctMatch,'Website')) : null;
+    const logoDomain = acctMatch ? getLogoDomain(acctMatch) : (LOGO_DOMAIN_OVERRIDES[l._name] || null);
     const initials = l._name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const logoHtml = logoDomain
-      ? `<div class="td-logo"><img src="https://www.google.com/s2/favicons?domain=${logoDomain}&sz=64" onerror="this.parentNode.innerHTML='${initials}'" alt="${l._name}"></div>`
+      ? `<div class="td-logo"><img src="https://icons.duckduckgo.com/ip3/${logoDomain}.ico" onerror="this.src='https://www.google.com/s2/favicons?domain=${logoDomain}&sz=64';this.onerror=function(){this.parentNode.innerHTML='${initials}'}" alt="${l._name}"></div>`
       : `<div class="td-logo">${initials}</div>`;
 
     return `<tr>
@@ -1609,7 +1727,40 @@ function setMainView(v) {
 }
 
 
+/* ============================================================
+   LOCALSTORAGE HYGIENE
+   Keys in use:
+     ibis_accounts  — raw account rows from SF CSV (can be large)
+     ibis_local     — flags, notes, revenue enrichment per account
+     ibis_licenses  — slim decoded license rows
+     ibis_updated   — date string of last accounts CSV upload
+   Revenue is stored inside ibis_local (not a separate ibis_revenue key).
+   ============================================================ */
+function checkStorageSize() {
+  const WARN_KB = 2048; // warn at 2MB per key (limit is ~5MB total)
+  let totalKB = 0;
+  ['ibis_accounts','ibis_local','ibis_licenses'].forEach(key => {
+    const val = localStorage.getItem(key);
+    if (!val) return;
+    const kb = Math.round((val.length * 2) / 1024);
+    totalKB += kb;
+    if (kb > WARN_KB) console.warn(`[ibis-storage] "${key}" is ${kb}KB — approaching 5MB localStorage limit`);
+  });
+  if (totalKB > 4096) console.warn(`[ibis-storage] Total usage ~${totalKB}KB — very close to 5MB limit`);
+}
+
 init();
+checkStorageSize();
+
+document.addEventListener('click', function(e) {
+  if (!openLicDropdown) return;
+  const dropdown = document.getElementById(openLicDropdown);
+  if (!dropdown) { openLicDropdown = null; return; }
+  if (!dropdown.contains(e.target) && !e.target.classList.contains('lic-filter-trigger')) {
+    dropdown.classList.add('hidden');
+    openLicDropdown = null;
+  }
+});
 </script>
 </body>
 </html>

@@ -28,9 +28,13 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - **Single file only** — everything lives in `index.html` (HTML + CSS + JS, no separate files)
 - **No build tools, no npm, no frameworks** — vanilla JS only
 - **No external dependencies** except Google Fonts + DuckDuckGo favicon API
-- **localStorage** for persistence — two separate stores to avoid 5MB limit:
-  - `ibis_local` → flags, notes, UI state
-  - `ibis_revenue` → revenue cache
+- **localStorage** for persistence — four keys, all in one logical namespace:
+  - `ibis_accounts` → raw account rows from the SF CSV
+  - `ibis_local` → flags, notes, **and revenue cache** (per-account, keyed by Account Name)
+  - `ibis_licenses` → slim decoded license rows
+  - `ibis_updated` → date string of last accounts CSV upload
+  - ⚠️ There is **no separate `ibis_revenue` key** — revenue lives inside `ibis_local`
+  - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
