@@ -159,22 +159,6 @@ License Start Date, License End Date
 
 ---
 
-## NEXT FEATURE — LICENSE BADGES ON ACCOUNT ROWS
-Bridge license data as mini-badges onto each account row in the Accounts tab:
-> `💰 $28K · churned 2024` `🔵 PIQ Active` `🌍 Intl`
-
-- Match key: Account Name (case-insensitive trim)
-- Logic already exists in license engine — just needs to surface in account cards/table rows
-
-### Future data layers (not started):
-| Layer | SF Report |
-|---|---|
-| 3️⃣ Opportunities | Accounts with Opportunities |
-| 4️⃣ Meetings | Activities with Accounts |
-| 5️⃣ Tasks/Samples | Tasks and Events |
-
----
-
 ## HOW TO WORK WITH DAN
 
 ### Who Dan is
@@ -202,3 +186,35 @@ Bridge license data as mini-badges onto each account row in the Accounts tab:
 - Dan should always feel like he knows what's happening
 - If the dashboard looks worse after a change, that's a failure — visual quality always matters
 - When in doubt: simpler, cleaner, faster
+
+---
+
+## SESSION & CONTEXT MANAGEMENT
+
+### Starting fresh — do this first
+When a new session begins, Claude Code should:
+1. Read CLAUDE.md fully
+2. Confirm in one line: current version, last thing built, next open item
+3. Ask Dan: "What do you want to tackle?"
+- Never assume Dan remembers where things left off — he shouldn't have to
+
+### Context window health
+- After ~15 back-and-forth exchanges, say proactively:
+  > 🧠 "Heads up — this session is getting long. Type `/compact` to compress history, or start a fresh window. CLAUDE.md has everything needed to pick up instantly."
+- If responses feel repetitive or confused, flag it immediately — don't silently degrade
+
+### Before closing a window — always confirm
+- ✅ All changes committed and pushed to main
+- ✅ CLAUDE.md reflects current state of the codebase
+- ✅ Any unfinished work is noted below under Open Items
+
+---
+
+## OPEN ITEMS
+
+| Priority | Item | Notes |
+|---|---|---|
+| 🔜 Next | License badges on Account rows | Show `💰 $28K · churned 2024` `🔵 PIQ Active` badges on each account card/row. Logic exists in license engine — just needs to surface. Match key: Account Name (case-insensitive trim) |
+| 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |
+| 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
+| 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |
