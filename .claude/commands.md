@@ -18,3 +18,20 @@ Run the start-of-session orientation:
    📋 Open items: [from CLAUDE.md]
    🧠 Context: Fresh — ready to go
 3. Ask: "What do you want to tackle first?"
+
+# /check-session
+Assess the current session health and give Dan a plain English status:
+1. Estimate conversation length (count roughly how many back-and-forth exchanges have happened)
+2. Check if any responses have been repetitive or if the same bugs have come up twice
+3. Check for any uncommitted local changes
+4. Print a simple health report:
+   🧠 Session Health Check
+   ─────────────────────
+   💬 Exchanges: [rough count]
+   🟢 / 🟡 / 🔴 Context: [Fresh / Getting long / Start a new window]
+   💾 Uncommitted changes: Yes / No
+   📋 Unfinished tasks: [list or "none"]
+   Recommendation:
+   🟢 "You're good — keep going"
+   🟡 "Type /compact to compress history and buy more runway"
+   🔴 "Run /end-session then open a fresh window — CLAUDE.md has everything"
