@@ -851,6 +851,7 @@
     <option value="tier">Tier</option>
     <option value="name">Name A–Z</option>
     <option value="opps">Open Opps</option>
+    <option value="licenses">Licenses</option>
   </select>
   <select id="vertical-filter" onchange="renderAll()">
     <option value="">All Verticals</option>
@@ -920,6 +921,7 @@
             <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
             <th onclick="setSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
+            <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
             <th>Status</th>
             <th>Flags</th>
@@ -1111,6 +1113,7 @@ function init() {
         const yr = l._endDate.getFullYear();
         l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
       } else { l._churnTier = l._active ? 'active' : 'dead'; }
+      applyLicenseRules(l); // Re-apply territory rules on restore (catches old stored data)
       l._signal = calcSignal(l);
       return l;
     });
@@ -1235,6 +1238,7 @@ function getFiltered() {
     if (sort==='name') return d * getField(a,'Account Name','AccountName').localeCompare(getField(b,'Account Name','AccountName'));
     if (sort==='vertical') return d * getTrueVertical(a).localeCompare(getTrueVertical(b));
     if (sort==='opps') return d * (parseFloat(getField(a,'# Core Opportunities')||0) - parseFloat(getField(b,'# Core Opportunities')||0));
+    if (sort==='licenses') return d * (getLicCount(getField(a,'Account Name','AccountName')) - getLicCount(getField(b,'Account Name','AccountName')));
     return 0;
   });
   return list;
@@ -1331,7 +1335,7 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Intent</div><div class="val">${intent||'—'}</div></div>
         <div class="stat-cell"><div class="label">Days Out</div><div class="val ${daysColor(days)}">${days||'—'}</div></div>
         <div class="stat-cell"><div class="label">Opps</div><div class="val">${opps||'0'}</div></div>
-        <div class="stat-cell"><div class="label">Clients</div><div class="val">${clients>0?clients:'—'}</div></div>
+        <div class="stat-cell"><div class="label">Licenses</div><div class="val">${getLicCount(name)||'—'}</div></div>
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
       ${revHtml}
@@ -1364,6 +1368,7 @@ function renderTable(list) {
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
       <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
+      <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
       <td>${clients>0?'<span class="client-badge">CLIENT</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td><div class="flags-cell">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}${!flags.length?'<span style="color:var(--text-muted);font-size:12px;">—</span>':''}</div></td>
@@ -1604,10 +1609,10 @@ function autoQueueAccounts() {
 
 let acctSortCol = 'intent';
 let acctSortDir = 'desc';
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','intent','days','opps'].forEach(c => {
+  ['vertical','tier','revenue','intent','days','opps','licenses'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -1742,6 +1747,7 @@ function parseLicenseCSV(text) {
     } else {
       obj._churnTier = obj._active ? 'active' : 'dead';
     }
+    applyLicenseRules(obj); // Apply territory business rules before signal calc
     obj._signal = calcSignal(obj);
     rows.push(obj);
   }
@@ -1776,6 +1782,30 @@ function parseDate(str) {
   const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2])-1, parseInt(iso[3]));
   return null;
+}
+
+// Normalize account names for cross-tab matching
+function normName(s) { return (s || '').toLowerCase().trim(); }
+
+// Count licenses for an account from the loaded licenses array
+function getLicCount(accountName) {
+  if (!licenses.length) return 0;
+  const n = normName(accountName);
+  return licenses.filter(l => normName(l._name) === n).length;
+}
+
+// Territory business rules: correct license types before signal calc.
+// Rules defined with Dan:
+//   1. Active US Industry → PIQ (no active US Industry exists in Dan's territory)
+//   2. Churned US Industry + $0 ACV + opp mentions "trial" → TRIAL
+function applyLicenseRules(lic) {
+  if (lic._type === 'US' && lic._active) {
+    lic._type = 'PIQ';
+  }
+  if (lic._type === 'US' && !lic._active && lic._acv === 0 && /trial/i.test(lic._oppName || '')) {
+    lic._type = 'TRIAL';
+  }
+  return lic;
 }
 
 function decodeLicenseType(licenseName) {

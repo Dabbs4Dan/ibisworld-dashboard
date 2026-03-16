@@ -180,6 +180,10 @@ License Start Date, License End Date
 - The Salesforce "Active License" field is **unreliable** — always use License End Date comparison vs today
 - Account name matching uses case-insensitive trim (`normName()`)
 
+### Territory Rules — applied via `applyLicenseRules(lic)` at parse + restore time:
+1. **Active US Industry → PIQ**: If `_type === 'US'` AND `_active === true`, reclassify to PIQ. No active US Industry clients exist in Dan's territory — these are actually US Procurement accounts.
+2. **Churned US trial → TRIAL**: If `_type === 'US'` AND `_active === false` AND `_acv === 0` AND Opportunity Name contains "trial", reclassify to TRIAL. These are $0 churned US Industry rows that are actually expired trials.
+
 ---
 
 ## HOW TO WORK WITH DAN
@@ -248,6 +252,7 @@ When a new session begins, Claude Code should:
 
 | Priority | Item | Notes |
 |---|---|---|
+| ✅ Done | Licenses count on Accounts | Shown in card stat (replaces Clients) + table column, sortable. Uses `getLicCount(name)` via `normName()` matching. |
 | 🔜 Next | License badges on Account rows | Show `💰 $28K · churned 2024` `🔵 PIQ Active` badges on each account card/row. Logic exists in license engine — just needs to surface. Match key: Account Name (case-insensitive trim) |
 | 🛠️ Tech debt | Stale `ibis_local` cleanup | Entries for removed accounts accumulate forever. On CSV upload, purge entries for accounts not seen in >6 months. Must not delete notes for accounts temporarily missing from a report. |
 | ✅ Done | Sort state persistence | Saved to `ibis_sort` key; restored on init via `restoreSortPref()`. |
