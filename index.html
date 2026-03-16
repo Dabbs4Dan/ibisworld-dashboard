@@ -121,8 +121,14 @@
   .lic-empty .empty-title { font-size: 18px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
   .lic-empty .empty-desc  { font-size: 14px; line-height: 1.6; max-width: 380px; margin: 0 auto 24px; }
 
-  .lic-sort-arrow { font-size: 10px; opacity: 0.5; }
-  .lic-sort-active { color: var(--ibis-red); opacity: 1; }
+  .lic-sort-arrow { font-size: 10px; opacity: 0.35; vertical-align: middle; margin-left: 2px; }
+  .lic-sort-active {
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ibis-red); opacity: 1;
+    background: #fef2f4; border: 1px solid #fca5a5;
+    border-radius: 5px; padding: 1px 5px; font-size: 10px; font-weight: 700;
+    vertical-align: middle; margin-left: 3px; line-height: 1.4;
+  }
 
   .lic-th-inner { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
   .lic-filter-trigger {
@@ -256,6 +262,8 @@
     border-bottom: 1px solid var(--border);
     background: var(--header-bg);
   }
+  #controls-accounts { flex-wrap: nowrap; overflow-x: auto; }
+  #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
   #controls-licenses { flex-wrap: nowrap; overflow-x: auto; }
   #controls-licenses select { flex-shrink: 0; }
 
@@ -1038,6 +1046,7 @@ const LOGO_DOMAIN_OVERRIDES = {
   'Novelis':              'novelis.com',
   'Vitol, Inc.':          'vitol.com',
   'Glencore':             'glencore.com',
+  'SkyKnight Capital':    'skyknightcapital.com',
 };
 
 function getLogoDomain(acc) {
