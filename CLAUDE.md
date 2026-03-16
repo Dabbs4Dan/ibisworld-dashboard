@@ -43,7 +43,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ### Two tabs live:
 1. **📋 Accounts tab** — main territory view
-2. **🔑 License Intelligence tab** — churn/active license data
+2. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
 
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
@@ -235,6 +235,12 @@ When a new session begins, Claude Code should:
 | Priority | Item | Notes |
 |---|---|---|
 | 🔜 Next | License badges on Account rows | Show `💰 $28K · churned 2024` `🔵 PIQ Active` badges on each account card/row. Logic exists in license engine — just needs to surface. Match key: Account Name (case-insensitive trim) |
+| 🛠️ Tech debt | Stale `ibis_local` cleanup | Entries for removed accounts accumulate forever. On CSV upload, purge entries for accounts not seen in >6 months. Must not delete notes for accounts temporarily missing from a report. |
+| 🛠️ Tech debt | Sort state persistence | Save sort col/dir to localStorage on change, restore on init. Tiny change, big QOL. |
+| 🛠️ Tech debt | Storage warning banner | `checkStorageSize()` only logs to console. Add a visible banner when >80% of 5MB limit is hit. |
+| 🛠️ Tech debt | Update Claude model ID | `claude-sonnet-4-20250514` is hardcoded — update when Anthropic deprecates it or use latest alias. |
+| 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
+| 🗺️ Future | Shared sort/filter pattern | Accounts and Licenses built with different sort/filter code. Extract shared `TableControls` helper before adding more tabs. |
 | 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
 | 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |
