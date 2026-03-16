@@ -613,13 +613,13 @@
     background: linear-gradient(
       100deg,
       transparent 0%,
-      rgba(255,255,255,0.0) 28%,
-      rgba(255,255,255,0.85) 40%,
-      rgba(255,215,0,0.8) 50%,
-      rgba(0,220,255,0.75) 60%,
-      rgba(255,80,220,0.7) 68%,
-      rgba(255,255,255,0.85) 77%,
-      rgba(255,255,255,0.0) 87%,
+      rgba(255,255,255,0.0) 22%,
+      rgba(255,255,255,0.95) 34%,
+      rgba(255,228,0,1.0) 44%,
+      rgba(0,230,255,0.95) 54%,
+      rgba(255,80,220,0.9) 62%,
+      rgba(255,255,255,0.95) 72%,
+      rgba(255,255,255,0.0) 82%,
       transparent 100%
     );
     mix-blend-mode: overlay;
@@ -632,21 +632,33 @@
   }
   #splash-text {
     text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 0;
   }
   #splash-title {
     font-family: 'DM Sans', sans-serif;
-    font-size: 20px; font-weight: 600; letter-spacing: 0.04em;
-    color: rgba(255,255,255,0.92);
+    font-size: 26px; font-weight: 700; letter-spacing: 0.03em;
+    background: linear-gradient(100deg,
+      rgba(255,255,255,0.92) 0%,
+      rgba(255,255,255,0.92) 28%,
+      rgba(255,228,0,1) 40%,
+      rgba(0,230,255,1) 50%,
+      rgba(255,80,220,0.95) 59%,
+      rgba(255,255,255,0.92) 71%,
+      rgba(255,255,255,0.92) 100%
+    );
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-position: 0% 0;
+    animation: title-sheen 1.8s cubic-bezier(0.4, 0, 0.2, 1) 0.5s forwards;
   }
-  #splash-subtitle {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px; font-weight: 400; letter-spacing: 0.12em;
-    color: rgba(200,16,46,0.85);
-    text-transform: uppercase;
+  @keyframes title-sheen {
+    0%   { background-position: 0% 0; }
+    100% { background-position: 100% 0; }
   }
   #splash-dots {
-    display: flex; gap: 7px; margin-top: 8px;
+    display: flex; gap: 7px; margin-top: 14px;
   }
   #splash-dots span {
     width: 6px; height: 6px; border-radius: 50%;
@@ -659,24 +671,33 @@
     0%, 80%, 100% { background: rgba(255,255,255,0.2); transform: scale(1); }
     40%            { background: rgba(200,16,46,0.85);  transform: scale(1.35); }
   }
-  /* === CLEAR CSV BUTTONS === */
+  /* === CSV BUTTON GROUPS === */
+  .csv-btn-group {
+    display: flex;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .csv-btn-group .upload-btn,
+  .csv-btn-group .upload-btn-license {
+    border-radius: 0;
+    box-shadow: none;
+  }
   .clear-csv-btn {
-    background: none;
-    border: 1px solid rgba(255,255,255,0.3);
-    color: rgba(255,255,255,0.65);
-    border-radius: 5px;
-    width: 26px; height: 26px;
-    font-size: 13px;
+    background: rgba(0,0,0,0.22);
+    border: none;
+    border-left: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.6);
+    width: 30px;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    transition: background 0.15s, color 0.15s;
     flex-shrink: 0;
     padding: 0;
   }
   .clear-csv-btn:hover {
-    border-color: rgba(255,255,255,0.65);
-    color: white;
-    background: rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.38);
+    color: rgba(255,255,255,0.9);
   }
 </style>
 </head>
@@ -690,7 +711,6 @@
   </div>
   <div id="splash-text">
     <div id="splash-title">Account Intelligence</div>
-    <div id="splash-subtitle">IBISWorld &middot; US Major Markets</div>
     <div id="splash-dots">
       <span></span><span></span><span></span>
     </div>
@@ -708,10 +728,14 @@
       <button class="view-btn active" onclick="setView('cards')" id="btn-cards">⊞ Cards</button>
       <button class="view-btn" onclick="setView('table')" id="btn-table">☰ Table</button>
     </div>
-    <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 License CSV</button>
-    <button class="clear-csv-btn" onclick="clearLicensesData()" title="Clear license data">🗑️</button>
-    <button class="upload-btn" id="acct-upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
-    <button class="clear-csv-btn" onclick="clearAccountsData()" title="Clear account data">🗑️</button>
+    <div class="csv-btn-group">
+      <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 Licenses CSV</button>
+      <button class="clear-csv-btn" onclick="clearLicensesData()" title="Clear license data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <div class="csv-btn-group">
+      <button class="upload-btn" id="acct-upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
+      <button class="clear-csv-btn" onclick="clearAccountsData()" title="Clear account data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)" style="display:none;">
   </div>
@@ -720,7 +744,7 @@
 <div class="view-nav">
   <div class="view-nav-tabs">
     <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
-    <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 License Intelligence</button>
+    <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
   </div>
   <span id="lic-nav-status" style="font-size:12px;color:var(--text-muted);"></span>
 </div>
@@ -1188,6 +1212,16 @@ const LOGO_DOMAIN_OVERRIDES = {
   'Glencore':             'glencore.com',
   'SkyKnight Capital':    'skyknightcapital.com',
 };
+
+// Guess a .com domain from a company name when no website data exists
+function guessDomain(name) {
+  if (!name) return null;
+  const d = name.trim()
+    .replace(/\b(inc\.?|llc\.?|corp\.?|ltd\.?|co\.?|plc|s\.a\.?|pty\.?|group|holdings|international|global|technologies|technology|services|solutions|consulting|capital|partners|management|financial|enterprises|industries|systems|networks|corporation)\b/gi, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase();
+  return d.length > 1 ? d + '.com' : null;
+}
 
 function getDomainOverride(name) {
   if (!name) return null;
@@ -1841,7 +1875,7 @@ function renderLicenses() {
 
     // Logo: match against accounts for domain; cascade UpLead → DuckDuckGo → Google → Initials
     const acctMatch = accounts.find(a => (getField(a,'Account Name','AccountName')||'').toLowerCase().trim() === l._name.toLowerCase().trim());
-    const logoDomain = acctMatch ? getLogoDomain(acctMatch) : getDomainOverride(l._name);
+    const logoDomain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(l._name) || guessDomain(l._name));
     const initials = l._name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const logoHtml = logoDomain
       ? `<div class="td-logo"><img src="https://logo.uplead.com/${logoDomain}" ${logoFallbackChain(logoDomain, initials)} alt="${l._name}"></div>`
