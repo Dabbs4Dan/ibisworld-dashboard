@@ -90,7 +90,6 @@
   .ltype-intl { background: #ccfbf1; color: #0d9488; }
   .ltype-migration { background: #f3f4f6; color: #9ca3af; }
   .ltype-trial { background: #ede9fe; color: #5b21b6; }
-  .ltype-renewal { background: #ffedd5; color: #c2410c; }
   .ltype-unknown { background: #f3f4f6; color: #9ca3af; }
 
   .lic-status-badge {
@@ -201,7 +200,6 @@
   .alb-intl    { background:#dcfce7; color:#15803d; }
   .alb-churn   { background:#fef3c7; color:#b45309; }
   .alb-trial   { background:#f3e8ff; color:#7c3aed; }
-  .alb-renewal { background:#ffedd5; color:#c2410c; }
   .td-lic-badges { display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
 
 /* ── REVENUE ENGINE STYLES ───────────────────── */
@@ -971,7 +969,6 @@
                 <label><input type="checkbox" value="PIQ"     onchange="applyLicTypeFilter()"> PIQ / Procurement</label>
                 <label><input type="checkbox" value="INTL"    onchange="applyLicTypeFilter()"> International</label>
                 <label><input type="checkbox" value="TRIAL"   onchange="applyLicTypeFilter()"> Trial</label>
-                <label><input type="checkbox" value="RENEWAL" onchange="applyLicTypeFilter()"> 🔄 Lost Renewal</label>
                 <div class="lic-dropdown-divider"></div>
                 <button class="lic-dropdown-clear" onclick="clearLicFilter('type')">Clear filter</button>
               </div>
@@ -1720,7 +1717,7 @@ function restoreSortPref() {
    ============================================================ */
 
 let licenses = [];
-let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','RENEWAL','UNKNOWN'
+let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
 let licStatusFilters = new Set(); // values: 'active','newchurn','churned','dead'
 let openLicDropdown = null;
 let licSortCol = 'churn_recency';
@@ -1882,9 +1879,6 @@ function getLicBadgeSpans(accountName) {
   // Trial
   if (acctLics.some(l => l._type === 'TRIAL')) badges.push(`<span class="alb alb-trial">🧪 Trial</span>`);
 
-  // Lost renewal
-  if (acctLics.some(l => l._type === 'RENEWAL')) badges.push(`<span class="alb alb-renewal">🔄 Renewal</span>`);
-
   return badges.join('');
 }
 
@@ -1899,10 +1893,9 @@ function getLicBadgesForAccount(accountName) {
 //   1. Active US Industry → PIQ (no active US Industry exists in Dan's territory)
 //   2. Churned US Industry + $0 ACV + opp mentions "trial" → TRIAL
 function applyLicenseRules(lic) {
-  // Rule 0: Lost renewal — $0 US Industry with "renewal" in opp name (active or not)
+  // Rule 0: Lost renewal — $0 US + "renewal" in opp → force inactive/newchurn, keep as US Industry
   // Must fire before Rule 1 to prevent false PIQ promotion
   if (lic._type === 'US' && lic._acv === 0 && /renewal/i.test(lic._oppName || '')) {
-    lic._type = 'RENEWAL';
     lic._active = false;
     lic._churnTier = 'newchurn';
     return lic;
@@ -2137,8 +2130,8 @@ function renderLicenses() {
 
   tbody.innerHTML = list.map(l => {
     const inTerritory = territory.size > 0 && territory.has(l._name.toLowerCase().trim());
-    const typeCls = { US:'ltype-us', PIQ:'ltype-procurement', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', RENEWAL:'ltype-renewal', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
-    const typeLabel = { US:'US Industry', PIQ:'US Procurement', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', RENEWAL:'Lost Renewal', UNKNOWN:'Other' }[l._type] || l._type;
+    const typeCls = { US:'ltype-us', PIQ:'ltype-procurement', INTL:'ltype-intl', MIGRATION:'ltype-migration', TRIAL:'ltype-trial', UNKNOWN:'ltype-unknown' }[l._type] || 'ltype-unknown';
+    const typeLabel = { US:'US Industry', PIQ:'US Procurement', INTL:'International', MIGRATION:'Migration', TRIAL:'Trial', UNKNOWN:'Other' }[l._type] || l._type;
     const statusHtml = l._active
       ? `<span class="lic-status-badge lic-active">✅ Active</span>`
       : l._churnTier === 'newchurn'
