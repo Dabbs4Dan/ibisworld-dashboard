@@ -144,6 +144,20 @@ Transportation/Logistics=#e0f2fe, Wholesale=#f0fdf4
 
 ---
 
+## FRONTEND DESIGN PHILOSOPHY
+*Applies to all UI work only — does not govern backend logic, CSV parsing, or data handling.*
+
+- **This is a sales tool used in client-facing meetings** — it must impress, not just function. Every visual decision should hold up under a VP's gaze on a shared screen.
+- **Avoid all generic AI UI patterns** — no default box shadows, no Bootstrap energy, no cookie-cutter card layouts. If it looks like it came from a template, it's wrong.
+- **Animations must feel intentional and premium** — never decorative. Every transition should serve a purpose: confirming an action, guiding the eye, or communicating state. No animation for animation's sake.
+- **Every component must match the existing design language exactly** — DM Sans + DM Mono, IBISWorld red `#C8102E`, light theme `#f0f2f5`, the tier diamond system, the vertical color palette. New components must feel like they were always there.
+- **Think like a designer AND an engineer simultaneously** — visual quality and code quality are equally non-negotiable. A feature that works but looks wrong is not done.
+- **Reference the frontend-design skill** at `/mnt/skills/public/frontend-design/SKILL.md` when building or modifying any UI component.
+- **Information hierarchy first** — before writing a single line of CSS, ask: what does the user need to see first? Design the visual weight to match that answer.
+- **Progressive disclosure over information overload** — show the most important data always; let the rest live one interaction away. Don't cram everything into a card.
+
+---
+
 ## CSV SCHEMAS
 
 ### Accounts CSV (SF "DA$ Account Stalker" report)
@@ -236,9 +250,9 @@ When a new session begins, Claude Code should:
 |---|---|---|
 | 🔜 Next | License badges on Account rows | Show `💰 $28K · churned 2024` `🔵 PIQ Active` badges on each account card/row. Logic exists in license engine — just needs to surface. Match key: Account Name (case-insensitive trim) |
 | 🛠️ Tech debt | Stale `ibis_local` cleanup | Entries for removed accounts accumulate forever. On CSV upload, purge entries for accounts not seen in >6 months. Must not delete notes for accounts temporarily missing from a report. |
-| 🛠️ Tech debt | Sort state persistence | Save sort col/dir to localStorage on change, restore on init. Tiny change, big QOL. |
-| 🛠️ Tech debt | Storage warning banner | `checkStorageSize()` only logs to console. Add a visible banner when >80% of 5MB limit is hit. |
-| 🛠️ Tech debt | Update Claude model ID | `claude-sonnet-4-20250514` is hardcoded — update when Anthropic deprecates it or use latest alias. |
+| ✅ Done | Sort state persistence | Saved to `ibis_sort` key; restored on init via `restoreSortPref()`. |
+| ✅ Done | Storage warning banner | Shows amber banner when any key >2MB or total >4MB; Clear Cache button strips only rev data. |
+| ✅ Done | Update Claude model ID | Updated to `claude-sonnet-4-6`. |
 | 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
 | 🗺️ Future | Shared sort/filter pattern | Accounts and Licenses built with different sort/filter code. Extract shared `TableControls` helper before adding more tabs. |
 | 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |

@@ -165,6 +165,34 @@
 
   .hidden { display: none !important; }
 
+  /* === STORAGE WARNING BANNER === */
+  #storage-warning-banner {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 24px 0;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #92400e;
+  }
+  #storage-warning-banner.visible { display: flex; }
+  #storage-warning-banner .swb-msg { flex: 1; }
+  #storage-warning-banner .swb-clear {
+    background: none; border: 1px solid #d97706; color: #92400e;
+    padding: 4px 10px; border-radius: 5px; font-size: 12px;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 500;
+    transition: background 0.15s;
+  }
+  #storage-warning-banner .swb-clear:hover { background: #fef3c7; }
+  #storage-warning-banner .swb-dismiss {
+    background: none; border: none; cursor: pointer;
+    font-size: 15px; color: #b45309; padding: 0 2px; line-height: 1; opacity: 0.6;
+  }
+  #storage-warning-banner .swb-dismiss:hover { opacity: 1; }
+
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
   .card-revenue { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; }
@@ -575,7 +603,7 @@
   }
   .btn-save:hover { opacity: 0.88; }
 
-  #file-input { display: none; }
+  #file-input, #lic-file-input { display: none; }
   .count-label { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 
   /* === SPLASH SCREEN === */
@@ -811,7 +839,7 @@
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search accounts..." id="search-input" oninput="renderAll()">
   </div>
-  <select id="sort-select" onchange="renderAll()">
+  <select id="sort-select" onchange="saveSortPref();renderAll()">
     <option value="intent">Intent Score</option>
     <option value="revenue">Revenue</option>
     <option value="vertical">Vertical A–Z</option>
@@ -856,6 +884,13 @@
   <span>📊</span>
   <span id="change-text" style="flex:1;"></span>
   <button onclick="document.getElementById('change-banner').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:#065f46;padding:0 4px;line-height:1;opacity:0.6;" title="Dismiss">✕</button>
+</div>
+
+<div id="storage-warning-banner">
+  <span>⚠️</span>
+  <span class="swb-msg">Storage is getting full. Consider clearing your enrichment cache to prevent upload failures.</span>
+  <button class="swb-clear" onclick="clearEnrichmentCache()">Clear Cache</button>
+  <button class="swb-dismiss" onclick="document.getElementById('storage-warning-banner').classList.remove('visible')" title="Dismiss">✕</button>
 </div>
 
 <!-- ACCOUNTS CONTENT -->
@@ -1055,7 +1090,7 @@ function init() {
       console.error('localStorage data corrupted, resetting:', e);
       accounts = []; localData = {};
     }
-    applySeedsToLocalData(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts();
+    applySeedsToLocalData(); restoreSortPref(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
   }
@@ -1489,7 +1524,7 @@ async function fetchRevenueFromClaude(companyName) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 300,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         system: `You are a financial data assistant. Find the most recent annual revenue in USD. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD. Return ONLY valid JSON (no markdown, no explanation): {"value_usd": <number in USD>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>"}. If unavailable: {"value_usd": null}`,
@@ -1516,8 +1551,28 @@ async function enrichRevenue() {
   if (!modalAccount) return;
   const btn = document.getElementById('enrich-modal-btn');
   const resultEl = document.getElementById('enrich-result');
-  btn.disabled = true; btn.textContent = '⏳ Searching…';
   resultEl.classList.remove('hidden');
+
+  // If auto-queue is already running, route through it to avoid parallel requests
+  if (claudeRunning) {
+    btn.disabled = true; btn.textContent = '⏳ Queued…';
+    resultEl.textContent = 'Added to enrichment queue (runs next)…';
+    queueClaudeEnrich(modalAccount, true); // priority = front of queue
+    // Poll until this account's revenue is written
+    const poll = setInterval(() => {
+      if (localData[modalAccount]?.rev) {
+        clearInterval(poll);
+        document.getElementById('modal-rev-display').textContent = localData[modalAccount].rev.label;
+        document.getElementById('modal-rev-badge').innerHTML = sourceBadge(localData[modalAccount].rev.source);
+        resultEl.textContent = `📌 ${localData[modalAccount].rev.srcNote || 'Web search'} · ${localData[modalAccount].rev.year || ''}`;
+        btn.textContent = '🔄 Re-check'; btn.disabled = false;
+        renderAll();
+      }
+    }, 800);
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Searching…';
   resultEl.textContent = 'Searching the web for revenue…';
   const result = await fetchRevenueFromClaude(modalAccount);
   if (result) {
@@ -1555,7 +1610,34 @@ function updateAcctSortArrows() {
     }
   });
 }
-function setSortCol(col) { document.getElementById('sort-select').value=col; renderAll(); }
+function setSortCol(col) {
+  document.getElementById('sort-select').value = col;
+  saveSortPref();
+  renderAll();
+}
+
+function saveSortPref() {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('ibis_sort') || '{}');
+    prefs.accounts = { col: document.getElementById('sort-select').value };
+    prefs.licenses = { col: licSortCol, dir: licSortDir };
+    localStorage.setItem('ibis_sort', JSON.stringify(prefs));
+  } catch(e) {}
+}
+
+function restoreSortPref() {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('ibis_sort') || '{}');
+    if (prefs.accounts?.col) {
+      const sel = document.getElementById('sort-select');
+      if (sel) sel.value = prefs.accounts.col;
+    }
+    if (prefs.licenses?.col) {
+      licSortCol = prefs.licenses.col;
+      licSortDir = prefs.licenses.dir || LIC_SORT_DEFAULT_DIR[licSortCol] || 'asc';
+    }
+  } catch(e) {}
+}
 
 /* ============================================================
    LICENSE INTELLIGENCE ENGINE
@@ -1793,6 +1875,7 @@ function setLicSort(col) {
     licSortCol = col;
     licSortDir = LIC_SORT_DEFAULT_DIR[col] || 'asc';
   }
+  saveSortPref();
   updateLicSortArrows();
   renderLicenses();
 }
@@ -1802,6 +1885,7 @@ function onLicSortSelectChange() {
   if (val === 'enddate_desc') { licSortCol = 'enddate'; licSortDir = 'desc'; }
   else if (val === 'enddate_asc') { licSortCol = 'enddate'; licSortDir = 'asc'; }
   else { licSortCol = val; licSortDir = LIC_SORT_DEFAULT_DIR[val] || 'asc'; }
+  saveSortPref();
   updateLicSortArrows();
   renderLicenses();
 }
@@ -1972,16 +2056,34 @@ function clearLicensesData() {
 }
 
 function checkStorageSize() {
-  const WARN_KB = 2048; // warn at 2MB per key (limit is ~5MB total)
+  const WARN_KEY_KB = 2048; // warn at 2MB per key
+  const WARN_TOTAL_KB = 4096; // warn at 4MB total
   let totalKB = 0;
+  let triggered = false;
   ['ibis_accounts','ibis_local','ibis_licenses'].forEach(key => {
     const val = localStorage.getItem(key);
     if (!val) return;
     const kb = Math.round((val.length * 2) / 1024);
     totalKB += kb;
-    if (kb > WARN_KB) console.warn(`[ibis-storage] "${key}" is ${kb}KB — approaching 5MB localStorage limit`);
+    if (kb > WARN_KEY_KB) { console.warn(`[ibis-storage] "${key}" is ${kb}KB — approaching limit`); triggered = true; }
   });
-  if (totalKB > 4096) console.warn(`[ibis-storage] Total usage ~${totalKB}KB — very close to 5MB limit`);
+  if (totalKB > WARN_TOTAL_KB) { console.warn(`[ibis-storage] Total ~${totalKB}KB — very close to 5MB limit`); triggered = true; }
+  const banner = document.getElementById('storage-warning-banner');
+  if (banner) {
+    if (triggered) banner.classList.add('visible');
+    else banner.classList.remove('visible');
+  }
+}
+
+function clearEnrichmentCache() {
+  // Remove only revenue data — preserve flags and notes
+  Object.keys(localData).forEach(name => {
+    if (localData[name]?.rev) delete localData[name].rev;
+  });
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  document.getElementById('storage-warning-banner').classList.remove('visible');
+  renderAll();
+  checkStorageSize();
 }
 
 init();
