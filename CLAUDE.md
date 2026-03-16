@@ -39,7 +39,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ---
 
-## CURRENT STATE — v20 (stable)
+## CURRENT STATE — v21 (stable)
 
 ### Two tabs live:
 1. **📋 Accounts tab** — main territory view
@@ -55,6 +55,13 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - Logo cascade: UpLead → DuckDuckGo → Google Favicon → Initials
 - Accounts CSV button turns ✅ green when freshly uploaded this session
 - 6sense buying stage badges
+- 🗑️ clear buttons next to each CSV upload — accounts clears `ibis_accounts`+`ibis_updated` only (preserves `ibis_local`); licenses clears `ibis_licenses` only
+
+### Splash Screen
+- Fires on every page load/refresh (no sessionStorage gate — JS tab switching never reloads so no risk of retrigger)
+- 200px logo, 3.2s display, 0.5s fade
+- Radial gradient dark bg, red pulse glow on logo, sheen animation
+- Title "Account Intelligence" + subtitle "IBISWorld · US Major Markets" + animated 3-dot loader
 
 ### License Intelligence Tab Features
 - Parses SF "Account with Licenses & Products" CSV (~1,082 rows)
