@@ -41,9 +41,9 @@
     height: 38px;
     gap: 16px;
     position: sticky;
-    top: 56px;
+    top: 52px;
     z-index: 99;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    /* Chrome zone: no shadow, stays receded */
   }
   .view-nav-tabs { display: flex; gap: 0; height: 100%; }
   .vnav-btn {
@@ -81,7 +81,7 @@
   .lic-type-badge {
     display: inline-flex; align-items: center;
     font-size: 11px; font-weight: 600;
-    padding: 2px 9px; border-radius: 20px;
+    padding: 2px 8px; border-radius: 5px;
     white-space: nowrap;
   }
   .ltype-us   { background: #fef3c7; color: #92400e; }
@@ -94,8 +94,8 @@
 
   .lic-status-badge {
     display: inline-flex; align-items: center; gap: 3px;
-    font-size: 11px; font-weight: 500;
-    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 5px;
   }
   .lic-active   { background: #d1fae5; color: #065f46; }
   .lic-churned  { background: #fee2e2; color: #991b1b; }
@@ -196,8 +196,9 @@
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
   .card-revenue { margin-top:8px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; }
-  .revenue-val { font-size:12px; font-weight:500; font-family:'DM Mono',monospace; color:var(--text-primary); }
+  .revenue-val { font-size:12px; font-weight:600; font-family:'DM Mono',monospace; color:var(--text-primary); }
   .revenue-meta { display:flex; align-items:center; gap:5px; }
+  .rev-source-text { font-size:10px; color:var(--text-muted); font-family:'DM Sans',sans-serif; }
   .modal-revenue-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .modal-revenue-val { font-size:14px; font-weight:600; font-family:'DM Mono',monospace; color:var(--text-primary); }
   .enrich-modal-btn { font-size:12px; padding:4px 10px; border:1px solid var(--border); border-radius:5px; background:white; cursor:pointer; font-family:'DM Sans',sans-serif; color:var(--text-secondary); }
@@ -219,11 +220,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 56px;
+    height: 52px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    /* Chrome zone: pure hairline, no shadow — scaffolding, not content */
   }
 
   .header-left { display: flex; align-items: center; gap: 16px; }
@@ -264,23 +265,25 @@
     display: flex;
     gap: 0;
     border-bottom: 1px solid var(--border);
-    background: var(--header-bg);
+    /* Signal zone: distinct tint lifts this above chrome */
+    background: #f4f6f9;
     padding: 0 24px;
     overflow-x: auto;
+    box-shadow: inset 0 -1px 0 var(--border);
   }
 
   .stat-item {
-    padding: 12px 28px 12px 0;
-    margin-right: 28px;
+    padding: 14px 32px 14px 0;
+    margin-right: 32px;
     border-right: 1px solid var(--border);
     white-space: nowrap;
     transition: opacity 0.15s;
   }
   .stat-item:last-child { border-right: none; }
-  .stat-item:hover { opacity: 0.78; }
+  .stat-item:hover { opacity: 0.72; }
 
-  .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 3px; }
-  .stat-value { font-size: 22px; font-weight: 600; color: var(--text-primary); font-family: 'DM Mono', monospace; }
+  .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600; }
+  .stat-value { font-size: 26px; font-weight: 700; color: var(--text-primary); font-family: 'DM Mono', monospace; line-height: 1; }
   .stat-value.red { color: var(--ibis-red); }
 
   .controls {
@@ -291,6 +294,7 @@
     flex-wrap: wrap;
     border-bottom: 1px solid var(--border);
     background: var(--header-bg);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   }
   #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
   #controls-licenses { flex-wrap: nowrap; }
@@ -404,9 +408,9 @@
   .company-vertical { margin-top: 5px; }
   .vert-bubble {
     display: inline-block;
-    font-size: 11px; font-weight: 500;
+    font-size: 11px; font-weight: 600;
     padding: 2px 8px;
-    border-radius: 20px;
+    border-radius: 5px;
     color: #374151;
     white-space: nowrap;
   }
@@ -433,8 +437,8 @@
   .card-footer { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; }
 
   .stage-tag {
-    font-size: 11px; font-weight: 500;
-    padding: 3px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 5px;
   }
   .stage-Decision { background: var(--tag-decision); color: var(--tag-decision-text); }
   .stage-Consideration { background: var(--tag-consideration); color: var(--tag-consideration-text); }
@@ -442,8 +446,8 @@
   .stage-Other, .stage-unknown { background: var(--tag-other); color: var(--tag-other-text); }
 
   .client-badge {
-    font-size: 10px; font-weight: 600;
-    padding: 2px 7px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 5px;
     background: var(--ibis-red-light);
     color: var(--ibis-red);
     letter-spacing: 0.3px;
@@ -839,7 +843,7 @@
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search accounts..." id="search-input" oninput="renderAll()">
   </div>
-  <select id="sort-select" onchange="saveSortPref();renderAll()">
+  <select id="sort-select" onchange="onAcctSortSelectChange()">
     <option value="intent">Intent Score</option>
     <option value="revenue">Revenue</option>
     <option value="vertical">Vertical A–Z</option>
@@ -1218,18 +1222,19 @@ function getFiltered() {
     }
     return true;
   });
+  const d = acctSortDir === 'asc' ? 1 : -1;
   list.sort((a,b) => {
-    if (sort==='intent') return parseFloat(getField(b,'6sense Account Intent Score NA')||0) - parseFloat(getField(a,'6sense Account Intent Score NA')||0);
+    if (sort==='intent') return d * (parseFloat(getField(a,'6sense Account Intent Score NA')||0) - parseFloat(getField(b,'6sense Account Intent Score NA')||0));
     if (sort==='revenue') {
       const ra = getRevDisplay(a)?.raw || 0;
       const rb = getRevDisplay(b)?.raw || 0;
-      return rb - ra;
+      return d * (ra - rb);
     }
-    if (sort==='days') return parseFloat(getField(b,'US Days Since Last Activity')||0)-parseFloat(getField(a,'US Days Since Last Activity')||0);
-    if (sort==='tier') return parseFloat(getField(a,'Major Markets Tier')||9)-parseFloat(getField(b,'Major Markets Tier')||9);
-    if (sort==='name') return getField(a,'Account Name','AccountName').localeCompare(getField(b,'Account Name','AccountName'));
-    if (sort==='vertical') return getTrueVertical(a).localeCompare(getTrueVertical(b));
-    if (sort==='opps') return parseFloat(getField(b,'# Core Opportunities')||0)-parseFloat(getField(a,'# Core Opportunities')||0);
+    if (sort==='days') return d * (parseFloat(getField(a,'US Days Since Last Activity')||0) - parseFloat(getField(b,'US Days Since Last Activity')||0));
+    if (sort==='tier') return d * (parseFloat(getField(a,'Major Markets Tier')||9) - parseFloat(getField(b,'Major Markets Tier')||9));
+    if (sort==='name') return d * getField(a,'Account Name','AccountName').localeCompare(getField(b,'Account Name','AccountName'));
+    if (sort==='vertical') return d * getTrueVertical(a).localeCompare(getTrueVertical(b));
+    if (sort==='opps') return d * (parseFloat(getField(a,'# Core Opportunities')||0) - parseFloat(getField(b,'# Core Opportunities')||0));
     return 0;
   });
   return list;
@@ -1315,7 +1320,9 @@ function renderCards(list) {
     const local = localData[key]||{}, flags = local.flags||[];
     const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical'), sub=getField(acc,'Sub-Vertical');
     const revInfo = getRevDisplay(acc);
-    const revHtml = revInfo ? `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revInfo.label}</span><span>${sourceBadge(revInfo.source)}</span></div></div>` : '';
+    const revLabel = revInfo ? revInfo.label.replace('USD ', '$') : null;
+    const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
+    const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
       <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div></div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
@@ -1595,14 +1602,16 @@ function autoQueueAccounts() {
   [...tier1, ...rest].forEach(a => queueClaudeEnrich(getField(a,'Account Name','AccountName')));
 }
 
-const ACCT_SORT_NATURAL_DIR = { vertical:'↑', tier:'↑', name:'↑', revenue:'↓', intent:'↓', days:'↓', opps:'↓' };
+let acctSortCol = 'intent';
+let acctSortDir = 'desc';
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc' };
+
 function updateAcctSortArrows() {
-  const activeSort = document.getElementById('sort-select')?.value;
   ['vertical','tier','revenue','intent','days','opps'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
-    if (c === activeSort) {
-      el.textContent = ' ' + (ACCT_SORT_NATURAL_DIR[c] || '↓');
+    if (c === acctSortCol) {
+      el.textContent = acctSortDir === 'asc' ? ' ↑' : ' ↓';
       el.className = 'acct-sort-arrow acct-sort-active';
     } else {
       el.textContent = '';
@@ -1611,7 +1620,20 @@ function updateAcctSortArrows() {
   });
 }
 function setSortCol(col) {
+  if (acctSortCol === col) {
+    acctSortDir = acctSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    acctSortCol = col;
+    acctSortDir = ACCT_SORT_DEFAULT_DIR[col] || 'desc';
+  }
   document.getElementById('sort-select').value = col;
+  saveSortPref();
+  renderAll();
+}
+function onAcctSortSelectChange() {
+  const val = document.getElementById('sort-select').value;
+  acctSortCol = val;
+  acctSortDir = ACCT_SORT_DEFAULT_DIR[val] || 'desc';
   saveSortPref();
   renderAll();
 }
@@ -1619,7 +1641,7 @@ function setSortCol(col) {
 function saveSortPref() {
   try {
     const prefs = JSON.parse(localStorage.getItem('ibis_sort') || '{}');
-    prefs.accounts = { col: document.getElementById('sort-select').value };
+    prefs.accounts = { col: acctSortCol, dir: acctSortDir };
     prefs.licenses = { col: licSortCol, dir: licSortDir };
     localStorage.setItem('ibis_sort', JSON.stringify(prefs));
   } catch(e) {}
@@ -1629,8 +1651,10 @@ function restoreSortPref() {
   try {
     const prefs = JSON.parse(localStorage.getItem('ibis_sort') || '{}');
     if (prefs.accounts?.col) {
+      acctSortCol = prefs.accounts.col;
+      acctSortDir = prefs.accounts.dir || ACCT_SORT_DEFAULT_DIR[acctSortCol] || 'desc';
       const sel = document.getElementById('sort-select');
-      if (sel) sel.value = prefs.accounts.col;
+      if (sel) sel.value = acctSortCol;
     }
     if (prefs.licenses?.col) {
       licSortCol = prefs.licenses.col;
