@@ -69,8 +69,10 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
   - 🔥 New Churn (churned 2024+) — amber badge
   - ❌ Churned (2020–2023) — red badge
   - · Dead (pre-2020) — greyed out
-- Sortable columns, filter chips, stats bar
-- Company logos from matched account domain
+- Sortable columns (bidirectional toggle on all column headers)
+- Checkbox filter dropdowns on Type and Status column headers (AND logic, active state highlights header)
+- Stats bar recalculates live from filtered/visible rows
+- Company logos: UpLead → DuckDuckGo → Google → Initials (same cascade as Accounts tab)
 
 ---
 
@@ -186,6 +188,17 @@ License Start Date, License End Date
 - Dan should always feel like he knows what's happening
 - If the dashboard looks worse after a change, that's a failure — visual quality always matters
 - When in doubt: simpler, cleaner, faster
+
+---
+
+## SLASH COMMANDS
+Three commands live in `.claude/commands/` — type them anytime in Claude Code:
+
+| Command | What it does |
+|---|---|
+| `/start-session` | Reads CLAUDE.md, prints version + last build + open items, asks what to tackle |
+| `/check-session` | Health check — exchange count, uncommitted changes, unfinished tasks, recommendation |
+| `/end-session` | Commits anything loose, confirms CLAUDE.md is current, prints safe-to-close summary |
 
 ---
 
