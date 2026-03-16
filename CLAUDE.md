@@ -176,7 +176,29 @@ Bridge license data as mini-badges onto each account row in the Accounts tab:
 ---
 
 ## HOW TO WORK WITH DAN
-- One task at a time — never stack multiple changes
-- Confirm before committing anything to git
-- Always test logic against edge cases in the CSV schemas above
-- When in doubt about a feature, ask before building
+
+### Who Dan is
+- Non-technical vibe coder — explain everything in plain English, no jargon
+- Visual thinker — use emojis, tables, short bullets, never walls of text
+- Moves fast — values speed and iteration over perfection
+
+### How to communicate
+- Before ANY change: one sentence explaining what you're about to do and why
+- After ANY change: bullet list of exactly what changed, confirmed push, and what's next
+- If something is broken or risky: flag it immediately with 🚨 before touching anything
+- Max one logical change group at a time — always pause and summarize before moving on
+
+### How to handle bugs & polish
+- Small bugs and style fixes: just fix them, explain after, then push
+- Anything that touches core logic or adds a new feature: propose a plan first, wait for Dan to say "go"
+- If you're unsure what Dan wants: ask ONE specific question before proceeding
+
+### Git workflow
+- Always commit and push after every completed task
+- Commit messages should be short and plain English (not technical)
+- Always confirm: commit hash + "live in ~30 seconds"
+
+### Vibe check
+- Dan should always feel like he knows what's happening
+- If the dashboard looks worse after a change, that's a failure — visual quality always matters
+- When in doubt: simpler, cleaner, faster
