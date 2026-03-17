@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -617,7 +617,37 @@
   }
   .btn-save:hover { opacity: 0.88; }
 
-  #file-input, #lic-file-input { display: none; }
+  #file-input, #lic-file-input, #opp-file-input { display: none; }
+
+  /* === UNIFIED CSV UPLOAD MENU === */
+  .upload-menu-wrap { position: relative; }
+  #upload-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    background: white; border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.12); min-width: 248px; z-index: 300;
+    padding: 5px 0; overflow: hidden;
+  }
+  .upload-menu-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; cursor: pointer; transition: background 0.1s;
+    border: none; width: 100%; background: transparent; text-align: left;
+  }
+  .upload-menu-row:hover { background: var(--surface); }
+  .upload-menu-label { flex: 1; font-size: 13px; color: var(--text-secondary); font-family: 'DM Sans', sans-serif; }
+  .upload-menu-dot {
+    width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+    border: 1.5px solid #d1d5db; background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .upload-menu-dot.loaded { background: #059669; border-color: #059669; }
+  .upload-menu-x {
+    background: none; border: none; cursor: pointer;
+    font-size: 13px; color: var(--text-muted); padding: 0 2px;
+    line-height: 1; border-radius: 3px; opacity: 0.45;
+    transition: opacity 0.15s, color 0.15s; flex-shrink: 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .upload-menu-x:hover { opacity: 1; color: var(--ibis-red); }
   .count-label { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
 
   /* === SPLASH SCREEN === */
@@ -828,17 +858,25 @@
     <span class="header-title">Account Dashboard · Daniel Starr · US Major Markets</span>
   </div>
     <div class="header-right">
-    <div class="csv-btn-group">
-      <button class="upload-btn-license" id="opp-upload-btn" onclick="document.getElementById('opp-file-input').click()" title="Upload Opportunities CSV">🎯 Opps CSV</button>
-      <button class="clear-csv-btn" onclick="clearOppsData()" title="Clear opportunities data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    </div>
-    <div class="csv-btn-group">
-      <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 Licenses CSV</button>
-      <button class="clear-csv-btn" onclick="clearLicensesData()" title="Clear license data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    </div>
-    <div class="csv-btn-group">
-      <button class="upload-btn" id="acct-upload-btn" onclick="document.getElementById('file-input').click()">↑ Accounts CSV</button>
-      <button class="clear-csv-btn" onclick="clearAccountsData()" title="Clear account data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="upload-menu-wrap">
+      <button class="upload-btn" id="upload-menu-trigger" onclick="toggleUploadMenu(event)">↑ Upload CSV &nbsp;▾</button>
+      <div id="upload-menu" class="hidden">
+        <button class="upload-menu-row" onclick="document.getElementById('file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">📋 Accounts CSV</span>
+          <span class="upload-menu-dot" id="udot-accounts"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearAccountsData()" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('lic-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🔑 Licenses CSV</span>
+          <span class="upload-menu-dot" id="udot-licenses"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearLicensesData()" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('opp-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🎯 Opportunities CSV</span>
+          <span class="upload-menu-dot" id="udot-opps"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearOppsData()" title="Clear">✕</span>
+        </button>
+      </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
@@ -989,7 +1027,7 @@
 <!-- OPPORTUNITIES CONTROLS -->
 <div class="controls hidden" id="controls-opps">
   <div class="view-toggle">
-    <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Kanban</button>
+    <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Cards</button>
     <button class="view-btn" onclick="setOppsView('table')" id="btn-opp-table">☰ Table</button>
   </div>
   <div class="search-wrap">
@@ -1257,13 +1295,13 @@ function init() {
       l._signal = calcSignal(l);
       return l;
     });
-    document.getElementById('lic-upload-btn').innerHTML = '🔑 License CSV';
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
     autoQueueLicDescriptions();
   }
+  updateUploadDots();
 }
 
 function handleCSV(e) {
@@ -1279,8 +1317,7 @@ function handleCSV(e) {
     localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
     localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
     localStorage.setItem('ibis_local', JSON.stringify(localData));
-    document.getElementById('acct-upload-btn').innerHTML = '✅ Accounts CSV';
-    document.getElementById('acct-upload-btn').classList.add('fresh');
+    updateUploadDots();
     applySeedsToLocalData();
     updateStats(); populateVerticals(); renderAll();
     autoQueueAccounts(); autoQueueDescriptions();
@@ -2093,9 +2130,8 @@ function handleLicenseCSV(e) {
       _confirmedProcurement: l._confirmedProcurement || false
     }));
     try { localStorage.setItem('ibis_licenses', JSON.stringify(slim)); } catch(e) { console.warn('License localStorage save failed:', e); }
-    document.getElementById('lic-upload-btn').innerHTML = '✅ License CSV';
-    document.getElementById('lic-upload-btn').classList.add('fresh');
     document.getElementById('lic-nav-status').textContent = `${licenses.length} licenses loaded`;
+    updateUploadDots();
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
@@ -2566,6 +2602,12 @@ function setMainView(v) {
     document.getElementById('controls-' + tab)?.classList.toggle('hidden', !active);
     document.getElementById('content-' + tab)?.classList.toggle('hidden', !active);
   });
+  const navStatus = document.getElementById('lic-nav-status');
+  if (navStatus) {
+    if (v === 'licenses') navStatus.textContent = licenses.length ? `${licenses.length} licenses loaded` : '';
+    else if (v === 'opps') navStatus.textContent = Object.keys(opps).length ? `${Object.keys(opps).length} contacts loaded` : '';
+    else navStatus.textContent = '';
+  }
 }
 
 
@@ -2659,8 +2701,7 @@ function handleOppsCSV(e) {
     const newContacts = parseOppsCSV(ev.target.result);
     const result = mergeOpps(newContacts);
     saveOpps();
-    document.getElementById('opp-upload-btn').innerHTML = '✅ Opps CSV';
-    document.getElementById('opp-upload-btn').classList.add('fresh');
+    updateUploadDots();
     document.getElementById('opp-empty-state').classList.add('hidden');
     document.getElementById('opp-pipeline').classList.remove('hidden');
     renderOpps();
@@ -2973,10 +3014,34 @@ function oppDaysAgo(dateStr) {
   return Math.round((Date.now() - d.getTime()) / 86400000);
 }
 
+function toggleUploadMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('upload-menu');
+  menu.classList.toggle('hidden');
+}
+function closeUploadMenu() {
+  document.getElementById('upload-menu')?.classList.add('hidden');
+}
+function updateUploadDots() {
+  const acctLoaded = !!localStorage.getItem('ibis_accounts');
+  const licLoaded  = !!localStorage.getItem('ibis_licenses');
+  const oppsLoaded = !!localStorage.getItem('ibis_opps');
+  document.getElementById('udot-accounts')?.classList.toggle('loaded', acctLoaded);
+  document.getElementById('udot-licenses')?.classList.toggle('loaded', licLoaded);
+  document.getElementById('udot-opps')?.classList.toggle('loaded', oppsLoaded);
+}
+
 init();
 checkStorageSize();
 
 document.addEventListener('click', function(e) {
+  // Close upload menu on outside click
+  const menu = document.getElementById('upload-menu');
+  const trigger = document.getElementById('upload-menu-trigger');
+  if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== trigger) {
+    menu.classList.add('hidden');
+  }
+  // Close lic filter dropdowns on outside click
   if (!openLicDropdown) return;
   const dropdown = document.getElementById(openLicDropdown);
   if (!dropdown) { openLicDropdown = null; return; }
