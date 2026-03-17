@@ -200,8 +200,8 @@
   .alb-intl    { background:#dcfce7; color:#15803d; }
   .alb-churn   { background:#fef3c7; color:#b45309; }
   .alb-trial   { background:#f3e8ff; color:#7c3aed; }
-  .td-sub-vert { font-size:11px; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
-  .card-sub-vert { font-size:11px; color:var(--text-muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+  .td-sub-vert { font-size:11px; color:var(--text-muted); margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:240px; line-height:1.35; }
+  .card-sub-vert { font-size:11px; color:var(--text-muted); margin-top:1px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:200px; line-height:1.35; }
 
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
@@ -1789,7 +1789,31 @@ async function fetchDescFromWiki(name) {
     }
   }
 
-  // Attempt 4: Wikipedia search API — finds the right article even for ambiguous names
+  // Attempt 4: Wikidata entity search — returns multiple candidates for a name,
+  // so we can skip the Greek letter and find the marketing company for "Epsilon", etc.
+  if (!desc) {
+    try {
+      const searchQ = name.replace(/\//g, ' ').trim();
+      const wdRes = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(searchQ)}&language=en&type=item&format=json&origin=*&limit=8`);
+      if (wdRes.ok) {
+        const wdData = await wdRes.json();
+        for (const entity of (wdData.search || [])) {
+          const raw = (entity.description || '').trim();
+          if (!raw) continue;
+          if (NON_BUSINESS_TERMS.test(raw)) continue;
+          if (isJustCompanyName(raw)) continue;
+          if (isGenericIndustryLabel(raw)) continue;
+          const cleaned = cleanWikiText(raw);
+          if (cleaned && cleaned.split(' ').length >= 2) {
+            desc = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+            break;
+          }
+        }
+      }
+    } catch { /* silent */ }
+  }
+
+  // Attempt 5: Wikipedia search API — finds the right article title by full-text search
   if (!desc) {
     try {
       const searchQ = name.replace(/\//g, ' ').trim();
