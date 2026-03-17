@@ -1346,8 +1346,9 @@ function getLogoDomain(acc) {
 }
 
 // Logo cascade: UpLead → DuckDuckGo → Google Favicon → Initials
+// Images start hidden and fade in on successful load — prevents visible flicker through cascade
 function logoFallbackChain(domain, initials) {
-  return `onerror="this.src='https://icons.duckduckgo.com/ip3/${domain}.ico';this.onerror=function(){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64';this.onerror=function(){this.parentNode.innerHTML='${initials}'}}"`;
+  return `style="opacity:0;transition:opacity 0.15s" onload="this.style.opacity=1" onerror="this.src='https://icons.duckduckgo.com/ip3/${domain}.ico';this.onerror=function(){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64';this.onerror=function(){this.parentNode.innerHTML='${initials}'}}"`;
 }
 
 function logoHTML(acc, size=36, radius=7) {
@@ -2299,7 +2300,9 @@ function renderLicenses() {
       ? `<div class="td-logo"><img src="https://logo.uplead.com/${logoDomain}" ${logoFallbackChain(logoDomain, initials)} alt="${l._name}"></div>`
       : `<div class="td-logo">${initials}</div>`;
 
-    const licDesc = localData[normName(l._name)]?.desc || '';
+    // Lookup by exact name first, then case-insensitive fallback
+    const licLocalKey = localData[l._name] ? l._name : (Object.keys(localData).find(k => normName(k) === normName(l._name)) || l._name);
+    const licDesc = localData[licLocalKey]?.desc || '';
     return `<tr>
       <td>
         <div class="td-company">
