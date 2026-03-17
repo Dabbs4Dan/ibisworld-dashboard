@@ -883,7 +883,6 @@
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search company..." id="lic-search-input" oninput="renderLicenses()">
   </div>
-  <button class="chip" id="lic-latest-btn" onclick="toggleLatestUS()">📌 Latest US</button>
   <select id="lic-sort-select" onchange="onLicSortSelectChange()">
     <option value="churn_recency">Churn Recency</option>
     <option value="name">Company A–Z</option>
@@ -893,6 +892,7 @@
     <option value="enddate_desc">End Date (newest)</option>
     <option value="enddate_asc">End Date (oldest)</option>
   </select>
+  <button class="chip" id="lic-latest-btn" onclick="toggleLatestUS()">📌 Latest US</button>
   <span id="lic-count-label" style="margin-left:auto;font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
 </div>
 
@@ -1052,6 +1052,7 @@ const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
+const DESC_VERSION           = 2;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
@@ -1659,7 +1660,7 @@ let descRunning = false;
 
 function queueDescEnrich(name) {
   if (!name) return;
-  if (localData[name]?.desc) return;        // already cached
+  if (localData[name]?.desc && localData[name]?.descV === DESC_VERSION) return; // current version cached
   if (descQueue.includes(name)) return;     // already queued
   descQueue.push(name);
   if (!descRunning) runDescQueue();
@@ -1669,13 +1670,15 @@ async function runDescQueue() {
   descRunning = true;
   while (descQueue.length) {
     const name = descQueue.shift();
-    if (localData[name]?.desc) continue;    // fetched while waiting
+    if (localData[name]?.desc && localData[name]?.descV === DESC_VERSION) continue;  // fetched while waiting
     await fetchDescFromWiki(name);
     renderAll();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   descRunning = false;
 }
+
+const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game)\b/i;
 
 async function fetchDescFromWiki(name) {
   const tryFetch = async (query) => {
@@ -1684,21 +1687,28 @@ async function fetchDescFromWiki(name) {
       if (!res.ok) return null;
       const data = await res.json();
       if (data.type === 'disambiguation') return null;
-      return data.description || null;
+      // Use first sentence of extract, strip "[Name] is a/an " prefix
+      const extract = data.extract || '';
+      const firstSentence = (extract.split(/\.\s+/)[0] || '').trim();
+      const stripped = firstSentence.replace(/^.*?\b(?:is|are|was)\s+(?:an?\s+)?/i, '').trim() || data.description || '';
+      if (!stripped) return null;
+      if (NON_BUSINESS_TERMS.test(stripped)) return null;  // wrong article
+      return stripped.split(' ').slice(0, 10).join(' ');
     } catch { return null; }
   };
 
   let desc = await tryFetch(name);
   if (!desc) {
-    // Strip common legal suffixes and retry once
+    // Strip legal suffixes and retry
     const cleaned = name.replace(/\s+(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.?|Group|Holdings?|Incorporated|Limited|PLC|S\.A\.?|LLP)$/gi, '').trim();
     if (cleaned !== name) desc = await tryFetch(cleaned);
   }
+  if (!desc) desc = await tryFetch(name + ' company');  // force business article
 
   if (desc) {
-    const truncated = desc.split(' ').slice(0, 10).join(' ');
     if (!localData[name]) localData[name] = {};
-    localData[name].desc = truncated;
+    localData[name].desc = desc;
+    localData[name].descV = DESC_VERSION;
     localStorage.setItem('ibis_local', JSON.stringify(localData));
   }
 }
@@ -1707,8 +1717,7 @@ function autoQueueDescriptions() {
   accounts.forEach(a => {
     const name = getField(a, 'Account Name', 'AccountName');
     if (!name) return;
-    if (localData[name]?.desc) return;        // already cached
-    queueDescEnrich(name);
+    queueDescEnrich(name); // queueDescEnrich checks DESC_VERSION internally
   });
 }
 
