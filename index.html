@@ -1052,7 +1052,7 @@ const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
-const DESC_VERSION           = 5;          // bump to force re-fetch of all descriptions
+const DESC_VERSION           = 6;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
@@ -1732,6 +1732,10 @@ function isJustCompanyName(text) {
   return words.length < 4 && /\b(Inc|LLC|Corp|Ltd|Group|Holdings|Co|PLC|S\.A|LLP|GmbH)\.?$/i.test(text);
 }
 
+// Require at least one recognisable business signal — blocks biology, astronomy, geography, people, etc.
+const BUSINESS_SIGNAL = /\b(compan|corporat|corp\b|conglomerat|enterprise|agency|firm\b|provider|manufacturer|retailer|distributor|wholesaler|bank|brokerage|insurer|fund\b|trust\b|investment|financial|services|solutions|platform|software|technology|tech\b|media|advertising|marketing|consulting|management|healthcare|pharmaceutical|pharma|energy|trading|logistics|construction|engineering|airline|hotel|restaurant|chain|brand|label|publisher|broadcaster|operator|supplier|contractor|producer|processor|staffing|analytics|communications|holding)\b/i;
+function hasBusinessSignal(text) { return BUSINESS_SIGNAL.test(text || ''); }
+
 // Reject descriptions that are just a 1-3 word generic industry label (e.g. "Commercial bank", "Retail")
 function isGenericIndustryLabel(text) {
   if (!text) return true;
@@ -1751,7 +1755,7 @@ async function fetchDescFromWiki(name) {
 
       // 1. Try Wikidata description field first — short and clean
       const wikiDesc = (data.description || '').trim();
-      if (wikiDesc && !NON_BUSINESS_TERMS.test(wikiDesc) && !isJustCompanyName(wikiDesc) && !isGenericIndustryLabel(wikiDesc)) {
+      if (wikiDesc && !NON_BUSINESS_TERMS.test(wikiDesc) && !isJustCompanyName(wikiDesc) && !isGenericIndustryLabel(wikiDesc) && hasBusinessSignal(wikiDesc)) {
         const cleaned = cleanWikiText(wikiDesc);
         if (cleaned && cleaned.split(' ').length >= 2) {
           return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
@@ -1763,7 +1767,7 @@ async function fetchDescFromWiki(name) {
       if (!extract) return null;
       const firstSentence = (extract.split(/\.\s+/)[0] || '').trim();
       let stripped = firstSentence.replace(/^.*?\b(?:is|are|was)\s+(?:an?\s+)?/i, '').trim();
-      if (!stripped || NON_BUSINESS_TERMS.test(stripped) || isJustCompanyName(stripped) || isGenericIndustryLabel(stripped)) return null;
+      if (!stripped || NON_BUSINESS_TERMS.test(stripped) || isJustCompanyName(stripped) || isGenericIndustryLabel(stripped) || !hasBusinessSignal(stripped)) return null;
       stripped = cleanWikiText(stripped);
       if (!stripped || stripped.split(' ').length < 3) return null;
       stripped = stripped.split(' ').slice(0, 12).join(' ');
@@ -1806,6 +1810,7 @@ async function fetchDescFromWiki(name) {
             if (NON_BUSINESS_TERMS.test(raw)) continue;
             if (isJustCompanyName(raw)) continue;
             if (isGenericIndustryLabel(raw)) continue;
+            if (!hasBusinessSignal(raw)) continue;
             // On first pass only accept if entity label is a close match to the search name
             if (pass === 0) {
               const labelNorm = (entity.label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
