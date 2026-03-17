@@ -34,16 +34,18 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
   - `ibis_licenses` → slim decoded license rows
   - `ibis_updated` → date string of last accounts CSV upload
   - ⚠️ There is **no separate `ibis_revenue` key** — revenue lives inside `ibis_local`
+  - `ibis_opps` → contact pipeline rows, keyed by email (lowercase trimmed)
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v21 (stable)
+## CURRENT STATE — v22 (stable)
 
-### Two tabs live:
+### Three tabs live:
 1. **📋 Accounts tab** — main territory view
 2. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
+3. **🎯 Opportunities tab** — contact pipeline with Kanban + Table view
 
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
@@ -62,6 +64,22 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - 200px logo, 3.2s display, 0.5s fade
 - Radial gradient dark bg, red pulse glow on logo, sheen animation
 - Title "Account Intelligence" + subtitle "IBISWorld · US Major Markets" + animated 3-dot loader
+
+### Opportunities Tab Features
+- Parses SF contact CSV (Name, Account Name, Title, Email, Last Activity Date, Phone)
+- Unique key = email (lowercase trimmed); stored in `ibis_opps`
+- **Merge logic**: new email → add as "Working"; existing → update SF fields, preserve stage/notes/nextAction; missing from CSV → archived
+- **Toast on upload**: "✅ N updated · N new · N archived"
+- **Kanban view** (default): 6 columns (🟡 Working → 🔵 Engaged → 📅 Meeting Booked → 🔥 Hot → ✅ Won → ❌ Dead)
+  - Drag-and-drop cards between columns → saves instantly
+  - Inline Next Action field (editable, saves on blur)
+  - Notes toggle per card (inline expand)
+  - Logo cascade via account name matching → same cascade as other tabs
+- **Table view**: inline stage dropdown, next action field, notes button (prompt)
+- **Cold Opportunities** collapsible section: contacts where `archived=true`, Reactivate button
+- **Stats bar**: Total in Pipeline, stage count chips (6), Avg Days Inactive
+- `setMainView()` updated to handle 3 tabs cleanly via loop (`['accounts','licenses','opps']`)
+- `escHtml()` utility added (used by Opportunities renderer)
 
 ### License Intelligence Tab Features
 - Parses SF "Account with Licenses & Products" CSV (~1,082 rows)
@@ -295,9 +313,10 @@ When a new session begins, Claude Code should:
 | ✅ Done | 📌 Latest US filter chip | Licenses tab — deduplicates to 1 US Industry row per account (latest end date). Clears type/status filters on activate; those filters deactivate it. |
 | ✅ Done | Lost renewal rule (Rule 0) | `applyLicenseRules`: `$0 + US + "renewal" in opp` → forces `_active=false`, `_churnTier=newchurn`. Prevents false PIQ promotion. Shown as US Industry. |
 | ✅ Done | Logo flicker fix v2 | `logoResolved{}` cache — once a domain's URL resolves, stored in memory. Re-renders use cached URL at opacity:1 instantly. All three logo render sites (cards, accounts table, licenses table) check cache first. |
+| ✅ Done | Opportunities tab (v22) | Kanban + Table view, drag-and-drop, CSV merge (add/update/archive), Cold section, stats bar. `ibis_opps` key. `setMainView()` refactored to 3-tab loop. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6 just deployed. ~85% high quality. A few accounts (Cooley, WPP, Loews) may show vertical-tag fallback until Claude revenue enrichment runs and overwrites with AI description. |
 | 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs overflow fix or position:fixed dropdown. |
 | 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
-| 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |
+| 🗺️ Future | Opportunities polish | Drag ghost, sort state persistence, search highlight, mobile-friendly kanban |
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
 | 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |
