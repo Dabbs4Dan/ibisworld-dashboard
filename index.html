@@ -244,22 +244,25 @@
   .logo-shine-wrap::after {
     content: '';
     position: absolute;
-    top: -30%;
-    left: -80%;
-    width: 50%;
-    height: 160%;
-    background: linear-gradient(105deg, transparent 0%, rgba(255,230,180,0.10) 35%, rgba(255,248,220,0.28) 50%, rgba(255,230,180,0.10) 65%, transparent 100%);
-    transform: skewX(-10deg);
-    animation: logoShine 5.5s ease-in-out infinite;
+    top: -100%; left: -100%;
+    width: 300%; height: 300%;
+    background: radial-gradient(ellipse 45% 38% at 50% 50%,
+      rgba(255, 110, 15, 0.16) 0%,
+      rgba(200, 55, 20, 0.08) 30%,
+      rgba(115, 10, 195, 0.10) 56%,
+      transparent 74%
+    );
+    animation: logoLava 22s ease-in-out infinite;
     pointer-events: none;
-    border-radius: 0;
   }
-  @keyframes logoShine {
-    0%   { left: -80%; opacity: 0; }
-    10%  { opacity: 1; }
-    50%  { left: 130%; opacity: 1; }
-    55%  { opacity: 0; }
-    100% { left: 130%; opacity: 0; }
+  @keyframes logoLava {
+    0%   { transform: translate(0%, 0%); }
+    18%  { transform: translate(5%, -4%); }
+    36%  { transform: translate(7%, 3%); }
+    52%  { transform: translate(2%, 6%); }
+    68%  { transform: translate(-5%, 3%); }
+    84%  { transform: translate(-4%, -3%); }
+    100% { transform: translate(0%, 0%); }
   }
 
   .divider { width: 1px; height: 20px; background: var(--border); }
@@ -669,7 +672,7 @@
     font-family: 'DM Sans', sans-serif;
   }
   .upload-menu-x:hover { opacity: 1; color: var(--ibis-red); }
-  .tab-count-label { margin-left: auto; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  .above-table-label { padding: 6px 0 4px; text-align: right; font-size: 12px; color: var(--text-muted); font-family: 'DM Sans', sans-serif; white-space: nowrap; }
 
   /* === SPLASH SCREEN === */
   #splash-overlay {
@@ -1023,7 +1026,6 @@
     <button class="chip" onclick="toggleChip(this,'🆕')" data-flag="🆕">🆕 New</button>
     <button class="chip" onclick="toggleChip(this,'CLIENT')" data-flag="CLIENT">⭐ Clients Only</button>
   </div>
-  <span id="acct-count-label" class="tab-count-label"></span>
 </div>
 
 <!-- LICENSE CONTROLS -->
@@ -1042,7 +1044,6 @@
     <option value="enddate_asc">End Date (oldest)</option>
   </select>
   <button class="chip" id="lic-latest-btn" onclick="toggleLatestUS()">📌 Latest US</button>
-  <span id="lic-count-label" class="tab-count-label"></span>
 </div>
 
 <!-- OPPORTUNITIES CONTROLS -->
@@ -1055,7 +1056,6 @@
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
   </div>
-  <span id="opp-count-label" class="tab-count-label"></span>
 </div>
 
 <div class="change-banner" id="change-banner">
@@ -1080,6 +1080,7 @@
     <div class="empty-desc">Export your DA$ Account Stalker report from Salesforce as CSV, then click Accounts CSV above.</div>
     <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('file-input').click()">↑ Upload Accounts CSV</button>
   </div>
+  <div id="acct-count-label" class="above-table-label"></div>
   <div id="cards-view" class="cards-grid hidden"></div>
   <div id="table-view" class="hidden">
     <div class="table-wrap">
@@ -1115,6 +1116,7 @@
     <div class="empty-desc">Export the "Account with Licenses &amp; Products" report from Salesforce, then click Licenses CSV above.</div>
     <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('lic-file-input').click()">🔑 Upload Licenses CSV</button>
   </div>
+  <div id="lic-count-label" class="above-table-label"></div>
   <div id="lic-table-wrap" class="hidden">
     <div class="table-wrap">
       <table id="lic-table">
@@ -1170,6 +1172,7 @@
     <div class="empty-desc">Export contacts from Salesforce (Name, Account Name, Title, Email, Last Activity Date, Phone), then click 🎯 Opps CSV above.</div>
     <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('opp-file-input').click()">🎯 Upload Opps CSV</button>
   </div>
+  <div id="opp-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
   <div id="opp-pipeline" class="hidden">
     <div id="opp-kanban-view" class="opp-kanban"></div>
     <div id="opp-table-view" class="opp-tbl-wrap hidden"></div>
