@@ -1374,7 +1374,7 @@ function renderCards(list) {
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${(sub||local.desc)?`<div class="card-sub-vert">${sub||local.desc}</div>`:''}</div></div>
+      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${(local.desc||sub)?`<div class="card-sub-vert">${local.desc||sub}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
         <div class="stat-cell"><div class="label">Tier</div><div class="val"><span class="tier-badge ${tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other'}"><span>${tier||'—'}</span></span></div></div>
@@ -1407,7 +1407,7 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(getField(acc,'Sub-Vertical')||local.desc)?`<div class="td-sub-vert">${getField(acc,'Sub-Vertical')||local.desc}</div>`:''}</div></div></td>
+      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -1707,7 +1707,6 @@ function autoQueueDescriptions() {
   accounts.forEach(a => {
     const name = getField(a, 'Account Name', 'AccountName');
     if (!name) return;
-    if (getField(a, 'Sub-Vertical')) return;  // CSV has it — no need to fetch
     if (localData[name]?.desc) return;        // already cached
     queueDescEnrich(name);
   });
