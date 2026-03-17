@@ -1052,7 +1052,7 @@ const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
-const DESC_VERSION           = 3;          // bump to force re-fetch of all descriptions
+const DESC_VERSION           = 4;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
@@ -1346,9 +1346,11 @@ function getLogoDomain(acc) {
 }
 
 // Logo cascade: UpLead → DuckDuckGo → Google Favicon → Initials
-// Images start hidden and fade in on successful load — prevents visible flicker through cascade
+// logoResolved caches the winning URL per domain so re-renders skip the cascade entirely (no flicker)
+const logoResolved = {}; // domain → resolved src URL, or '__initials__'
+
 function logoFallbackChain(domain, initials) {
-  return `style="opacity:0;transition:opacity 0.15s" onload="this.style.opacity=1" onerror="this.src='https://icons.duckduckgo.com/ip3/${domain}.ico';this.onerror=function(){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64';this.onerror=function(){this.parentNode.innerHTML='${initials}'}}"`;
+  return `style="opacity:0;transition:opacity 0.2s" onload="logoResolved['${domain}']=this.src;this.style.opacity=1" onerror="if(this.src.includes('uplead')){this.src='https://icons.duckduckgo.com/ip3/${domain}.ico'}else if(this.src.includes('duckduckgo')){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64'}else{logoResolved['${domain}']='__initials__';this.parentNode.innerHTML='${initials}'}"`;
 }
 
 function logoHTML(acc, size=36, radius=7) {
@@ -1356,6 +1358,9 @@ function logoHTML(acc, size=36, radius=7) {
   const domain = getLogoDomain(acc);
   const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   if (!domain) return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">${initials}</div>`;
+  const resolved = logoResolved[domain];
+  if (resolved === '__initials__') return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">${initials}</div>`;
+  if (resolved) return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;"><img src="${resolved}" style="width:100%;height:100%;object-fit:contain;padding:4px;" alt="${name}"></div>`;
   return `<div class="company-logo" style="width:${size}px;height:${size}px;border-radius:${radius}px;">
     <img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}" style="width:100%;height:100%;object-fit:contain;padding:4px;">
   </div>`;
@@ -1403,9 +1408,11 @@ function renderTable(list) {
     const local = localData[key]||{}, flags = local.flags||[];
     const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical');
     const domain = getLogoDomain(acc), initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const tdLogoHtml = domain
-      ? `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`
-      : initials;
+    const _res = domain && logoResolved[domain];
+    const tdLogoHtml = !domain ? initials
+      : _res === '__initials__' ? initials
+      : _res ? `<img src="${_res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${name}">`
+      : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
@@ -1588,8 +1595,8 @@ async function fetchRevenueFromClaude(companyName) {
         model: 'claude-sonnet-4-6',
         max_tokens: 300,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: `You are a financial data assistant. Find the most recent annual revenue in USD. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD. Return ONLY valid JSON (no markdown, no explanation): {"value_usd": <number in USD>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>"}. If unavailable: {"value_usd": null}`,
-        messages: [{ role: 'user', content: `Annual revenue of "${companyName}"? JSON only.` }]
+        system: `You are a financial data assistant. Find the most recent annual revenue in USD and write a concise B2B business description. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD. Return ONLY valid JSON (no markdown, no explanation): {"value_usd": <number in USD>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>", "description": "<10-15 word actionable description of what the company does, e.g. 'Global provider of diversified financial and brokerage services'>"}. If revenue unavailable: {"value_usd": null, "description": "..."}`,
+        messages: [{ role: 'user', content: `Annual revenue and description of "${companyName}"? JSON only.` }]
       })
     });
     const data = await resp.json();
@@ -1597,12 +1604,20 @@ async function fetchRevenueFromClaude(companyName) {
     for (const b of (data.content||[]).filter(b => b.type === 'text')) {
       try { parsed = JSON.parse(b.text.replace(/```json|```/g,'').trim()); break; } catch(e) {}
     }
-    if (parsed?.value_usd) {
-      const label = fmtMoney(parsed.value_usd) || parsed.label;
+    if (parsed) {
       if (!localData[companyName]) localData[companyName] = {};
-      localData[companyName].rev = { label, raw: parsed.value_usd, source: 'claude', year: parsed.year, srcNote: parsed.source };
+      // Save description from Claude — high quality, always overwrites Wikipedia
+      if (parsed.description && typeof parsed.description === 'string' && parsed.description.trim().length > 5) {
+        localData[companyName].desc = parsed.description.trim();
+        localData[companyName].descV = DESC_VERSION;
+      }
+      if (parsed.value_usd) {
+        const label = fmtMoney(parsed.value_usd) || parsed.label;
+        localData[companyName].rev = { label, raw: parsed.value_usd, source: 'claude', year: parsed.year, srcNote: parsed.source };
+        localStorage.setItem('ibis_local', JSON.stringify(localData));
+        return { label, raw: parsed.value_usd };
+      }
       localStorage.setItem('ibis_local', JSON.stringify(localData));
-      return { label, raw: parsed.value_usd };
     }
   } catch(e) { console.error('Revenue enrichment failed for', companyName, e); }
   return null;
@@ -1703,6 +1718,15 @@ function isJustCompanyName(text) {
   return words.length < 4 && /\b(Inc|LLC|Corp|Ltd|Group|Holdings|Co|PLC|S\.A|LLP|GmbH)\.?$/i.test(text);
 }
 
+// Reject descriptions that are just a 1-3 word generic industry label (e.g. "Commercial bank", "Retail")
+function isGenericIndustryLabel(text) {
+  if (!text) return true;
+  const words = text.trim().split(/\s+/);
+  if (words.length > 4) return false; // longer descriptions are probably fine
+  const genericPattern = /^(american|british|french|german|japanese|chinese|south korean|canadian|dutch|swiss|swedish|australian|irish|italian|spanish|indian|multinational|global|international|us|uk)?\s*(bank|retailer|insurer|manufacturer|conglomerate|corporation|company|firm|group|holding company|energy company|technology company|tech company|media company|investment company|financial services|financial institution|services company|commercial bank|investment bank|retail company|retail chain|insurance company)s?$/i;
+  return genericPattern.test(text.trim());
+}
+
 async function fetchDescFromWiki(name) {
   const tryFetch = async (query) => {
     try {
@@ -1713,10 +1737,9 @@ async function fetchDescFromWiki(name) {
 
       // 1. Try Wikidata description field first — short and clean
       const wikiDesc = (data.description || '').trim();
-      if (wikiDesc && !NON_BUSINESS_TERMS.test(wikiDesc) && !isJustCompanyName(wikiDesc)) {
+      if (wikiDesc && !NON_BUSINESS_TERMS.test(wikiDesc) && !isJustCompanyName(wikiDesc) && !isGenericIndustryLabel(wikiDesc)) {
         const cleaned = cleanWikiText(wikiDesc);
         if (cleaned && cleaned.split(' ').length >= 2) {
-          // Capitalise first letter
           return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
         }
       }
@@ -1726,20 +1749,47 @@ async function fetchDescFromWiki(name) {
       if (!extract) return null;
       const firstSentence = (extract.split(/\.\s+/)[0] || '').trim();
       let stripped = firstSentence.replace(/^.*?\b(?:is|are|was)\s+(?:an?\s+)?/i, '').trim();
-      if (!stripped || NON_BUSINESS_TERMS.test(stripped) || isJustCompanyName(stripped)) return null;
+      if (!stripped || NON_BUSINESS_TERMS.test(stripped) || isJustCompanyName(stripped) || isGenericIndustryLabel(stripped)) return null;
       stripped = cleanWikiText(stripped);
-      if (!stripped || stripped.split(' ').length < 2) return null;
-      stripped = stripped.split(' ').slice(0, 10).join(' ');
+      if (!stripped || stripped.split(' ').length < 3) return null;
+      stripped = stripped.split(' ').slice(0, 12).join(' ');
       return stripped.charAt(0).toUpperCase() + stripped.slice(1);
     } catch { return null; }
   };
 
+  // Attempt 1: direct lookup
   let desc = await tryFetch(name);
+
+  // Attempt 2: strip corporate suffixes
   if (!desc) {
     const cleaned = name.replace(/\s+(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.?|Group|Holdings?|Incorporated|Limited|PLC|S\.A\.?|LLP)$/gi, '').trim();
     if (cleaned !== name) desc = await tryFetch(cleaned);
   }
-  if (!desc) desc = await tryFetch(name + ' company');  // force business article
+
+  // Attempt 3: for names with "/" try each part (e.g. "Louis Vuitton/LVMH" → try "LVMH")
+  if (!desc && name.includes('/')) {
+    for (const part of name.split('/').map(p => p.trim()).reverse()) {
+      desc = await tryFetch(part);
+      if (!desc) desc = await tryFetch(part + ' company');
+      if (desc) break;
+    }
+  }
+
+  // Attempt 4: Wikipedia search API — finds the right article even for ambiguous names
+  if (!desc) {
+    try {
+      const searchQ = name.replace(/\//g, ' ').trim();
+      const sRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQ + ' company')}&format=json&srlimit=3&origin=*`);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        for (const hit of (sData?.query?.search || [])) {
+          if (!hit.title) continue;
+          desc = await tryFetch(hit.title);
+          if (desc) break;
+        }
+      }
+    } catch { /* silent */ }
+  }
 
   if (desc) {
     if (!localData[name]) localData[name] = {};
@@ -2296,9 +2346,11 @@ function renderLicenses() {
     const acctMatch = accounts.find(a => (getField(a,'Account Name','AccountName')||'').toLowerCase().trim() === l._name.toLowerCase().trim());
     const logoDomain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(l._name) || guessDomain(l._name));
     const initials = l._name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const logoHtml = logoDomain
-      ? `<div class="td-logo"><img src="https://logo.uplead.com/${logoDomain}" ${logoFallbackChain(logoDomain, initials)} alt="${l._name}"></div>`
-      : `<div class="td-logo">${initials}</div>`;
+    const _licRes = logoDomain && logoResolved[logoDomain];
+    const logoHtml = !logoDomain ? `<div class="td-logo">${initials}</div>`
+      : _licRes === '__initials__' ? `<div class="td-logo">${initials}</div>`
+      : _licRes ? `<div class="td-logo"><img src="${_licRes}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${l._name}"></div>`
+      : `<div class="td-logo"><img src="https://logo.uplead.com/${logoDomain}" ${logoFallbackChain(logoDomain, initials)} alt="${l._name}"></div>`;
 
     // Lookup by exact name first, then case-insensitive fallback
     const licLocalKey = localData[l._name] ? l._name : (Object.keys(localData).find(k => normName(k) === normName(l._name)) || l._name);
