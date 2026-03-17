@@ -200,8 +200,8 @@
   .alb-intl    { background:#dcfce7; color:#15803d; }
   .alb-churn   { background:#fef3c7; color:#b45309; }
   .alb-trial   { background:#f3e8ff; color:#7c3aed; }
-  .td-sub-vert { font-size:11px; color:var(--text-muted); margin-top:2px; }
-  .card-sub-vert { font-size:11px; color:var(--text-muted); margin-top:1px; }
+  .td-sub-vert { font-size:11px; color:var(--text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; }
+  .card-sub-vert { font-size:11px; color:var(--text-muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
 
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
@@ -1052,7 +1052,7 @@ const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
-const DESC_VERSION           = 2;          // bump to force re-fetch of all descriptions
+const DESC_VERSION           = 3;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
@@ -1135,6 +1135,7 @@ function init() {
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
+    autoQueueLicDescriptions();
   }
 }
 
@@ -1678,7 +1679,28 @@ async function runDescQueue() {
   descRunning = false;
 }
 
-const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game)\b/i;
+const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|parish|county|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game|mathematical|physics|chemistry)\b/i;
+
+// Strip location clauses, parentheticals, and trailing fragments from Wikipedia text
+function cleanWikiText(text) {
+  if (!text) return null;
+  text = text.replace(/\s*\([^)]+\)/g, '').trim();  // remove parentheticals
+  const stopAt = ['headquartered', 'based in', 'with headquarters', 'co-headquartered', 'located in', 'founded in', 'established in', 'which is'];
+  for (const marker of stopAt) {
+    const idx = text.toLowerCase().indexOf(marker);
+    if (idx > 15) { text = text.slice(0, idx).trim(); break; }
+  }
+  text = text.replace(/\s+(by|in|and|with|the|a|an|of|at|for|from|to)\s*\.?$/i, '').trim();
+  text = text.replace(/[,;:\-]+$/, '').trim();
+  return text || null;
+}
+
+// Reject if result is just a legal company name with no real description
+function isJustCompanyName(text) {
+  if (!text) return true;
+  const words = text.trim().split(/\s+/);
+  return words.length < 4 && /\b(Inc|LLC|Corp|Ltd|Group|Holdings|Co|PLC|S\.A|LLP|GmbH)\.?$/i.test(text);
+}
 
 async function fetchDescFromWiki(name) {
   const tryFetch = async (query) => {
@@ -1687,19 +1709,32 @@ async function fetchDescFromWiki(name) {
       if (!res.ok) return null;
       const data = await res.json();
       if (data.type === 'disambiguation') return null;
-      // Use first sentence of extract, strip "[Name] is a/an " prefix
+
+      // 1. Try Wikidata description field first — short and clean
+      const wikiDesc = (data.description || '').trim();
+      if (wikiDesc && !NON_BUSINESS_TERMS.test(wikiDesc) && !isJustCompanyName(wikiDesc)) {
+        const cleaned = cleanWikiText(wikiDesc);
+        if (cleaned && cleaned.split(' ').length >= 2) {
+          // Capitalise first letter
+          return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+        }
+      }
+
+      // 2. Fall back to extract first sentence, stripped and cleaned
       const extract = data.extract || '';
+      if (!extract) return null;
       const firstSentence = (extract.split(/\.\s+/)[0] || '').trim();
-      const stripped = firstSentence.replace(/^.*?\b(?:is|are|was)\s+(?:an?\s+)?/i, '').trim() || data.description || '';
-      if (!stripped) return null;
-      if (NON_BUSINESS_TERMS.test(stripped)) return null;  // wrong article
-      return stripped.split(' ').slice(0, 10).join(' ');
+      let stripped = firstSentence.replace(/^.*?\b(?:is|are|was)\s+(?:an?\s+)?/i, '').trim();
+      if (!stripped || NON_BUSINESS_TERMS.test(stripped) || isJustCompanyName(stripped)) return null;
+      stripped = cleanWikiText(stripped);
+      if (!stripped || stripped.split(' ').length < 2) return null;
+      stripped = stripped.split(' ').slice(0, 10).join(' ');
+      return stripped.charAt(0).toUpperCase() + stripped.slice(1);
     } catch { return null; }
   };
 
   let desc = await tryFetch(name);
   if (!desc) {
-    // Strip legal suffixes and retry
     const cleaned = name.replace(/\s+(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.?|Group|Holdings?|Incorporated|Limited|PLC|S\.A\.?|LLP)$/gi, '').trim();
     if (cleaned !== name) desc = await tryFetch(cleaned);
   }
@@ -1717,7 +1752,16 @@ function autoQueueDescriptions() {
   accounts.forEach(a => {
     const name = getField(a, 'Account Name', 'AccountName');
     if (!name) return;
-    queueDescEnrich(name); // queueDescEnrich checks DESC_VERSION internally
+    queueDescEnrich(name);
+  });
+}
+
+function autoQueueLicDescriptions() {
+  const seen = new Set();
+  licenses.forEach(l => {
+    if (!l._name || seen.has(l._name)) return;
+    seen.add(l._name);
+    queueDescEnrich(l._name);
   });
 }
 
@@ -1825,6 +1869,7 @@ function handleLicenseCSV(e) {
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
     checkStorageSize();
+    autoQueueLicDescriptions();
   };
   reader.readAsText(file, 'latin1');
   e.target.value = '';
@@ -2254,11 +2299,12 @@ function renderLicenses() {
       ? `<div class="td-logo"><img src="https://logo.uplead.com/${logoDomain}" ${logoFallbackChain(logoDomain, initials)} alt="${l._name}"></div>`
       : `<div class="td-logo">${initials}</div>`;
 
+    const licDesc = localData[normName(l._name)]?.desc || '';
     return `<tr>
       <td>
         <div class="td-company">
           ${logoHtml}
-          <div class="lic-name-main">${l._name}</div>
+          <div><div class="lic-name-main">${l._name}</div>${licDesc ? `<div class="td-sub-vert">${licDesc}</div>` : ''}</div>
         </div>
       </td>
       <td>
