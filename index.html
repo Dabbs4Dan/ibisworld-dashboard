@@ -742,6 +742,67 @@
     background: rgba(0,0,0,0.38);
     color: rgba(255,255,255,0.9);
   }
+
+  /* === OPPORTUNITIES TAB === */
+  .opp-kanban { display:flex; gap:12px; overflow-x:auto; padding:16px 24px 24px; align-items:flex-start; }
+  .opp-col { flex:0 0 224px; background:var(--surface); border-radius:10px; border:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+  .opp-col-header { padding:10px 12px; font-size:12px; font-weight:600; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:white; flex-shrink:0; }
+  .opp-col-count { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-muted); background:var(--surface); border-radius:10px; padding:1px 7px; }
+  .opp-col-body { overflow-y:auto; max-height:calc(100vh - 290px); padding:8px; display:flex; flex-direction:column; gap:8px; min-height:52px; }
+  .opp-col.drag-over > .opp-col-body { background:rgba(200,16,46,0.04); border-radius:0 0 10px 10px; }
+  .opp-col[data-stage="Working"]        > .opp-col-header { border-top:3px solid #f59e0b; }
+  .opp-col[data-stage="Engaged"]        > .opp-col-header { border-top:3px solid #3b82f6; }
+  .opp-col[data-stage="Meeting Booked"] > .opp-col-header { border-top:3px solid #0891b2; }
+  .opp-col[data-stage="Hot"]            > .opp-col-header { border-top:3px solid var(--ibis-red); }
+  .opp-col[data-stage="Won"]            > .opp-col-header { border-top:3px solid #059669; }
+  .opp-col[data-stage="Dead"]           > .opp-col-header { border-top:3px solid #9ca3af; }
+  .opp-card { background:white; border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:grab; transition:box-shadow 0.15s, transform 0.15s, opacity 0.15s; }
+  .opp-card:active { cursor:grabbing; }
+  .opp-card.dragging { opacity:0.35; }
+  .opp-card:hover { box-shadow:0 3px 12px rgba(0,0,0,0.09); transform:translateY(-1px); }
+  .opp-card-header { display:flex; align-items:center; gap:8px; }
+  .opp-card-info { flex:1; min-width:0; }
+  .opp-card-name { font-size:13px; font-weight:500; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .opp-card-co { font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .opp-card-title-text { font-size:11px; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:1px; }
+  .opp-card-footer { display:flex; align-items:center; justify-content:space-between; margin-top:7px; }
+  .opp-days { font-size:10px; color:var(--text-muted); font-family:'DM Mono',monospace; }
+  .opp-notes-btn { background:none; border:none; cursor:pointer; font-size:13px; padding:0 2px; line-height:1; opacity:0.35; transition:opacity 0.15s; }
+  .opp-notes-btn:hover, .opp-notes-btn.has-notes { opacity:0.9; }
+  .opp-next-wrap { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
+  .opp-next-input { width:100%; box-sizing:border-box; font-size:11px; font-family:'DM Sans',sans-serif; border:none; background:transparent; color:var(--text-secondary); outline:none; padding:0; cursor:text; }
+  .opp-next-input::placeholder { color:var(--text-muted); font-style:italic; }
+  .opp-notes-wrap { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); display:none; }
+  .opp-notes-wrap.open { display:block; }
+  .opp-notes-ta { width:100%; box-sizing:border-box; min-height:48px; font-size:11px; font-family:'DM Sans',sans-serif; border:1px solid var(--border); border-radius:5px; background:var(--surface); color:var(--text-primary); padding:5px 8px; resize:none; outline:none; }
+  .opp-notes-ta:focus { border-color:var(--ibis-red); }
+  /* Stage pills */
+  .opp-stage-pill { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:2px 9px; border-radius:5px; white-space:nowrap; }
+  .ops-Working { background:#fef3c7; color:#92400e; }
+  .ops-Engaged { background:#dbeafe; color:#1d4ed8; }
+  .ops-Meeting { background:#cffafe; color:#0e7490; }
+  .ops-Hot { background:#fee2e2; color:#991b1b; }
+  .ops-Won { background:#d1fae5; color:#065f46; }
+  .ops-Dead { background:#f3f4f6; color:#6b7280; }
+  /* Opp table */
+  .opp-tbl-wrap { padding:0 24px 24px; }
+  .opp-stage-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
+  .opp-stage-select:focus { border-color:var(--ibis-red); }
+  .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
+  .opp-inline-input:focus { border-bottom-color:var(--border); }
+  /* Cold section */
+  .cold-section { padding:0 24px 24px; }
+  .cold-section-hdr { display:flex; align-items:center; gap:10px; padding:12px 0 8px; cursor:pointer; border-top:1px solid var(--border); user-select:none; }
+  .cold-section-hdr:hover .cold-title { color:var(--text-primary); }
+  .cold-toggle { font-size:10px; color:var(--text-muted); transition:transform 0.2s; display:inline-block; }
+  .cold-toggle.open { transform:rotate(90deg); }
+  .cold-title { font-size:13px; font-weight:600; color:var(--text-secondary); transition:color 0.15s; }
+  .cold-count { font-size:12px; color:var(--text-muted); font-family:'DM Mono',monospace; }
+  .cold-body { display:none; }
+  .cold-body.open { display:block; }
+  /* Toast */
+  #opp-toast { position:fixed; bottom:20px; right:20px; background:#1a1a2e; color:white; font-size:13px; padding:10px 18px; border-radius:8px; z-index:9998; font-family:'DM Sans',sans-serif; box-shadow:0 4px 16px rgba(0,0,0,0.3); opacity:0; pointer-events:none; transition:opacity 0.25s ease, transform 0.25s ease; transform:translateY(6px); }
+  #opp-toast.show { opacity:1; transform:translateY(0); }
 </style>
 </head>
 <body>
@@ -768,6 +829,10 @@
   </div>
     <div class="header-right">
     <div class="csv-btn-group">
+      <button class="upload-btn-license" id="opp-upload-btn" onclick="document.getElementById('opp-file-input').click()" title="Upload Opportunities CSV">🎯 Opps CSV</button>
+      <button class="clear-csv-btn" onclick="clearOppsData()" title="Clear opportunities data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <div class="csv-btn-group">
       <button class="upload-btn-license" id="lic-upload-btn" onclick="document.getElementById('lic-file-input').click()" title="Upload License CSV">🔑 Licenses CSV</button>
       <button class="clear-csv-btn" onclick="clearLicensesData()" title="Clear license data"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 3.5h11M4.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M5.5 6.5v4M7.5 6.5v4M2 3.5l.75 7.5a1 1 0 001 .9h5.5a1 1 0 001-.9L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
@@ -777,6 +842,7 @@
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
+    <input type="file" id="opp-file-input" accept=".csv" onchange="handleOppsCSV(event)">
   </div>
 </div>
 
@@ -784,6 +850,7 @@
   <div class="view-nav-tabs">
     <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
     <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
+    <button class="vnav-btn" id="vnav-opps" onclick="setMainView('opps')">🎯 Opportunities</button>
   </div>
   <span id="lic-nav-status" style="font-size:12px;color:var(--text-muted);"></span>
 </div>
@@ -843,6 +910,29 @@
   </div>
 </div>
 
+<!-- OPPORTUNITIES STATS BAR -->
+<div class="stats-bar hidden" id="stats-opps">
+  <div class="stat-item">
+    <div class="stat-label">In Pipeline</div>
+    <div class="stat-value red" id="ostat-total">—</div>
+  </div>
+  <div class="stat-item" style="border-right:none;padding-right:0;">
+    <div class="stat-label">By Stage</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;align-items:center;">
+      <span class="opp-stage-pill ops-Working">🟡 <span id="ostat-Working">—</span></span>
+      <span class="opp-stage-pill ops-Engaged">🔵 <span id="ostat-Engaged">—</span></span>
+      <span class="opp-stage-pill ops-Meeting">📅 <span id="ostat-Meeting">—</span></span>
+      <span class="opp-stage-pill ops-Hot">🔥 <span id="ostat-Hot">—</span></span>
+      <span class="opp-stage-pill ops-Won">✅ <span id="ostat-Won">—</span></span>
+      <span class="opp-stage-pill ops-Dead">❌ <span id="ostat-Dead">—</span></span>
+    </div>
+  </div>
+  <div class="stat-item" style="margin-left:32px;">
+    <div class="stat-label">Avg Days Inactive</div>
+    <div class="stat-value" id="ostat-avg-days">—</div>
+  </div>
+</div>
+
 <!-- ACCOUNTS CONTROLS -->
 <div class="controls" id="controls-accounts">
   <div class="view-toggle" id="cards-table-toggle">
@@ -894,6 +984,18 @@
   </select>
   <button class="chip" id="lic-latest-btn" onclick="toggleLatestUS()">📌 Latest US</button>
   <span id="lic-count-label" style="margin-left:auto;font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
+</div>
+
+<!-- OPPORTUNITIES CONTROLS -->
+<div class="controls hidden" id="controls-opps">
+  <div class="view-toggle">
+    <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Kanban</button>
+    <button class="view-btn" onclick="setOppsView('table')" id="btn-opp-table">☰ Table</button>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
+  </div>
 </div>
 
 <div class="change-banner" id="change-banner">
@@ -1000,6 +1102,23 @@
   </div>
 </div>
 </div>
+
+<!-- OPPORTUNITIES CONTENT -->
+<div id="content-opps" class="hidden">
+  <div id="opp-empty-state" class="empty-state">
+    <div class="empty-icon">🎯</div>
+    <div class="empty-title">Upload your Opportunities CSV to get started</div>
+    <div class="empty-desc">Export contacts from Salesforce (Name, Account Name, Title, Email, Last Activity Date, Phone), then click 🎯 Opps CSV above.</div>
+    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('opp-file-input').click()">🎯 Upload Opps CSV</button>
+  </div>
+  <div id="opp-pipeline" class="hidden">
+    <div id="opp-kanban-view" class="opp-kanban"></div>
+    <div id="opp-table-view" class="opp-tbl-wrap hidden"></div>
+    <div id="opp-cold-section" class="cold-section hidden"></div>
+  </div>
+</div>
+
+<div id="opp-toast"></div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -1113,6 +1232,14 @@ function init() {
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
   }
+  // Load Opportunities
+  loadOpps();
+  if (Object.keys(opps).length > 0) {
+    document.getElementById('opp-empty-state').classList.add('hidden');
+    document.getElementById('opp-pipeline').classList.remove('hidden');
+    renderOpps();
+  }
+
   if (savedLic) {
     // Re-decode on restore (dates need re-parsing from strings)
     let raw;
@@ -2432,19 +2559,13 @@ function renderLicenses() {
 
 function setMainView(v) {
   mainView = v;
-  const isLic = v === 'licenses';
-  // Tab nav
-  document.getElementById('vnav-accounts').classList.toggle('active', !isLic);
-  document.getElementById('vnav-licenses').classList.toggle('active', isLic);
-  // Stats bars
-  document.getElementById('stats-accounts').classList.toggle('hidden', isLic);
-  document.getElementById('stats-licenses').classList.toggle('hidden', !isLic);
-  // Controls
-  document.getElementById('controls-accounts').classList.toggle('hidden', isLic);
-  document.getElementById('controls-licenses').classList.toggle('hidden', !isLic);
-  // Content
-  document.getElementById('content-accounts').classList.toggle('hidden', isLic);
-  document.getElementById('content-licenses').classList.toggle('hidden', !isLic);
+  ['accounts','licenses','opps'].forEach(tab => {
+    const active = v === tab;
+    document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
+    document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
+    document.getElementById('controls-' + tab)?.classList.toggle('hidden', !active);
+    document.getElementById('content-' + tab)?.classList.toggle('hidden', !active);
+  });
 }
 
 
@@ -2475,7 +2596,7 @@ function checkStorageSize() {
   const WARN_TOTAL_KB = 4096; // warn at 4MB total
   let totalKB = 0;
   let triggered = false;
-  ['ibis_accounts','ibis_local','ibis_licenses'].forEach(key => {
+  ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps'].forEach(key => {
     const val = localStorage.getItem(key);
     if (!val) return;
     const kb = Math.round((val.length * 2) / 1024);
@@ -2499,6 +2620,357 @@ function clearEnrichmentCache() {
   document.getElementById('storage-warning-banner').classList.remove('visible');
   renderAll();
   checkStorageSize();
+}
+
+/* ============================================================
+   OPPORTUNITIES ENGINE
+   ============================================================ */
+
+let opps = {}; // keyed by email (lowercase trimmed)
+let oppsView = 'kanban'; // 'kanban' | 'table'
+let oppColdOpen = false;
+let oppDragEmail = null;
+
+const OPP_STAGES = [
+  { key: 'Working',        emoji: '🟡' },
+  { key: 'Engaged',        emoji: '🔵' },
+  { key: 'Meeting Booked', emoji: '📅' },
+  { key: 'Hot',            emoji: '🔥' },
+  { key: 'Won',            emoji: '✅' },
+  { key: 'Dead',           emoji: '❌' },
+];
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function loadOpps() {
+  try { const s = localStorage.getItem('ibis_opps'); if (s) opps = JSON.parse(s); } catch(e) { opps = {}; }
+}
+
+function saveOpps() {
+  try { localStorage.setItem('ibis_opps', JSON.stringify(opps)); } catch(e) { console.warn('ibis_opps save failed:', e); }
+}
+
+function handleOppsCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result);
+    const result = mergeOpps(newContacts);
+    saveOpps();
+    document.getElementById('opp-upload-btn').innerHTML = '✅ Opps CSV';
+    document.getElementById('opp-upload-btn').classList.add('fresh');
+    document.getElementById('opp-empty-state').classList.add('hidden');
+    document.getElementById('opp-pipeline').classList.remove('hidden');
+    renderOpps();
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new · ${result.archived} archived`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function parseOppsCSV(text) {
+  text = text.replace(/^\ufeff/, '').normalize('NFC');
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i]);
+    if (vals.length < 2) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (vals[idx]||'').trim().replace(/^"|"$/g,''); });
+    const email = (obj['Email'] || obj['email'] || '').toLowerCase().trim();
+    if (!email) continue;
+    rows.push({
+      email,
+      name: obj['Name'] || obj['name'] || '',
+      accountName: obj['Account Name'] || obj['AccountName'] || '',
+      title: obj['Title'] || obj['title'] || '',
+      lastActivity: obj['Last Activity Date'] || obj['LastActivityDate'] || '',
+      phone: obj['Phone'] || obj['phone'] || '',
+    });
+  }
+  return rows;
+}
+
+function mergeOpps(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, archived = 0;
+  newContacts.forEach(c => {
+    if (opps[c.email]) {
+      opps[c.email].name = c.name;
+      opps[c.email].accountName = c.accountName;
+      opps[c.email].title = c.title;
+      opps[c.email].lastActivity = c.lastActivity;
+      opps[c.email].phone = c.phone;
+      if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Working'; }
+      updated++;
+    } else {
+      opps[c.email] = { ...c, stage: 'Working', notes: '', nextAction: '', archived: false, dateAdded: today };
+      added++;
+    }
+  });
+  Object.keys(opps).forEach(email => {
+    if (!newEmails.has(email) && !opps[email].archived) { opps[email].archived = true; archived++; }
+  });
+  return { added, updated, archived };
+}
+
+function setOppStage(email, stage) {
+  if (!opps[email]) return;
+  opps[email].stage = stage;
+  saveOpps();
+  renderOpps();
+}
+
+function reactivateOpp(email) {
+  if (!opps[email]) return;
+  opps[email].archived = false;
+  opps[email].stage = 'Working';
+  saveOpps();
+  renderOpps();
+}
+
+function setOppsView(v) {
+  oppsView = v;
+  document.getElementById('btn-kanban').classList.toggle('active', v === 'kanban');
+  document.getElementById('btn-opp-table').classList.toggle('active', v === 'table');
+  renderOpps();
+}
+
+function renderOpps() {
+  const q = (document.getElementById('opp-search-input')?.value || '').toLowerCase();
+  const pipeline = Object.values(opps).filter(o => !o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
+  const cold = Object.values(opps).filter(o => o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q)));
+  updateOppsStats(pipeline);
+  if (oppsView === 'kanban') {
+    renderKanban(pipeline);
+    document.getElementById('opp-kanban-view').classList.remove('hidden');
+    document.getElementById('opp-table-view').classList.add('hidden');
+  } else {
+    renderOppsTable(pipeline);
+    document.getElementById('opp-kanban-view').classList.add('hidden');
+    document.getElementById('opp-table-view').classList.remove('hidden');
+  }
+  renderColdOpps(cold);
+}
+
+function updateOppsStats(pipeline) {
+  document.getElementById('ostat-total').textContent = pipeline.length;
+  document.getElementById('ostat-Working').textContent = pipeline.filter(o => o.stage === 'Working').length;
+  document.getElementById('ostat-Engaged').textContent = pipeline.filter(o => o.stage === 'Engaged').length;
+  document.getElementById('ostat-Meeting').textContent = pipeline.filter(o => o.stage === 'Meeting Booked').length;
+  document.getElementById('ostat-Hot').textContent = pipeline.filter(o => o.stage === 'Hot').length;
+  document.getElementById('ostat-Won').textContent = pipeline.filter(o => o.stage === 'Won').length;
+  document.getElementById('ostat-Dead').textContent = pipeline.filter(o => o.stage === 'Dead').length;
+  const days = pipeline.map(o => oppDaysAgo(o.lastActivity)).filter(d => d !== null && d >= 0);
+  document.getElementById('ostat-avg-days').textContent = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
+}
+
+function oppLogoHTML(opp, size) {
+  size = size || 28;
+  const acctMatch = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normName(opp.accountName));
+  const domain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(opp.accountName) || guessDomain(opp.accountName));
+  const initials = (opp.name || opp.accountName || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const pad = size <= 28 ? '2px' : '4px';
+  if (!domain) return `<div class="td-logo" style="width:${size}px;height:${size}px;">${initials}</div>`;
+  const resolved = logoResolved[domain];
+  if (resolved === '__initials__') return `<div class="td-logo" style="width:${size}px;height:${size}px;">${initials}</div>`;
+  if (resolved) return `<div class="td-logo" style="width:${size}px;height:${size}px;"><img src="${resolved}" style="width:100%;height:100%;object-fit:contain;padding:${pad};" alt="${escHtml(opp.accountName)}"></div>`;
+  return `<div class="td-logo" style="width:${size}px;height:${size}px;"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(opp.accountName)}" style="width:100%;height:100%;object-fit:contain;padding:${pad};"></div>`;
+}
+
+function oppStageClass(stageKey) {
+  return ({ 'Working':'ops-Working','Engaged':'ops-Engaged','Meeting Booked':'ops-Meeting','Hot':'ops-Hot','Won':'ops-Won','Dead':'ops-Dead' })[stageKey] || 'ops-Working';
+}
+
+function renderKanban(pipeline) {
+  const container = document.getElementById('opp-kanban-view');
+  container.innerHTML = OPP_STAGES.map(s => {
+    const cards = pipeline.filter(o => o.stage === s.key);
+    return `<div class="opp-col" data-stage="${escHtml(s.key)}"
+      ondragover="event.preventDefault();this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="handleOppDrop(event,'${escHtml(s.key)}');this.classList.remove('drag-over')">
+      <div class="opp-col-header">
+        <span>${s.emoji} ${s.key}</span>
+        <span class="opp-col-count">${cards.length}</span>
+      </div>
+      <div class="opp-col-body">
+        ${cards.map(o => renderOppCard(o)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderOppCard(o) {
+  const email = o.email;
+  const safeId = email.replace(/[^a-z0-9]/g,'_');
+  const daysAgo = oppDaysAgo(o.lastActivity);
+  const daysStr = daysAgo !== null ? daysAgo + 'd ago' : '—';
+  const hasNotes = !!(o.notes && o.notes.trim());
+  return `<div class="opp-card" draggable="true"
+    ondragstart="oppDragEmail=this.dataset.email;event.dataTransfer.setData('text/plain',this.dataset.email);this.classList.add('dragging')"
+    ondragend="this.classList.remove('dragging')"
+    data-email="${escHtml(email)}">
+    <div class="opp-card-header">
+      ${oppLogoHTML(o, 28)}
+      <div class="opp-card-info">
+        <div class="opp-card-name">${escHtml(o.name)}</div>
+        <div class="opp-card-co">${escHtml(o.accountName)}</div>
+        ${o.title ? `<div class="opp-card-title-text">${escHtml(o.title)}</div>` : ''}
+      </div>
+    </div>
+    <div class="opp-card-footer">
+      <span class="opp-days">📅 ${daysStr}</span>
+      <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
+        onclick="event.stopPropagation();toggleOppNotes('opp-notes-${safeId}')">📝</button>
+    </div>
+    <div class="opp-next-wrap">
+      <input class="opp-next-input" type="text" placeholder="Next action…"
+        value="${escHtml(o.nextAction||'')}"
+        onblur="saveOppField('${escHtml(email)}','nextAction',this.value)"
+        onclick="event.stopPropagation()">
+    </div>
+    <div class="opp-notes-wrap${hasNotes?' open':''}" id="opp-notes-${safeId}">
+      <textarea class="opp-notes-ta" rows="2" placeholder="Notes…"
+        onblur="saveOppField('${escHtml(email)}','notes',this.value)"
+        onclick="event.stopPropagation()">${escHtml(o.notes||'')}</textarea>
+    </div>
+  </div>`;
+}
+
+function renderOppsTable(pipeline) {
+  const wrap = document.getElementById('opp-table-view');
+  if (!pipeline.length) {
+    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No contacts in pipeline</div>';
+    return;
+  }
+  const stageOpts = OPP_STAGES.map(s => `<option value="${s.key}">${s.emoji} ${s.key}</option>`).join('');
+  wrap.innerHTML = `<div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th style="width:28px;padding-right:4px;"></th>
+        <th>Name</th>
+        <th>Company</th>
+        <th>Title</th>
+        <th>Stage</th>
+        <th>Last Activity</th>
+        <th>Next Action</th>
+        <th style="width:32px;">Notes</th>
+      </tr></thead>
+      <tbody>${pipeline.map(o => {
+        const daysAgo = oppDaysAgo(o.lastActivity);
+        const email = escHtml(o.email);
+        return `<tr>
+          <td style="padding:9px 4px 9px 14px;">${oppLogoHTML(o,24)}</td>
+          <td><div style="font-weight:500;">${escHtml(o.name)}</div></td>
+          <td style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</td>
+          <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
+          <td><select class="opp-stage-select" onchange="setOppStage('${email}',this.value)">
+            ${OPP_STAGES.map(s=>`<option value="${s.key}"${o.stage===s.key?' selected':''}>${s.emoji} ${s.key}</option>`).join('')}
+          </select></td>
+          <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${daysAgo!==null?daysAgo+'d ago':'—'}</td>
+          <td><input class="opp-inline-input" type="text" value="${escHtml(o.nextAction||'')}"
+            placeholder="Next action…" onblur="saveOppField('${email}','nextAction',this.value)"></td>
+          <td style="text-align:center;"><button class="opp-notes-btn${o.notes?' has-notes':''}"
+            onclick="promptOppNote('${email}')" title="Notes">📝</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderColdOpps(cold) {
+  const section = document.getElementById('opp-cold-section');
+  if (!cold.length) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  section.innerHTML = `<div class="cold-section-hdr" onclick="toggleColdSection()">
+    <span class="cold-toggle${oppColdOpen?' open':''}">▶</span>
+    <span class="cold-title">❄️ Cold Opportunities</span>
+    <span class="cold-count">${cold.length}</span>
+  </div>
+  <div class="cold-body${oppColdOpen?' open':''}">
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:28px;padding-right:4px;"></th>
+          <th>Name</th><th>Company</th><th>Title</th>
+          <th>Last Activity</th><th>Date Added</th><th style="width:100px;"></th>
+        </tr></thead>
+        <tbody>${cold.map(o => {
+          const daysAgo = oppDaysAgo(o.lastActivity);
+          const email = escHtml(o.email);
+          return `<tr style="opacity:0.7;">
+            <td style="padding:9px 4px 9px 14px;">${oppLogoHTML(o,24)}</td>
+            <td style="font-weight:500;">${escHtml(o.name)}</td>
+            <td style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
+            <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${daysAgo!==null?daysAgo+'d ago':'—'}</td>
+            <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${o.dateAdded||'—'}</td>
+            <td><button onclick="reactivateOpp('${email}')"
+              style="font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--text-secondary);">↩ Reactivate</button></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function toggleColdSection() {
+  oppColdOpen = !oppColdOpen;
+  document.querySelector('.cold-toggle')?.classList.toggle('open', oppColdOpen);
+  document.querySelector('.cold-body')?.classList.toggle('open', oppColdOpen);
+}
+
+function handleOppDrop(e, stage) {
+  e.preventDefault();
+  const email = e.dataTransfer.getData('text/plain') || oppDragEmail;
+  if (email && opps[email]) { opps[email].stage = stage; saveOpps(); renderOpps(); }
+  oppDragEmail = null;
+}
+
+function toggleOppNotes(panelId) {
+  const panel = document.getElementById(panelId);
+  if (panel) panel.classList.toggle('open');
+}
+
+function promptOppNote(email) {
+  const o = opps[email];
+  if (!o) return;
+  const note = prompt('Notes for ' + o.name + ':', o.notes || '');
+  if (note !== null) { saveOppField(email, 'notes', note); renderOpps(); }
+}
+
+function saveOppField(email, field, value) {
+  if (!opps[email]) return;
+  opps[email][field] = value;
+  saveOpps();
+}
+
+function clearOppsData() {
+  if (!confirm('Clear all opportunity data? Flags and notes will also be removed.')) return;
+  localStorage.removeItem('ibis_opps');
+  location.reload();
+}
+
+function showOppToast(msg) {
+  const toast = document.getElementById('opp-toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+function oppDaysAgo(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return Math.round((Date.now() - d.getTime()) / 86400000);
 }
 
 init();
