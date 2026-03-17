@@ -1051,6 +1051,7 @@ const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
+const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
@@ -1107,7 +1108,7 @@ function init() {
       console.error('localStorage data corrupted, resetting:', e);
       accounts = []; localData = {};
     }
-    applySeedsToLocalData(); restoreSortPref(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts();
+    applySeedsToLocalData(); restoreSortPref(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
   }
@@ -1153,7 +1154,7 @@ function handleCSV(e) {
     document.getElementById('acct-upload-btn').classList.add('fresh');
     applySeedsToLocalData();
     updateStats(); populateVerticals(); renderAll();
-    autoQueueAccounts();
+    autoQueueAccounts(); autoQueueDescriptions();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
     checkStorageSize();
@@ -1373,7 +1374,7 @@ function renderCards(list) {
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${sub?`<div class="card-sub-vert">${sub}</div>`:''}</div></div>
+      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${(sub||local.desc)?`<div class="card-sub-vert">${sub||local.desc}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
         <div class="stat-cell"><div class="label">Tier</div><div class="val"><span class="tier-badge ${tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other'}"><span>${tier||'—'}</span></span></div></div>
@@ -1406,7 +1407,7 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${getField(acc,'Sub-Vertical')?`<div class="td-sub-vert">${getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
+      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(getField(acc,'Sub-Vertical')||local.desc)?`<div class="td-sub-vert">${getField(acc,'Sub-Vertical')||local.desc}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -1650,6 +1651,66 @@ function autoQueueAccounts() {
   const tier1 = accounts.filter(a => getField(a,'Major Markets Tier') == '1');
   const rest   = accounts.filter(a => getField(a,'Major Markets Tier') != '1');
   [...tier1, ...rest].forEach(a => queueClaudeEnrich(getField(a,'Account Name','AccountName')));
+}
+
+// ── WIKIPEDIA DESCRIPTION ENRICHMENT ─────────────────────────────────────────
+const descQueue = [];
+let descRunning = false;
+
+function queueDescEnrich(name) {
+  if (!name) return;
+  if (localData[name]?.desc) return;        // already cached
+  if (descQueue.includes(name)) return;     // already queued
+  descQueue.push(name);
+  if (!descRunning) runDescQueue();
+}
+
+async function runDescQueue() {
+  descRunning = true;
+  while (descQueue.length) {
+    const name = descQueue.shift();
+    if (localData[name]?.desc) continue;    // fetched while waiting
+    await fetchDescFromWiki(name);
+    renderAll();
+    await new Promise(r => setTimeout(r, DESC_DELAY_MS));
+  }
+  descRunning = false;
+}
+
+async function fetchDescFromWiki(name) {
+  const tryFetch = async (query) => {
+    try {
+      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.type === 'disambiguation') return null;
+      return data.description || null;
+    } catch { return null; }
+  };
+
+  let desc = await tryFetch(name);
+  if (!desc) {
+    // Strip common legal suffixes and retry once
+    const cleaned = name.replace(/\s+(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.?|Group|Holdings?|Incorporated|Limited|PLC|S\.A\.?|LLP)$/gi, '').trim();
+    if (cleaned !== name) desc = await tryFetch(cleaned);
+  }
+
+  if (desc) {
+    const truncated = desc.split(' ').slice(0, 10).join(' ');
+    if (!localData[name]) localData[name] = {};
+    localData[name].desc = truncated;
+    localStorage.setItem('ibis_local', JSON.stringify(localData));
+  }
+}
+
+function autoQueueDescriptions() {
+  accounts.forEach(a => {
+    const name = getField(a, 'Account Name', 'AccountName');
+    if (!name) return;
+    if (getField(a, 'Sub-Vertical')) return;  // CSV has it — no need to fetch
+    if (localData[name]?.desc) return;        // already cached
+    queueDescEnrich(name);
+  });
 }
 
 let acctSortCol = 'intent';
