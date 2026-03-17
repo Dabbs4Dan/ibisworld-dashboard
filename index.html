@@ -200,7 +200,8 @@
   .alb-intl    { background:#dcfce7; color:#15803d; }
   .alb-churn   { background:#fef3c7; color:#b45309; }
   .alb-trial   { background:#f3e8ff; color:#7c3aed; }
-  .td-lic-badges { display:flex; flex-wrap:wrap; gap:3px; margin-top:3px; }
+  .td-sub-vert { font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .card-sub-vert { font-size:11px; color:var(--text-muted); margin-top:1px; }
 
 /* ── REVENUE ENGINE STYLES ───────────────────── */
   .rev-badge { font-size:11px; }
@@ -882,6 +883,7 @@
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search company..." id="lic-search-input" oninput="renderLicenses()">
   </div>
+  <button class="chip" id="lic-latest-btn" onclick="toggleLatestUS()">📌 Latest US</button>
   <select id="lic-sort-select" onchange="onLicSortSelectChange()">
     <option value="churn_recency">Churn Recency</option>
     <option value="name">Company A–Z</option>
@@ -1371,7 +1373,7 @@ function renderCards(list) {
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div></div></div>
+      <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${sub?`<div class="card-sub-vert">${sub}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
         <div class="stat-cell"><div class="label">Tier</div><div class="val"><span class="tier-badge ${tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other'}"><span>${tier||'—'}</span></span></div></div>
@@ -1382,7 +1384,6 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
       ${revHtml}
-      ${getLicBadgesForAccount(name)}
       <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${clients>0?'<span class="client-badge">CLIENT</span>':''}</div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
@@ -1405,7 +1406,7 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${getLicBadgeSpans(name)?`<div class="td-lic-badges">${getLicBadgeSpans(name)}</div>`:''}</div></div></td>
+      <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${getField(acc,'Sub-Vertical')?`<div class="td-sub-vert">${getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -1717,6 +1718,7 @@ function restoreSortPref() {
    ============================================================ */
 
 let licenses = [];
+let licLatestMode   = false;
 let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
 let licStatusFilters = new Set(); // values: 'active','newchurn','churned','dead'
 let openLicDropdown = null;
@@ -1998,7 +2000,24 @@ function toggleLicDropdown(which, e) {
   }
 }
 
+function toggleLatestUS() {
+  licLatestMode = !licLatestMode;
+  document.getElementById('lic-latest-btn')?.classList.toggle('active', licLatestMode);
+  if (licLatestMode) {
+    // Clear type/status filters so they don't conflict
+    licTypeFilters = new Set();
+    licStatusFilters = new Set();
+    document.querySelectorAll('#lic-dropdown-type input[type=checkbox]').forEach(c => c.checked = false);
+    document.querySelectorAll('#lic-dropdown-status input[type=checkbox]').forEach(c => c.checked = false);
+    updateLicFilterIndicator('type', false);
+    updateLicFilterIndicator('status', false);
+  }
+  renderLicenses();
+}
+
 function applyLicTypeFilter() {
+  // Activating type/status filter turns off Latest US mode
+  if (licLatestMode) { licLatestMode = false; document.getElementById('lic-latest-btn')?.classList.remove('active'); }
   const checks = document.querySelectorAll('#lic-dropdown-type input[type=checkbox]');
   licTypeFilters = new Set([...checks].filter(c => c.checked).map(c => c.value));
   updateLicFilterIndicator('type', licTypeFilters.size > 0);
@@ -2006,6 +2025,8 @@ function applyLicTypeFilter() {
 }
 
 function applyLicStatusFilter() {
+  // Activating type/status filter turns off Latest US mode
+  if (licLatestMode) { licLatestMode = false; document.getElementById('lic-latest-btn')?.classList.remove('active'); }
   const checks = document.querySelectorAll('#lic-dropdown-status input[type=checkbox]');
   licStatusFilters = new Set([...checks].filter(c => c.checked).map(c => c.value));
   updateLicFilterIndicator('status', licStatusFilters.size > 0);
@@ -2077,6 +2098,15 @@ function getLicFiltered() {
     if (licStatusFilters.size > 0 && !licStatusFilters.has(l._churnTier)) return false;
     return true;
   });
+
+  // Latest US mode: filter to US Industry, dedup to 1 per account (latest end date)
+  if (licLatestMode) {
+    list = list.filter(l => l._type === 'US');
+    list.sort((a, b) => (b._endDate?.getTime() || 0) - (a._endDate?.getTime() || 0));
+    const seen = new Set();
+    list = list.filter(l => { const n = normName(l._name); if (seen.has(n)) return false; seen.add(n); return true; });
+    return list; // skip normal sort — latest end date order is most useful here
+  }
 
   list.sort((a, b) => {
     const flip = dir === 'desc' ? -1 : 1;
