@@ -1109,7 +1109,7 @@ function init() {
       console.error('localStorage data corrupted, resetting:', e);
       accounts = []; localData = {};
     }
-    applySeedsToLocalData(); restoreSortPref(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions();
+    applySeedsToLocalData(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions();
     document.getElementById('empty-state').classList.add('hidden');
     document.getElementById('count-label').classList.remove('hidden');
   }
@@ -1674,6 +1674,20 @@ function autoQueueAccounts() {
 // ── WIKIPEDIA DESCRIPTION ENRICHMENT ─────────────────────────────────────────
 const descQueue = [];
 let descRunning = false;
+
+// Wipe any cached descriptions that are from an older version before first render.
+// Prevents stale/wrong descriptions from persisting when Wikipedia later returns null.
+function clearStaleDescs() {
+  let changed = false;
+  for (const name of Object.keys(localData)) {
+    if (localData[name]?.desc && (localData[name]?.descV || 0) < DESC_VERSION) {
+      delete localData[name].desc;
+      delete localData[name].descV;
+      changed = true;
+    }
+  }
+  if (changed) localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
 
 function queueDescEnrich(name) {
   if (!name) return;
