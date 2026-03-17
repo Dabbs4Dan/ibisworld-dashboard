@@ -1052,7 +1052,7 @@ const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
-const DESC_VERSION           = 4;          // bump to force re-fetch of all descriptions
+const DESC_VERSION           = 5;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
@@ -1709,7 +1709,7 @@ async function runDescQueue() {
   descRunning = false;
 }
 
-const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|parish|county|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game|mathematical|physics|chemistry)\b/i;
+const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|parish|county|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game|mathematical|physics|chemistry|star|stars|constellation|planet|galaxy|nebula|asteroid|comet|celestial|stellar|magnate|tycoon|philanthropist|statesman|diplomat|politician|athlete|footballer|cricketer|basketball|tennis|golfer|actor|actress|musician|singer|composer|painter|sculptor|philosopher|historian|physicist|biologist|river|mountain|lake|island|peninsula|cape)\b/i;
 
 // Strip location clauses, parentheticals, and trailing fragments from Wikipedia text
 function cleanWikiText(text) {
@@ -1790,24 +1790,34 @@ async function fetchDescFromWiki(name) {
   }
 
   // Attempt 4: Wikidata entity search — returns multiple candidates for a name,
-  // so we can skip the Greek letter and find the marketing company for "Epsilon", etc.
+  // filtered by quality and preferring entities whose label matches the company name.
   if (!desc) {
     try {
       const searchQ = name.replace(/\//g, ' ').trim();
-      const wdRes = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(searchQ)}&language=en&type=item&format=json&origin=*&limit=8`);
+      const wdRes = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(searchQ)}&language=en&type=item&format=json&origin=*&limit=10`);
       if (wdRes.ok) {
         const wdData = await wdRes.json();
-        for (const entity of (wdData.search || [])) {
-          const raw = (entity.description || '').trim();
-          if (!raw) continue;
-          if (NON_BUSINESS_TERMS.test(raw)) continue;
-          if (isJustCompanyName(raw)) continue;
-          if (isGenericIndustryLabel(raw)) continue;
-          const cleaned = cleanWikiText(raw);
-          if (cleaned && cleaned.split(' ').length >= 2) {
-            desc = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-            break;
+        const nameNorm = searchQ.toLowerCase().replace(/[^a-z0-9]/g, '');
+        // Two passes: first prefer labels that closely match the company name; then accept any passing result
+        for (const pass of [0, 1]) {
+          for (const entity of (wdData.search || [])) {
+            const raw = (entity.description || '').trim();
+            if (!raw) continue;
+            if (NON_BUSINESS_TERMS.test(raw)) continue;
+            if (isJustCompanyName(raw)) continue;
+            if (isGenericIndustryLabel(raw)) continue;
+            // On first pass only accept if entity label is a close match to the search name
+            if (pass === 0) {
+              const labelNorm = (entity.label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (!labelNorm.startsWith(nameNorm.slice(0, 4)) && !nameNorm.startsWith(labelNorm.slice(0, 4))) continue;
+            }
+            const cleaned = cleanWikiText(raw);
+            if (cleaned && cleaned.split(' ').length >= 2) {
+              desc = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+              break;
+            }
           }
+          if (desc) break;
         }
       }
     } catch { /* silent */ }
