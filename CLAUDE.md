@@ -291,6 +291,12 @@ When a new session begins, Claude Code should:
 | ✅ Done | Storage warning banner | Shows amber banner when any key >2MB or total >4MB; Clear Cache button strips only rev data. |
 | ✅ Done | Update Claude model ID | Updated to `claude-sonnet-4-6`. |
 | ✅ Done | Shared sort/filter pattern | Documented above under SORT / FILTER PATTERN. Full `TableControls` refactor deferred to 3rd tab. |
+| ✅ Done | Wikipedia company descriptions | `fetchDescFromWiki()` with `cleanWikiText()` + `isJustCompanyName()` + non-business filter. DESC_VERSION=3. Shown in Accounts cards+table and Licenses tab. `autoQueueLicDescriptions()` runs on lic CSV load+restore. |
+| ✅ Done | 📌 Latest US filter chip | Licenses tab — deduplicates to 1 US Industry row per account (latest end date). Clears type/status filters on activate; those filters deactivate it. |
+| ✅ Done | Lost renewal rule (Rule 0) | `applyLicenseRules`: `$0 + US + "renewal" in opp` → forces `_active=false`, `_churnTier=newchurn`. Prevents false PIQ promotion. Shown as US Industry. |
+| ✅ Done | Logo flicker fix | `logoFallbackChain` starts images at `opacity:0` + `onload` fade-in. Cascade is invisible until a source resolves. |
+| ⚠️ Verify next session | Description quality | DESC_VERSION=3 forces re-fetch. Hard refresh (Ctrl+Shift+R) needed. Some descriptions may still be weak — monitor in next session. |
+| 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs overflow fix or position:fixed dropdown. |
 | 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
 | 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
