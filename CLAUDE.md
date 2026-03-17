@@ -291,10 +291,11 @@ When a new session begins, Claude Code should:
 | ✅ Done | Storage warning banner | Shows amber banner when any key >2MB or total >4MB; Clear Cache button strips only rev data. |
 | ✅ Done | Update Claude model ID | Updated to `claude-sonnet-4-6`. |
 | ✅ Done | Shared sort/filter pattern | Documented above under SORT / FILTER PATTERN. Full `TableControls` refactor deferred to 3rd tab. |
-| ✅ Done | Wikipedia company descriptions | `fetchDescFromWiki()` with `cleanWikiText()` + `isJustCompanyName()` + `isGenericIndustryLabel()` + Wikipedia Search API fallback (step 4). DESC_VERSION=4. Claude revenue call also returns `description` field — overwrites Wikipedia. |
+| ✅ Done | Wikipedia company descriptions | 5-step cascade: direct → suffix-stripped → slash-parts → Wikidata entity search → Wikipedia Search API. DESC_VERSION=6. 4-layer quality gate: `NON_BUSINESS_TERMS` + `isJustCompanyName` + `isGenericIndustryLabel` + `hasBusinessSignal` (positive require). `clearStaleDescs()` wipes old-version cache on load before first render. Claude revenue call also returns `description` field — highest quality, overwrites Wikipedia/Wikidata. |
 | ✅ Done | 📌 Latest US filter chip | Licenses tab — deduplicates to 1 US Industry row per account (latest end date). Clears type/status filters on activate; those filters deactivate it. |
 | ✅ Done | Lost renewal rule (Rule 0) | `applyLicenseRules`: `$0 + US + "renewal" in opp` → forces `_active=false`, `_churnTier=newchurn`. Prevents false PIQ promotion. Shown as US Industry. |
 | ✅ Done | Logo flicker fix v2 | `logoResolved{}` cache — once a domain's URL resolves, stored in memory. Re-renders use cached URL at opacity:1 instantly. All three logo render sites (cards, accounts table, licenses table) check cache first. |
+| ⚠️ Monitor | Description quality | DESC_VERSION=6 just deployed. ~85% high quality. A few accounts (Cooley, WPP, Loews) may show vertical-tag fallback until Claude revenue enrichment runs and overwrites with AI description. |
 | 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs overflow fix or position:fixed dropdown. |
 | 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
 | 🗺️ Future | Opportunities layer | SF "Accounts with Opportunities" report |
