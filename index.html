@@ -831,11 +831,17 @@
   .opp-dot-btn { background:none; border:none; cursor:pointer; padding:4px 8px; display:inline-flex; align-items:center; justify-content:center; }
   .opp-dot { width:9px; height:9px; border-radius:50%; background:#d1d5db; display:block; transition:background 0.15s; }
   .opp-dot-btn:hover .opp-dot { background:#9ca3af; }
-  .opp-active-wrap { display:inline-flex; align-items:center; border-radius:7px; overflow:hidden; box-shadow:0 0 10px rgba(0,174,240,0.35); }
+  .opp-active-wrap { display:inline-flex; align-items:center; border-radius:7px; overflow:hidden; box-shadow:0 0 10px rgba(0,174,240,0.35); white-space:nowrap; }
   .opp-sf-pill { background:#00aef0; color:white; border:none; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:4px 12px; cursor:pointer; white-space:nowrap; transition:opacity 0.15s; }
   .opp-sf-pill:hover { opacity:0.85; }
-  .opp-amt-input { width:62px; font-size:11px; font-family:'DM Mono',monospace; border:1.5px solid #bae6fd; border-left:1.5px solid #e0f2fe; border-radius:0 7px 7px 0; padding:3px 6px; color:var(--text-primary); outline:none; background:#f0f9ff; }
+  .opp-amt-input { width:58px; font-size:11px; font-family:'DM Mono',monospace; border:1.5px solid #bae6fd; border-left:1.5px solid #e0f2fe; border-right:1px solid #bae6fd; border-radius:0; padding:3px 6px; color:var(--text-primary); outline:none; background:#f0f9ff; }
   .opp-amt-input:focus { border-color:#00aef0; background:white; }
+  .opp-close-input { width:74px; font-size:11px; font-family:'DM Mono',monospace; border:1.5px solid #bae6fd; border-left:none; border-radius:0 7px 7px 0; padding:3px 6px; color:var(--text-primary); outline:none; background:#f0f9ff; }
+  .opp-close-input:focus { border-color:#00aef0; background:white; }
+  .opp-close-input::placeholder { font-size:10px; color:#9ca3af; }
+  /* Territory patch dot */
+  .patch-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,0.15); flex-shrink:0; }
+  .patch-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; color:#15803d; background:#dcfce7; border-radius:4px; padding:2px 6px; white-space:nowrap; }
   /* Stage custom dropdown */
   .stage-sel-wrap { position:relative; display:inline-block; }
   .stage-sel-trigger { display:inline-flex; align-items:center; gap:4px; padding:3px 10px 3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.4; }
@@ -2813,7 +2819,7 @@ function mergeOpps(newContacts) {
       if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Working'; }
       updated++;
     } else {
-      opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, sfAmt: '', archived: false, dateAdded: today };
+      opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, sfAmt: '', closeDate: '', archived: false, dateAdded: today };
       added++;
     }
   });
@@ -2988,6 +2994,10 @@ function updateOppsStats(pipeline) {
   document.getElementById('ostat-avg-days').textContent = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
 }
 
+function isInTerritory(opp) {
+  return accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(opp.accountName));
+}
+
 function oppLogoHTML(opp, size) {
   size = size || 28;
   const acctMatch = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normName(opp.accountName));
@@ -3060,6 +3070,7 @@ function renderOppCard(o) {
         ${o.title ? `<div class="opp-card-title-text">${escHtml(o.title)}</div>` : ''}
         ${o.country ? `<div class="opp-card-co">${escHtml(o.country)}</div>` : ''}
       </div>
+      ${isInTerritory(o)?'<span class="patch-dot" title="In your territory" style="margin-left:auto;flex-shrink:0;"></span>':''}
     </div>
     ${o.accountName ? `<div class="opp-acct-badge">${oppBadgeLogoHTML(o)}${escHtml(o.accountName)}</div>` : ''}
     <div class="opp-card-footer">
@@ -3095,10 +3106,11 @@ function renderOppsTable(pipeline) {
   wrap.innerHTML = `<div class="table-wrap">
     <table>
       <thead><tr>
+        <th style="width:20px;padding:0 4px 0 10px;"></th>
         <th onclick="setOppSort('accountName')" style="cursor:pointer;">Company <span class="acct-sort-arrow" id="osort-accountName"></span></th>
         <th onclick="setOppSort('name')" style="cursor:pointer;">Name <span class="acct-sort-arrow" id="osort-name"></span></th>
         <th onclick="setOppSort('title')" style="cursor:pointer;">Title <span class="acct-sort-arrow" id="osort-title"></span></th>
-        <th onclick="setOppSort('sfOpp')" style="width:72px;text-align:center;cursor:pointer;">Opp <span class="acct-sort-arrow" id="osort-sfOpp"></span></th>
+        <th onclick="setOppSort('sfOpp')" style="text-align:center;cursor:pointer;white-space:nowrap;">Opp <span class="acct-sort-arrow" id="osort-sfOpp"></span></th>
         <th onclick="setOppSort('stage')" style="cursor:pointer;">Stage <span class="acct-sort-arrow" id="osort-stage"></span></th>
         <th onclick="setOppSort('nextAction')" style="cursor:pointer;">Next Action <span class="acct-sort-arrow" id="osort-nextAction"></span></th>
         <th onclick="setOppSort('nextDate')" style="cursor:pointer;">Next Date <span class="acct-sort-arrow" id="osort-nextDate"></span></th>
@@ -3108,11 +3120,13 @@ function renderOppsTable(pipeline) {
       <tbody>${pipeline.map(o => {
         const daysAgo = oppDaysAgo(o.lastActivity);
         const email = escHtml(o.email);
+        const inTerritory = isInTerritory(o);
         return `<tr class="${o.sfOpp?'tr-opp-active':''}">
-          <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 14px;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
+          <td style="text-align:center;padding:0 4px 0 10px;" title="${inTerritory?'In your territory':''}">${inTerritory?'<span class="patch-dot"></span>':''}</td>
+          <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
           <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name)}</div></td>
-          <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
-          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppAmt('${email}',this)" onkeydown="if(event.key==='Enter')this.blur()"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
+          <td style="font-size:12px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppAmt('${email}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(o.closeDate||'')}" onblur="saveOppField('${email}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
           <td>${renderStageSelect(o, email)}</td>
           <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
             ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a.val)}"${(o.nextAction||'')===(a.val)?' selected':''}>${a.key}</option>`).join('')}
