@@ -805,12 +805,11 @@
   .opp-col-count { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-muted); background:var(--surface); border-radius:10px; padding:1px 7px; }
   .opp-col-body { overflow-y:auto; max-height:calc(100vh - 290px); padding:8px; display:flex; flex-direction:column; gap:8px; min-height:52px; }
   .opp-col.drag-over > .opp-col-body { background:rgba(200,16,46,0.04); border-radius:0 0 10px 10px; }
-  .opp-col[data-stage="Working"]        > .opp-col-header { border-top:3px solid #f59e0b; }
-  .opp-col[data-stage="Engaged"]        > .opp-col-header { border-top:3px solid #3b82f6; }
-  .opp-col[data-stage="Meeting Booked"] > .opp-col-header { border-top:3px solid #0891b2; }
-  .opp-col[data-stage="Hot"]            > .opp-col-header { border-top:3px solid var(--ibis-red); }
-  .opp-col[data-stage="Lost"]           > .opp-col-header { border-top:3px solid #be185d; }
-  .opp-col[data-stage="Dead"]           > .opp-col-header { border-top:3px solid #9ca3af; }
+  .opp-col[data-stage="Introduction"] > .opp-col-header { border-top:3px solid #f59e0b; }
+  .opp-col[data-stage="Walkthrough"]  > .opp-col-header { border-top:3px solid #3b82f6; }
+  .opp-col[data-stage="Proposal"]     > .opp-col-header { border-top:3px solid #059669; }
+  .opp-col[data-stage="Stalled"]      > .opp-col-header { border-top:3px solid #d97706; }
+  .opp-col[data-stage="Lost"]         > .opp-col-header { border-top:3px solid #be185d; }
   .opp-card { background:white; border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:grab; transition:box-shadow 0.15s, transform 0.15s, opacity 0.15s; }
   .opp-card:active { cursor:grabbing; }
   .opp-card.dragging { opacity:0.35; }
@@ -828,8 +827,8 @@
   .opp-notes-btn:hover, .opp-notes-btn.has-notes { opacity:0.9; }
   .opp-delete-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; line-height:1; opacity:0.2; transition:opacity 0.15s, color 0.15s; }
   .opp-delete-btn:hover { opacity:0.8; }
-  .opp-sf-btn { background:none; border:1px solid #d1d5db; border-radius:5px; cursor:pointer; font-size:10px; font-weight:600; font-family:'DM Mono',monospace; padding:2px 7px; color:#9ca3af; transition:all 0.15s; white-space:nowrap; }
-  .opp-sf-btn.active { background:#0176d3; border-color:#0176d3; color:white; box-shadow:0 0 8px rgba(1,118,211,0.45); }
+  .opp-sf-btn { background:none; border:1px solid #d1d5db; border-radius:6px; cursor:pointer; font-size:10px; font-weight:600; font-family:'DM Mono',monospace; padding:4px 16px; color:#9ca3af; transition:all 0.2s; white-space:nowrap; }
+  .opp-sf-btn.active { background:#00aef0; border-color:#00aef0; color:white; box-shadow:0 0 12px rgba(0,174,240,0.55), 0 0 4px rgba(0,174,240,0.3); }
   .opp-next-wrap { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
   .opp-next-input { width:100%; box-sizing:border-box; font-size:11px; font-family:'DM Sans',sans-serif; border:none; background:transparent; color:var(--text-secondary); outline:none; padding:0; cursor:text; }
   .opp-next-input::placeholder { color:var(--text-muted); font-style:italic; }
@@ -839,12 +838,11 @@
   .opp-notes-ta:focus { border-color:var(--ibis-red); }
   /* Stage pills */
   .opp-stage-pill { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:2px 9px; border-radius:5px; white-space:nowrap; }
-  .ops-Working { background:#fef3c7; color:#92400e; }
-  .ops-Engaged { background:#dbeafe; color:#1d4ed8; }
-  .ops-Meeting { background:#cffafe; color:#0e7490; }
-  .ops-Hot { background:#fee2e2; color:#991b1b; }
-  .ops-Lost { background:#fce7f3; color:#9d174d; }
-  .ops-Dead { background:#f3f4f6; color:#6b7280; }
+  .ops-Introduction { background:#fef9c3; color:#854d0e; }
+  .ops-Walkthrough  { background:#dbeafe; color:#1d4ed8; }
+  .ops-Proposal     { background:#d1fae5; color:#065f46; }
+  .ops-Stalled      { background:#fef3c7; color:#92400e; }
+  .ops-Lost         { background:#fce7f3; color:#9d174d; }
   /* Opp table */
   .opp-tbl-wrap { padding:0 24px 24px; }
   .opp-stage-select, .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
@@ -988,12 +986,11 @@
   <div class="stat-item" style="border-right:none;padding-right:0;">
     <div class="stat-label">By Stage</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;align-items:center;">
-      <span class="opp-stage-pill ops-Working">🟡 <span id="ostat-Working">—</span></span>
-      <span class="opp-stage-pill ops-Engaged">🔵 <span id="ostat-Engaged">—</span></span>
-      <span class="opp-stage-pill ops-Meeting">📅 <span id="ostat-Meeting">—</span></span>
-      <span class="opp-stage-pill ops-Hot">🔥 <span id="ostat-Hot">—</span></span>
+      <span class="opp-stage-pill ops-Introduction">🟡 <span id="ostat-Introduction">—</span></span>
+      <span class="opp-stage-pill ops-Walkthrough">🔵 <span id="ostat-Walkthrough">—</span></span>
+      <span class="opp-stage-pill ops-Proposal">🟢 <span id="ostat-Proposal">—</span></span>
+      <span class="opp-stage-pill ops-Stalled">🟠 <span id="ostat-Stalled">—</span></span>
       <span class="opp-stage-pill ops-Lost">🔴 <span id="ostat-Lost">—</span></span>
-      <span class="opp-stage-pill ops-Dead">❌ <span id="ostat-Dead">—</span></span>
     </div>
   </div>
   <div class="stat-item" style="margin-left:32px;">
@@ -2696,14 +2693,20 @@ let oppColdOpen = false;
 let oppDragEmail = null;
 
 const OPP_STAGES = [
-  { key: 'Working',        emoji: '🟡' },
-  { key: 'Engaged',        emoji: '🔵' },
-  { key: 'Meeting Booked', emoji: '📅' },
-  { key: 'Hot',            emoji: '🔥' },
-  { key: 'Lost',           emoji: '🔴' },
-  { key: 'Dead',           emoji: '❌' },
+  { key: 'Introduction', emoji: '🟡' },
+  { key: 'Walkthrough',  emoji: '🔵' },
+  { key: 'Proposal',     emoji: '🟢' },
+  { key: 'Stalled',      emoji: '🟠' },
+  { key: 'Lost',         emoji: '🔴' },
 ];
-const OPP_NEXT_ACTIONS = ['Introduction','Walkthrough','Proposal','Verbal','Stalled',''];
+const OPP_NEXT_ACTIONS = [
+  { key: '🌐 Webinar',         val: 'Webinar' },
+  { key: '📧 Email Reconnect', val: 'Email Reconnect' },
+  { key: '📋 Send Information',val: 'Send Information' },
+  { key: '📅 Book Webinar',    val: 'Book Webinar' },
+  { key: '🔮 Future Revisit',  val: 'Future Revisit' },
+  { key: '—',                  val: '' },
+];
 
 function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -2778,7 +2781,7 @@ function mergeOpps(newContacts) {
       if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Working'; }
       updated++;
     } else {
-      opps[c.email] = { ...c, stage: 'Working', notes: '', nextAction: '', sfOpp: false, archived: false, dateAdded: today };
+      opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, archived: false, dateAdded: today };
       added++;
     }
   });
@@ -2844,12 +2847,11 @@ function renderOpps() {
 
 function updateOppsStats(pipeline) {
   document.getElementById('ostat-total').textContent = pipeline.length;
-  document.getElementById('ostat-Working').textContent = pipeline.filter(o => o.stage === 'Working').length;
-  document.getElementById('ostat-Engaged').textContent = pipeline.filter(o => o.stage === 'Engaged').length;
-  document.getElementById('ostat-Meeting').textContent = pipeline.filter(o => o.stage === 'Meeting Booked').length;
-  document.getElementById('ostat-Hot').textContent = pipeline.filter(o => o.stage === 'Hot').length;
-  document.getElementById('ostat-Lost').textContent = pipeline.filter(o => o.stage === 'Lost').length;
-  document.getElementById('ostat-Dead').textContent = pipeline.filter(o => o.stage === 'Dead').length;
+  document.getElementById('ostat-Introduction').textContent = pipeline.filter(o => o.stage === 'Introduction').length;
+  document.getElementById('ostat-Walkthrough').textContent  = pipeline.filter(o => o.stage === 'Walkthrough').length;
+  document.getElementById('ostat-Proposal').textContent     = pipeline.filter(o => o.stage === 'Proposal').length;
+  document.getElementById('ostat-Stalled').textContent      = pipeline.filter(o => o.stage === 'Stalled').length;
+  document.getElementById('ostat-Lost').textContent         = pipeline.filter(o => o.stage === 'Lost').length;
   const days = pipeline.map(o => oppDaysAgo(o.lastActivity)).filter(d => d !== null && d >= 0);
   document.getElementById('ostat-avg-days').textContent = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
 }
@@ -2887,7 +2889,7 @@ function oppBadgeLogoHTML(opp) {
 }
 
 function oppStageClass(stageKey) {
-  return ({ 'Working':'ops-Working','Engaged':'ops-Engaged','Meeting Booked':'ops-Meeting','Hot':'ops-Hot','Lost':'ops-Lost','Dead':'ops-Dead' })[stageKey] || 'ops-Working';
+  return ({ 'Introduction':'ops-Introduction','Walkthrough':'ops-Walkthrough','Proposal':'ops-Proposal','Stalled':'ops-Stalled','Lost':'ops-Lost' })[stageKey] || 'ops-Introduction';
 }
 
 function renderKanban(pipeline) {
@@ -2932,7 +2934,7 @@ function renderOppCard(o) {
       <span class="opp-days">📅 ${daysStr}</span>
       <div style="display:flex;gap:4px;align-items:center;">
         <button class="opp-sf-btn${o.sfOpp?' active':''}" title="SF Opportunity"
-          onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')">SF</button>
+          onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')">Opp</button>
         <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
           onclick="event.stopPropagation();toggleOppNotes('opp-notes-${safeId}')">📝</button>
         <button class="opp-delete-btn" title="Delete contact"
@@ -2966,10 +2968,11 @@ function renderOppsTable(pipeline) {
         <th>Name</th>
         <th>Company</th>
         <th>Title</th>
+        <th style="width:72px;text-align:center;">Opp</th>
         <th>Stage</th>
         <th>Next Action</th>
+        <th>Next Date</th>
         <th>Last Activity</th>
-        <th style="width:80px;">SF Opp</th>
         <th style="width:28px;"></th>
       </tr></thead>
       <tbody>${pipeline.map(o => {
@@ -2979,14 +2982,15 @@ function renderOppsTable(pipeline) {
           <td><div style="font-weight:500;padding:9px 8px 9px 14px;">${escHtml(o.name)}</div></td>
           <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
           <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
+          <td style="text-align:center;"><button class="opp-sf-btn${o.sfOpp?' active':''}" onclick="toggleSFOpp('${email}')">Opp</button></td>
           <td><select class="opp-stage-select" onchange="setOppStage('${email}',this.value)">
             ${OPP_STAGES.map(s=>`<option value="${s.key}"${o.stage===s.key?' selected':''}>${s.emoji} ${s.key}</option>`).join('')}
           </select></td>
           <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
-            ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a)}"${(o.nextAction||'')===(a)?' selected':''}>${a||'—'}</option>`).join('')}
+            ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a.val)}"${(o.nextAction||'')===(a.val)?' selected':''}>${a.key}</option>`).join('')}
           </select></td>
+          <td><input class="opp-inline-input" type="text" value="${escHtml(o.nextDate||'')}" placeholder="Date…" style="width:90px;" onblur="saveOppField('${email}','nextDate',this.value)"></td>
           <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${daysAgo!==null?daysAgo+'d ago':'—'}</td>
-          <td style="text-align:center;"><button class="opp-sf-btn${o.sfOpp?' active':''}" onclick="toggleSFOpp('${email}')">SF</button></td>
           <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteOpp('${email}')" title="Delete">🗑</button></td>
         </tr>`;
       }).join('')}</tbody>
