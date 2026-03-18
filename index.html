@@ -1523,16 +1523,21 @@ const LOGO_DOMAIN_OVERRIDES = {
   'Vitol, Inc.':          'vitol.com',
   'Glencore':             'glencore.com',
   'SkyKnight Capital':    'skyknightcapital.com',
+  "Women's Business Development Center of Aurora": 'wbdc.org',
+  'New York SBDC Network': 'nysbdc.org',
 };
 
-// Guess a .com domain from a company name when no website data exists
+// Guess a domain from a company name when no website data exists.
+// Uses .org for non-profit / government / association-type names.
 function guessDomain(name) {
   if (!name) return null;
+  const orgKeywords = /\b(center|centre|network|association|foundation|institute|bureau|authority|coalition|council|alliance|society|trust|sbdc|nonprofit|charity|ngo|government|gov)\b/i;
+  const tld = orgKeywords.test(name) ? '.org' : '.com';
   const d = name.trim()
-    .replace(/\b(inc\.?|llc\.?|corp\.?|ltd\.?|co\.?|plc|s\.a\.?|pty\.?|group|holdings|international|global|technologies|technology|services|solutions|consulting|capital|partners|management|financial|enterprises|industries|systems|networks|corporation)\b/gi, '')
+    .replace(/\b(inc\.?|llc\.?|corp\.?|ltd\.?|co\.?|plc|s\.a\.?|pty\.?|group|holdings|international|global|technologies|technology|services|solutions|consulting|capital|partners|management|financial|enterprises|industries|systems|networks|network|corporation|center|centre|association|foundation|institute|the|of|for|and|an|a)\b/gi, '')
     .replace(/[^a-z0-9]/gi, '')
     .toLowerCase();
-  return d.length > 1 ? d + '.com' : null;
+  return d.length > 1 ? d + tld : null;
 }
 
 function getDomainOverride(name) {
@@ -3021,8 +3026,8 @@ function renderOppsTable(pipeline) {
   wrap.innerHTML = `<div class="table-wrap">
     <table>
       <thead><tr>
-        <th>Name</th>
         <th>Company</th>
+        <th>Name</th>
         <th>Title</th>
         <th style="width:72px;text-align:center;">Opp</th>
         <th>Stage</th>
@@ -3035,8 +3040,8 @@ function renderOppsTable(pipeline) {
         const daysAgo = oppDaysAgo(o.lastActivity);
         const email = escHtml(o.email);
         return `<tr class="${o.sfOpp?'tr-opp-active':''}">
-          <td><div style="font-weight:500;padding:9px 8px 9px 14px;">${escHtml(o.name)}</div></td>
-          <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
+          <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 14px;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
+          <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name)}</div></td>
           <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
           <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppField('${email}','sfAmt',this.value)"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
           <td>${renderStageSelect(o, email)}</td>
