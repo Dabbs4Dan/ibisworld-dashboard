@@ -819,6 +819,8 @@
   .opp-card-info { flex:1; min-width:0; }
   .opp-card-name { font-size:13px; font-weight:500; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .opp-card-co { font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .opp-acct-badge { display:inline-flex; align-items:center; gap:4px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:1px 7px 1px 4px; font-size:10px; color:var(--text-secondary); max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:3px; }
+  .opp-acct-badge img { width:12px; height:12px; object-fit:contain; border-radius:2px; flex-shrink:0; }
   .opp-card-title-text { font-size:11px; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:1px; }
   .opp-card-footer { display:flex; align-items:center; justify-content:space-between; margin-top:7px; }
   .opp-days { font-size:10px; color:var(--text-muted); font-family:'DM Mono',monospace; }
@@ -897,7 +899,7 @@
           <span class="upload-menu-x" onclick="event.stopPropagation();clearLicensesData()" title="Clear">✕</span>
         </button>
         <button class="upload-menu-row" onclick="document.getElementById('opp-file-input').click();closeUploadMenu()">
-          <span class="upload-menu-label">🎯 Opportunities CSV</span>
+          <span class="upload-menu-label">🎯 Workables CSV</span>
           <span class="upload-menu-dot" id="udot-opps"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearOppsData()" title="Clear">✕</span>
         </button>
@@ -913,7 +915,7 @@
   <div class="view-nav-tabs">
     <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
     <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
-    <button class="vnav-btn" id="vnav-opps" onclick="setMainView('opps')">🎯 Opportunities</button>
+    <button class="vnav-btn" id="vnav-opps" onclick="setMainView('opps')">🎯 Workables</button>
   </div>
 </div>
 
@@ -1169,9 +1171,9 @@
 <div id="content-opps" class="hidden">
   <div id="opp-empty-state" class="empty-state">
     <div class="empty-icon">🎯</div>
-    <div class="empty-title">Upload your Opportunities CSV to get started</div>
-    <div class="empty-desc">Export contacts from Salesforce (Name, Account Name, Title, Email, Last Activity Date, Phone), then click 🎯 Opps CSV above.</div>
-    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('opp-file-input').click()">🎯 Upload Opps CSV</button>
+    <div class="empty-title">Upload your Workables CSV to get started</div>
+    <div class="empty-desc">Export contacts from Salesforce (First Name, Last Name, Title, Mailing Country, Email, Account Name, Last Activity), then click 🎯 Workables CSV above.</div>
+    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('opp-file-input').click()">🎯 Upload Workables CSV</button>
   </div>
   <div id="opp-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
   <div id="opp-pipeline" class="hidden">
@@ -2740,13 +2742,17 @@ function parseOppsCSV(text) {
     headers.forEach((h, idx) => { obj[h] = (vals[idx]||'').trim().replace(/^"|"$/g,''); });
     const email = (obj['Email'] || obj['email'] || '').toLowerCase().trim();
     if (!email) continue;
+    const firstName = obj['First Name'] || obj['FirstName'] || '';
+    const lastName = obj['Last Name'] || obj['LastName'] || '';
+    const fullName = (firstName && lastName) ? `${firstName} ${lastName}`.trim()
+                   : (firstName || lastName || obj['Name'] || obj['name'] || '');
     rows.push({
       email,
-      name: obj['Name'] || obj['name'] || '',
+      name: fullName,
       accountName: obj['Account Name'] || obj['AccountName'] || '',
       title: obj['Title'] || obj['title'] || '',
-      lastActivity: obj['Last Activity Date'] || obj['LastActivityDate'] || '',
-      phone: obj['Phone'] || obj['phone'] || '',
+      country: obj['Mailing Country'] || obj['MailingCountry'] || '',
+      lastActivity: obj['Last Activity'] || obj['Last Activity Date'] || obj['LastActivityDate'] || '',
     });
   }
   return rows;
@@ -2761,8 +2767,8 @@ function mergeOpps(newContacts) {
       opps[c.email].name = c.name;
       opps[c.email].accountName = c.accountName;
       opps[c.email].title = c.title;
+      opps[c.email].country = c.country;
       opps[c.email].lastActivity = c.lastActivity;
-      opps[c.email].phone = c.phone;
       if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Working'; }
       updated++;
     } else {
@@ -2832,14 +2838,33 @@ function updateOppsStats(pipeline) {
 function oppLogoHTML(opp, size) {
   size = size || 28;
   const acctMatch = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normName(opp.accountName));
-  const domain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(opp.accountName) || guessDomain(opp.accountName));
-  const initials = (opp.name || opp.accountName || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  let canonicalName = opp.accountName;
+  if (!acctMatch && localData) {
+    const localKey = Object.keys(localData).find(k => normName(k) === normName(opp.accountName));
+    if (localKey) canonicalName = localKey;
+  }
+  const domain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(canonicalName) || guessDomain(canonicalName));
+  const initials = (opp.name || canonicalName || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   const pad = size <= 28 ? '2px' : '4px';
   if (!domain) return `<div class="td-logo" style="width:${size}px;height:${size}px;">${initials}</div>`;
   const resolved = logoResolved[domain];
   if (resolved === '__initials__') return `<div class="td-logo" style="width:${size}px;height:${size}px;">${initials}</div>`;
   if (resolved) return `<div class="td-logo" style="width:${size}px;height:${size}px;"><img src="${resolved}" style="width:100%;height:100%;object-fit:contain;padding:${pad};" alt="${escHtml(opp.accountName)}"></div>`;
   return `<div class="td-logo" style="width:${size}px;height:${size}px;"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(opp.accountName)}" style="width:100%;height:100%;object-fit:contain;padding:${pad};"></div>`;
+}
+
+function oppBadgeLogoHTML(opp) {
+  const acctMatch = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normName(opp.accountName));
+  let canonicalName = opp.accountName;
+  if (!acctMatch && localData) {
+    const localKey = Object.keys(localData).find(k => normName(k) === normName(opp.accountName));
+    if (localKey) canonicalName = localKey;
+  }
+  const domain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(canonicalName) || guessDomain(canonicalName));
+  if (!domain) return '';
+  const resolved = logoResolved[domain];
+  if (resolved === '__initials__' || !resolved) return '';
+  return `<img src="${resolved}" alt="">`;
 }
 
 function oppStageClass(stageKey) {
@@ -2879,10 +2904,11 @@ function renderOppCard(o) {
       ${oppLogoHTML(o, 28)}
       <div class="opp-card-info">
         <div class="opp-card-name">${escHtml(o.name)}</div>
-        <div class="opp-card-co">${escHtml(o.accountName)}</div>
         ${o.title ? `<div class="opp-card-title-text">${escHtml(o.title)}</div>` : ''}
+        ${o.country ? `<div class="opp-card-co">${escHtml(o.country)}</div>` : ''}
       </div>
     </div>
+    ${o.accountName ? `<div class="opp-acct-badge">${oppBadgeLogoHTML(o)}${escHtml(o.accountName)}</div>` : ''}
     <div class="opp-card-footer">
       <span class="opp-days">📅 ${daysStr}</span>
       <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
@@ -2905,7 +2931,7 @@ function renderOppCard(o) {
 function renderOppsTable(pipeline) {
   const wrap = document.getElementById('opp-table-view');
   if (!pipeline.length) {
-    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No contacts in pipeline</div>';
+    wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No workables in pipeline</div>';
     return;
   }
   const stageOpts = OPP_STAGES.map(s => `<option value="${s.key}">${s.emoji} ${s.key}</option>`).join('');
@@ -2949,7 +2975,7 @@ function renderColdOpps(cold) {
   section.classList.remove('hidden');
   section.innerHTML = `<div class="cold-section-hdr" onclick="toggleColdSection()">
     <span class="cold-toggle${oppColdOpen?' open':''}">▶</span>
-    <span class="cold-title">❄️ Cold Opportunities</span>
+    <span class="cold-title">❄️ Cold Workables</span>
     <span class="cold-count">${cold.length}</span>
   </div>
   <div class="cold-body${oppColdOpen?' open':''}">
