@@ -809,7 +809,7 @@
   .opp-col[data-stage="Engaged"]        > .opp-col-header { border-top:3px solid #3b82f6; }
   .opp-col[data-stage="Meeting Booked"] > .opp-col-header { border-top:3px solid #0891b2; }
   .opp-col[data-stage="Hot"]            > .opp-col-header { border-top:3px solid var(--ibis-red); }
-  .opp-col[data-stage="Won"]            > .opp-col-header { border-top:3px solid #059669; }
+  .opp-col[data-stage="Lost"]           > .opp-col-header { border-top:3px solid #be185d; }
   .opp-col[data-stage="Dead"]           > .opp-col-header { border-top:3px solid #9ca3af; }
   .opp-card { background:white; border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:grab; transition:box-shadow 0.15s, transform 0.15s, opacity 0.15s; }
   .opp-card:active { cursor:grabbing; }
@@ -843,12 +843,13 @@
   .ops-Engaged { background:#dbeafe; color:#1d4ed8; }
   .ops-Meeting { background:#cffafe; color:#0e7490; }
   .ops-Hot { background:#fee2e2; color:#991b1b; }
-  .ops-Won { background:#d1fae5; color:#065f46; }
+  .ops-Lost { background:#fce7f3; color:#9d174d; }
   .ops-Dead { background:#f3f4f6; color:#6b7280; }
   /* Opp table */
   .opp-tbl-wrap { padding:0 24px 24px; }
-  .opp-stage-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
-  .opp-stage-select:focus { border-color:var(--ibis-red); }
+  .opp-stage-select, .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
+  .opp-stage-select:focus, .opp-next-select:focus { border-color:var(--ibis-red); }
+  .opp-next-empty { color:var(--text-muted); }
   .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
   .opp-inline-input:focus { border-bottom-color:var(--border); }
   /* Cold section */
@@ -991,7 +992,7 @@
       <span class="opp-stage-pill ops-Engaged">🔵 <span id="ostat-Engaged">—</span></span>
       <span class="opp-stage-pill ops-Meeting">📅 <span id="ostat-Meeting">—</span></span>
       <span class="opp-stage-pill ops-Hot">🔥 <span id="ostat-Hot">—</span></span>
-      <span class="opp-stage-pill ops-Won">✅ <span id="ostat-Won">—</span></span>
+      <span class="opp-stage-pill ops-Lost">🔴 <span id="ostat-Lost">—</span></span>
       <span class="opp-stage-pill ops-Dead">❌ <span id="ostat-Dead">—</span></span>
     </div>
   </div>
@@ -2699,9 +2700,10 @@ const OPP_STAGES = [
   { key: 'Engaged',        emoji: '🔵' },
   { key: 'Meeting Booked', emoji: '📅' },
   { key: 'Hot',            emoji: '🔥' },
-  { key: 'Won',            emoji: '✅' },
+  { key: 'Lost',           emoji: '🔴' },
   { key: 'Dead',           emoji: '❌' },
 ];
+const OPP_NEXT_ACTIONS = ['Introduction','Walkthrough','Proposal','Verbal','Stalled',''];
 
 function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -2846,7 +2848,7 @@ function updateOppsStats(pipeline) {
   document.getElementById('ostat-Engaged').textContent = pipeline.filter(o => o.stage === 'Engaged').length;
   document.getElementById('ostat-Meeting').textContent = pipeline.filter(o => o.stage === 'Meeting Booked').length;
   document.getElementById('ostat-Hot').textContent = pipeline.filter(o => o.stage === 'Hot').length;
-  document.getElementById('ostat-Won').textContent = pipeline.filter(o => o.stage === 'Won').length;
+  document.getElementById('ostat-Lost').textContent = pipeline.filter(o => o.stage === 'Lost').length;
   document.getElementById('ostat-Dead').textContent = pipeline.filter(o => o.stage === 'Dead').length;
   const days = pipeline.map(o => oppDaysAgo(o.lastActivity)).filter(d => d !== null && d >= 0);
   document.getElementById('ostat-avg-days').textContent = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
@@ -2885,7 +2887,7 @@ function oppBadgeLogoHTML(opp) {
 }
 
 function oppStageClass(stageKey) {
-  return ({ 'Working':'ops-Working','Engaged':'ops-Engaged','Meeting Booked':'ops-Meeting','Hot':'ops-Hot','Won':'ops-Won','Dead':'ops-Dead' })[stageKey] || 'ops-Working';
+  return ({ 'Working':'ops-Working','Engaged':'ops-Engaged','Meeting Booked':'ops-Meeting','Hot':'ops-Hot','Lost':'ops-Lost','Dead':'ops-Dead' })[stageKey] || 'ops-Working';
 }
 
 function renderKanban(pipeline) {
@@ -2965,8 +2967,8 @@ function renderOppsTable(pipeline) {
         <th>Company</th>
         <th>Title</th>
         <th>Stage</th>
-        <th>Last Activity</th>
         <th>Next Action</th>
+        <th>Last Activity</th>
         <th style="width:80px;">SF Opp</th>
         <th style="width:28px;"></th>
       </tr></thead>
@@ -2980,9 +2982,10 @@ function renderOppsTable(pipeline) {
           <td><select class="opp-stage-select" onchange="setOppStage('${email}',this.value)">
             ${OPP_STAGES.map(s=>`<option value="${s.key}"${o.stage===s.key?' selected':''}>${s.emoji} ${s.key}</option>`).join('')}
           </select></td>
+          <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
+            ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a)}"${(o.nextAction||'')===(a)?' selected':''}>${a||'—'}</option>`).join('')}
+          </select></td>
           <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${daysAgo!==null?daysAgo+'d ago':'—'}</td>
-          <td><input class="opp-inline-input" type="text" value="${escHtml(o.nextAction||'')}"
-            placeholder="Next action…" onblur="saveOppField('${email}','nextAction',this.value)"></td>
           <td style="text-align:center;"><button class="opp-sf-btn${o.sfOpp?' active':''}" onclick="toggleSFOpp('${email}')">SF</button></td>
           <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteOpp('${email}')" title="Delete">🗑</button></td>
         </tr>`;
