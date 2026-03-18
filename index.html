@@ -828,7 +828,7 @@
   .opp-delete-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; line-height:1; opacity:0.2; transition:opacity 0.15s, color 0.15s; }
   .opp-delete-btn:hover { opacity:0.8; }
   /* Opp dot/pill widget */
-  .opp-dot-btn { background:none; border:none; cursor:pointer; padding:4px 8px; display:flex; align-items:center; justify-content:center; }
+  .opp-dot-btn { background:none; border:none; cursor:pointer; padding:4px 8px; display:inline-flex; align-items:center; justify-content:center; }
   .opp-dot { width:9px; height:9px; border-radius:50%; background:#d1d5db; display:block; transition:background 0.15s; }
   .opp-dot-btn:hover .opp-dot { background:#9ca3af; }
   .opp-active-wrap { display:inline-flex; align-items:center; border-radius:7px; overflow:hidden; box-shadow:0 0 10px rgba(0,174,240,0.35); }
@@ -1073,6 +1073,12 @@
   <div class="view-toggle">
     <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Cards</button>
     <button class="view-btn" onclick="setOppsView('table')" id="btn-opp-table">☰ Table</button>
+  </div>
+  <div class="filter-chips">
+    <button class="chip" id="opp-filter-active"  onclick="setOppFilter('active')">Active Workables</button>
+    <button class="chip" id="opp-filter-opps"    onclick="setOppFilter('opps')">Active Opportunities</button>
+    <button class="chip" id="opp-filter-lost"    onclick="setOppFilter('lost')">Lost</button>
+    <button class="chip" id="opp-filter-stalled" onclick="setOppFilter('stalled')">Stalled</button>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -2713,6 +2719,9 @@ let opps = {}; // keyed by email (lowercase trimmed)
 let oppsView = 'kanban'; // 'kanban' | 'table'
 let oppColdOpen = false;
 let oppDragEmail = null;
+let oppFilter = null; // null | 'active' | 'opps' | 'lost' | 'stalled'
+let oppSortCol = 'lastActivity';
+let oppSortDir = 'desc';
 
 const OPP_STAGES = [
   { key: 'Introduction', emoji: '🟡' },
@@ -2848,6 +2857,52 @@ function setOppsView(v) {
   renderOpps();
 }
 
+function setOppFilter(f) {
+  oppFilter = oppFilter === f ? null : f;
+  ['active','opps','lost','stalled'].forEach(k => {
+    document.getElementById('opp-filter-' + k)?.classList.toggle('active', oppFilter === k);
+  });
+  renderOpps();
+}
+
+function setOppSort(col) {
+  if (oppSortCol === col) { oppSortDir = oppSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { oppSortCol = col; oppSortDir = col === 'sfOpp' ? 'desc' : 'asc'; }
+  renderOpps();
+}
+
+function updateOppSortArrows() {
+  const cols = ['accountName','name','title','sfOpp','stage','nextAction','nextDate','lastActivity'];
+  cols.forEach(c => {
+    const el = document.getElementById('osort-' + c);
+    if (!el) return;
+    el.textContent = oppSortCol === c ? (oppSortDir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+
+function sortOppPipeline(arr) {
+  const stageOrder = { 'Introduction':0,'Walkthrough':1,'Proposal':2,'Stalled':3,'Lost':4 };
+  return [...arr].sort((a, b) => {
+    let av, bv;
+    const col = oppSortCol;
+    if (col === 'accountName') { av = (a.accountName||'').toLowerCase(); bv = (b.accountName||'').toLowerCase(); }
+    else if (col === 'name')   { av = (a.name||'').toLowerCase(); bv = (b.name||'').toLowerCase(); }
+    else if (col === 'title')  { av = (a.title||'').toLowerCase(); bv = (b.title||'').toLowerCase(); }
+    else if (col === 'sfOpp')  { av = a.sfOpp ? 1 : 0; bv = b.sfOpp ? 1 : 0; }
+    else if (col === 'stage')  { av = stageOrder[a.stage] ?? 99; bv = stageOrder[b.stage] ?? 99; }
+    else if (col === 'nextAction') { av = (a.nextAction||'').toLowerCase(); bv = (b.nextAction||'').toLowerCase(); }
+    else if (col === 'nextDate')   { av = (a.nextDate||'').toLowerCase(); bv = (b.nextDate||'').toLowerCase(); }
+    else if (col === 'lastActivity') {
+      av = oppDaysAgo(a.lastActivity) ?? 9999;
+      bv = oppDaysAgo(b.lastActivity) ?? 9999;
+    }
+    else { av = ''; bv = ''; }
+    if (av < bv) return oppSortDir === 'asc' ? -1 : 1;
+    if (av > bv) return oppSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
 const STAGE_COLORS = {
   'Introduction': { bg:'#fef9c3', color:'#854d0e' },
   'Walkthrough':  { bg:'#dbeafe', color:'#1e40af' },
@@ -2891,11 +2946,18 @@ function renderOpps() {
   if (migrated) saveOpps();
 
   const q = (document.getElementById('opp-search-input')?.value || '').toLowerCase();
-  const pipeline = Object.values(opps).filter(o => !o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
+  let pipeline = Object.values(opps).filter(o => !o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
+  // Apply quick filter chips
+  if (oppFilter === 'active')   pipeline = pipeline.filter(o => o.stage !== 'Lost' && o.stage !== 'Stalled');
+  else if (oppFilter === 'opps')    pipeline = pipeline.filter(o => o.sfOpp);
+  else if (oppFilter === 'lost')    pipeline = pipeline.filter(o => o.stage === 'Lost');
+  else if (oppFilter === 'stalled') pipeline = pipeline.filter(o => o.stage === 'Stalled');
+  pipeline = sortOppPipeline(pipeline);
   const cold = Object.values(opps).filter(o => o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q)));
-  const totalContacts = Object.keys(opps).length;
-  document.getElementById('opp-count-label').textContent = totalContacts ? `${pipeline.length} of ${totalContacts} contacts` : '';
+  const totalContacts = Object.keys(opps).filter(e => !opps[e].archived).length;
+  document.getElementById('opp-count-label').textContent = totalContacts ? `${pipeline.length} of ${totalContacts} workables` : '';
   updateOppsStats(pipeline);
+  updateOppSortArrows();
   if (oppsView === 'kanban') {
     renderKanban(pipeline);
     document.getElementById('opp-kanban-view').classList.remove('hidden');
@@ -3026,14 +3088,14 @@ function renderOppsTable(pipeline) {
   wrap.innerHTML = `<div class="table-wrap">
     <table>
       <thead><tr>
-        <th>Company</th>
-        <th>Name</th>
-        <th>Title</th>
-        <th style="width:72px;text-align:center;">Opp</th>
-        <th>Stage</th>
-        <th>Next Action</th>
-        <th>Next Date</th>
-        <th>Last Activity</th>
+        <th onclick="setOppSort('accountName')" style="cursor:pointer;">Company <span class="acct-sort-arrow" id="osort-accountName"></span></th>
+        <th onclick="setOppSort('name')" style="cursor:pointer;">Name <span class="acct-sort-arrow" id="osort-name"></span></th>
+        <th onclick="setOppSort('title')" style="cursor:pointer;">Title <span class="acct-sort-arrow" id="osort-title"></span></th>
+        <th onclick="setOppSort('sfOpp')" style="width:72px;text-align:center;cursor:pointer;">Opp <span class="acct-sort-arrow" id="osort-sfOpp"></span></th>
+        <th onclick="setOppSort('stage')" style="cursor:pointer;">Stage <span class="acct-sort-arrow" id="osort-stage"></span></th>
+        <th onclick="setOppSort('nextAction')" style="cursor:pointer;">Next Action <span class="acct-sort-arrow" id="osort-nextAction"></span></th>
+        <th onclick="setOppSort('nextDate')" style="cursor:pointer;">Next Date <span class="acct-sort-arrow" id="osort-nextDate"></span></th>
+        <th onclick="setOppSort('lastActivity')" style="cursor:pointer;">Last Activity <span class="acct-sort-arrow" id="osort-lastActivity"></span></th>
         <th style="width:28px;"></th>
       </tr></thead>
       <tbody>${pipeline.map(o => {
@@ -3043,7 +3105,7 @@ function renderOppsTable(pipeline) {
           <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 14px;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
           <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name)}</div></td>
           <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
-          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppField('${email}','sfAmt',this.value)"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
+          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppAmt('${email}',this)" onkeydown="if(event.key==='Enter')this.blur()"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
           <td>${renderStageSelect(o, email)}</td>
           <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
             ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a.val)}"${(o.nextAction||'')===(a.val)?' selected':''}>${a.key}</option>`).join('')}
@@ -3119,6 +3181,15 @@ function promptOppNote(email) {
 function saveOppField(email, field, value) {
   if (!opps[email]) return;
   opps[email][field] = value;
+  saveOpps();
+}
+
+function saveOppAmt(email, input) {
+  if (!opps[email]) return;
+  let v = input.value.trim().replace(/^\$+/, '');
+  const formatted = v ? '$' + v : '';
+  input.value = formatted;
+  opps[email].sfAmt = formatted;
   saveOpps();
 }
 
