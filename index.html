@@ -827,8 +827,24 @@
   .opp-notes-btn:hover, .opp-notes-btn.has-notes { opacity:0.9; }
   .opp-delete-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; line-height:1; opacity:0.2; transition:opacity 0.15s, color 0.15s; }
   .opp-delete-btn:hover { opacity:0.8; }
-  .opp-sf-btn { background:none; border:1px solid #d1d5db; border-radius:6px; cursor:pointer; font-size:10px; font-weight:600; font-family:'DM Mono',monospace; padding:4px 16px; color:#9ca3af; transition:all 0.2s; white-space:nowrap; }
-  .opp-sf-btn.active { background:#00aef0; border-color:#00aef0; color:white; box-shadow:0 0 12px rgba(0,174,240,0.55), 0 0 4px rgba(0,174,240,0.3); }
+  /* Opp dot/pill widget */
+  .opp-dot-btn { background:none; border:none; cursor:pointer; padding:4px 8px; display:flex; align-items:center; justify-content:center; }
+  .opp-dot { width:9px; height:9px; border-radius:50%; background:#d1d5db; display:block; transition:background 0.15s; }
+  .opp-dot-btn:hover .opp-dot { background:#9ca3af; }
+  .opp-active-wrap { display:inline-flex; align-items:center; border-radius:7px; overflow:hidden; box-shadow:0 0 10px rgba(0,174,240,0.35); }
+  .opp-sf-pill { background:#00aef0; color:white; border:none; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:4px 12px; cursor:pointer; white-space:nowrap; transition:opacity 0.15s; }
+  .opp-sf-pill:hover { opacity:0.85; }
+  .opp-amt-input { width:62px; font-size:11px; font-family:'DM Mono',monospace; border:1.5px solid #bae6fd; border-left:1.5px solid #e0f2fe; border-radius:0 7px 7px 0; padding:3px 6px; color:var(--text-primary); outline:none; background:#f0f9ff; }
+  .opp-amt-input:focus { border-color:#00aef0; background:white; }
+  /* Stage custom dropdown */
+  .stage-sel-wrap { position:relative; display:inline-block; }
+  .stage-sel-trigger { display:inline-flex; align-items:center; gap:4px; padding:3px 10px 3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.4; }
+  .stage-sel-trigger::after { content:'▾'; font-size:9px; opacity:0.6; margin-left:3px; }
+  .stage-sel-menu { position:absolute; top:calc(100% + 5px); left:0; z-index:500; background:white; border:1px solid var(--border); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,0.12); padding:5px; min-width:140px; display:none; }
+  .stage-sel-wrap.open .stage-sel-menu { display:block; }
+  .stage-sel-opt { display:block; width:100%; padding:5px 10px; border:none; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; text-align:left; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; }
+  .stage-sel-opt:last-child { margin-bottom:0; }
+  .stage-sel-opt:hover { filter:brightness(0.95); }
   .opp-next-wrap { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
   .opp-next-input { width:100%; box-sizing:border-box; font-size:11px; font-family:'DM Sans',sans-serif; border:none; background:transparent; color:var(--text-secondary); outline:none; padding:0; cursor:text; }
   .opp-next-input::placeholder { color:var(--text-muted); font-style:italic; }
@@ -845,8 +861,6 @@
   .ops-Lost         { background:#fce7f3; color:#9d174d; }
   /* Opp table */
   .opp-tbl-wrap { padding:0 24px 24px; }
-  .opp-stage-select { border:1px solid transparent; border-radius:20px; font-size:11px; font-family:'DM Sans',sans-serif; padding:3px 10px; cursor:pointer; outline:none; min-width:0; transition:box-shadow 0.15s; }
-  .opp-stage-select:focus { box-shadow:0 0 0 2px rgba(200,16,46,0.2); }
   .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
   .opp-next-select:focus { border-color:var(--ibis-red); }
   .tr-opp-active { background:#f0f9ff !important; }
@@ -2784,7 +2798,7 @@ function mergeOpps(newContacts) {
       if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Working'; }
       updated++;
     } else {
-      opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, archived: false, dateAdded: today };
+      opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, sfAmt: '', archived: false, dateAdded: today };
       added++;
     }
   });
@@ -2839,6 +2853,29 @@ const STAGE_COLORS = {
 function applyStageColor(sel) {
   const c = STAGE_COLORS[sel.value] || { bg:'var(--surface)', color:'var(--text-secondary)' };
   sel.style.background = c.bg; sel.style.color = c.color; sel.style.fontWeight = '500';
+}
+
+function renderStageSelect(o, email) {
+  const safeId = 'ssel-' + email.replace(/[^a-z0-9]/g,'_');
+  const sc = STAGE_COLORS[o.stage] || { bg:'var(--surface)', color:'var(--text-secondary)' };
+  const opts = OPP_STAGES.map(s => {
+    const c = STAGE_COLORS[s.key] || {};
+    return `<button class="stage-sel-opt" style="background:${c.bg};color:${c.color};" onclick="event.stopPropagation();selectStageOpt('${escHtml(email)}','${s.key}','${safeId}')">${s.key}</button>`;
+  }).join('');
+  return `<div class="stage-sel-wrap" id="${safeId}"><button class="stage-sel-trigger" style="background:${sc.bg};color:${sc.color};" onclick="event.stopPropagation();toggleStageMenu('${safeId}')">${escHtml(o.stage)}</button><div class="stage-sel-menu">${opts}</div></div>`;
+}
+
+function toggleStageMenu(safeId) {
+  const wrap = document.getElementById(safeId);
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.stage-sel-wrap.open').forEach(w => w.classList.remove('open'));
+  if (!isOpen) wrap.classList.add('open');
+}
+
+function selectStageOpt(email, stage, safeId) {
+  setOppStage(email, stage);
+  document.getElementById(safeId)?.classList.remove('open');
 }
 
 function renderOpps() {
@@ -2954,8 +2991,7 @@ function renderOppCard(o) {
     <div class="opp-card-footer">
       <span class="opp-days">📅 ${daysStr}</span>
       <div style="display:flex;gap:4px;align-items:center;">
-        <button class="opp-sf-btn${o.sfOpp?' active':''}" title="SF Opportunity"
-          onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')">Opp</button>
+        ${o.sfOpp?`<button class="opp-sf-pill" style="border-radius:6px;padding:3px 10px;" title="Toggle off" onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')">Opp</button>`:`<button class="opp-dot-btn" title="Mark as SF Opp" onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')"><span class="opp-dot"></span></button>`}
         <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
           onclick="event.stopPropagation();toggleOppNotes('opp-notes-${safeId}')">📝</button>
         <button class="opp-delete-btn" title="Delete contact"
@@ -2982,7 +3018,6 @@ function renderOppsTable(pipeline) {
     wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No workables in pipeline</div>';
     return;
   }
-  const stageOpts = OPP_STAGES.map(s => `<option value="${s.key}">${s.emoji} ${s.key}</option>`).join('');
   wrap.innerHTML = `<div class="table-wrap">
     <table>
       <thead><tr>
@@ -2999,15 +3034,12 @@ function renderOppsTable(pipeline) {
       <tbody>${pipeline.map(o => {
         const daysAgo = oppDaysAgo(o.lastActivity);
         const email = escHtml(o.email);
-        const sc = STAGE_COLORS[o.stage] || { bg:'var(--surface)', color:'var(--text-secondary)' };
         return `<tr class="${o.sfOpp?'tr-opp-active':''}">
           <td><div style="font-weight:500;padding:9px 8px 9px 14px;">${escHtml(o.name)}</div></td>
           <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
           <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
-          <td style="text-align:center;"><button class="opp-sf-btn${o.sfOpp?' active':''}" onclick="toggleSFOpp('${email}')">Opp</button></td>
-          <td><select class="opp-stage-select" style="background:${sc.bg};color:${sc.color};font-weight:500;" onchange="setOppStage('${email}',this.value);applyStageColor(this)">
-            ${OPP_STAGES.map(s=>{ const c=STAGE_COLORS[s.key]||{}; return `<option value="${s.key}" style="background:${c.bg||''};color:${c.color||''};"${o.stage===s.key?' selected':''}>${s.key}</option>`; }).join('')}
-          </select></td>
+          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppField('${email}','sfAmt',this.value)"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
+          <td>${renderStageSelect(o, email)}</td>
           <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
             ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a.val)}"${(o.nextAction||'')===(a.val)?' selected':''}>${a.key}</option>`).join('')}
           </select></td>
@@ -3132,6 +3164,10 @@ document.addEventListener('click', function(e) {
   const trigger = document.getElementById('upload-menu-trigger');
   if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== trigger) {
     menu.classList.add('hidden');
+  }
+  // Close stage custom menus on outside click
+  if (!e.target.closest('.stage-sel-wrap')) {
+    document.querySelectorAll('.stage-sel-wrap.open').forEach(w => w.classList.remove('open'));
   }
   // Close lic filter dropdowns on outside click
   if (!openLicDropdown) return;
