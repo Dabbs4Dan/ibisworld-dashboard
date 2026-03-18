@@ -845,8 +845,11 @@
   .ops-Lost         { background:#fce7f3; color:#9d174d; }
   /* Opp table */
   .opp-tbl-wrap { padding:0 24px 24px; }
-  .opp-stage-select, .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
-  .opp-stage-select:focus, .opp-next-select:focus { border-color:var(--ibis-red); }
+  .opp-stage-select { border:1px solid transparent; border-radius:20px; font-size:11px; font-family:'DM Sans',sans-serif; padding:3px 10px; cursor:pointer; outline:none; min-width:0; transition:box-shadow 0.15s; }
+  .opp-stage-select:focus { box-shadow:0 0 0 2px rgba(200,16,46,0.2); }
+  .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
+  .opp-next-select:focus { border-color:var(--ibis-red); }
+  .tr-opp-active { background:#f0f9ff !important; }
   .opp-next-empty { color:var(--text-muted); }
   .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
   .opp-inline-input:focus { border-bottom-color:var(--border); }
@@ -2826,7 +2829,25 @@ function setOppsView(v) {
   renderOpps();
 }
 
+const STAGE_COLORS = {
+  'Introduction': { bg:'#fef9c3', color:'#854d0e' },
+  'Walkthrough':  { bg:'#dbeafe', color:'#1e40af' },
+  'Proposal':     { bg:'#d1fae5', color:'#065f46' },
+  'Stalled':      { bg:'#fef3c7', color:'#92400e' },
+  'Lost':         { bg:'#fce7f3', color:'#9d174d' },
+};
+function applyStageColor(sel) {
+  const c = STAGE_COLORS[sel.value] || { bg:'var(--surface)', color:'var(--text-secondary)' };
+  sel.style.background = c.bg; sel.style.color = c.color; sel.style.fontWeight = '500';
+}
+
 function renderOpps() {
+  // Migrate contacts with legacy stage values to Introduction
+  const validStages = new Set(OPP_STAGES.map(s => s.key));
+  let migrated = false;
+  Object.values(opps).forEach(o => { if (!o.archived && !validStages.has(o.stage)) { o.stage = 'Introduction'; migrated = true; } });
+  if (migrated) saveOpps();
+
   const q = (document.getElementById('opp-search-input')?.value || '').toLowerCase();
   const pipeline = Object.values(opps).filter(o => !o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
   const cold = Object.values(opps).filter(o => o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q)));
@@ -2978,13 +2999,14 @@ function renderOppsTable(pipeline) {
       <tbody>${pipeline.map(o => {
         const daysAgo = oppDaysAgo(o.lastActivity);
         const email = escHtml(o.email);
-        return `<tr>
+        const sc = STAGE_COLORS[o.stage] || { bg:'var(--surface)', color:'var(--text-secondary)' };
+        return `<tr class="${o.sfOpp?'tr-opp-active':''}">
           <td><div style="font-weight:500;padding:9px 8px 9px 14px;">${escHtml(o.name)}</div></td>
           <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
           <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
           <td style="text-align:center;"><button class="opp-sf-btn${o.sfOpp?' active':''}" onclick="toggleSFOpp('${email}')">Opp</button></td>
-          <td><select class="opp-stage-select" onchange="setOppStage('${email}',this.value)">
-            ${OPP_STAGES.map(s=>`<option value="${s.key}"${o.stage===s.key?' selected':''}>${s.emoji} ${s.key}</option>`).join('')}
+          <td><select class="opp-stage-select" style="background:${sc.bg};color:${sc.color};font-weight:500;" onchange="setOppStage('${email}',this.value);applyStageColor(this)">
+            ${OPP_STAGES.map(s=>{ const c=STAGE_COLORS[s.key]||{}; return `<option value="${s.key}" style="background:${c.bg||''};color:${c.color||''};"${o.stage===s.key?' selected':''}>${s.key}</option>`; }).join('')}
           </select></td>
           <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
             ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a.val)}"${(o.nextAction||'')===(a.val)?' selected':''}>${a.key}</option>`).join('')}
