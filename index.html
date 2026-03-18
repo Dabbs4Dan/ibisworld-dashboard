@@ -826,6 +826,8 @@
   .opp-days { font-size:10px; color:var(--text-muted); font-family:'DM Mono',monospace; }
   .opp-notes-btn { background:none; border:none; cursor:pointer; font-size:13px; padding:0 2px; line-height:1; opacity:0.35; transition:opacity 0.15s; }
   .opp-notes-btn:hover, .opp-notes-btn.has-notes { opacity:0.9; }
+  .opp-delete-btn { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; line-height:1; opacity:0.2; transition:opacity 0.15s, color 0.15s; }
+  .opp-delete-btn:hover { opacity:0.8; }
   .opp-next-wrap { margin-top:7px; padding-top:7px; border-top:1px solid var(--border); }
   .opp-next-input { width:100%; box-sizing:border-box; font-size:11px; font-family:'DM Sans',sans-serif; border:none; background:transparent; color:var(--text-secondary); outline:none; padding:0; cursor:text; }
   .opp-next-input::placeholder { color:var(--text-muted); font-style:italic; }
@@ -2776,10 +2778,16 @@ function mergeOpps(newContacts) {
       added++;
     }
   });
-  Object.keys(opps).forEach(email => {
-    if (!newEmails.has(email) && !opps[email].archived) { opps[email].archived = true; archived++; }
-  });
   return { added, updated, archived };
+}
+
+function deleteOpp(email) {
+  const o = opps[email];
+  if (!o) return;
+  if (!confirm(`Remove ${o.name || email} permanently? This cannot be undone.`)) return;
+  delete opps[email];
+  saveOpps();
+  renderOpps();
 }
 
 function setOppStage(email, stage) {
@@ -2911,8 +2919,12 @@ function renderOppCard(o) {
     ${o.accountName ? `<div class="opp-acct-badge">${oppBadgeLogoHTML(o)}${escHtml(o.accountName)}</div>` : ''}
     <div class="opp-card-footer">
       <span class="opp-days">📅 ${daysStr}</span>
-      <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
-        onclick="event.stopPropagation();toggleOppNotes('opp-notes-${safeId}')">📝</button>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
+          onclick="event.stopPropagation();toggleOppNotes('opp-notes-${safeId}')">📝</button>
+        <button class="opp-delete-btn" title="Delete contact"
+          onclick="event.stopPropagation();deleteOpp('${escHtml(email)}')">🗑</button>
+      </div>
     </div>
     <div class="opp-next-wrap">
       <input class="opp-next-input" type="text" placeholder="Next action…"
@@ -2946,6 +2958,7 @@ function renderOppsTable(pipeline) {
         <th>Last Activity</th>
         <th>Next Action</th>
         <th style="width:32px;">Notes</th>
+        <th style="width:28px;"></th>
       </tr></thead>
       <tbody>${pipeline.map(o => {
         const daysAgo = oppDaysAgo(o.lastActivity);
@@ -2963,6 +2976,7 @@ function renderOppsTable(pipeline) {
             placeholder="Next action…" onblur="saveOppField('${email}','nextAction',this.value)"></td>
           <td style="text-align:center;"><button class="opp-notes-btn${o.notes?' has-notes':''}"
             onclick="promptOppNote('${email}')" title="Notes">📝</button></td>
+          <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteOpp('${email}')" title="Delete">🗑</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>
