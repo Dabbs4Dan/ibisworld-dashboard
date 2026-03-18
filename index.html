@@ -854,11 +854,12 @@
   .opp-notes-ta:focus { border-color:var(--ibis-red); }
   /* Stage pills */
   .opp-stage-pill { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:2px 9px; border-radius:5px; white-space:nowrap; }
-  .ops-Introduction { background:#fef9c3; color:#854d0e; }
-  .ops-Walkthrough  { background:#dbeafe; color:#1d4ed8; }
-  .ops-Proposal     { background:#d1fae5; color:#065f46; }
-  .ops-Stalled      { background:#fef3c7; color:#92400e; }
-  .ops-Lost         { background:#fce7f3; color:#9d174d; }
+  .ops-Introduction   { background:#fef9c3; color:#854d0e; }
+  .ops-Walkthrough    { background:#dbeafe; color:#1d4ed8; }
+  .ops-Proposal       { background:#d1fae5; color:#065f46; }
+  .ops-Stalled        { background:#fef3c7; color:#92400e; }
+  .ops-Lost           { background:#fce7f3; color:#9d174d; }
+  .ops-FutureRevisit  { background:#ede9fe; color:#6d28d9; }
   /* Opp table */
   .opp-tbl-wrap { padding:0 24px 24px; }
   .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
@@ -1008,6 +1009,7 @@
       <span class="opp-stage-pill ops-Proposal">🟢 <span id="ostat-Proposal">—</span></span>
       <span class="opp-stage-pill ops-Stalled">🟠 <span id="ostat-Stalled">—</span></span>
       <span class="opp-stage-pill ops-Lost">🔴 <span id="ostat-Lost">—</span></span>
+      <span class="opp-stage-pill ops-FutureRevisit">🔮 <span id="ostat-FutureRevisit">—</span></span>
     </div>
   </div>
   <div class="stat-item" style="margin-left:32px;">
@@ -1074,16 +1076,15 @@
     <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Cards</button>
     <button class="view-btn" onclick="setOppsView('table')" id="btn-opp-table">☰ Table</button>
   </div>
-  <div class="filter-chips">
-    <button class="chip" id="opp-filter-active"  onclick="setOppFilter('active')">Active Workables</button>
-    <button class="chip" id="opp-filter-opps"    onclick="setOppFilter('opps')">Active Opportunities</button>
-    <button class="chip" id="opp-filter-lost"    onclick="setOppFilter('lost')">Lost</button>
-    <button class="chip" id="opp-filter-stalled" onclick="setOppFilter('stalled')">Stalled</button>
-  </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
   </div>
+  <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
+  <button class="chip" id="opp-filter-opps"         onclick="setOppFilter('opps')">💰 Active Opportunities</button>
+  <button class="chip" id="opp-filter-lost"         onclick="setOppFilter('lost')">🔴 Lost</button>
+  <button class="chip" id="opp-filter-stalled"      onclick="setOppFilter('stalled')">🟠 Stalled</button>
+  <button class="chip" id="opp-filter-future"       onclick="setOppFilter('future')">🔮 Future Revisit</button>
 </div>
 
 <div class="change-banner" id="change-banner">
@@ -2724,18 +2725,18 @@ let oppSortCol = 'lastActivity';
 let oppSortDir = 'desc';
 
 const OPP_STAGES = [
-  { key: 'Introduction', emoji: '🟡' },
-  { key: 'Walkthrough',  emoji: '🔵' },
-  { key: 'Proposal',     emoji: '🟢' },
-  { key: 'Stalled',      emoji: '🟠' },
-  { key: 'Lost',         emoji: '🔴' },
+  { key: 'Introduction',   emoji: '🟡' },
+  { key: 'Walkthrough',    emoji: '🔵' },
+  { key: 'Proposal',       emoji: '🟢' },
+  { key: 'Stalled',        emoji: '🟠' },
+  { key: 'Lost',           emoji: '🔴' },
+  { key: 'Future Revisit', emoji: '🔮' },
 ];
 const OPP_NEXT_ACTIONS = [
   { key: '🌐 Webinar',         val: 'Webinar' },
   { key: '📧 Email Reconnect', val: 'Email Reconnect' },
   { key: '📋 Send Information',val: 'Send Information' },
   { key: '📅 Book Webinar',    val: 'Book Webinar' },
-  { key: '🔮 Future Revisit',  val: 'Future Revisit' },
   { key: '—',                  val: '' },
 ];
 
@@ -2859,7 +2860,7 @@ function setOppsView(v) {
 
 function setOppFilter(f) {
   oppFilter = oppFilter === f ? null : f;
-  ['active','opps','lost','stalled'].forEach(k => {
+  ['active','opps','lost','stalled','future'].forEach(k => {
     document.getElementById('opp-filter-' + k)?.classList.toggle('active', oppFilter === k);
   });
   renderOpps();
@@ -2881,7 +2882,7 @@ function updateOppSortArrows() {
 }
 
 function sortOppPipeline(arr) {
-  const stageOrder = { 'Introduction':0,'Walkthrough':1,'Proposal':2,'Stalled':3,'Lost':4 };
+  const stageOrder = { 'Introduction':0,'Walkthrough':1,'Proposal':2,'Stalled':3,'Lost':4,'Future Revisit':5 };
   return [...arr].sort((a, b) => {
     let av, bv;
     const col = oppSortCol;
@@ -2904,11 +2905,12 @@ function sortOppPipeline(arr) {
 }
 
 const STAGE_COLORS = {
-  'Introduction': { bg:'#fef9c3', color:'#854d0e' },
-  'Walkthrough':  { bg:'#dbeafe', color:'#1e40af' },
-  'Proposal':     { bg:'#d1fae5', color:'#065f46' },
-  'Stalled':      { bg:'#fef3c7', color:'#92400e' },
-  'Lost':         { bg:'#fce7f3', color:'#9d174d' },
+  'Introduction':   { bg:'#fef9c3', color:'#854d0e' },
+  'Walkthrough':    { bg:'#dbeafe', color:'#1e40af' },
+  'Proposal':       { bg:'#d1fae5', color:'#065f46' },
+  'Stalled':        { bg:'#fef3c7', color:'#92400e' },
+  'Lost':           { bg:'#fce7f3', color:'#9d174d' },
+  'Future Revisit': { bg:'#ede9fe', color:'#6d28d9' },
 };
 function applyStageColor(sel) {
   const c = STAGE_COLORS[sel.value] || { bg:'var(--surface)', color:'var(--text-secondary)' };
@@ -2942,16 +2944,20 @@ function renderOpps() {
   // Migrate contacts with legacy stage values to Introduction
   const validStages = new Set(OPP_STAGES.map(s => s.key));
   let migrated = false;
-  Object.values(opps).forEach(o => { if (!o.archived && !validStages.has(o.stage)) { o.stage = 'Introduction'; migrated = true; } });
+  Object.values(opps).forEach(o => {
+    if (!o.archived && !validStages.has(o.stage)) { o.stage = 'Introduction'; migrated = true; }
+    if (o.nextAction === 'Future Revisit') { o.nextAction = ''; migrated = true; }
+  });
   if (migrated) saveOpps();
 
   const q = (document.getElementById('opp-search-input')?.value || '').toLowerCase();
   let pipeline = Object.values(opps).filter(o => !o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
   // Apply quick filter chips
-  if (oppFilter === 'active')   pipeline = pipeline.filter(o => o.stage !== 'Lost' && o.stage !== 'Stalled');
+  if (oppFilter === 'active')       pipeline = pipeline.filter(o => o.stage !== 'Lost' && o.stage !== 'Stalled' && o.stage !== 'Future Revisit');
   else if (oppFilter === 'opps')    pipeline = pipeline.filter(o => o.sfOpp);
   else if (oppFilter === 'lost')    pipeline = pipeline.filter(o => o.stage === 'Lost');
   else if (oppFilter === 'stalled') pipeline = pipeline.filter(o => o.stage === 'Stalled');
+  else if (oppFilter === 'future')  pipeline = pipeline.filter(o => o.stage === 'Future Revisit');
   pipeline = sortOppPipeline(pipeline);
   const cold = Object.values(opps).filter(o => o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q)));
   const totalContacts = Object.keys(opps).filter(e => !opps[e].archived).length;
@@ -2972,11 +2978,12 @@ function renderOpps() {
 
 function updateOppsStats(pipeline) {
   document.getElementById('ostat-total').textContent = pipeline.length;
-  document.getElementById('ostat-Introduction').textContent = pipeline.filter(o => o.stage === 'Introduction').length;
-  document.getElementById('ostat-Walkthrough').textContent  = pipeline.filter(o => o.stage === 'Walkthrough').length;
-  document.getElementById('ostat-Proposal').textContent     = pipeline.filter(o => o.stage === 'Proposal').length;
-  document.getElementById('ostat-Stalled').textContent      = pipeline.filter(o => o.stage === 'Stalled').length;
-  document.getElementById('ostat-Lost').textContent         = pipeline.filter(o => o.stage === 'Lost').length;
+  document.getElementById('ostat-Introduction').textContent    = pipeline.filter(o => o.stage === 'Introduction').length;
+  document.getElementById('ostat-Walkthrough').textContent     = pipeline.filter(o => o.stage === 'Walkthrough').length;
+  document.getElementById('ostat-Proposal').textContent        = pipeline.filter(o => o.stage === 'Proposal').length;
+  document.getElementById('ostat-Stalled').textContent         = pipeline.filter(o => o.stage === 'Stalled').length;
+  document.getElementById('ostat-Lost').textContent            = pipeline.filter(o => o.stage === 'Lost').length;
+  document.getElementById('ostat-FutureRevisit').textContent   = pipeline.filter(o => o.stage === 'Future Revisit').length;
   const days = pipeline.map(o => oppDaysAgo(o.lastActivity)).filter(d => d !== null && d >= 0);
   document.getElementById('ostat-avg-days').textContent = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
 }
@@ -3014,7 +3021,7 @@ function oppBadgeLogoHTML(opp) {
 }
 
 function oppStageClass(stageKey) {
-  return ({ 'Introduction':'ops-Introduction','Walkthrough':'ops-Walkthrough','Proposal':'ops-Proposal','Stalled':'ops-Stalled','Lost':'ops-Lost' })[stageKey] || 'ops-Introduction';
+  return ({ 'Introduction':'ops-Introduction','Walkthrough':'ops-Walkthrough','Proposal':'ops-Proposal','Stalled':'ops-Stalled','Lost':'ops-Lost','Future Revisit':'ops-FutureRevisit' })[stageKey] || 'ops-Introduction';
 }
 
 function renderKanban(pipeline) {
