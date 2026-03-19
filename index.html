@@ -1873,7 +1873,8 @@ let claudeRunning = false;
 
 function queueClaudeEnrich(accName, priority = false) {
   const saved = localData[accName]?.rev?.source;
-  if (saved === 'claude' || saved === 'seed') return;
+  const hasSentiment = localData[accName]?.sentiment?.score != null;
+  if ((saved === 'claude' || saved === 'seed') && hasSentiment) return;
   if (claudeQueue.includes(accName)) return;
   if (priority) claudeQueue.unshift(accName); else claudeQueue.push(accName);
   if (!claudeRunning) runClaudeQueue();
@@ -1887,7 +1888,8 @@ async function runClaudeQueue() {
   while (claudeQueue.length) {
     const name = claudeQueue.shift();
     const saved = localData[name]?.rev?.source;
-    if (saved === 'claude' || saved === 'seed') { done++; continue; }
+    const hasSent = localData[name]?.sentiment?.score != null;
+    if ((saved === 'claude' || saved === 'seed') && hasSent) { done++; continue; }
     await fetchRevenueFromClaude(name);
     done++;
     showEnrichProgress(done, total);
