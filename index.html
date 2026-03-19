@@ -481,9 +481,9 @@
   .stage-Other, .stage-unknown { background: var(--tag-other); color: var(--tag-other-text); }
 
   /* Workables count bubble */
-  .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 5px; }
-  /* US Client check */
-  .us-check { color:#16a34a; font-size:14px; font-weight:700; line-height:1; }
+  .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
+  /* US Client check pill */
+  .us-check { display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#16a34a; background:#dcfce7; border-radius:5px; padding:2px 8px; font-family:'DM Sans',sans-serif; }
   /* legacy — kept for cards footer CLIENT badge */
   .client-badge {
     font-size: 11px; font-weight: 600;
@@ -847,6 +847,20 @@
   /* Territory patch dot */
   .patch-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,0.15); flex-shrink:0; }
   .patch-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; color:#15803d; background:#dcfce7; border-radius:4px; padding:2px 6px; white-space:nowrap; }
+  /* Account Status dropdown */
+  .acct-status-wrap { position:relative; display:inline-block; }
+  .acct-status-trigger { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.5; min-width:68px; transition:opacity 0.1s; }
+  .acct-status-trigger::after { content:'▾'; font-size:9px; opacity:0.55; margin-left:2px; }
+  .acct-status-menu { position:absolute; top:calc(100% + 5px); left:50%; transform:translateX(-50%); z-index:600; background:white; border:1px solid var(--border); border-radius:9px; box-shadow:0 8px 24px rgba(0,0,0,0.11); padding:5px; min-width:110px; display:none; }
+  .acct-status-wrap.open .acct-status-menu { display:block; }
+  .acct-status-opt { display:block; width:100%; padding:5px 10px; border:none; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:opacity 0.12s; }
+  .acct-status-opt:last-child { margin-bottom:0; }
+  .acct-status-opt:hover { opacity:0.75; }
+  .ast-keep    { background:#d1fae5; color:#065f46; }
+  .ast-monitor { background:#fef9c3; color:#854d0e; }
+  .ast-drop    { background:#fee2e2; color:#991b1b; }
+  .ast-none    { background:#f3f4f6; color:#9ca3af; }
+
   /* Stage custom dropdown */
   .stage-sel-wrap { position:relative; display:inline-block; }
   .stage-sel-trigger { display:inline-flex; align-items:center; gap:4px; padding:3px 10px 3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.4; }
@@ -1127,18 +1141,19 @@
       <table>
         <thead>
           <tr>
+            <th onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;">Status <span class="acct-sort-arrow" id="asort-acctStatus"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th onclick="setSortCol('tier')" style="cursor:pointer;">Tier <span class="acct-sort-arrow" id="asort-tier"></span></th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
-            <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
-            <th onclick="setSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
+            <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
+            <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
+            <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
-            <th style="text-align:center;">Workables</th>
-            <th style="text-align:center;">US Client</th>
-            <th>License</th>
+            <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
+            <th onclick="setSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -1513,6 +1528,10 @@ function getFiltered() {
     if (sort==='vertical') return d * getTrueVertical(a).localeCompare(getTrueVertical(b));
     if (sort==='opps') return d * (parseFloat(getField(a,'# Core Opportunities')||0) - parseFloat(getField(b,'# Core Opportunities')||0));
     if (sort==='licenses') return d * (getLicCount(getField(a,'Account Name','AccountName')) - getLicCount(getField(b,'Account Name','AccountName')));
+    if (sort==='workables') return d * (getWorkableCount(getField(a,'Account Name','AccountName')) - getWorkableCount(getField(b,'Account Name','AccountName')));
+    if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
+    if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
+    if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
     return 0;
   });
   return list;
@@ -1633,7 +1652,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -1648,18 +1667,19 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+      <td style="padding:6px 10px;">${renderAcctStatusSelect(name)}</td>
       <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
-      <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
-      <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
+      <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
-      <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
-      <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
-      <td>${getLicBadgeSpans(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
+      <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
     </tr>`;
   }).join('');
 }
@@ -2103,10 +2123,10 @@ function autoQueueLicDescriptions() {
 
 let acctSortCol = 'intent';
 let acctSortDir = 'desc';
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','intent','days','opps','licenses'].forEach(c => {
+  ['vertical','tier','revenue','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -2288,6 +2308,25 @@ function getLicCount(accountName) {
   return licenses.filter(l => normName(l._name) === n).length;
 }
 
+// Return active-only PIQ / INTL badge HTML for the Active Client column (no churn/trial fallback)
+function getActiveLicBadges(accountName) {
+  if (!licenses.length) return '';
+  const n = normName(accountName);
+  const acctLics = licenses.filter(l => normName(l._name) === n);
+  const badges = [];
+  const activePIQ = acctLics.filter(l => l._type === 'PIQ' && l._active);
+  if (activePIQ.length) {
+    const acv = activePIQ.reduce((s,l) => s+l._acv, 0);
+    badges.push(`<span class="alb alb-piq">🔵 PIQ${acv>0?' · '+formatACV(acv):''}</span>`);
+  }
+  const activeINTL = acctLics.filter(l => l._type === 'INTL' && l._active);
+  if (activeINTL.length) {
+    const acv = activeINTL.reduce((s,l) => s+l._acv, 0);
+    badges.push(`<span class="alb alb-intl">🌍 INTL${acv>0?' · '+formatACV(acv):''}</span>`);
+  }
+  return badges.join('');
+}
+
 // True if account ever had a US Industry license (churn signal / former US client)
 function hasUSLicense(accountName) {
   const n = normName(accountName);
@@ -2298,6 +2337,44 @@ function hasUSLicense(accountName) {
 function getWorkableCount(accountName) {
   const n = normName(accountName);
   return Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n).length;
+}
+
+// Account Status custom dropdown — stored in ibis_local[name].acctStatus
+const ACCT_STATUS_OPTS = [
+  { key:'keep',    label:'✓ Keep',    cls:'ast-keep' },
+  { key:'monitor', label:'◎ Monitor', cls:'ast-monitor' },
+  { key:'drop',    label:'✕ Drop',    cls:'ast-drop' },
+  { key:'',        label:'—',          cls:'ast-none' },
+];
+
+function renderAcctStatusSelect(name) {
+  const status = (localData[name]?.acctStatus) || '';
+  const safeId = 'ast-' + name.replace(/[^a-z0-9]/gi,'_');
+  const escapedName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
+  const opts = ACCT_STATUS_OPTS.map(o =>
+    `<button class="acct-status-opt ${o.cls}" onclick="event.stopPropagation();selectAcctStatusOpt('${escapedName}','${o.key}','${safeId}')">${o.label}</button>`
+  ).join('');
+  return `<div class="acct-status-wrap" id="${safeId}" onclick="event.stopPropagation()">
+    <button class="acct-status-trigger ${cur.cls}" onclick="toggleAcctStatusMenu('${safeId}')">${cur.label}</button>
+    <div class="acct-status-menu">${opts}</div>
+  </div>`;
+}
+
+function toggleAcctStatusMenu(id) {
+  const wrap = document.getElementById(id);
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.acct-status-wrap.open').forEach(w => w.classList.remove('open'));
+  if (!isOpen) wrap.classList.add('open');
+}
+
+function selectAcctStatusOpt(name, status, id) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].acctStatus = status;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  document.getElementById(id)?.classList.remove('open');
+  renderAll();
 }
 
 // Build license badge spans for a given account (inner HTML only — no wrapper)
