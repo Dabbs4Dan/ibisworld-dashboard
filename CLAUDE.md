@@ -40,7 +40,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ---
 
-## CURRENT STATE — v22 (stable)
+## CURRENT STATE — v23 (stable)
 
 ### Three tabs live:
 1. **📋 Accounts tab** — main territory view
@@ -52,12 +52,51 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - Change detection → 🆕 flags new accounts
 - Cards + Table view toggle
 - Custom colored vertical dropdown
-- Emoji flags + modal editor per account
 - Revenue column with auto-enrichment + progress indicator (bottom-right spinner)
 - Logo cascade: UpLead → DuckDuckGo → Google Favicon → Initials
 - Accounts CSV button turns ✅ green when freshly uploaded this session
 - 6sense buying stage badges
 - 🗑️ clear buttons next to each CSV upload — accounts clears `ibis_accounts`+`ibis_updated` only (preserves `ibis_local`); licenses clears `ibis_licenses` only
+- **Row click modal removed** — clicking a row no longer opens the flags/notes/revenue modal (removed `onclick="openModal(...)"` from `<tr>` and `.account-card`)
+
+#### Accounts Table Columns (left → right)
+Status | Company | Vertical | Tier | Revenue | Workables | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
+
+#### Status Column (new in v23)
+- Per-account dropdown: **✓ Keep** (green), **👁 Monitor** (yellow), **✗ Drop** (red), **— ** (grey dash)
+- Stored in `ibis_local[name].acctStatus` — persists across CSV uploads; `pruneStaleLocalData` treats `acctStatus` as user data (won't prune)
+- **Portal dropdown** — menu rendered in `<div id="acct-status-portal">` at `<body>` level (NOT inside the table), `z-index:9500`. Avoids all table stacking context / click-through issues permanently. `openAcctStatusPortal(id, triggerBtn)` positions portal via `getBoundingClientRect()`. `applyPortalStatus(status)` recovers account name by reverse-matching the wrap ID against `accounts[]` — no JS string escaping needed
+- In-place trigger update on selection (no `renderAll()` call) — selection is instant, row order never changes
+- Closes on click-outside and on scroll
+
+#### Workables Column (new in v23)
+- Purple circle `<span class="wkbl-dot">` with count of non-archived entries in `ibis_opps` matching the account name
+- `getWorkableCount(name)` uses `normName()` matching — grey dash if 0
+
+#### US Client Column (new in v23)
+- Green ✓ checkmark if account has ANY US Industry license in `ibis_licenses` (regardless of active/churn status)
+- `hasUSLicense(name)` — grey dash if none
+
+#### Active Client Column (new in v23)
+- Shows **only active PIQ or INTL** license badges borrowed from Licenses tab
+- `getActiveLicBadges(name)` — returns coloured badge spans or empty string
+- Grey dash if no active license — renamed from "Licenses" to "Active Client"
+
+#### Filter Chips (v23 — replaced old Hot/Opp/Winback/Watching set)
+- ✓ Keep · 👁 Monitor · ✗ Drop · 🟢 Active License
+- Chips filter by `localData[name].acctStatus` or `getActiveLicBadges(name)`
+- All chips have matching emoji/color to their status
+
+#### Tier Filter Dropdown (new in v23)
+- Multi-select checkbox dropdown on the Tier column header (matches license tab filter pattern)
+- Options: T1, T2, T3, T4, — (no tier). AND logic with other filters
+- State: `acctTierFilters` (Set). `applyTierFilter()` / `clearTierFilter()`
+
+#### Frozen Sort Order (new in v23)
+- After any explicit sort (column header click), row order is locked into `frozenSortOrder[]`
+- All subsequent `renderAll()` calls (background enrichment, status changes, filter changes) preserve the frozen order — rows never shuffle mid-session
+- Lock clears ONLY when user clicks a column header again (`setSortCol` / `onAcctSortSelectChange` set `frozenSortOrder = null`)
+- New accounts not in the frozen list appear at the bottom
 
 ### Splash Screen
 - Fires on every page load/refresh (no sessionStorage gate — JS tab switching never reloads so no risk of retrigger)
@@ -65,21 +104,42 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - Radial gradient dark bg, red pulse glow on logo, sheen animation
 - Title "Account Intelligence" + subtitle "IBISWorld · US Major Markets" + animated 3-dot loader
 
-### Opportunities Tab Features
-- Parses SF contact CSV (Name, Account Name, Title, Email, Last Activity Date, Phone)
+### Workables Tab Features (renamed from Opportunities in v23)
+- Tab label: **🎯 Workables** everywhere (HTML, JS, CSS)
+- Parses SF contact CSV: `First Name` + `Last Name` → `name`, `Title`, `Mailing Country` → `country`, `Email`, `Account Name`, `Last Activity` (not "Last Activity Date"). No Phone column.
 - Unique key = email (lowercase trimmed); stored in `ibis_opps`
-- **Merge logic**: new email → add as "Working"; existing → update SF fields, preserve stage/notes/nextAction; missing from CSV → archived
-- **Toast on upload**: "✅ N updated · N new · N archived"
-- **Kanban view** (default): 6 columns (🟡 Working → 🔵 Engaged → 📅 Meeting Booked → 🔥 Hot → ✅ Won → ❌ Dead)
-  - Drag-and-drop cards between columns → saves instantly
-  - Inline Next Action field (editable, saves on blur)
-  - Notes toggle per card (inline expand)
-  - Logo cascade via account name matching → same cascade as other tabs
-- **Table view**: inline stage dropdown, next action field, notes button (prompt)
-- **Cold Opportunities** collapsible section: contacts where `archived=true`, Reactivate button
-- **Stats bar**: Total in Pipeline, stage count chips (6), Avg Days Inactive
-- `setMainView()` updated to handle 3 tabs cleanly via loop (`['accounts','licenses','opps']`)
-- `escHtml()` utility added (used by Opportunities renderer)
+- **Merge logic**: additive only — new email → add as Introduction; existing → update SF fields, preserve stage/notes/nextAction/sfOpp/sfAmt/closeDate. No auto-archive on re-upload.
+- **Manual delete**: 🗑 button on each card and table row (confirm prompt before delete)
+- **Toast on upload**: "✅ N updated · N new"
+- **Cards view** (default, renamed from Kanban): 5 columns matching new stages
+- **Table view**: full column set (see below)
+- **Cold Workables** collapsible section: contacts where `archived=true`
+- **Stats bar**: Total in Pipeline, stage count chips, Avg Days Inactive
+- `isInTerritory(opp)` — checks if `opp.accountName` matches any account in `accounts[]` via `normName()`. Green dot shown in first table column and top-right of cards for territory matches.
+
+#### Workables Stages (v23)
+`OPP_STAGES`: 🟡 Introduction · 🔵 Walkthrough · 🟢 Proposal · 🟠 Stalled · 🔴 Lost · 🔮 Future Revisit
+- Custom colored bubble dropdown (`renderStageSelect` / `toggleStageMenu` / `selectStageOpt`) — same quality as license badges
+- Stage migration: old stage values auto-migrated to Introduction on `renderOpps()`
+- `STAGE_COLORS` map `{stage: {bg, color}}` for consistent coloring
+
+#### Workables Next Actions (v23)
+`OPP_NEXT_ACTIONS`: 🌐 Webinar · 📧 Email Reconnect · 📋 Send Information · 📅 Book Webinar · — (grey dash)
+- Native `<select>` styled with `.opp-next-select` / `.opp-next-empty`
+
+#### Workables Table Columns (left → right)
+Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next Date | Close Date | Last Activity | 🗑
+
+#### Opp Widget (v23)
+- **Off**: grey dot (`.opp-dot-btn` / `.opp-dot`)
+- **On**: blue pill "Opp" + `$` amount input + Close Date input, grouped as `.opp-active-wrap` with `box-shadow` glow
+- `sfOpp` boolean + `sfAmt` string + `closeDate` string stored per contact
+- `saveOppAmt()` auto-formats with `$` prefix; Enter key blurs input
+
+#### Logo system for Workables
+- `oppLogoHTML(opp, size)` — checks `accounts[]` first, then `ibis_local` keys, then `LOGO_DOMAIN_OVERRIDES`, then `guessDomain()`
+- `guessDomain()` improved: detects non-profit/gov keywords → uses `.org` TLD; strips more noise words
+- `LOGO_DOMAIN_OVERRIDES` extended with `Women's Business Development Center of Aurora → wbdc.org`, `New York SBDC Network → nysbdc.org`
 
 ### License Intelligence Tab Features
 - Parses SF "Account with Licenses & Products" CSV (~1,082 rows)
@@ -314,9 +374,17 @@ When a new session begins, Claude Code should:
 | ✅ Done | Lost renewal rule (Rule 0) | `applyLicenseRules`: `$0 + US + "renewal" in opp` → forces `_active=false`, `_churnTier=newchurn`. Prevents false PIQ promotion. Shown as US Industry. |
 | ✅ Done | Logo flicker fix v2 | `logoResolved{}` cache — once a domain's URL resolves, stored in memory. Re-renders use cached URL at opacity:1 instantly. All three logo render sites (cards, accounts table, licenses table) check cache first. |
 | ✅ Done | Opportunities tab (v22) | Kanban + Table view, drag-and-drop, CSV merge (add/update/archive), Cold section, stats bar. `ibis_opps` key. `setMainView()` refactored to 3-tab loop. |
-| ⚠️ Monitor | Description quality | DESC_VERSION=6 just deployed. ~85% high quality. A few accounts (Cooley, WPP, Loews) may show vertical-tag fallback until Claude revenue enrichment runs and overwrites with AI description. |
-| 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs overflow fix or position:fixed dropdown. |
-| 🗺️ Future | Mobile/responsive layout | No media queries exist. Add `@media (max-width: 768px)` for stacked header, scrollable table, full-width search. |
-| 🗺️ Future | Opportunities polish | Drag ghost, sort state persistence, search highlight, mobile-friendly kanban |
+| ✅ Done | Workables tab v23 overhaul | Renamed from Opportunities. New SF CSV schema (First/Last Name, Mailing Country, Last Activity). Additive merge only. Territory dot. Close date field. 6 stages incl. Future Revisit. Next Action emoji dropdown. Opp widget (dot → pill+amt+closedate). |
+| ✅ Done | Accounts table v23 overhaul | Status column (Keep/Monitor/Drop portal dropdown). Workables column. US Client column. Active Client column. Tier multi-select filter. New filter chips (Keep/Monitor/Drop/Active License). Row click modal removed. Frozen sort order. |
+| ✅ Done | Status dropdown portal | `#acct-status-portal` at body level, z-index:9500. Fixes table stacking context click-through permanently. `applyPortalStatus()` reverse-maps safeId → account name. Closes on scroll + click-outside. |
+| ✅ Done | Frozen sort order | `frozenSortOrder[]` locks row order after explicit sort. Background enrichment + status changes never reshuffle rows. Clears only on explicit header click. |
+| ✅ Done | acctStatus prune protection | `pruneStaleLocalData` now treats `acctStatus` as user data — won't prune an entry that has a Keep/Monitor/Drop set. |
+| ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
+| 🗺️ Future | Workables filter chips | Active Workables, Active Opportunities, Lost, Stalled filter chips — spec agreed but not yet built. |
+| 🗺️ Future | Workables controls bar | Search field positioning, filter chip styling to match Licenses tab controls bar. |
+| 🗺️ Future | Workables sort persistence | Sort state for Workables table not yet saved to `ibis_sort`. |
+| 🗺️ Future | Opp dollar auto-format | Format sfAmt as currency on blur ($ prefix, comma separation). |
+| 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs position:fixed dropdown. |
+| 🗺️ Future | Mobile/responsive layout | No media queries exist. |
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
 | 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |
