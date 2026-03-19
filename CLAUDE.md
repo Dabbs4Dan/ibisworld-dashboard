@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~3,500+ lines
+**File:** `index.html` — single self-contained file, ~3,980+ lines
 
 ---
 
@@ -40,7 +40,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ---
 
-## CURRENT STATE — v23 (stable)
+## CURRENT STATE — v24 (stable)
 
 ### Three tabs live:
 1. **📋 Accounts tab** — main territory view
@@ -60,7 +60,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - **Row click modal removed** — clicking a row no longer opens the flags/notes/revenue modal (removed `onclick="openModal(...)"` from `<tr>` and `.account-card`)
 
 #### Accounts Table Columns (left → right)
-Status | Company | Vertical | Tier | Revenue | Workables | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
+Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
 
 #### Status Column (new in v23)
 - Per-account dropdown: **✓ Keep** (green), **👁 Monitor** (yellow), **✗ Drop** (red), **— ** (grey dash)
@@ -91,6 +91,22 @@ Status | Company | Vertical | Tier | Revenue | Workables | US Client | Active Cl
 - Multi-select checkbox dropdown on the Tier column header (matches license tab filter pattern)
 - Options: T1, T2, T3, T4, — (no tier). AND logic with other filters
 - State: `acctTierFilters` (Set). `applyTierFilter()` / `clearTierFilter()`
+
+#### Sentiment Score Column (new in v24)
+- Weighted 1–10 composite score per account, displayed as clickable color-coded badge (green 8–10, amber 5–7, red 1–4, grey dash for null)
+- Trend arrow (↑/→/↓) based on composite of 5 signal types: Wikidata revenue history, Wikipedia growth/distress keywords, engagement recency, license status
+- **Battle card popover** — click score badge to see: large score ring, auto-generated headline, trend + confidence indicators, 6 weighted factor bars
+- Portal pattern (`#sentiment-card`, z-index:9600) — same architecture as status dropdown. Closes on click-outside + scroll.
+- **Data sources** — NO paid API needed. Uses same free Wikipedia + Wikidata APIs as descriptions:
+  - Wikidata entity claims: revenue history (P2139), employees (P1128), stock exchange (P414), dissolved (P576), acquired (P1366)
+  - Wikipedia extract: keyword-scanned for growth/distress/acquisition signals
+  - Internal data: revenue size, 6sense intent + stage, days inactive, workables count, opps count, license status
+- **6 scoring factors**: Scale (15%), Rev Trend (20%), Mkt Signals (20%), Engagement (20%), Pipeline (15%), Licenses (10%)
+- Enrichment queue: `sentQueue[]` / `runSentQueue()` — runs alongside description queue, triggered on init + CSV upload. `SENT_VERSION` bump forces re-score.
+- Stored in `ibis_local[name].sentiment` — `{score, headline, rationale, trend, confidence, factors:{...}, v}`
+- Sortable column, nulls sort last (-1). Added to `ACCT_SORT_DEFAULT_DIR`, sort dropdown, sort arrows.
+- Card view: Score stat-cell between Tier and Intent
+- `cloudflare-worker.js` in repo — optional Cloudflare Worker proxy for future Claude API enrichment (not currently used for scoring)
 
 #### Frozen Sort Order (new in v23)
 - After any explicit sort (column header click), row order is locked into `frozenSortOrder[]`
@@ -379,7 +395,10 @@ When a new session begins, Claude Code should:
 | ✅ Done | Status dropdown portal | `#acct-status-portal` at body level, z-index:9500. Fixes table stacking context click-through permanently. `applyPortalStatus()` reverse-maps safeId → account name. Closes on scroll + click-outside. |
 | ✅ Done | Frozen sort order | `frozenSortOrder[]` locks row order after explicit sort. Background enrichment + status changes never reshuffle rows. Clears only on explicit header click. |
 | ✅ Done | acctStatus prune protection | `pruneStaleLocalData` now treats `acctStatus` as user data — won't prune an entry that has a Keep/Monitor/Drop set. |
+| ✅ Done | Sentiment Score v24 | Weighted 1–10 composite score per account. Wikipedia + Wikidata + internal data. Battle card popover with factor breakdown. No paid API needed. `SENT_VERSION=1`. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
+| ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
+| 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
 | 🗺️ Future | Workables filter chips | Active Workables, Active Opportunities, Lost, Stalled filter chips — spec agreed but not yet built. |
 | 🗺️ Future | Workables controls bar | Search field positioning, filter chip styling to match Licenses tab controls bar. |
 | 🗺️ Future | Workables sort persistence | Sort state for Workables table not yet saved to `ibis_sort`. |
