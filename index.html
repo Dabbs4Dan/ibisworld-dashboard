@@ -1344,6 +1344,8 @@ const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
 const DESC_VERSION           = 6;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
+// Cloudflare Worker proxy — set this to your Worker URL after deploying cloudflare-worker.js
+const CLAUDE_PROXY_URL       = 'https://ibis-enrich.dabbs4dan.workers.dev';
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
 const CHURN_YEAR_CHURNED     = 2020;       // historical churn: end year >= this
@@ -1924,7 +1926,7 @@ function hideEnrichProgress() {
 
 async function fetchRevenueFromClaude(companyName) {
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch(CLAUDE_PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
