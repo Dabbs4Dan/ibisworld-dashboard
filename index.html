@@ -2370,6 +2370,13 @@ async function fetchSentimentData(companyName) {
 function computeSentimentScore(name, ext) {
   if (!localData[name]) localData[name] = {};
   const acc = accounts.find(a => normName(getField(a, 'Account Name', 'AccountName')) === normName(name));
+  // Pre-compute shared lookups used by multiple factors
+  const activeBadges = getActiveLicBadges(name);
+  const hasUS = hasUSLicense(name);
+  const licCount = getLicCount(name);
+  const wkblCount = getWorkableCount(name);
+  const oppCount = acc ? parseFloat(getField(acc, '# Core Opportunities') || 0) : 0;
+  const signals = ext.wikiSignals;
 
   // ── Factor 1: Company Scale (15%) ──
   // Larger companies = more stable, more potential
@@ -2385,26 +2392,48 @@ function computeSentimentScore(name, ext) {
   else scaleScore = 3; // no revenue data
 
   // ── Factor 2: Revenue Trend (20%) ──
-  // Wikidata multi-year revenue comparison
+  // Composite: Wikidata revenue history + Wikipedia signals + engagement direction
   let trendScore = 5;
   let trendDir = 'flat';
+  let trendPts = 0; // positive = up, negative = down
+  // 2a: Wikidata multi-year revenue
   if (ext.revHistory.length >= 2) {
     const newest = ext.revHistory[0];
     const older = ext.revHistory[ext.revHistory.length > 2 ? 2 : 1];
     if (newest.amount > 0 && older.amount > 0) {
       const growthPct = ((newest.amount - older.amount) / older.amount) * 100;
-      if (growthPct > 20) { trendScore = 9; trendDir = 'up'; }
-      else if (growthPct > 5) { trendScore = 7; trendDir = 'up'; }
-      else if (growthPct > -5) { trendScore = 5; trendDir = 'flat'; }
-      else if (growthPct > -20) { trendScore = 3; trendDir = 'down'; }
-      else { trendScore = 1; trendDir = 'down'; }
+      if (growthPct > 20) trendPts += 3;
+      else if (growthPct > 5) trendPts += 2;
+      else if (growthPct > -5) trendPts += 0;
+      else if (growthPct > -20) trendPts -= 2;
+      else trendPts -= 3;
     }
   }
+  // 2b: Wikipedia text signals
+  if (ext.wikiSignals.includes('growth')) trendPts += 2;
+  if (ext.wikiSignals.includes('distress')) trendPts -= 3;
+  if (ext.isAcquired) trendPts -= 1;
+  if (ext.isDissolved) trendPts -= 4;
+  // 2c: Internal engagement direction
+  if (acc) {
+    const days = parseFloat(getField(acc, 'US Days Since Last Activity') || 0);
+    if (days > 0 && days < 60) trendPts += 1;    // recently active = positive momentum
+    else if (days > 180) trendPts -= 1;           // going cold
+    else if (days > 365) trendPts -= 2;           // ice cold
+  }
+  // 2d: Active licenses vs churned
+  if (activeBadges) trendPts += 1;                // active client = positive
+  else if (licCount > 0) trendPts -= 1;           // all churned = negative
+  // Convert to score and direction
+  if (trendPts >= 3) { trendScore = 9; trendDir = 'up'; }
+  else if (trendPts >= 1) { trendScore = 7; trendDir = 'up'; }
+  else if (trendPts === 0) { trendScore = 5; trendDir = 'flat'; }
+  else if (trendPts >= -2) { trendScore = 3; trendDir = 'down'; }
+  else { trendScore = 1; trendDir = 'down'; }
 
   // ── Factor 3: Market Signals (20%) ──
   // Wikipedia keyword signals + Wikidata flags
   let marketScore = 5;
-  const signals = ext.wikiSignals;
   if (ext.isDissolved) marketScore = 1;
   else if (signals.includes('distress')) marketScore = 2;
   else if (ext.isAcquired && !signals.includes('growth')) marketScore = 4;
@@ -2435,8 +2464,6 @@ function computeSentimentScore(name, ext) {
   // ── Factor 5: Pipeline (15%) ──
   // Workables, opportunities, active contacts
   let pipeScore = 3; // no pipeline = low
-  const wkblCount = getWorkableCount(name);
-  const oppCount = acc ? parseFloat(getField(acc, '# Core Opportunities') || 0) : 0;
   if (wkblCount >= 3 || oppCount >= 2) pipeScore = 9;
   else if (wkblCount >= 1 || oppCount >= 1) pipeScore = 7;
   else if (wkblCount > 0 || oppCount > 0) pipeScore = 5;
@@ -2444,9 +2471,6 @@ function computeSentimentScore(name, ext) {
   // ── Factor 6: License History (10%) ──
   // Active = great, churned = warning, never = neutral
   let licScore = 5;
-  const activeBadges = getActiveLicBadges(name);
-  const hasUS = hasUSLicense(name);
-  const licCount = getLicCount(name);
   if (activeBadges) licScore = 9; // active PIQ/INTL
   else if (hasUS && licCount > 0) licScore = 4; // US industry only (churn signal)
   else if (licCount > 0) licScore = 3; // had licenses, all churned
