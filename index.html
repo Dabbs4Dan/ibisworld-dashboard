@@ -1929,22 +1929,45 @@ async function fetchRevenueFromClaude(companyName) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 600,
+        max_tokens: 800,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: `You are a financial data assistant. Find the most recent annual revenue in USD and write a concise B2B business description. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD.
+        system: `You are a financial data assistant. Return ONLY valid JSON — no markdown, no explanation, no text outside the JSON object.
 
-Also assess financial health and growth viability on a 1–10 scale using these weighted factors (score each factor 1–10):
-- revTrend (25%): revenue trajectory — growing = high, declining = low
-- profitTrend (20%): profitability/EPS/margins — improving = high, deteriorating = low
-- marketGrowth (15%): is the industry/market expanding or contracting?
-- maActivity (15%): M&A as acquirer = positive growth signal; being acquired = score penalty
-- stability (15%): workforce stability — layoffs, restructuring, or bankruptcy risk = low
-- leadership (10%): executive/CEO stability — recent departures = low
+REQUIRED JSON SCHEMA (every field is mandatory):
+{
+  "value_usd": <number in USD or null>,
+  "label": "<e.g. USD 13.0B>",
+  "source": "<source name>",
+  "year": "<e.g. 2024>",
+  "description": "<10-15 word B2B description of what the company does>",
+  "sentiment": {
+    "score": <integer 1-10 or null>,
+    "headline": "<one sentence — the single most important thing a sales rep should know, e.g. 'Filed for Chapter 11 bankruptcy protection in Feb 2025' or 'Record Q4 revenue up 34% YoY driven by AI demand'>",
+    "rationale": "<one sentence plain English health summary>",
+    "trend": "<up|flat|down>",
+    "confidence": "<high|medium|low>",
+    "factors": {
+      "revTrend": <1-10>,
+      "profitTrend": <1-10>,
+      "marketGrowth": <1-10>,
+      "maActivity": <1-10>,
+      "stability": <1-10>,
+      "leadership": <1-10>
+    }
+  }
+}
 
-Return ONLY valid JSON (no markdown, no explanation):
-{"value_usd": <number in USD or null>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>", "description": "<10-15 word actionable description>", "sentiment": {"score": <1-10 integer or null>, "headline": "<most critical one-line insight for a sales rep, e.g. 'Announced 15% workforce reduction in Q1 2025' or 'Record revenue growth driven by AI expansion'>", "rationale": "<one sentence plain English summary of overall health>", "trend": "<up|flat|down>", "confidence": "<high|medium|low>", "factors": {"revTrend": <1-10>, "profitTrend": <1-10>, "marketGrowth": <1-10>, "maActivity": <1-10>, "stability": <1-10>, "leadership": <1-10>}}}
-If the company is too small/private with insufficient data, set sentiment.score to null. Set confidence to "low" if fewer than 3 factors have clear signals.`,
-        messages: [{ role: 'user', content: `Annual revenue, description, and financial health score of "${companyName}"? JSON only.` }]
+REVENUE: Search annual reports, SEC filings, Bloomberg, Forbes, Wikipedia. For private companies use best estimates. Convert non-USD to USD. Set value_usd to null if unavailable.
+
+SENTIMENT SCORING (1-10 scale, all 6 factors required):
+- revTrend (25%): revenue growth trajectory
+- profitTrend (20%): profitability / EPS / margin trend
+- marketGrowth (15%): industry expansion vs contraction
+- maActivity (15%): acquiring = positive; being acquired = penalty
+- stability (15%): layoffs, restructuring, bankruptcy risk = low score
+- leadership (10%): CEO/exec turnover = low score
+Set sentiment.score to null only if company is too obscure for any assessment. The headline must be specific and actionable — cite real events, not generic statements.`,
+        messages: [{ role: 'user', content: `Company: "${companyName}". Return the full JSON with revenue AND sentiment. Both are required.` }]
       })
     });
     const data = await resp.json();
@@ -1952,6 +1975,7 @@ If the company is too small/private with insufficient data, set sentiment.score 
     for (const b of (data.content||[]).filter(b => b.type === 'text')) {
       try { parsed = JSON.parse(b.text.replace(/```json|```/g,'').trim()); break; } catch(e) {}
     }
+    console.log(`[Enrich] ${companyName}:`, parsed ? { rev: parsed.value_usd, sentiment: parsed.sentiment?.score, headline: parsed.sentiment?.headline?.slice(0,50) } : 'NO PARSE');
     if (parsed) {
       if (!localData[companyName]) localData[companyName] = {};
       // Save description from Claude — high quality, always overwrites Wikipedia
@@ -1962,7 +1986,7 @@ If the company is too small/private with insufficient data, set sentiment.score 
       // Save sentiment data from Claude
       if (parsed.sentiment && parsed.sentiment.score != null) {
         localData[companyName].sentiment = {
-          score: parsed.sentiment.score,
+          score: parseInt(parsed.sentiment.score, 10),
           headline: parsed.sentiment.headline || '',
           rationale: parsed.sentiment.rationale || '',
           trend: parsed.sentiment.trend || 'flat',
@@ -1970,7 +1994,6 @@ If the company is too small/private with insufficient data, set sentiment.score 
           factors: parsed.sentiment.factors || {}
         };
       } else if (parsed.sentiment) {
-        // score is null — store it so we know we tried
         localData[companyName].sentiment = { score: null };
       }
       if (parsed.value_usd) {
@@ -1981,7 +2004,7 @@ If the company is too small/private with insufficient data, set sentiment.score 
       }
       localStorage.setItem('ibis_local', JSON.stringify(localData));
     }
-  } catch(e) { console.error('Revenue enrichment failed for', companyName, e); }
+  } catch(e) { console.error('Enrichment failed for', companyName, e); }
   return null;
 }
 
