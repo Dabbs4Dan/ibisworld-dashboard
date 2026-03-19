@@ -1655,7 +1655,7 @@ function renderCards(list) {
     const revLabel = revInfo ? revInfo.label.replace('USD ', '$') : null;
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
-    return `<div class="account-card${flags.includes('🆕')?' new-account':''}">`
+    return `<div class="account-card${flags.includes('🆕')?' new-account':''}">
       <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${(local.desc||sub)?`<div class="card-sub-vert">${local.desc||sub}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
@@ -1690,7 +1690,7 @@ function renderTable(list) {
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-    return `<tr class="${flags.includes('🆕')?'new-account':''}">`
+    return `<tr class="${flags.includes('🆕')?'new-account':''}">
       <td style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
