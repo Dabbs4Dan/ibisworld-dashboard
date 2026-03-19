@@ -487,6 +487,45 @@
   .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
   /* US Client check pill */
   .us-check { display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#16a34a; background:#dcfce7; border-radius:5px; padding:2px 8px; font-family:'DM Sans',sans-serif; }
+  /* Sentiment score badge */
+  .sent-badge { display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:700; padding:2px 8px; border-radius:5px; font-family:'DM Mono',monospace; cursor:pointer; transition:opacity 0.15s; user-select:none; }
+  .sent-badge:hover { opacity:0.8; }
+  .sent-green  { background:#dcfce7; color:#15803d; }
+  .sent-amber  { background:#fef3c7; color:#b45309; }
+  .sent-red    { background:#fee2e2; color:#dc2626; }
+  .sent-null   { color:#9ca3af; cursor:default; }
+  .sent-trend  { font-size:10px; }
+  /* Sentiment battle card (portal) */
+  #sentiment-card {
+    position:fixed; z-index:9600; background:white; border-radius:12px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+    padding:0; min-width:300px; max-width:340px; display:none;
+    font-family:'DM Sans',sans-serif; overflow:hidden;
+  }
+  .sc-header {
+    padding:14px 16px 10px; border-bottom:1px solid #f0f0f0;
+    display:flex; align-items:center; gap:10px;
+  }
+  .sc-score-ring {
+    width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'DM Mono',monospace; font-size:18px; font-weight:800; color:white; flex-shrink:0;
+  }
+  .sc-header-text { flex:1; min-width:0; }
+  .sc-company { font-size:12px; font-weight:600; color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sc-headline { font-size:13px; font-weight:700; color:#111827; line-height:1.3; margin-top:2px; }
+  .sc-meta { display:flex; gap:8px; padding:6px 16px; font-size:11px; color:#6b7280; border-bottom:1px solid #f0f0f0; }
+  .sc-meta-item { display:flex; align-items:center; gap:3px; }
+  .sc-factors { padding:10px 16px 14px; }
+  .sc-factor { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .sc-factor:last-child { margin-bottom:0; }
+  .sc-factor-label { font-size:11px; color:#6b7280; width:100px; flex-shrink:0; text-align:right; }
+  .sc-factor-bar-bg { flex:1; height:6px; background:#f3f4f6; border-radius:3px; overflow:hidden; }
+  .sc-factor-bar { height:100%; border-radius:3px; transition:width 0.3s ease; }
+  .sc-factor-val { font-size:10px; font-weight:700; width:18px; text-align:right; font-family:'DM Mono',monospace; }
+  .sc-bar-green { background:#16a34a; }
+  .sc-bar-amber { background:#d97706; }
+  .sc-bar-red   { background:#dc2626; }
+  .sc-bar-grey  { background:#d1d5db; }
   /* legacy — kept for cards footer CLIENT badge */
   .client-badge {
     font-size: 11px; font-weight: 600;
@@ -1058,6 +1097,7 @@
   <select id="sort-select" onchange="onAcctSortSelectChange()">
     <option value="intent">Intent Score</option>
     <option value="revenue">Revenue</option>
+    <option value="sentiment">Score</option>
     <option value="vertical">Vertical A–Z</option>
     <option value="days">Days Inactive</option>
     <option value="tier">Tier</option>
@@ -1158,6 +1198,7 @@
               </div>
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
+            <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
@@ -1556,6 +1597,7 @@ function getFiltered() {
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
+    if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     return 0;
   });
   return list;
@@ -1674,6 +1716,7 @@ function renderCards(list) {
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
         <div class="stat-cell"><div class="label">Tier</div><div class="val"><span class="tier-badge ${tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other'}"><span>${tier||'—'}</span></span></div></div>
+        <div class="stat-cell"><div class="label">Score</div><div class="val">${renderSentimentBadge(name)}</div></div>
         <div class="stat-cell"><div class="label">Intent</div><div class="val">${intent||'—'}</div></div>
         <div class="stat-cell"><div class="label">Days Out</div><div class="val ${daysColor(days)}">${days||'—'}</div></div>
         <div class="stat-cell"><div class="label">Opps</div><div class="val">${opps||'0'}</div></div>
@@ -1690,7 +1733,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -1710,6 +1753,7 @@ function renderTable(list) {
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
+      <td style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
@@ -1864,13 +1908,13 @@ function showEnrichProgress(done, total) {
     document.body.appendChild(bar);
   }
   const remaining = total - done;
-  bar.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block;">🔄</span> Enriching revenue… <strong>${remaining}</strong> remaining`;
+  bar.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block;">🔄</span> Enriching accounts… <strong>${remaining}</strong> remaining`;
 }
 
 function hideEnrichProgress() {
   const bar = document.getElementById('enrich-progress');
   if (bar) {
-    bar.innerHTML = '✅ Revenue enrichment complete';
+    bar.innerHTML = '✅ Enrichment complete';
     bar.style.background = '#065f46';
     setTimeout(() => bar.remove(), 3000);
   }
@@ -1883,10 +1927,22 @@ async function fetchRevenueFromClaude(companyName) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 300,
+        max_tokens: 600,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: `You are a financial data assistant. Find the most recent annual revenue in USD and write a concise B2B business description. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD. Return ONLY valid JSON (no markdown, no explanation): {"value_usd": <number in USD>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>", "description": "<10-15 word actionable description of what the company does, e.g. 'Global provider of diversified financial and brokerage services'>"}. If revenue unavailable: {"value_usd": null, "description": "..."}`,
-        messages: [{ role: 'user', content: `Annual revenue and description of "${companyName}"? JSON only.` }]
+        system: `You are a financial data assistant. Find the most recent annual revenue in USD and write a concise B2B business description. Search credible sources: annual reports, SEC filings, Bloomberg, Forbes, Wikipedia, news. For private companies, use best publicly reported estimates. Convert non-USD to USD.
+
+Also assess financial health and growth viability on a 1–10 scale using these weighted factors (score each factor 1–10):
+- revTrend (25%): revenue trajectory — growing = high, declining = low
+- profitTrend (20%): profitability/EPS/margins — improving = high, deteriorating = low
+- marketGrowth (15%): is the industry/market expanding or contracting?
+- maActivity (15%): M&A as acquirer = positive growth signal; being acquired = score penalty
+- stability (15%): workforce stability — layoffs, restructuring, or bankruptcy risk = low
+- leadership (10%): executive/CEO stability — recent departures = low
+
+Return ONLY valid JSON (no markdown, no explanation):
+{"value_usd": <number in USD or null>, "label": "<e.g. USD 13.0B>", "source": "<source name>", "year": "<e.g. 2024>", "description": "<10-15 word actionable description>", "sentiment": {"score": <1-10 integer or null>, "headline": "<most critical one-line insight for a sales rep, e.g. 'Announced 15% workforce reduction in Q1 2025' or 'Record revenue growth driven by AI expansion'>", "rationale": "<one sentence plain English summary of overall health>", "trend": "<up|flat|down>", "confidence": "<high|medium|low>", "factors": {"revTrend": <1-10>, "profitTrend": <1-10>, "marketGrowth": <1-10>, "maActivity": <1-10>, "stability": <1-10>, "leadership": <1-10>}}}
+If the company is too small/private with insufficient data, set sentiment.score to null. Set confidence to "low" if fewer than 3 factors have clear signals.`,
+        messages: [{ role: 'user', content: `Annual revenue, description, and financial health score of "${companyName}"? JSON only.` }]
       })
     });
     const data = await resp.json();
@@ -1900,6 +1956,20 @@ async function fetchRevenueFromClaude(companyName) {
       if (parsed.description && typeof parsed.description === 'string' && parsed.description.trim().length > 5) {
         localData[companyName].desc = parsed.description.trim();
         localData[companyName].descV = DESC_VERSION;
+      }
+      // Save sentiment data from Claude
+      if (parsed.sentiment && parsed.sentiment.score != null) {
+        localData[companyName].sentiment = {
+          score: parsed.sentiment.score,
+          headline: parsed.sentiment.headline || '',
+          rationale: parsed.sentiment.rationale || '',
+          trend: parsed.sentiment.trend || 'flat',
+          confidence: parsed.sentiment.confidence || 'low',
+          factors: parsed.sentiment.factors || {}
+        };
+      } else if (parsed.sentiment) {
+        // score is null — store it so we know we tried
+        localData[companyName].sentiment = { score: null };
       }
       if (parsed.value_usd) {
         const label = fmtMoney(parsed.value_usd) || parsed.label;
@@ -2162,10 +2232,10 @@ function autoQueueLicDescriptions() {
 let acctSortCol = 'intent';
 let acctSortDir = 'desc';
 let frozenSortOrder = null; // locks row order after explicit sort — cleared only by another header click
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -2380,6 +2450,108 @@ function getWorkableCount(accountName) {
   const n = normName(accountName);
   return Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n).length;
 }
+
+// --- Sentiment Score helpers ---
+function getSentiment(name) { return localData[name]?.sentiment || null; }
+function sentimentColor(score) {
+  if (score == null) return 'sent-null';
+  if (score >= 8) return 'sent-green';
+  if (score >= 5) return 'sent-amber';
+  return 'sent-red';
+}
+function sentimentBg(score) {
+  if (score >= 8) return '#16a34a';
+  if (score >= 5) return '#d97706';
+  return '#dc2626';
+}
+function sentimentTrendArrow(trend) {
+  if (trend === 'up') return '↑';
+  if (trend === 'down') return '↓';
+  return '→';
+}
+function renderSentimentBadge(name) {
+  const s = getSentiment(name);
+  if (!s || s.score == null) return '<span class="sent-null" style="font-size:12px;">—</span>';
+  const cls = sentimentColor(s.score);
+  const arrow = sentimentTrendArrow(s.trend);
+  const safeN = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+  return `<span class="sent-badge ${cls}" onclick="event.stopPropagation();openSentimentCard('${safeN}',this)">${s.score}<span class="sent-trend">${arrow}</span></span>`;
+}
+function sentimentBarColor(val) {
+  if (val >= 7) return 'sc-bar-green';
+  if (val >= 4) return 'sc-bar-amber';
+  if (val >= 1) return 'sc-bar-red';
+  return 'sc-bar-grey';
+}
+const SENT_FACTOR_LABELS = {
+  revTrend: 'Revenue',
+  profitTrend: 'Profitability',
+  marketGrowth: 'Market',
+  maActivity: 'M&A',
+  stability: 'Stability',
+  leadership: 'Leadership'
+};
+const SENT_FACTOR_WEIGHTS = { revTrend:25, profitTrend:20, marketGrowth:15, maActivity:15, stability:15, leadership:10 };
+function openSentimentCard(name, triggerEl) {
+  const card = document.getElementById('sentiment-card');
+  const s = getSentiment(name);
+  if (!s || s.score == null) return;
+  const rect = triggerEl.getBoundingClientRect();
+  // Build factors HTML
+  const factors = s.factors || {};
+  let factorsHtml = '';
+  for (const [key, label] of Object.entries(SENT_FACTOR_LABELS)) {
+    const val = factors[key];
+    const pct = val != null ? val * 10 : 0;
+    const barCls = val != null ? sentimentBarColor(val) : 'sc-bar-grey';
+    const weight = SENT_FACTOR_WEIGHTS[key];
+    factorsHtml += `<div class="sc-factor">
+      <div class="sc-factor-label">${label} <span style="font-size:9px;opacity:0.6;">${weight}%</span></div>
+      <div class="sc-factor-bar-bg"><div class="sc-factor-bar ${barCls}" style="width:${pct}%"></div></div>
+      <div class="sc-factor-val" style="color:${val>=7?'#16a34a':val>=4?'#d97706':'#dc2626'}">${val != null ? val : '—'}</div>
+    </div>`;
+  }
+  const confIcon = s.confidence === 'high' ? '●' : s.confidence === 'medium' ? '◐' : '○';
+  card.innerHTML = `
+    <div class="sc-header">
+      <div class="sc-score-ring" style="background:${sentimentBg(s.score)}">${s.score}</div>
+      <div class="sc-header-text">
+        <div class="sc-company">${name}</div>
+        <div class="sc-headline">${s.headline || s.rationale || '—'}</div>
+      </div>
+    </div>
+    <div class="sc-meta">
+      <div class="sc-meta-item"><span>${sentimentTrendArrow(s.trend)}</span> Trend: ${s.trend || '—'}</div>
+      <div class="sc-meta-item"><span>${confIcon}</span> Confidence: ${s.confidence || '—'}</div>
+    </div>
+    <div class="sc-factors">${factorsHtml}</div>`;
+  // Position card
+  card.style.display = 'block';
+  const cardRect = card.getBoundingClientRect();
+  let top = rect.bottom + 6;
+  let left = rect.left - cardRect.width / 2 + rect.width / 2;
+  // Keep within viewport
+  if (top + cardRect.height > window.innerHeight - 10) top = rect.top - cardRect.height - 6;
+  if (left < 10) left = 10;
+  if (left + cardRect.width > window.innerWidth - 10) left = window.innerWidth - cardRect.width - 10;
+  card.style.top = top + 'px';
+  card.style.left = left + 'px';
+  // Close on outside click (one-shot)
+  setTimeout(() => {
+    const closeHandler = (e) => {
+      if (!card.contains(e.target) && e.target !== triggerEl) {
+        card.style.display = 'none';
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+    document.addEventListener('click', closeHandler);
+  }, 0);
+}
+// Close sentiment card on scroll
+document.addEventListener('scroll', function() {
+  const sc = document.getElementById('sentiment-card');
+  if (sc && sc.style.display === 'block') sc.style.display = 'none';
+}, true);
 
 // Account Status custom dropdown — stored in ibis_local[name].acctStatus
 const ACCT_STATUS_OPTS = [
@@ -3500,5 +3672,6 @@ document.addEventListener('scroll', function() {
 </script>
 <!-- Global portal for account status dropdown — lives outside table to avoid stacking context issues -->
 <div id="acct-status-portal"></div>
+<div id="sentiment-card"></div>
 </body>
 </html>
