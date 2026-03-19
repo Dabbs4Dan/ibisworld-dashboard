@@ -480,6 +480,11 @@
   .stage-Awareness { background: var(--tag-awareness); color: var(--tag-awareness-text); }
   .stage-Other, .stage-unknown { background: var(--tag-other); color: var(--tag-other-text); }
 
+  /* Workables count bubble */
+  .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 5px; }
+  /* US Client check */
+  .us-check { color:#16a34a; font-size:14px; font-weight:700; line-height:1; }
+  /* legacy — kept for cards footer CLIENT badge */
   .client-badge {
     font-size: 11px; font-weight: 600;
     padding: 2px 8px; border-radius: 5px;
@@ -1131,8 +1136,9 @@
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
-            <th>Status</th>
-            <th>Flags</th>
+            <th style="text-align:center;">Workables</th>
+            <th style="text-align:center;">US Client</th>
+            <th>License</th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -1627,7 +1633,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -1651,8 +1657,9 @@ function renderTable(list) {
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
-      <td>${clients>0?'<span class="client-badge">CLIENT</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
-      <td><div class="flags-cell">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}${!flags.length?'<span style="color:var(--text-muted);font-size:12px;">—</span>':''}</div></td>
+      <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td>${getLicBadgeSpans(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
     </tr>`;
   }).join('');
 }
@@ -2279,6 +2286,18 @@ function getLicCount(accountName) {
   if (!licenses.length) return 0;
   const n = normName(accountName);
   return licenses.filter(l => normName(l._name) === n).length;
+}
+
+// True if account ever had a US Industry license (churn signal / former US client)
+function hasUSLicense(accountName) {
+  const n = normName(accountName);
+  return licenses.some(l => normName(l._name) === n && l._type === 'US');
+}
+
+// Count active (non-archived) workables for a given account name
+function getWorkableCount(accountName) {
+  const n = normName(accountName);
+  return Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n).length;
 }
 
 // Build license badge spans for a given account (inner HTML only — no wrapper)
