@@ -1401,7 +1401,7 @@ function init() {
       console.error('localStorage data corrupted, resetting:', e);
       accounts = []; localData = {};
     }
-    applySeedsToLocalData(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions();
+    applySeedsToLocalData(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
   }
   // Load Opportunities
@@ -1453,7 +1453,7 @@ function handleCSV(e) {
     updateUploadDots();
     applySeedsToLocalData();
     updateStats(); populateVerticals(); renderAll();
-    autoQueueAccounts(); autoQueueDescriptions();
+    autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
     checkStorageSize();
   };
@@ -1875,8 +1875,7 @@ let claudeRunning = false;
 
 function queueClaudeEnrich(accName, priority = false) {
   const saved = localData[accName]?.rev?.source;
-  const hasSentiment = localData[accName]?.sentiment?.score != null;
-  if ((saved === 'claude' || saved === 'seed') && hasSentiment) return;
+  if (saved === 'claude' || saved === 'seed') return;
   if (claudeQueue.includes(accName)) return;
   if (priority) claudeQueue.unshift(accName); else claudeQueue.push(accName);
   if (!claudeRunning) runClaudeQueue();
@@ -1890,8 +1889,7 @@ async function runClaudeQueue() {
   while (claudeQueue.length) {
     const name = claudeQueue.shift();
     const saved = localData[name]?.rev?.source;
-    const hasSent = localData[name]?.sentiment?.score != null;
-    if ((saved === 'claude' || saved === 'seed') && hasSent) { done++; continue; }
+    if (saved === 'claude' || saved === 'seed') { done++; continue; }
     await fetchRevenueFromClaude(name);
     done++;
     showEnrichProgress(done, total);
@@ -2256,6 +2254,262 @@ function autoQueueLicDescriptions() {
   });
 }
 
+// ── Sentiment Score Enrichment (Wikipedia + Wikidata + internal data) ─────────
+const SENT_VERSION = 1; // bump to force re-score all accounts
+const sentQueue = [];
+let sentRunning = false;
+
+// Signal keywords scanned from Wikipedia extracts
+const DISTRESS_SIGNALS = /\b(bankrupt|chapter\s*11|chapter\s*7|liquidat|insolvenc|delist|layoff|laid\s+off|workforce\s+reduction|restructur|downsiz|shutdown|ceased\s+operations?|wind(?:ing)?\s+down|default(?:ed)?|debt\s+crisis|credit\s+downgrade|class.action|fraud|scandal|SEC\s+investigat|FBI\s+investigat|criminal\s+charges?)\b/i;
+const GROWTH_SIGNALS = /\b(record\s+revenue|record\s+(?:earnings|profit|growth|quarter)|all.time\s+high|IPO|went\s+public|expan(?:d|sion)|acquir(?:ed?|ing)|merger|billion.dollar|fastest.growing|market\s+leader|doubled|tripled|surpass|beat\s+(?:expectations?|estimates?)|strong\s+(?:growth|demand)|partnership\s+with|contract\s+(?:with|from|worth))\b/i;
+const ACQUIRED_SIGNAL = /\b(?:acquired\s+by|(?:was|were)\s+(?:bought|purchased|taken\s+over)\s+by|subsidiary\s+of|(?:now\s+)?(?:part|division|unit)\s+of|merged\s+(?:with|into))\b/i;
+
+function queueSentEnrich(name) {
+  if (!name) return;
+  if (localData[name]?.sentiment?.v === SENT_VERSION) return;
+  if (sentQueue.includes(name)) return;
+  sentQueue.push(name);
+  if (!sentRunning) runSentQueue();
+}
+
+async function runSentQueue() {
+  sentRunning = true;
+  while (sentQueue.length) {
+    const name = sentQueue.shift();
+    if (localData[name]?.sentiment?.v === SENT_VERSION) continue;
+    await fetchSentimentData(name);
+    renderAll();
+    await new Promise(r => setTimeout(r, DESC_DELAY_MS));
+  }
+  sentRunning = false;
+}
+
+async function fetchSentimentData(companyName) {
+  const ext = { wikiSignals: [], revHistory: [], employees: null, isPublic: false, isAcquired: false, isDissolved: false };
+
+  // Step 1: Find Wikidata entity ID via search
+  let entityId = null;
+  try {
+    const searchQ = companyName.replace(/\//g, ' ').replace(/\s+(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.?)$/gi, '').trim();
+    const wdRes = await fetch(`https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(searchQ)}&language=en&type=item&format=json&origin=*&limit=5`);
+    if (wdRes.ok) {
+      const wdData = await wdRes.json();
+      const nameNorm = searchQ.toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const entity of (wdData.search || [])) {
+        const labelNorm = (entity.label || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const descLower = (entity.description || '').toLowerCase();
+        // Match by label similarity + must look like a business
+        if ((labelNorm.startsWith(nameNorm.slice(0, 4)) || nameNorm.startsWith(labelNorm.slice(0, 4))) && !NON_BUSINESS_TERMS.test(descLower)) {
+          entityId = entity.id;
+          break;
+        }
+      }
+    }
+  } catch { /* silent */ }
+
+  // Step 2: Fetch Wikidata entity claims for financial data
+  if (entityId) {
+    try {
+      const entRes = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${entityId}&format=json&origin=*`);
+      if (entRes.ok) {
+        const claims = (await entRes.json()).claims || {};
+
+        // P2139 = total revenue (multiple values with year qualifiers)
+        if (claims.P2139) {
+          for (const claim of claims.P2139) {
+            const amt = claim.mainsnak?.datavalue?.value?.amount;
+            const unit = claim.mainsnak?.datavalue?.value?.unit || '';
+            if (!amt) continue;
+            let year = null;
+            for (const qual of (claim.qualifiers?.P585 || [])) {
+              const timeVal = qual.datavalue?.value?.time;
+              if (timeVal) { year = parseInt(timeVal.slice(1, 5)); break; }
+            }
+            ext.revHistory.push({ amount: parseFloat(amt), year, unit });
+          }
+          ext.revHistory.sort((a, b) => (b.year || 0) - (a.year || 0));
+        }
+
+        // P1128 = employees
+        if (claims.P1128) {
+          const latest = claims.P1128[claims.P1128.length - 1];
+          const empAmt = latest?.mainsnak?.datavalue?.value?.amount;
+          if (empAmt) ext.employees = parseInt(empAmt);
+        }
+
+        // P414 = stock exchange → public company
+        if (claims.P414 && claims.P414.length > 0) ext.isPublic = true;
+
+        // P576 = dissolved/abolished date
+        if (claims.P576 && claims.P576.length > 0) ext.isDissolved = true;
+
+        // P1366 = replaced by (acquisition signal)
+        if (claims.P1366 && claims.P1366.length > 0) ext.isAcquired = true;
+      }
+    } catch { /* silent */ }
+  }
+
+  // Step 3: Scan Wikipedia extract for growth/distress keywords
+  try {
+    const searchQ = companyName.replace(/\//g, ' ').replace(/\s+(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.?)$/gi, '').trim();
+    const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(searchQ)}`);
+    if (wikiRes.ok) {
+      const wikiData = await wikiRes.json();
+      const fullText = (wikiData.extract || '') + ' ' + (wikiData.description || '');
+
+      if (DISTRESS_SIGNALS.test(fullText)) ext.wikiSignals.push('distress');
+      if (GROWTH_SIGNALS.test(fullText)) ext.wikiSignals.push('growth');
+      if (ACQUIRED_SIGNAL.test(fullText)) { ext.wikiSignals.push('acquired'); ext.isAcquired = true; }
+    }
+  } catch { /* silent */ }
+
+  // Step 4: Compute composite score from external + internal data
+  computeSentimentScore(companyName, ext);
+}
+
+function computeSentimentScore(name, ext) {
+  if (!localData[name]) localData[name] = {};
+  const acc = accounts.find(a => normName(getField(a, 'Account Name', 'AccountName')) === normName(name));
+
+  // ── Factor 1: Company Scale (15%) ──
+  // Larger companies = more stable, more potential
+  const revData = localData[name]?.rev;
+  const rawRev = revData?.raw || 0;
+  let scaleScore = 5; // default
+  if (rawRev > 50_000_000_000) scaleScore = 10;
+  else if (rawRev > 10_000_000_000) scaleScore = 9;
+  else if (rawRev > 1_000_000_000) scaleScore = 8;
+  else if (rawRev > 500_000_000) scaleScore = 7;
+  else if (rawRev > 100_000_000) scaleScore = 6;
+  else if (rawRev > 0) scaleScore = 5;
+  else scaleScore = 3; // no revenue data
+
+  // ── Factor 2: Revenue Trend (20%) ──
+  // Wikidata multi-year revenue comparison
+  let trendScore = 5;
+  let trendDir = 'flat';
+  if (ext.revHistory.length >= 2) {
+    const newest = ext.revHistory[0];
+    const older = ext.revHistory[ext.revHistory.length > 2 ? 2 : 1];
+    if (newest.amount > 0 && older.amount > 0) {
+      const growthPct = ((newest.amount - older.amount) / older.amount) * 100;
+      if (growthPct > 20) { trendScore = 9; trendDir = 'up'; }
+      else if (growthPct > 5) { trendScore = 7; trendDir = 'up'; }
+      else if (growthPct > -5) { trendScore = 5; trendDir = 'flat'; }
+      else if (growthPct > -20) { trendScore = 3; trendDir = 'down'; }
+      else { trendScore = 1; trendDir = 'down'; }
+    }
+  }
+
+  // ── Factor 3: Market Signals (20%) ──
+  // Wikipedia keyword signals + Wikidata flags
+  let marketScore = 5;
+  const signals = ext.wikiSignals;
+  if (ext.isDissolved) marketScore = 1;
+  else if (signals.includes('distress')) marketScore = 2;
+  else if (ext.isAcquired && !signals.includes('growth')) marketScore = 4;
+  else if (signals.includes('growth') && !signals.includes('distress')) marketScore = 8;
+  else if (signals.includes('growth') && signals.includes('distress')) marketScore = 5;
+  else if (ext.isPublic) marketScore = 6; // public = at least stable
+  // else stays at 5 (neutral — no signals)
+
+  // ── Factor 4: Engagement (20%) ──
+  // Internal data: days inactive, intent score, buying stage
+  let engageScore = 5;
+  if (acc) {
+    const days = parseFloat(getField(acc, 'US Days Since Last Activity') || 0);
+    const intent = parseFloat(getField(acc, '6sense Account Intent Score NA') || 0);
+    const stage = (getField(acc, '6sense Account Buying Stage NA') || '').toLowerCase();
+    let pts = 5;
+    if (days > 0 && days < 30) pts += 2;
+    else if (days < 90) pts += 1;
+    else if (days > 180) pts -= 1;
+    else if (days > 365) pts -= 2;
+    if (intent >= 80) pts += 2;
+    else if (intent >= 60) pts += 1;
+    if (stage.includes('decision') || stage.includes('purchase')) pts += 2;
+    else if (stage.includes('consideration')) pts += 1;
+    engageScore = Math.max(1, Math.min(10, pts));
+  }
+
+  // ── Factor 5: Pipeline (15%) ──
+  // Workables, opportunities, active contacts
+  let pipeScore = 3; // no pipeline = low
+  const wkblCount = getWorkableCount(name);
+  const oppCount = acc ? parseFloat(getField(acc, '# Core Opportunities') || 0) : 0;
+  if (wkblCount >= 3 || oppCount >= 2) pipeScore = 9;
+  else if (wkblCount >= 1 || oppCount >= 1) pipeScore = 7;
+  else if (wkblCount > 0 || oppCount > 0) pipeScore = 5;
+
+  // ── Factor 6: License History (10%) ──
+  // Active = great, churned = warning, never = neutral
+  let licScore = 5;
+  const activeBadges = getActiveLicBadges(name);
+  const hasUS = hasUSLicense(name);
+  const licCount = getLicCount(name);
+  if (activeBadges) licScore = 9; // active PIQ/INTL
+  else if (hasUS && licCount > 0) licScore = 4; // US industry only (churn signal)
+  else if (licCount > 0) licScore = 3; // had licenses, all churned
+  // else 5 — never had licenses (neutral, not negative)
+
+  // ── Weighted composite ──
+  const weights = { scale: 0.15, trend: 0.20, market: 0.20, engage: 0.20, pipeline: 0.15, licenses: 0.10 };
+  const rawScore = (scaleScore * weights.scale) + (trendScore * weights.trend) + (marketScore * weights.market) + (engageScore * weights.engage) + (pipeScore * weights.pipeline) + (licScore * weights.licenses);
+  const finalScore = Math.max(1, Math.min(10, Math.round(rawScore)));
+
+  // ── Confidence ──
+  let dataPoints = 0;
+  if (rawRev > 0) dataPoints++;
+  if (ext.revHistory.length >= 2) dataPoints++;
+  if (ext.wikiSignals.length > 0) dataPoints++;
+  if (acc) dataPoints++;
+  if (wkblCount > 0 || oppCount > 0) dataPoints++;
+  if (licCount > 0) dataPoints++;
+  const confidence = dataPoints >= 4 ? 'high' : dataPoints >= 2 ? 'medium' : 'low';
+
+  // ── Auto-generate headline ──
+  let headline = '';
+  if (ext.isDissolved) headline = 'Company is dissolved or no longer operating';
+  else if (ext.wikiSignals.includes('distress')) headline = 'Wikipedia flags financial distress signals — investigate before investing time';
+  else if (ext.isAcquired) headline = 'Company has been acquired — verify decision-making structure';
+  else if (activeBadges && wkblCount >= 2) headline = `Active client with ${wkblCount} contacts in pipeline — strong position`;
+  else if (activeBadges && wkblCount === 0) headline = 'Active license holder but zero pipeline activity — needs outreach';
+  else if (licCount > 0 && !activeBadges && wkblCount === 0) headline = 'Former client with churned licenses and no active pipeline';
+  else if (signals.includes('growth') && wkblCount > 0) headline = 'Growing company with active pipeline — prioritize';
+  else if (signals.includes('growth')) headline = 'Company showing growth signals — worth pursuing';
+  else if (trendDir === 'up') headline = 'Revenue trending upward — expansion opportunity';
+  else if (trendDir === 'down') headline = 'Revenue trending downward — assess viability before investing time';
+  else if (wkblCount >= 2) headline = `${wkblCount} contacts in pipeline — maintain momentum`;
+  else if (engageScore >= 7) headline = 'Strong engagement signals from 6sense — time to act';
+  else if (rawRev > 10_000_000_000 && wkblCount === 0) headline = 'Large enterprise with no pipeline activity — untapped potential';
+  else headline = 'Limited data signals — monitor for changes';
+
+  localData[name].sentiment = {
+    score: finalScore,
+    headline,
+    rationale: headline,
+    trend: trendDir,
+    confidence,
+    factors: {
+      revTrend: trendScore,
+      profitTrend: marketScore, // using market signals as proxy
+      marketGrowth: scaleScore,
+      maActivity: ext.isAcquired ? 3 : (signals.includes('growth') ? 7 : 5),
+      stability: ext.isDissolved ? 1 : (signals.includes('distress') ? 2 : (ext.isPublic ? 7 : 5)),
+      leadership: engageScore // using engagement as most actionable factor
+    },
+    v: SENT_VERSION
+  };
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
+
+function autoQueueSentiment() {
+  // Tier-1 first, then rest
+  const tier1 = accounts.filter(a => getField(a, 'Major Markets Tier') == '1');
+  const rest = accounts.filter(a => getField(a, 'Major Markets Tier') != '1');
+  [...tier1, ...rest].forEach(a => queueSentEnrich(getField(a, 'Account Name', 'AccountName')));
+}
+
 let acctSortCol = 'intent';
 let acctSortDir = 'desc';
 let frozenSortOrder = null; // locks row order after explicit sort — cleared only by another header click
@@ -2511,14 +2765,14 @@ function sentimentBarColor(val) {
   return 'sc-bar-grey';
 }
 const SENT_FACTOR_LABELS = {
-  revTrend: 'Revenue',
-  profitTrend: 'Profitability',
-  marketGrowth: 'Market',
-  maActivity: 'M&A',
+  revTrend: 'Rev Trend',
+  profitTrend: 'Mkt Signals',
+  marketGrowth: 'Scale',
+  maActivity: 'M&A / Growth',
   stability: 'Stability',
-  leadership: 'Leadership'
+  leadership: 'Engagement'
 };
-const SENT_FACTOR_WEIGHTS = { revTrend:25, profitTrend:20, marketGrowth:15, maActivity:15, stability:15, leadership:10 };
+const SENT_FACTOR_WEIGHTS = { revTrend:20, profitTrend:20, marketGrowth:15, maActivity:15, stability:15, leadership:15 };
 function openSentimentCard(name, triggerEl) {
   const card = document.getElementById('sentiment-card');
   const s = getSentiment(name);
