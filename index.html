@@ -1067,13 +1067,10 @@
     <option value="">All Verticals</option>
   </select>
   <div class="filter-chips">
-    <button class="chip" onclick="toggleChip(this,'🔥')" data-flag="🔥">🔥 Hot</button>
-    <button class="chip" onclick="toggleChip(this,'✅')" data-flag="✅">✅ Opp</button>
-    <button class="chip" onclick="toggleChip(this,'🔄')" data-flag="🔄">🔄 Winback</button>
-    <button class="chip" onclick="toggleChip(this,'👀')" data-flag="👀">👀 Watching</button>
-    <button class="chip" onclick="toggleChip(this,'💤')" data-flag="💤">💤 Cold</button>
-    <button class="chip" onclick="toggleChip(this,'🆕')" data-flag="🆕">🆕 New</button>
-    <button class="chip" onclick="toggleChip(this,'CLIENT')" data-flag="CLIENT">⭐ Clients Only</button>
+    <button class="chip" onclick="toggleChip(this,'KEEP')" data-flag="KEEP">✓ Keep</button>
+    <button class="chip" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
+    <button class="chip" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">◎ Monitor</button>
+    <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
   </div>
 </div>
 
@@ -1144,7 +1141,20 @@
             <th onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;">Status <span class="acct-sort-arrow" id="asort-acctStatus"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
-            <th onclick="setSortCol('tier')" style="cursor:pointer;">Tier <span class="acct-sort-arrow" id="asort-tier"></span></th>
+            <th style="cursor:pointer;position:relative;" id="ath-tier">
+              <div class="lic-th-inner">
+                <span onclick="setSortCol('tier')">Tier <span class="acct-sort-arrow" id="asort-tier"></span></span>
+                <button class="lic-filter-trigger" id="atfbtn-tier" onclick="toggleTierDropdown(event)" title="Filter by tier">▾</button>
+              </div>
+              <div class="lic-dropdown hidden" id="acct-dropdown-tier">
+                <label><input type="checkbox" value="1" onchange="applyTierFilter()"> Tier 1</label>
+                <label><input type="checkbox" value="2" onchange="applyTierFilter()"> Tier 2</label>
+                <label><input type="checkbox" value="3" onchange="applyTierFilter()"> Tier 3</label>
+                <label><input type="checkbox" value="4" onchange="applyTierFilter()"> Tier 4</label>
+                <label><input type="checkbox" value="" onchange="applyTierFilter()"> — (No tier)</label>
+                <div class="lic-dropdown-actions"><button onclick="clearTierFilter()">Clear</button></div>
+              </div>
+            </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
@@ -1502,15 +1512,26 @@ function populateVerticals() {
 function getFiltered() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const vert = document.getElementById('vertical-filter').value;
-  const sort = document.getElementById('sort-select').value;
+  const sort = acctSortCol;
   let list = accounts.filter(a => {
-    const name = getField(a,'Account Name','AccountName').toLowerCase();
+    const aName = getField(a,'Account Name','AccountName');
+    const name = aName.toLowerCase();
     if (q && !name.includes(q) && !getField(a,'Vertical').toLowerCase().includes(q)) return false;
     if (vert && getTrueVertical(a) !== vert) return false;
+    if (acctTierFilters.size > 0) {
+      const tierVal = getField(a,'Major Markets Tier') || '';
+      if (!acctTierFilters.has(tierVal)) return false;
+    }
     if (activeFlags.size > 0) {
-      const flags = localData[getField(a,'Account Name','AccountName')]?.flags || [];
-      const isClient = parseFloat(getField(a,'# Core Clients')||0) > 0;
-      for (const f of activeFlags) { if (f === 'CLIENT') { if (!isClient) return false; } else if (!flags.includes(f)) return false; }
+      const flags = localData[aName]?.flags || [];
+      const acctStatus = localData[aName]?.acctStatus || '';
+      for (const f of activeFlags) {
+        if (f === 'KEEP')       { if (acctStatus !== 'keep')    return false; }
+        else if (f === 'DROP')    { if (acctStatus !== 'drop')    return false; }
+        else if (f === 'MONITOR') { if (acctStatus !== 'monitor') return false; }
+        else if (f === 'ACTIVE_LIC') { if (!getActiveLicBadges(aName)) return false; }
+        else if (!flags.includes(f)) return false;
+      }
     }
     return true;
   });
@@ -1643,7 +1664,7 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
       ${revHtml}
-      <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${clients>0?'<span class="client-badge">CLIENT</span>':''}</div>
+      <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:6px;">${ab}</div>`:''})()}</div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
   }).join('');
@@ -1667,7 +1688,7 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <td style="padding:6px 10px;">${renderAcctStatusSelect(name)}</td>
+      <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctStatusSelect(name)}</td>
       <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
@@ -2188,6 +2209,7 @@ function restoreSortPref() {
 
 let licenses = [];
 let licLatestMode   = false;
+let acctTierFilters = new Set(); // values: '1','2','3','4',''
 let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
 let licStatusFilters = new Set(); // values: 'active','newchurn','churned','dead'
 let openLicDropdown = null;
@@ -2356,7 +2378,7 @@ function renderAcctStatusSelect(name) {
     `<button class="acct-status-opt ${o.cls}" onclick="event.stopPropagation();selectAcctStatusOpt('${escapedName}','${o.key}','${safeId}')">${o.label}</button>`
   ).join('');
   return `<div class="acct-status-wrap" id="${safeId}" onclick="event.stopPropagation()">
-    <button class="acct-status-trigger ${cur.cls}" onclick="toggleAcctStatusMenu('${safeId}')">${cur.label}</button>
+    <button class="acct-status-trigger ${cur.cls}" onclick="event.stopPropagation();toggleAcctStatusMenu('${safeId}')">${cur.label}</button>
     <div class="acct-status-menu">${opts}</div>
   </div>`;
 }
@@ -3351,6 +3373,49 @@ function updateUploadDots() {
 init();
 checkStorageSize();
 
+// --- Tier filter for Accounts table ---
+function toggleTierDropdown(e) {
+  e.stopPropagation();
+  const dropdown = document.getElementById('acct-dropdown-tier');
+  if (!dropdown) return;
+  const isHidden = dropdown.classList.contains('hidden');
+  // Close lic dropdowns
+  if (openLicDropdown) { document.getElementById(openLicDropdown)?.classList.add('hidden'); openLicDropdown = null; }
+  if (isHidden) {
+    const btn = document.getElementById('atfbtn-tier');
+    const rect = btn.getBoundingClientRect();
+    dropdown.style.position = 'fixed';
+    dropdown.style.top  = (rect.bottom + 4) + 'px';
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.zIndex = '600';
+    dropdown.classList.remove('hidden');
+  } else {
+    dropdown.classList.add('hidden');
+  }
+}
+
+function applyTierFilter() {
+  const checks = document.querySelectorAll('#acct-dropdown-tier input[type=checkbox]');
+  acctTierFilters = new Set([...checks].filter(c => c.checked).map(c => c.value));
+  updateTierFilterIndicator(acctTierFilters.size > 0);
+  renderAll();
+}
+
+function clearTierFilter() {
+  document.querySelectorAll('#acct-dropdown-tier input[type=checkbox]').forEach(c => c.checked = false);
+  acctTierFilters = new Set();
+  updateTierFilterIndicator(false);
+  document.getElementById('acct-dropdown-tier')?.classList.add('hidden');
+  renderAll();
+}
+
+function updateTierFilterIndicator(active) {
+  const btn = document.getElementById('atfbtn-tier');
+  const th  = document.getElementById('ath-tier');
+  if (btn) btn.classList.toggle('active', active);
+  if (th)  th.classList.toggle('filter-active', active);
+}
+
 document.addEventListener('click', function(e) {
   // Close upload menu on outside click
   const menu = document.getElementById('upload-menu');
@@ -3361,6 +3426,15 @@ document.addEventListener('click', function(e) {
   // Close stage custom menus on outside click
   if (!e.target.closest('.stage-sel-wrap')) {
     document.querySelectorAll('.stage-sel-wrap.open').forEach(w => w.classList.remove('open'));
+  }
+  // Close acct status menus on outside click
+  if (!e.target.closest('.acct-status-wrap')) {
+    document.querySelectorAll('.acct-status-wrap.open').forEach(w => w.classList.remove('open'));
+  }
+  // Close tier dropdown on outside click
+  const tierDd = document.getElementById('acct-dropdown-tier');
+  if (tierDd && !tierDd.classList.contains('hidden') && !tierDd.contains(e.target) && !e.target.closest('#ath-tier')) {
+    tierDd.classList.add('hidden');
   }
   // Close lic filter dropdowns on outside click
   if (!openLicDropdown) return;
