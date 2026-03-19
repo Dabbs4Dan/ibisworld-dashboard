@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~1,600+ lines
+**File:** `index.html` — single self-contained file, ~3,500+ lines
 
 ---
 
@@ -45,7 +45,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 ### Three tabs live:
 1. **📋 Accounts tab** — main territory view
 2. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
-3. **🎯 Opportunities tab** — contact pipeline with Kanban + Table view
+3. **🎯 Workables tab** — contact pipeline with Cards + Table view
 
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
