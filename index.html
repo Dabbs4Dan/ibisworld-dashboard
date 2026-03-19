@@ -1562,7 +1562,21 @@ function getFiltered() {
 }
 
 function renderAll() {
-  const list = getFiltered();
+  let list = getFiltered();
+  if (frozenSortOrder === null) {
+    // First render after an explicit sort — lock this order in
+    frozenSortOrder = list.map(a => getField(a,'Account Name','AccountName'));
+  } else {
+    // Subsequent renders (background enrichment, status changes, etc.)
+    // Preserve the frozen row order — only show accounts still in the filtered set
+    const nameToAcc = {};
+    list.forEach(a => { nameToAcc[getField(a,'Account Name','AccountName')] = a; });
+    const frozen = frozenSortOrder.filter(n => nameToAcc[n]).map(n => nameToAcc[n]);
+    // Append any new accounts not in the frozen order at the end
+    const frozenSet = new Set(frozenSortOrder);
+    list.forEach(a => { if (!frozenSet.has(getField(a,'Account Name','AccountName'))) frozen.push(a); });
+    list = frozen;
+  }
   document.getElementById('acct-count-label').textContent = accounts.length ? `${list.length} of ${accounts.length} accounts` : '';
   updateAcctSortArrows();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
@@ -2147,6 +2161,7 @@ function autoQueueLicDescriptions() {
 
 let acctSortCol = 'intent';
 let acctSortDir = 'desc';
+let frozenSortOrder = null; // locks row order after explicit sort — cleared only by another header click
 const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc' };
 
 function updateAcctSortArrows() {
@@ -2169,6 +2184,7 @@ function setSortCol(col) {
     acctSortCol = col;
     acctSortDir = ACCT_SORT_DEFAULT_DIR[col] || 'desc';
   }
+  frozenSortOrder = null; // user explicitly sorted — unlock, let renderAll freeze fresh order
   document.getElementById('sort-select').value = col;
   saveSortPref();
   renderAll();
@@ -2177,6 +2193,7 @@ function onAcctSortSelectChange() {
   const val = document.getElementById('sort-select').value;
   acctSortCol = val;
   acctSortDir = ACCT_SORT_DEFAULT_DIR[val] || 'desc';
+  frozenSortOrder = null;
   saveSortPref();
   renderAll();
 }
