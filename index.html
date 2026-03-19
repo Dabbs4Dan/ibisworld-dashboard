@@ -389,6 +389,9 @@
   }
   .chip:hover { border-color: var(--border-hover); color: var(--text-primary); background: var(--surface); }
   .chip.active { background: var(--ibis-red-light); border-color: var(--ibis-red); color: var(--ibis-red); font-weight: 600; }
+  .chip-keep.active    { background:#d1fae5; border-color:#6ee7b7; color:#065f46; }
+  .chip-monitor.active { background:#fef9c3; border-color:#fde68a; color:#854d0e; }
+  .chip-drop.active    { background:#fee2e2; border-color:#fca5a5; color:#991b1b; }
 
   .change-banner {
     margin: 12px 24px;
@@ -851,11 +854,11 @@
   .acct-status-wrap { position:relative; display:inline-block; }
   .acct-status-trigger { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.5; min-width:68px; transition:opacity 0.1s; }
   .acct-status-trigger::after { content:'▾'; font-size:9px; opacity:0.55; margin-left:2px; }
-  .acct-status-menu { position:absolute; top:calc(100% + 5px); left:50%; transform:translateX(-50%); z-index:600; background:white; border:1px solid var(--border); border-radius:9px; box-shadow:0 8px 24px rgba(0,0,0,0.11); padding:5px; min-width:110px; display:none; }
+  .acct-status-menu { position:fixed; z-index:700; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,0.13); padding:6px; min-width:130px; display:none; }
   .acct-status-wrap.open .acct-status-menu { display:block; }
-  .acct-status-opt { display:block; width:100%; padding:5px 10px; border:none; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:opacity 0.12s; }
+  .acct-status-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-status-opt:last-child { margin-bottom:0; }
-  .acct-status-opt:hover { opacity:0.75; }
+  .acct-status-opt:hover { filter:brightness(0.94); }
   .ast-keep    { background:#d1fae5; color:#065f46; }
   .ast-monitor { background:#fef9c3; color:#854d0e; }
   .ast-drop    { background:#fee2e2; color:#991b1b; }
@@ -1067,9 +1070,9 @@
     <option value="">All Verticals</option>
   </select>
   <div class="filter-chips">
-    <button class="chip" onclick="toggleChip(this,'KEEP')" data-flag="KEEP">✓ Keep</button>
-    <button class="chip" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
-    <button class="chip" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">◎ Monitor</button>
+    <button class="chip chip-keep" onclick="toggleChip(this,'KEEP')" data-flag="KEEP">✓ Keep</button>
+    <button class="chip chip-monitor" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">👁 Monitor</button>
+    <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
   </div>
 </div>
@@ -1688,7 +1691,7 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctStatusSelect(name)}</td>
+      <td style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
@@ -2364,9 +2367,9 @@ function getWorkableCount(accountName) {
 // Account Status custom dropdown — stored in ibis_local[name].acctStatus
 const ACCT_STATUS_OPTS = [
   { key:'keep',    label:'✓ Keep',    cls:'ast-keep' },
-  { key:'monitor', label:'◎ Monitor', cls:'ast-monitor' },
+  { key:'monitor', label:'👁 Monitor', cls:'ast-monitor' },
   { key:'drop',    label:'✕ Drop',    cls:'ast-drop' },
-  { key:'',        label:'—',          cls:'ast-none' },
+  { key:'',        label:'—',         cls:'ast-none' },
 ];
 
 function renderAcctStatusSelect(name) {
@@ -2388,7 +2391,15 @@ function toggleAcctStatusMenu(id) {
   if (!wrap) return;
   const isOpen = wrap.classList.contains('open');
   document.querySelectorAll('.acct-status-wrap.open').forEach(w => w.classList.remove('open'));
-  if (!isOpen) wrap.classList.add('open');
+  if (!isOpen) {
+    const menu = wrap.querySelector('.acct-status-menu');
+    if (menu) {
+      const rect = wrap.getBoundingClientRect();
+      menu.style.top  = (rect.bottom + 4) + 'px';
+      menu.style.left = Math.max(4, rect.left) + 'px';
+    }
+    wrap.classList.add('open');
+  }
 }
 
 function selectAcctStatusOpt(name, status, id) {
