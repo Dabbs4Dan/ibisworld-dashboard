@@ -424,7 +424,7 @@
     will-change: transform;
     position: relative;
   }
-  .account-card:hover { background: var(--card-hover); border-color: var(--border-hover); box-shadow: 0 4px 14px rgba(0,0,0,0.09); transform: translateY(-2px); }
+  .account-card:hover { background: var(--card-hover); border-color: var(--border-hover); }
   .account-card.new-account { border-color: #6ee7b7; background: #f0fdf9; }
 
   .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
@@ -519,7 +519,6 @@
   tbody tr {
     border-bottom: 1px solid var(--border);
     transition: background 0.12s;
-    cursor: pointer;
   }
   tbody tr:last-child { border-bottom: none; }
   tbody tr:hover { background: var(--card-hover); }
@@ -1467,7 +1466,8 @@ function pruneStaleLocalData() {
     // Check for user-generated data worth keeping
     const hasNotes = !!(entry.notes && entry.notes.trim());
     const userFlags = (entry.flags || []).filter(f => f !== '🆕');
-    if (hasNotes || userFlags.length > 0) return; // has real user data — keep
+    const hasStatus = !!(entry.acctStatus);
+    if (hasNotes || userFlags.length > 0 || hasStatus) return; // has real user data — keep
     delete localData[name];
     pruned++;
   });
@@ -1655,7 +1655,7 @@ function renderCards(list) {
     const revLabel = revInfo ? revInfo.label.replace('USD ', '$') : null;
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
-    return `<div class="account-card${flags.includes('🆕')?' new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+    return `<div class="account-card${flags.includes('🆕')?' new-account':''}">`
       <div class="card-top"><div class="card-identity">${logoHTML(acc)}<div><div class="company-name">${name}</div>${(local.desc||sub)?`<div class="card-sub-vert">${local.desc||sub}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
@@ -1690,7 +1690,7 @@ function renderTable(list) {
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-    return `<tr class="${flags.includes('🆕')?'new-account':''}" onclick="openModal('${name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+    return `<tr class="${flags.includes('🆕')?'new-account':''}">`
       <td style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
@@ -2406,8 +2406,14 @@ function selectAcctStatusOpt(name, status, id) {
   if (!localData[name]) localData[name] = {};
   localData[name].acctStatus = status;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
-  document.getElementById(id)?.classList.remove('open');
-  renderAll();
+  // Update just the trigger button in-place — no full re-render needed
+  const wrap = document.getElementById(id);
+  if (wrap) {
+    const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
+    const trigger = wrap.querySelector('.acct-status-trigger');
+    if (trigger) { trigger.className = 'acct-status-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
+    wrap.classList.remove('open');
+  }
 }
 
 // Build license badge spans for a given account (inner HTML only — no wrapper)
