@@ -853,8 +853,8 @@
   .acct-status-wrap { position:relative; display:inline-block; }
   .acct-status-trigger { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.5; min-width:68px; transition:opacity 0.1s; }
   .acct-status-trigger::after { content:'▾'; font-size:9px; opacity:0.55; margin-left:2px; }
-  .acct-status-menu { position:fixed; z-index:700; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,0.13); padding:6px; min-width:130px; display:none; }
-  .acct-status-wrap.open .acct-status-menu { display:block; }
+  /* acct-status-menu lives in a portal div at body level — see #acct-status-portal */
+  #acct-status-portal { position:fixed; z-index:9500; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.14); padding:6px; min-width:130px; display:none; }
   .acct-status-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-status-opt:last-child { margin-bottom:0; }
   .acct-status-opt:hover { filter:brightness(0.94); }
@@ -2375,45 +2375,57 @@ const ACCT_STATUS_OPTS = [
 function renderAcctStatusSelect(name) {
   const status = (localData[name]?.acctStatus) || '';
   const safeId = 'ast-' + name.replace(/[^a-z0-9]/gi,'_');
-  const escapedName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
   const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
-  const opts = ACCT_STATUS_OPTS.map(o =>
-    `<button class="acct-status-opt ${o.cls}" onclick="event.stopPropagation();selectAcctStatusOpt('${escapedName}','${o.key}','${safeId}')">${o.label}</button>`
-  ).join('');
+  // No inline menu — portal handles it. Name stored on wrapper via data attribute.
   return `<div class="acct-status-wrap" id="${safeId}" onclick="event.stopPropagation()">
-    <button class="acct-status-trigger ${cur.cls}" onclick="event.stopPropagation();toggleAcctStatusMenu('${safeId}')">${cur.label}</button>
-    <div class="acct-status-menu">${opts}</div>
+    <button class="acct-status-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctStatusPortal('${safeId}',this)">${cur.label}</button>
   </div>`;
 }
 
-function toggleAcctStatusMenu(id) {
-  const wrap = document.getElementById(id);
-  if (!wrap) return;
-  const isOpen = wrap.classList.contains('open');
-  document.querySelectorAll('.acct-status-wrap.open').forEach(w => w.classList.remove('open'));
-  if (!isOpen) {
-    const menu = wrap.querySelector('.acct-status-menu');
-    if (menu) {
-      const rect = wrap.getBoundingClientRect();
-      menu.style.top  = (rect.bottom + 4) + 'px';
-      menu.style.left = Math.max(4, rect.left) + 'px';
-    }
-    wrap.classList.add('open');
+// name is read from wrapper's data attribute — zero escaping issues
+function openAcctStatusPortal(id, triggerBtn) {
+  const portal = document.getElementById('acct-status-portal');
+  if (!portal) return;
+  // Toggle: clicking same trigger again closes it
+  if (portal.dataset.wrapId === id && portal.style.display === 'block') {
+    portal.style.display = 'none'; portal.dataset.wrapId = '';
+    return;
   }
+  // Store context on portal (no JS escaping — raw strings via dataset)
+  const wrap = document.getElementById(id);
+  const name = wrap ? wrap.closest('td')?.querySelector('[data-acct-name]')?.dataset.acctName : null;
+  // Fallback: read name from localData by wrap id prefix match
+  portal.dataset.wrapId = id;
+  portal.innerHTML = ACCT_STATUS_OPTS.map(o =>
+    `<button class="acct-status-opt ${o.cls}" onclick="event.stopPropagation();applyPortalStatus('${o.key}')">${o.label}</button>`
+  ).join('');
+  const rect = triggerBtn.getBoundingClientRect();
+  portal.style.left = Math.max(4, rect.left) + 'px';
+  portal.style.top  = (rect.bottom + 4) + 'px';
+  portal.style.display = 'block';
 }
 
-function selectAcctStatusOpt(name, status, id) {
+function applyPortalStatus(status) {
+  const portal = document.getElementById('acct-status-portal');
+  if (!portal) return;
+  const id = portal.dataset.wrapId;
+  if (!id) return;
+  // Recover account name from the safeId (reverse: 'ast-' prefix, underscores may be non-alpha)
+  // Instead, look up account by matching safeId against all localData keys
+  const name = accounts.map(a => getField(a,'Account Name','AccountName'))
+    .find(n => ('ast-' + n.replace(/[^a-z0-9]/gi,'_')) === id);
+  if (!name) { portal.style.display='none'; return; }
   if (!localData[name]) localData[name] = {};
   localData[name].acctStatus = status;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
-  // Update just the trigger button in-place — no full re-render needed
+  // Update trigger in-place
   const wrap = document.getElementById(id);
   if (wrap) {
     const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
     const trigger = wrap.querySelector('.acct-status-trigger');
     if (trigger) { trigger.className = 'acct-status-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
-    wrap.classList.remove('open');
   }
+  portal.style.display = 'none'; portal.dataset.wrapId = '';
 }
 
 // Build license badge spans for a given account (inner HTML only — no wrapper)
@@ -3444,9 +3456,10 @@ document.addEventListener('click', function(e) {
   if (!e.target.closest('.stage-sel-wrap')) {
     document.querySelectorAll('.stage-sel-wrap.open').forEach(w => w.classList.remove('open'));
   }
-  // Close acct status menus on outside click
-  if (!e.target.closest('.acct-status-wrap')) {
-    document.querySelectorAll('.acct-status-wrap.open').forEach(w => w.classList.remove('open'));
+  // Close acct status portal on outside click
+  const _asp = document.getElementById('acct-status-portal');
+  if (_asp && _asp.style.display === 'block' && !e.target.closest('.acct-status-wrap') && !e.target.closest('#acct-status-portal')) {
+    _asp.style.display = 'none'; _asp.dataset.wrapId = '';
   }
   // Close tier dropdown on outside click
   const tierDd = document.getElementById('acct-dropdown-tier');
@@ -3462,6 +3475,13 @@ document.addEventListener('click', function(e) {
     openLicDropdown = null;
   }
 });
+// Close the status portal if the user scrolls (so it doesn't float disconnected from its row)
+document.addEventListener('scroll', function() {
+  const _asp = document.getElementById('acct-status-portal');
+  if (_asp && _asp.style.display === 'block') { _asp.style.display = 'none'; _asp.dataset.wrapId = ''; }
+}, true);
 </script>
+<!-- Global portal for account status dropdown — lives outside table to avoid stacking context issues -->
+<div id="acct-status-portal"></div>
 </body>
 </html>
