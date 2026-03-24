@@ -51,10 +51,19 @@ setExtensionIcon();
 
 const OWA_API_BASE = 'https://outlook.office365.com/owa/api/v2.0/me/messages';
 
-// Primary: Microsoft Graph API using MSAL token from page localStorage
+// Primary: Microsoft Graph API — tries me/messages, then search/query as fallback
 async function fetchViaGraph(email, depth, token) {
-  // $search with ConsistencyLevel:eventual finds messages where the email appears
-  // in From, To, CC, or body — sufficient for from/to history detection.
+  // Attempt 1: me/messages endpoint
+  try {
+    return await fetchViaGraphMessages(email, depth, token);
+  } catch (e) {
+    console.warn('[IBISWorld BG] me/messages failed for', email, ':', e.message, '— trying search/query');
+  }
+  // Attempt 2: Microsoft Search API (different permission path, may succeed when me/messages blocked)
+  return fetchViaGraphSearch(email, depth, token);
+}
+
+async function fetchViaGraphMessages(email, depth, token) {
   const url = 'https://graph.microsoft.com/v1.0/me/messages' +
     '?$search=' + encodeURIComponent('"' + email + '"') +
     '&$select=subject,from,toRecipients,receivedDateTime' +
@@ -62,26 +71,74 @@ async function fetchViaGraph(email, depth, token) {
 
   const resp = await fetch(url, {
     headers: {
-      'Authorization': 'Bearer ' + token,
-      'Accept':        'application/json',
+      'Authorization':    'Bearer ' + token,
+      'Accept':           'application/json',
       'ConsistencyLevel': 'eventual',
     },
   });
 
   if (!resp.ok) {
     const body = await resp.text().catch(() => '');
-    throw new Error('Graph ' + resp.status + ': ' + body.slice(0, 120));
+    throw new Error('Graph messages ' + resp.status + ': ' + body.slice(0, 120));
   }
 
   const ct = resp.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
     const body = await resp.text().catch(() => '');
-    throw new Error('Graph non-JSON: ' + ct.split(';')[0] + ' | ' + body.slice(0, 80));
+    throw new Error('Graph messages non-JSON: ' + ct.split(';')[0] + ' | ' + body.slice(0, 80));
   }
 
   const data = await resp.json();
-  // Normalize Graph schema → OWA schema (what processEmails in content.js expects)
-  return (data.value || []).map(m => ({
+  return normalizeGraphMessages(data.value || []);
+}
+
+async function fetchViaGraphSearch(email, depth, token) {
+  // Microsoft Search API — sometimes allowed in tenants that restrict me/messages
+  const url  = 'https://graph.microsoft.com/v1.0/search/query';
+  const body = JSON.stringify({
+    requests: [{
+      entityTypes: ['message'],
+      query:       { queryString: email },
+      from:        0,
+      size:        depth || 20,
+      fields:      ['subject', 'from', 'toRecipients', 'receivedDateTime'],
+    }],
+  });
+
+  const resp = await fetch(url, {
+    method:  'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type':  'application/json',
+      'Accept':        'application/json',
+    },
+    body,
+  });
+
+  if (!resp.ok) {
+    const b = await resp.text().catch(() => '');
+    throw new Error('Graph search ' + resp.status + ': ' + b.slice(0, 120));
+  }
+
+  const ct = resp.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    throw new Error('Graph search non-JSON: ' + ct.split(';')[0]);
+  }
+
+  const data = await resp.json();
+  const hits = data.value?.[0]?.hitsContainers?.[0]?.hits || [];
+  return hits.map(h => ({
+    ReceivedDateTime: h.resource?.receivedDateTime,
+    Subject:          h.resource?.subject,
+    From:             { EmailAddress: { Address: h.resource?.from?.emailAddress?.address || '' } },
+    ToRecipients:     (h.resource?.toRecipients || []).map(r => ({
+      EmailAddress: { Address: r.emailAddress?.address || '' },
+    })),
+  })).filter(m => m.ReceivedDateTime);
+}
+
+function normalizeGraphMessages(msgs) {
+  return msgs.map(m => ({
     ReceivedDateTime: m.receivedDateTime,
     Subject:          m.subject,
     From:             { EmailAddress: { Address: m.from?.emailAddress?.address || '' } },

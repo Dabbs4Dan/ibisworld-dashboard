@@ -62,6 +62,7 @@
     errors:       [],     // last 8 {email, error}
     lastScanTime: null,   // timestamp of most recent completed scan
     msalFound:    null,   // null=untested · true=MSAL token found · false=not found
+    scopeSummary: null,   // human-readable token scope summary for diagnostics
   };
 
   // ── Context guard ─────────────────────────────────────────────────────────
@@ -128,11 +129,11 @@
   // ── Email fetching ────────────────────────────────────────────────────────
 
   // Extract Microsoft auth tokens from the page's MSAL localStorage cache.
-  // Decodes the JWT audience to route each token to the right API endpoint.
-  // Returns { graphToken, owaToken } — either may be null if not found.
+  // Decodes JWT aud + scp claims to pick the right token and log what we found.
+  // Returns { graphToken, owaToken, scopeSummary }.
   function extractMSALTokens() {
-    let graphToken = null;
-    let owaToken   = null;
+    const graphCandidates = [];
+    const owaCandidates   = [];
 
     const stores = [localStorage, sessionStorage];
     for (const store of stores) {
@@ -146,41 +147,64 @@
             const exp = parseInt(val.expiresOn || val.extended_expires_on || '0', 10);
             if (exp !== 0 && exp <= Math.floor(Date.now() / 1000) + 60) continue; // expired
 
-            // Decode JWT payload (base64url) to read audience claim
-            let aud = '';
+            // Decode JWT payload (base64url) to read aud + scp claims
+            let aud = '', scp = '';
             try {
-              const b64 = val.secret.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-              aud = (JSON.parse(atob(b64)).aud || '').toLowerCase();
+              const b64     = val.secret.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+              const payload = JSON.parse(atob(b64));
+              aud = (payload.aud   || '').toLowerCase();
+              scp = (payload.scp   || payload.scope || '').toLowerCase();
             } catch (_) {}
 
-            // Also check MSAL cache target/scopes field as fallback
+            // Also check MSAL cache fields as fallback
             const target = (val.target || val.scopes || '').toLowerCase();
             const sig    = aud || target;
+            const scopes = scp || target;
 
-            console.log('[IBISWorld] MSAL token | aud:', aud.slice(0, 80), '| target:', target.slice(0, 80));
+            console.log('[IBISWorld] MSAL token | aud:', aud.slice(0, 70), '| scp:', scopes.slice(0, 100));
 
+            const entry = { secret: val.secret, aud, scp: scopes };
             if (sig.includes('graph.microsoft.com') || sig.includes('00000003-0000-0000-c000-000000000000')) {
-              graphToken = graphToken || val.secret;
+              graphCandidates.push(entry);
             } else if (sig.includes('outlook.office') || sig.includes('00000002-0000-0ff1-ce00-000000000000')) {
-              owaToken = owaToken || val.secret;
+              owaCandidates.push(entry);
             }
-            // Note: substrate.office.com tokens are not usable here — skip them
           } catch (_) {}
         }
       } catch (_) {}
     }
 
-    return { graphToken, owaToken };
+    // Prefer tokens that explicitly include mail scope
+    const graphEntry = graphCandidates.find(t => t.scp.includes('mail')) || graphCandidates[0] || null;
+    const owaEntry   = owaCandidates.find(t => t.scp.includes('ews') || t.scp.includes('full_access')) || owaCandidates[0] || null;
+
+    const scopeSummary = [
+      graphEntry ? 'Graph(' + (graphEntry.scp.slice(0, 60) || 'unknown scope') + ')' : null,
+      owaEntry   ? 'OWA('   + (owaEntry.scp.slice(0, 60)   || 'unknown scope') + ')' : null,
+    ].filter(Boolean).join(' | ') || 'no tokens found';
+
+    console.log('[IBISWorld] Token summary:', scopeSummary,
+                '| Graph candidates:', graphCandidates.length,
+                '| OWA candidates:', owaCandidates.length);
+
+    return {
+      graphToken:   graphEntry?.secret || null,
+      owaToken:     owaEntry?.secret   || null,
+      scopeSummary,
+    };
   }
 
   // Fetch is routed through background.js — background SWs are exempt from CORS
   // for host_permissions origins. Both token types are passed so BG can try
-  // Graph (Bearer graphToken) → OWA Bearer (owaToken) → OWA cookies in order.
+  // Graph messages → Graph search → OWA Bearer → OWA cookies in order.
   function fetchEmailHistory(email) {
     return new Promise((resolve, reject) => {
       if (!ctxOk()) { reject(new Error('Extension context invalid')); return; }
-      const { graphToken, owaToken } = extractMSALTokens();
-      if (diagState.msalFound === null) diagState.msalFound = !!(graphToken || owaToken);
+      const { graphToken, owaToken, scopeSummary } = extractMSALTokens();
+      if (diagState.msalFound === null) {
+        diagState.msalFound    = !!(graphToken || owaToken);
+        diagState.scopeSummary = scopeSummary;
+      }
       chrome.runtime.sendMessage(
         { type: 'FETCH_EMAILS', email, depth: IBIS_CONFIG.EMAIL_HISTORY_DEPTH, graphToken, owaToken },
         (response) => {
@@ -666,10 +690,11 @@
 
     const msalOk    = diagState.msalFound;
     const msalIcon  = msalOk === true ? '🔑' : msalOk === false ? '🔒' : '⏳';
-    const msalLabel = msalOk === true ? 'MSAL token found (Graph API active)'
-                    : msalOk === false ? 'No token — OWA cookie fallback'
-                    : 'Not checked yet';
-    const msalColor = msalOk === true ? '#16a34a' : msalOk === false ? '#9ca3af' : '#9ca3af';
+    const msalLabel = msalOk === true
+      ? 'Token found' + (diagState.scopeSummary ? ' · ' + diagState.scopeSummary.slice(0, 80) : '')
+      : msalOk === false ? 'No token in localStorage'
+      : 'Not checked yet';
+    const msalColor = msalOk === true ? '#16a34a' : msalOk === false ? '#dc2626' : '#9ca3af';
 
     const total   = allContacts.length;
     const cEmails = Object.keys(emailCache).filter(k => allContacts.find(c => c.email === k));
@@ -738,7 +763,7 @@
     document.getElementById('ibis-diag-rescan').addEventListener('click', () => {
       const keys = Object.keys(emailCache).map(e => 'ec_' + e);
       emailCache  = {};
-      diagState   = { owaOk: null, owaError: null, fetched: 0, failed: 0, errors: [], lastScanTime: null, msalFound: null };
+      diagState   = { owaOk: null, owaError: null, fetched: 0, failed: 0, errors: [], lastScanTime: null, msalFound: null, scopeSummary: null };
       if (ctxOk()) chrome.storage.local.remove(keys);
       scanActive  = false;
       navTo('home');
