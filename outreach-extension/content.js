@@ -37,8 +37,10 @@
     { id: 'ice',           icon: '🧊', label: 'On Ice',         color: '#6b7280', bg: '#f3f4f6', desc: 'Stalled / Future' },
   ];
 
-  // OWA API base — same-origin fetch (credentials auto-included via cookies)
-  const OWA_API = 'https://outlook.cloud.microsoft/owa/api/v2.0/me/messages';
+  // OWA API base — the classic Exchange Online REST API (lives on office365.com, not cloud.microsoft)
+  // The new Outlook at cloud.microsoft is a different app and doesn't expose /owa/api/ paths.
+  // Chrome extension host_permissions for office365.com allow cross-origin credentialed fetch here.
+  const OWA_API = 'https://outlook.office365.com/owa/api/v2.0/me/messages';
 
   // ── OWA Canary token (required by OWA REST API for CSRF protection) ────────
   function getOWACanary() {
@@ -134,22 +136,30 @@
       '&$top='       + IBIS_CONFIG.EMAIL_HISTORY_DEPTH +
       '&$orderby=ReceivedDateTime%20desc';
 
-    const headers = { 'Accept': 'application/json' };
-    const canary  = getOWACanary();
-    if (canary) headers['X-OWA-CANARY'] = canary;
+    // GET requests don't need CSRF canary. No X-OWA-CANARY needed here.
+    const resp = await fetch(url, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    });
 
-    console.log('[IBISWorld] Fetching OWA:', url.split('?')[0], canary ? '✓ canary' : '✗ no canary');
-    const resp = await fetch(url, { credentials: 'include', headers });
-
+    // Non-OK status (401, 403, 404, 500…)
     if (!resp.ok) {
       const errBody = await resp.text().catch(() => '');
       console.warn('[IBISWorld] OWA', resp.status, 'for', email,
-        '\nURL:', url,
-        '\nBody:', errBody.slice(0, 400),
-        '\nHint:', resp.status === 403 ? 'Canary token missing/invalid' :
-                  resp.status === 401 ? 'Auth cookies not sent — check host_permissions' :
-                  resp.status === 404 ? 'API path not found on this Outlook variant' : '');
+        '\nHint:', resp.status === 401 ? 'Auth cookies not sent — session may have expired' :
+                  resp.status === 403 ? 'Forbidden — may need Canary or different endpoint' :
+                  resp.status === 404 ? 'API path not found on this Outlook variant' : errBody.slice(0, 200));
       throw new Error('OWA API ' + resp.status);
+    }
+
+    // Guard: if the server returned HTML instead of JSON (endpoint mismatch — returns 200+DOCTYPE)
+    const ct = resp.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const body = await resp.text().catch(() => '');
+      console.warn('[IBISWorld] OWA returned non-JSON for', email,
+        '\nContent-Type:', ct,
+        '\nBody snippet:', body.slice(0, 200));
+      throw new Error('OWA non-JSON response (' + ct + ')');
     }
 
     const data = await resp.json();
