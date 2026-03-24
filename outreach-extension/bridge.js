@@ -24,10 +24,22 @@
   // Push immediately on page load
   pushContactsToExtension();
 
-  // Re-push automatically if the user uploads a new CSV (ibis_opps changes)
+  // Poll for same-window localStorage changes (the storage event only fires for
+  // cross-tab changes, so CSV uploads in the same tab are silently missed without this)
+  let lastKnownRaw = localStorage.getItem('ibis_opps');
+  setInterval(function () {
+    const current = localStorage.getItem('ibis_opps');
+    if (current !== lastKnownRaw) {
+      lastKnownRaw = current;
+      console.log('[IBISWorld Bridge] ibis_opps changed (same-window) — re-pushing.');
+      pushContactsToExtension();
+    }
+  }, 3000);
+
+  // Also catch cross-tab changes (e.g. dashboard open in another window)
   window.addEventListener('storage', (e) => {
     if (e.key === 'ibis_opps') {
-      console.log('[IBISWorld Bridge] ibis_opps changed — re-pushing.');
+      console.log('[IBISWorld Bridge] ibis_opps changed (cross-tab) — re-pushing.');
       pushContactsToExtension();
     }
   });

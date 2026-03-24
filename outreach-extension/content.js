@@ -264,7 +264,7 @@
     var color   = AVATAR_COLORS[(initial.charCodeAt(0) || 65) % AVATAR_COLORS.length];
     var stage   = c.stage || 'Introduction';
     var email   = (c.email || '').replace(/"/g, '&quot;');
-    return '<div class="ibis-contact-row" data-email="' + email + '" title="Find emails from ' + (c.name || '') + '">' +
+    return '<div class="ibis-contact-row" data-email="' + email + '" title="Search emails with ' + (c.name || '') + '">' +
       '<div class="ibis-contact-avatar" style="background:' + color + '">' + initial + '</div>' +
       '<div class="ibis-contact-info">' +
         '<div class="ibis-contact-name">' + (c.name || 'Unknown') + '</div>' +
@@ -276,8 +276,10 @@
 
   // ── Outlook navigation ────────────────────────────────────────────────────
   function navigateToContact(email) {
-    var q = encodeURIComponent('from:' + email);
-    window.location.assign('/mail/0/search?q=' + q);
+    var q = encodeURIComponent('from:' + email + ' OR to:' + email);
+    // Preserve /0/ segment for live.com/office.com; newer outlook.cloud.microsoft uses /mail/ directly
+    var base = window.location.pathname.startsWith('/mail/0/') ? '/mail/0/' : '/mail/';
+    window.location.assign(base + 'search?q=' + q);
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────
