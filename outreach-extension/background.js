@@ -1,4 +1,4 @@
-// IBISWorld Outreach — background service worker v1.2
+// IBISWorld Outreach — background service worker v2.1
 
 // ── Extension icon (OffscreenCanvas — no PNG files needed) ───────────────────
 function drawIcon(size) {
@@ -43,23 +43,71 @@ chrome.runtime.onInstalled.addListener(setExtensionIcon);
 chrome.runtime.onStartup.addListener(setExtensionIcon);
 setExtensionIcon();
 
-// ── Refresh relay ─────────────────────────────────────────────────────────────
-// When the Outlook extension's refresh button is clicked, this finds any open
-// dashboard tab and tells bridge.js to re-push ibis_opps into chrome.storage.
-chrome.runtime.onMessage.addListener((msg) => {
-  if (!msg || msg.type !== 'IBIS_REQUEST_REFRESH') return;
+// ── OWA email fetch ───────────────────────────────────────────────────────────
+// Runs here (background SW) instead of the content script to avoid CORS.
+// Background service workers are fully exempt from CORS for host_permissions
+// origins. The user's office365 session cookies are included automatically.
+const OWA_API_BASE = 'https://outlook.office365.com/owa/api/v2.0/me/messages';
 
-  chrome.tabs.query({ url: 'https://dabbs4dan.github.io/*' }, (tabs) => {
-    if (!tabs || tabs.length === 0) {
-      console.log('[IBISWorld Outreach] No dashboard tab open — cannot refresh.');
-      return;
-    }
-    tabs.forEach(tab => {
-      chrome.tabs.sendMessage(tab.id, { type: 'IBIS_REFRESH_OPPS' }, () => {
-        if (chrome.runtime.lastError) {
-          // bridge.js not yet ready in that tab — ignore
-        }
+async function fetchOWAEmails(email, depth) {
+  const q   = `"from:${email} OR to:${email}"`;
+  const url = OWA_API_BASE +
+    '?$search='  + encodeURIComponent(q) +
+    '&$select=Subject,From,ToRecipients,ReceivedDateTime' +
+    '&$top='     + (depth || 20) +
+    '&$orderby=ReceivedDateTime%20desc';
+
+  const resp = await fetch(url, {
+    credentials: 'include',
+    headers: { 'Accept': 'application/json' },
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    const hint = resp.status === 401 ? 'Auth expired — user may need to re-login to Outlook' :
+                 resp.status === 403 ? 'Forbidden — possible auth or rate-limit issue' :
+                 resp.status === 404 ? 'API path not found' : body.slice(0, 150);
+    console.warn('[IBISWorld BG] OWA', resp.status, 'for', email, '|', hint);
+    throw new Error('OWA ' + resp.status + ': ' + hint);
+  }
+
+  const ct = resp.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    const body = await resp.text().catch(() => '');
+    console.warn('[IBISWorld BG] Non-JSON for', email, '| type:', ct, '| snippet:', body.slice(0, 150));
+    throw new Error('Non-JSON (' + ct.split(';')[0] + ')');
+  }
+
+  const data = await resp.json();
+  const msgs = data.value || [];
+  console.log('[IBISWorld BG] ✓', msgs.length, 'emails for', email);
+  return msgs;
+}
+
+// ── Message handler ───────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg) return;
+
+  // Route: email fetch (content script → background → OWA → content script)
+  if (msg.type === 'FETCH_EMAILS') {
+    fetchOWAEmails(msg.email, msg.depth)
+      .then(emails => sendResponse({ ok: true,  emails }))
+      .catch(err   => sendResponse({ ok: false, error: err.message }));
+    return true; // keeps message channel open for async sendResponse
+  }
+
+  // Route: dashboard refresh relay (refresh button → background → bridge.js)
+  if (msg.type === 'IBIS_REQUEST_REFRESH') {
+    chrome.tabs.query({ url: 'https://dabbs4dan.github.io/*' }, (tabs) => {
+      if (!tabs || tabs.length === 0) {
+        console.log('[IBISWorld Outreach] No dashboard tab open — cannot refresh.');
+        return;
+      }
+      tabs.forEach(tab => {
+        chrome.tabs.sendMessage(tab.id, { type: 'IBIS_REFRESH_OPPS' }, () => {
+          if (chrome.runtime.lastError) { /* bridge not ready — ignore */ }
+        });
       });
     });
-  });
+  }
 });

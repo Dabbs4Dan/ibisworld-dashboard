@@ -37,22 +37,9 @@
     { id: 'ice',           icon: '🧊', label: 'On Ice',         color: '#6b7280', bg: '#f3f4f6', desc: 'Stalled / Future' },
   ];
 
-  // OWA API base — the classic Exchange Online REST API (lives on office365.com, not cloud.microsoft)
-  // The new Outlook at cloud.microsoft is a different app and doesn't expose /owa/api/ paths.
-  // Chrome extension host_permissions for office365.com allow cross-origin credentialed fetch here.
-  const OWA_API = 'https://outlook.office365.com/owa/api/v2.0/me/messages';
-
-  // ── OWA Canary token (required by OWA REST API for CSRF protection) ────────
-  function getOWACanary() {
-    try {
-      if (window.__owa_canary)                   return window.__owa_canary;
-      if (window.UserConfig?.owaCanary)          return window.UserConfig.owaCanary;
-      if (window.g_userConfig?.owaCanary)        return window.g_userConfig.owaCanary;
-      const m = document.cookie.match(/X-OWA-CANARY=([^;]+)/);
-      if (m) return decodeURIComponent(m[1]);
-    } catch (_) {}
-    return null;
-  }
+  // OWA fetch routes through background.js to avoid CORS. Content scripts cannot
+  // make credentialed cross-origin requests even with host_permissions — but
+  // background service workers can. See background.js → FETCH_EMAILS handler.
 
   // ── State ─────────────────────────────────────────────────────────────────
 
@@ -61,9 +48,19 @@
   let scanProgress    = { done: 0, total: 0 };
   let scanActive      = false;
   let scanFailures    = 0;
-  let currentView     = 'home';   // 'home' | 'list' | 'thread'
+  let currentView     = 'home';   // 'home' | 'list' | 'thread' | 'debug'
   let currentBucketId = null;
   let currentContact  = null;
+
+  // Diagnostic state — shown in the debug panel (footer tap)
+  let diagState = {
+    owaOk:        null,   // null=untested · true=working · false=failing
+    owaError:     null,   // last error string
+    fetched:      0,      // successful OWA fetches this session
+    failed:       0,      // failed fetches this session
+    errors:       [],     // last 8 {email, error}
+    lastScanTime: null,   // timestamp of most recent completed scan
+  };
 
   // ── Context guard ─────────────────────────────────────────────────────────
 
@@ -128,44 +125,26 @@
 
   // ── Email fetching — silent same-origin OWA API call ─────────────────────
 
-  async function fetchEmailHistory(email) {
-    const q   = `"from:${email} OR to:${email}"`;
-    const url = OWA_API +
-      '?$search='    + encodeURIComponent(q) +
-      '&$select=Subject,From,ToRecipients,ReceivedDateTime' +
-      '&$top='       + IBIS_CONFIG.EMAIL_HISTORY_DEPTH +
-      '&$orderby=ReceivedDateTime%20desc';
-
-    // GET requests don't need CSRF canary. No X-OWA-CANARY needed here.
-    const resp = await fetch(url, {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' },
+  // Fetch is routed through background.js to avoid CORS (background SWs are
+  // exempt from CORS for host_permissions origins; content scripts are not).
+  function fetchEmailHistory(email) {
+    return new Promise((resolve, reject) => {
+      if (!ctxOk()) { reject(new Error('Extension context invalid')); return; }
+      chrome.runtime.sendMessage(
+        { type: 'FETCH_EMAILS', email, depth: IBIS_CONFIG.EMAIL_HISTORY_DEPTH },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response?.ok) {
+            reject(new Error(response?.error || 'Background fetch failed'));
+            return;
+          }
+          resolve(response.emails);
+        }
+      );
     });
-
-    // Non-OK status (401, 403, 404, 500…)
-    if (!resp.ok) {
-      const errBody = await resp.text().catch(() => '');
-      console.warn('[IBISWorld] OWA', resp.status, 'for', email,
-        '\nHint:', resp.status === 401 ? 'Auth cookies not sent — session may have expired' :
-                  resp.status === 403 ? 'Forbidden — may need Canary or different endpoint' :
-                  resp.status === 404 ? 'API path not found on this Outlook variant' : errBody.slice(0, 200));
-      throw new Error('OWA API ' + resp.status);
-    }
-
-    // Guard: if the server returned HTML instead of JSON (endpoint mismatch — returns 200+DOCTYPE)
-    const ct = resp.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      const body = await resp.text().catch(() => '');
-      console.warn('[IBISWorld] OWA returned non-JSON for', email,
-        '\nContent-Type:', ct,
-        '\nBody snippet:', body.slice(0, 200));
-      throw new Error('OWA non-JSON response (' + ct + ')');
-    }
-
-    const data = await resp.json();
-    const msgs = data.value || [];
-    console.log('[IBISWorld] Got', msgs.length, 'emails for', email);
-    return msgs;
   }
 
   function processEmails(emails) {
@@ -253,10 +232,11 @@
       if (i + batchSize < toScan.length) await sleep(1200);
     }
 
-    scanActive = false;
+    scanActive            = false;
+    diagState.lastScanTime = Date.now();
     updateProgressUI();
     renderCurrentView();
-    updateFooterStatus(allContacts.length + ' contacts · fully enriched');
+    updateFooterStatus(allContacts.length + ' contacts · tap for diagnostics');
   }
 
   async function scanOne(contact) {
@@ -264,6 +244,9 @@
       const raw    = await fetchEmailHistory(contact.email);
       const result = processEmails(raw);
       emailCache[contact.email] = result;
+      // Track success
+      diagState.owaOk = true;
+      diagState.fetched++;
       if (ctxOk()) {
         const patch = {};
         patch['ec_' + contact.email] = result;
@@ -273,6 +256,11 @@
       console.warn('[IBISWorld] Scan failed:', contact.email, e.message);
       scanFailures++;
       emailCache[contact.email] = { ts: Date.now(), failed: true, error: e.message };
+      // Track failure
+      diagState.owaOk    = diagState.owaOk === true ? true : false; // stay true if any succeeded
+      diagState.owaError = e.message;
+      diagState.failed++;
+      diagState.errors   = [{ email: contact.email, error: e.message }, ...diagState.errors].slice(0, 8);
     }
     scanProgress.done++;
     updateProgressUI();
@@ -323,6 +311,7 @@
     if (body) {
       body.classList.toggle('ibis-body-padded', view === 'home');
       body.classList.toggle('ibis-body-flush',  view !== 'home');
+      body.classList.toggle('ibis-body-debug',  view === 'debug');
     }
     currentView     = view;
     if (opts.bucket  !== undefined) currentBucketId = opts.bucket;
@@ -334,6 +323,7 @@
     if (currentView === 'home')   renderHomeBody();
     if (currentView === 'list')   renderContactListBody();
     if (currentView === 'thread') renderThreadBody();
+    if (currentView === 'debug')  renderDebugBody();
   }
 
   // ── View 1: Home — priority bucket cards ─────────────────────────────────
@@ -608,6 +598,89 @@
     });
   }
 
+  // ── View 4: Diagnostics panel ─────────────────────────────────────────────
+
+  function renderDebugBody() {
+    const body = document.getElementById('ibis-sidebar-body');
+    if (!body) return;
+
+    const owaOk    = diagState.owaOk;
+    const owaIcon  = owaOk === true  ? '✅' : owaOk === false ? '❌' : '⏳';
+    const owaLabel = owaOk === true  ? 'Working'
+                   : owaOk === false ? (diagState.owaError || 'Failing')
+                   : 'Not yet tested';
+    const owaColor = owaOk === true  ? '#16a34a' : owaOk === false ? '#dc2626' : '#9ca3af';
+
+    const total   = allContacts.length;
+    const cEmails = Object.keys(emailCache).filter(k => allContacts.find(c => c.email === k));
+    const nCached = cEmails.filter(k => emailCache[k] && !emailCache[k].failed).length;
+    const nFailed = cEmails.filter(k => emailCache[k]?.failed).length;
+    const nPend   = total - cEmails.length;
+
+    const lastScan = diagState.lastScanTime
+      ? new Date(diagState.lastScanTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : 'Not yet';
+
+    const errHTML = diagState.errors.length
+      ? diagState.errors.map(e => `
+          <div class="ibis-diag-err-row">
+            <span class="ibis-diag-err-email">${e.email}</span>
+            <span class="ibis-diag-err-msg">${e.error}</span>
+          </div>`).join('')
+      : '<div class="ibis-diag-none">No errors this session</div>';
+
+    body.innerHTML = `
+      <div class="ibis-list-header">
+        <button class="ibis-back-btn" id="ibis-diag-back">← Home</button>
+        <div class="ibis-list-title"><span>🔧</span><span>Diagnostics</span></div>
+      </div>
+      <div class="ibis-diag-body">
+
+        <div class="ibis-diag-section">
+          <div class="ibis-diag-label">OWA Email API</div>
+          <div class="ibis-diag-value" style="color:${owaColor}">${owaIcon} ${owaLabel}</div>
+        </div>
+
+        <div class="ibis-diag-section">
+          <div class="ibis-diag-label">Contacts loaded</div>
+          <div class="ibis-diag-value">${total} active in pipeline</div>
+        </div>
+
+        <div class="ibis-diag-section">
+          <div class="ibis-diag-label">Email scan</div>
+          <div class="ibis-diag-value">
+            <span style="color:#16a34a">✓ ${nCached}</span> cached ·
+            <span style="color:#dc2626">✗ ${nFailed}</span> failed ·
+            <span style="color:#9ca3af">⏳ ${nPend}</span> pending
+          </div>
+        </div>
+
+        <div class="ibis-diag-section">
+          <div class="ibis-diag-label">Last scan completed</div>
+          <div class="ibis-diag-value">${lastScan}</div>
+        </div>
+
+        <div class="ibis-diag-section ibis-diag-err-section">
+          <div class="ibis-diag-label">Recent errors (${diagState.errors.length})</div>
+          <div class="ibis-diag-err-list">${errHTML}</div>
+        </div>
+
+        <button class="ibis-diag-rescan-btn" id="ibis-diag-rescan">↺ Clear cache &amp; rescan all</button>
+      </div>
+    `;
+
+    document.getElementById('ibis-diag-back').addEventListener('click', () => navTo('home'));
+    document.getElementById('ibis-diag-rescan').addEventListener('click', () => {
+      const keys = Object.keys(emailCache).map(e => 'ec_' + e);
+      emailCache  = {};
+      diagState   = { owaOk: null, owaError: null, fetched: 0, failed: 0, errors: [], lastScanTime: null };
+      if (ctxOk()) chrome.storage.local.remove(keys);
+      scanActive  = false;
+      navTo('home');
+      runScanQueue(allContacts);
+    });
+  }
+
   // ── Progress bar ──────────────────────────────────────────────────────────
 
   function updateProgressUI() {
@@ -738,6 +811,12 @@
         if (currentView === 'home') updateBucketCounts();
         runScanQueue(allContacts);
       }
+    });
+
+    // ── Footer: tap to open diagnostics ──────────────────────────────────
+    document.getElementById('ibis-footer-status').addEventListener('click', function () {
+      if (currentView === 'debug') navTo('home');
+      else navTo('debug');
     });
 
     // ── Header: collapse toggle ───────────────────────────────────────────
