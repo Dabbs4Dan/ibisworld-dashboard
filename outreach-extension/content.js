@@ -43,7 +43,8 @@
 
   // ── State ─────────────────────────────────────────────────────────────────
 
-  let allContacts     = [];
+  let allContacts     = [];   // Priority Engine: non-archived, non-Lost contacts
+  let allWorkables    = [];   // Workables campaign: all non-archived (includes Lost)
   let emailCache      = {};   // keyed by contact email address
   let scanProgress    = { done: 0, total: 0 };
   let scanActive      = false;
@@ -56,10 +57,11 @@
   let diagState = {
     owaOk:        null,   // null=untested · true=working · false=failing
     owaError:     null,   // last error string
-    fetched:      0,      // successful OWA fetches this session
+    fetched:      0,      // successful fetches this session
     failed:       0,      // failed fetches this session
     errors:       [],     // last 8 {email, error}
     lastScanTime: null,   // timestamp of most recent completed scan
+    msalFound:    null,   // null=untested · true=MSAL token found · false=not found
   };
 
   // ── Context guard ─────────────────────────────────────────────────────────
@@ -123,15 +125,44 @@
     });
   }
 
-  // ── Email fetching — silent same-origin OWA API call ─────────────────────
+  // ── Email fetching ────────────────────────────────────────────────────────
 
-  // Fetch is routed through background.js to avoid CORS (background SWs are
-  // exempt from CORS for host_permissions origins; content scripts are not).
+  // Extract Microsoft auth token from the page's MSAL localStorage cache.
+  // The new Outlook (outlook.cloud.microsoft) stores MSAL access tokens here.
+  // Content scripts share the page's localStorage (same origin), so we can
+  // read the token and pass it to the background SW for Graph API calls.
+  function extractMSALToken() {
+    const stores = [localStorage, sessionStorage];
+    for (const store of stores) {
+      try {
+        for (let i = 0; i < store.length; i++) {
+          const key = store.key(i);
+          if (!key || !key.toLowerCase().includes('accesstoken')) continue;
+          try {
+            const val = JSON.parse(store.getItem(key));
+            if (val && typeof val.secret === 'string' && val.secret.length > 100) {
+              const exp = parseInt(val.expiresOn || val.extended_expires_on || '0', 10);
+              if (exp === 0 || exp > Math.floor(Date.now() / 1000) + 60) {
+                return val.secret;
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  // Fetch is routed through background.js — background SWs are exempt from CORS
+  // for host_permissions origins. Graph API token extracted from page localStorage
+  // is passed along so the BG SW can use it as a Bearer token (Graph first, OWA fallback).
   function fetchEmailHistory(email) {
     return new Promise((resolve, reject) => {
       if (!ctxOk()) { reject(new Error('Extension context invalid')); return; }
+      const graphToken = extractMSALToken();
+      if (diagState.msalFound === null) diagState.msalFound = !!graphToken;
       chrome.runtime.sendMessage(
-        { type: 'FETCH_EMAILS', email, depth: IBIS_CONFIG.EMAIL_HISTORY_DEPTH },
+        { type: 'FETCH_EMAILS', email, depth: IBIS_CONFIG.EMAIL_HISTORY_DEPTH, graphToken },
         (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
@@ -351,7 +382,7 @@
         </div>`;
     }).join('');
 
-    const wCount  = allContacts.length;
+    const wCount  = allWorkables.length;  // all non-archived contacts (includes Lost)
     const wActive = wCount > 0;
 
     body.innerHTML = `
@@ -455,7 +486,9 @@
 
     body.querySelectorAll('.ibis-contact-row').forEach(row => {
       row.addEventListener('click', () => {
-        const contact = allContacts.find(c => c.email === row.dataset.email);
+        // Workables list includes Lost contacts (allWorkables); other lists use allContacts
+        const pool    = isWorkables ? allWorkables : allContacts;
+        const contact = pool.find(c => c.email === row.dataset.email);
         if (contact) navTo('thread', { contact });
       });
     });
@@ -611,6 +644,13 @@
                    : 'Not yet tested';
     const owaColor = owaOk === true  ? '#16a34a' : owaOk === false ? '#dc2626' : '#9ca3af';
 
+    const msalOk    = diagState.msalFound;
+    const msalIcon  = msalOk === true ? '🔑' : msalOk === false ? '🔒' : '⏳';
+    const msalLabel = msalOk === true ? 'MSAL token found (Graph API active)'
+                    : msalOk === false ? 'No token — OWA cookie fallback'
+                    : 'Not checked yet';
+    const msalColor = msalOk === true ? '#16a34a' : msalOk === false ? '#9ca3af' : '#9ca3af';
+
     const total   = allContacts.length;
     const cEmails = Object.keys(emailCache).filter(k => allContacts.find(c => c.email === k));
     const nCached = cEmails.filter(k => emailCache[k] && !emailCache[k].failed).length;
@@ -637,7 +677,12 @@
       <div class="ibis-diag-body">
 
         <div class="ibis-diag-section">
-          <div class="ibis-diag-label">OWA Email API</div>
+          <div class="ibis-diag-label">Auth token</div>
+          <div class="ibis-diag-value" style="color:${msalColor}">${msalIcon} ${msalLabel}</div>
+        </div>
+
+        <div class="ibis-diag-section">
+          <div class="ibis-diag-label">Email API</div>
           <div class="ibis-diag-value" style="color:${owaColor}">${owaIcon} ${owaLabel}</div>
         </div>
 
@@ -673,7 +718,7 @@
     document.getElementById('ibis-diag-rescan').addEventListener('click', () => {
       const keys = Object.keys(emailCache).map(e => 'ec_' + e);
       emailCache  = {};
-      diagState   = { owaOk: null, owaError: null, fetched: 0, failed: 0, errors: [], lastScanTime: null };
+      diagState   = { owaOk: null, owaError: null, fetched: 0, failed: 0, errors: [], lastScanTime: null, msalFound: null };
       if (ctxOk()) chrome.storage.local.remove(keys);
       scanActive  = false;
       navTo('home');
@@ -720,17 +765,20 @@
   // ── Contact parsing ───────────────────────────────────────────────────────
 
   function parseContacts(raw) {
-    if (!raw) return [];
+    if (!raw) { allWorkables = []; return []; }
     try {
-      const opps    = JSON.parse(raw);
-      const all     = Object.values(opps);
-      const active  = all.filter(c => !c.archived && !EXCLUDED_STAGES.has(c.stage));
-      const archived = all.filter(c =>  c.archived).length;
-      const lost     = all.filter(c => !c.archived && EXCLUDED_STAGES.has(c.stage)).length;
-      console.log(`[IBISWorld] Contacts loaded: ${active.length} active | ${archived} archived | ${lost} lost (of ${all.length} total)`);
-      return active.sort((a, b) => (a.accountName || '').localeCompare(b.accountName || ''));
+      const opps       = JSON.parse(raw);
+      const all        = Object.values(opps);
+      const sorted     = all.sort((a, b) => (a.accountName || '').localeCompare(b.accountName || ''));
+      allWorkables     = sorted.filter(c => !c.archived);                    // all non-archived (for Workables campaign, includes Lost)
+      const active     = allWorkables.filter(c => !EXCLUDED_STAGES.has(c.stage)); // Priority Engine (excludes Lost)
+      const archived   = all.filter(c => c.archived).length;
+      const lost       = allWorkables.filter(c => EXCLUDED_STAGES.has(c.stage)).length;
+      console.log(`[IBISWorld] Contacts: ${active.length} active | ${archived} archived | ${lost} lost (total: ${all.length})`);
+      return active;
     } catch (e) {
       console.error('[IBISWorld] Parse error:', e);
+      allWorkables = [];
       return [];
     }
   }

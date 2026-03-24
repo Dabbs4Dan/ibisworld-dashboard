@@ -43,13 +43,56 @@ chrome.runtime.onInstalled.addListener(setExtensionIcon);
 chrome.runtime.onStartup.addListener(setExtensionIcon);
 setExtensionIcon();
 
-// ── OWA email fetch ───────────────────────────────────────────────────────────
-// Runs here (background SW) instead of the content script to avoid CORS.
-// Background service workers are fully exempt from CORS for host_permissions
-// origins. The user's office365 session cookies are included automatically.
+// ── Email fetch — Graph API (primary) + OWA (fallback) ───────────────────────
+// Graph API: content script extracts MSAL token from page localStorage and
+// passes it here. Background SW calls Graph with Bearer token — no CORS issues.
+// OWA fallback: credentialed cookie-based request to office365.com. Works if
+// the user's session includes office365.com cookies (older Outlook setups).
+
 const OWA_API_BASE = 'https://outlook.office365.com/owa/api/v2.0/me/messages';
 
-async function fetchOWAEmails(email, depth) {
+// Primary: Microsoft Graph API using MSAL token from page localStorage
+async function fetchViaGraph(email, depth, token) {
+  // $search with ConsistencyLevel:eventual finds messages where the email appears
+  // in From, To, CC, or body — sufficient for from/to history detection.
+  const url = 'https://graph.microsoft.com/v1.0/me/messages' +
+    '?$search=' + encodeURIComponent('"' + email + '"') +
+    '&$select=subject,from,toRecipients,receivedDateTime' +
+    '&$top=' + (depth || 20);
+
+  const resp = await fetch(url, {
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept':        'application/json',
+      'ConsistencyLevel': 'eventual',
+    },
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error('Graph ' + resp.status + ': ' + body.slice(0, 120));
+  }
+
+  const ct = resp.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    const body = await resp.text().catch(() => '');
+    throw new Error('Graph non-JSON: ' + ct.split(';')[0] + ' | ' + body.slice(0, 80));
+  }
+
+  const data = await resp.json();
+  // Normalize Graph schema → OWA schema (what processEmails in content.js expects)
+  return (data.value || []).map(m => ({
+    ReceivedDateTime: m.receivedDateTime,
+    Subject:          m.subject,
+    From:             { EmailAddress: { Address: m.from?.emailAddress?.address || '' } },
+    ToRecipients:     (m.toRecipients || []).map(r => ({
+      EmailAddress: { Address: r.emailAddress?.address || '' },
+    })),
+  }));
+}
+
+// Fallback: classic OWA REST API with session cookies
+async function fetchViaOWA(email, depth) {
   const q   = `"from:${email} OR to:${email}"`;
   const url = OWA_API_BASE +
     '?$search='  + encodeURIComponent(q) +
@@ -64,8 +107,8 @@ async function fetchOWAEmails(email, depth) {
 
   if (!resp.ok) {
     const body = await resp.text().catch(() => '');
-    const hint = resp.status === 401 ? 'Auth expired — user may need to re-login to Outlook' :
-                 resp.status === 403 ? 'Forbidden — possible auth or rate-limit issue' :
+    const hint = resp.status === 401 ? 'Auth expired — re-login to Outlook' :
+                 resp.status === 403 ? 'Forbidden — auth or rate-limit issue' :
                  resp.status === 404 ? 'API path not found' : body.slice(0, 150);
     console.warn('[IBISWorld BG] OWA', resp.status, 'for', email, '|', hint);
     throw new Error('OWA ' + resp.status + ': ' + hint);
@@ -74,14 +117,28 @@ async function fetchOWAEmails(email, depth) {
   const ct = resp.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
     const body = await resp.text().catch(() => '');
-    console.warn('[IBISWorld BG] Non-JSON for', email, '| type:', ct, '| snippet:', body.slice(0, 150));
+    console.warn('[IBISWorld BG] OWA non-JSON for', email, '| type:', ct, '| body:', body.slice(0, 150));
     throw new Error('Non-JSON (' + ct.split(';')[0] + ')');
   }
 
   const data = await resp.json();
   const msgs = data.value || [];
-  console.log('[IBISWorld BG] ✓', msgs.length, 'emails for', email);
+  console.log('[IBISWorld BG] ✓ OWA', msgs.length, 'emails for', email);
   return msgs;
+}
+
+// Dispatcher: tries Graph first (if token provided), falls back to OWA
+async function fetchOWAEmails(email, depth, graphToken) {
+  if (graphToken) {
+    try {
+      const msgs = await fetchViaGraph(email, depth, graphToken);
+      console.log('[IBISWorld BG] ✓ Graph', msgs.length, 'emails for', email);
+      return msgs;
+    } catch (e) {
+      console.warn('[IBISWorld BG] Graph failed for', email, ':', e.message, '— trying OWA');
+    }
+  }
+  return fetchViaOWA(email, depth);
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -90,7 +147,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Route: email fetch (content script → background → OWA → content script)
   if (msg.type === 'FETCH_EMAILS') {
-    fetchOWAEmails(msg.email, msg.depth)
+    fetchOWAEmails(msg.email, msg.depth, msg.graphToken)
       .then(emails => sendResponse({ ok: true,  emails }))
       .catch(err   => sendResponse({ ok: false, error: err.message }));
     return true; // keeps message channel open for async sendResponse

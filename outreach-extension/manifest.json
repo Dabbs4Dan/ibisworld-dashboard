@@ -32,7 +32,8 @@
     "https://outlook.cloud.microsoft/*",
     "https://outlook.office.com/*",
     "https://outlook.office365.com/*",
-    "https://outlook.live.com/*"
+    "https://outlook.live.com/*",
+    "https://graph.microsoft.com/*"
   ],
   "action": {
     "default_title": "IBISWorld Outreach"
