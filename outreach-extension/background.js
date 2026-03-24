@@ -127,18 +127,58 @@ async function fetchViaOWA(email, depth) {
   return msgs;
 }
 
-// Dispatcher: tries Graph first (if token provided), falls back to OWA
-async function fetchOWAEmails(email, depth, graphToken) {
+// Dispatcher: Graph (graphToken) → OWA Bearer (owaToken) → OWA cookies
+async function fetchOWAEmails(email, depth, graphToken, owaToken) {
   if (graphToken) {
     try {
       const msgs = await fetchViaGraph(email, depth, graphToken);
-      console.log('[IBISWorld BG] ✓ Graph', msgs.length, 'emails for', email);
+      console.log('[IBISWorld BG] ✓ Graph API', msgs.length, 'emails for', email);
       return msgs;
     } catch (e) {
-      console.warn('[IBISWorld BG] Graph failed for', email, ':', e.message, '— trying OWA');
+      console.warn('[IBISWorld BG] Graph failed for', email, ':', e.message);
     }
   }
+  if (owaToken) {
+    try {
+      const msgs = await fetchViaOWABearer(email, depth, owaToken);
+      console.log('[IBISWorld BG] ✓ OWA Bearer', msgs.length, 'emails for', email);
+      return msgs;
+    } catch (e) {
+      console.warn('[IBISWorld BG] OWA Bearer failed for', email, ':', e.message);
+    }
+  }
+  // Last resort: OWA with session cookies (may fail if cookies are wrong domain)
   return fetchViaOWA(email, depth);
+}
+
+// OWA v2.0 REST with a Bearer token (works when token is Exchange-scoped)
+async function fetchViaOWABearer(email, depth, token) {
+  const q   = `"from:${email} OR to:${email}"`;
+  const url = OWA_API_BASE +
+    '?$search='  + encodeURIComponent(q) +
+    '&$select=Subject,From,ToRecipients,ReceivedDateTime' +
+    '&$top='     + (depth || 20) +
+    '&$orderby=ReceivedDateTime%20desc';
+
+  const resp = await fetch(url, {
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error('OWA Bearer ' + resp.status + ': ' + body.slice(0, 100));
+  }
+
+  const ct = resp.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    throw new Error('OWA Bearer non-JSON: ' + ct.split(';')[0]);
+  }
+
+  const data = await resp.json();
+  return data.value || [];
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -147,7 +187,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Route: email fetch (content script → background → OWA → content script)
   if (msg.type === 'FETCH_EMAILS') {
-    fetchOWAEmails(msg.email, msg.depth, msg.graphToken)
+    fetchOWAEmails(msg.email, msg.depth, msg.graphToken, msg.owaToken)
       .then(emails => sendResponse({ ok: true,  emails }))
       .catch(err   => sendResponse({ ok: false, error: err.message }));
     return true; // keeps message channel open for async sendResponse

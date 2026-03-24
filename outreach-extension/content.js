@@ -127,11 +127,13 @@
 
   // ── Email fetching ────────────────────────────────────────────────────────
 
-  // Extract Microsoft auth token from the page's MSAL localStorage cache.
-  // The new Outlook (outlook.cloud.microsoft) stores MSAL access tokens here.
-  // Content scripts share the page's localStorage (same origin), so we can
-  // read the token and pass it to the background SW for Graph API calls.
-  function extractMSALToken() {
+  // Extract Microsoft auth tokens from the page's MSAL localStorage cache.
+  // Decodes the JWT audience to route each token to the right API endpoint.
+  // Returns { graphToken, owaToken } — either may be null if not found.
+  function extractMSALTokens() {
+    let graphToken = null;
+    let owaToken   = null;
+
     const stores = [localStorage, sessionStorage];
     for (const store of stores) {
       try {
@@ -140,29 +142,47 @@
           if (!key || !key.toLowerCase().includes('accesstoken')) continue;
           try {
             const val = JSON.parse(store.getItem(key));
-            if (val && typeof val.secret === 'string' && val.secret.length > 100) {
-              const exp = parseInt(val.expiresOn || val.extended_expires_on || '0', 10);
-              if (exp === 0 || exp > Math.floor(Date.now() / 1000) + 60) {
-                return val.secret;
-              }
+            if (!val || typeof val.secret !== 'string' || val.secret.length < 100) continue;
+            const exp = parseInt(val.expiresOn || val.extended_expires_on || '0', 10);
+            if (exp !== 0 && exp <= Math.floor(Date.now() / 1000) + 60) continue; // expired
+
+            // Decode JWT payload (base64url) to read audience claim
+            let aud = '';
+            try {
+              const b64 = val.secret.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+              aud = (JSON.parse(atob(b64)).aud || '').toLowerCase();
+            } catch (_) {}
+
+            // Also check MSAL cache target/scopes field as fallback
+            const target = (val.target || val.scopes || '').toLowerCase();
+            const sig    = aud || target;
+
+            console.log('[IBISWorld] MSAL token | aud:', aud.slice(0, 80), '| target:', target.slice(0, 80));
+
+            if (sig.includes('graph.microsoft.com') || sig.includes('00000003-0000-0000-c000-000000000000')) {
+              graphToken = graphToken || val.secret;
+            } else if (sig.includes('outlook.office') || sig.includes('00000002-0000-0ff1-ce00-000000000000')) {
+              owaToken = owaToken || val.secret;
             }
+            // Note: substrate.office.com tokens are not usable here — skip them
           } catch (_) {}
         }
       } catch (_) {}
     }
-    return null;
+
+    return { graphToken, owaToken };
   }
 
   // Fetch is routed through background.js — background SWs are exempt from CORS
-  // for host_permissions origins. Graph API token extracted from page localStorage
-  // is passed along so the BG SW can use it as a Bearer token (Graph first, OWA fallback).
+  // for host_permissions origins. Both token types are passed so BG can try
+  // Graph (Bearer graphToken) → OWA Bearer (owaToken) → OWA cookies in order.
   function fetchEmailHistory(email) {
     return new Promise((resolve, reject) => {
       if (!ctxOk()) { reject(new Error('Extension context invalid')); return; }
-      const graphToken = extractMSALToken();
-      if (diagState.msalFound === null) diagState.msalFound = !!graphToken;
+      const { graphToken, owaToken } = extractMSALTokens();
+      if (diagState.msalFound === null) diagState.msalFound = !!(graphToken || owaToken);
       chrome.runtime.sendMessage(
-        { type: 'FETCH_EMAILS', email, depth: IBIS_CONFIG.EMAIL_HISTORY_DEPTH, graphToken },
+        { type: 'FETCH_EMAILS', email, depth: IBIS_CONFIG.EMAIL_HISTORY_DEPTH, graphToken, owaToken },
         (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
@@ -757,9 +777,11 @@
   // ── Outlook navigation ────────────────────────────────────────────────────
 
   function navigateToContact(email) {
-    const q    = encodeURIComponent('from:' + email + ' OR to:' + email);
-    const base = window.location.pathname.startsWith('/mail/0/') ? '/mail/0/' : '/mail/';
-    window.location.assign(base + 'search?q=' + q);
+    // Open in a new tab — keeps current Outlook page intact and avoids SPA
+    // navigation issues with window.location.assign on the cloud.microsoft SPA.
+    const q   = encodeURIComponent('from:' + email + ' OR to:' + email);
+    const url = window.location.origin + '/mail/search?q=' + q;
+    window.open(url, '_blank');
   }
 
   // ── Contact parsing ───────────────────────────────────────────────────────
