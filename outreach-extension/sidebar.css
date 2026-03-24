@@ -1,24 +1,27 @@
-/* IBISWorld Outreach — Sidebar Styles v1.1 */
+/* IBISWorld Outreach — Sidebar Styles v2.0 */
 /* Design language: DM Sans, #C8102E red, #f0f2f5 bg — matches dashboard exactly */
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
+/* ══════════════════════════════════════════════════════════════════
+   SHELL — sidebar frame, header, collapse badge, footer
+   ══════════════════════════════════════════════════════════════════ */
+
 #ibis-outreach-sidebar {
   position: fixed;
-  top: 0;
-  right: 0;
+  top: 0; right: 0;
   width: 300px;
   height: 100vh;
   background: #f0f2f5;
   border-left: 1px solid #e2e4e8;
-  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.08);
   z-index: 999999;
   display: flex;
   flex-direction: column;
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   color: #1a1a2e;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
   overflow: hidden;
 }
 
@@ -47,7 +50,6 @@
   white-space: nowrap;
 }
 
-/* Wrapper for header icon buttons */
 #ibis-header-btns {
   display: flex;
   align-items: center;
@@ -55,14 +57,12 @@
   flex-shrink: 0;
 }
 
-/* Shared style for both header buttons */
 #ibis-refresh-btn,
 #ibis-sidebar-toggle {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255,255,255,0.15);
   border: none;
   border-radius: 6px;
-  width: 28px;
-  height: 28px;
+  width: 28px; height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -73,65 +73,67 @@
   transition: background 0.15s;
   flex-shrink: 0;
 }
-
-#ibis-sidebar-toggle {
-  font-size: 16px;
-}
-
+#ibis-sidebar-toggle { font-size: 16px; }
 #ibis-refresh-btn:hover,
-#ibis-sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.25);
+#ibis-sidebar-toggle:hover { background: rgba(255,255,255,0.25); }
+
+/* ── Progress bar (sits below header, hidden when inactive) ── */
+#ibis-progress-wrap {
+  background: #fff;
+  border-bottom: 1px solid #e8eaed;
+  padding: 0 14px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  flex-shrink: 0;
 }
 
-/* ── Collapse badge — wall-mounted right edge, vertical drag only ── */
-#ibis-collapse-tab {
-  position: fixed;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  width: 40px;
-  height: 40px;
+#ibis-progress-wrap.active {
+  max-height: 36px;
+  padding: 7px 14px;
+}
+
+#ibis-progress-bar {
+  height: 3px;
+  background: #e8eaed;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+#ibis-progress-fill {
+  height: 100%;
   background: #C8102E;
-  color: #fff;
-  border-radius: 8px 0 0 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ns-resize;
-  z-index: 999998;
-  box-shadow: none;
-  transition: opacity 0.2s;
-  opacity: 0;
-  pointer-events: none;
-  user-select: none;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+  width: 0;
 }
 
-#ibis-collapse-tab:hover  { background: #a50d25; }
-#ibis-collapse-tab:active { cursor: ns-resize; }
-
-#ibis-collapse-tab.visible {
-  opacity: 1;
-  pointer-events: auto;
+#ibis-progress-label {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.ibis-tab-i {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-weight: 900;
-  font-size: 22px;
-  color: #fff;
-  line-height: 1;
-  pointer-events: none;
-  user-select: none;
-}
-
-/* ── Body / scroll area ── */
+/* ── Body — view container ── */
 #ibis-sidebar-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+}
+
+#ibis-sidebar-body.ibis-body-padded {
+  padding: 14px;
+  gap: 8px;
+}
+
+#ibis-sidebar-body.ibis-body-flush {
+  padding: 0;
+  gap: 0;
 }
 
 #ibis-sidebar-body::-webkit-scrollbar        { width: 4px; }
@@ -147,67 +149,117 @@
   color: #9ca3af;
   padding: 0 2px;
   margin-bottom: 2px;
+  flex-shrink: 0;
 }
 
-/* ── Campaign block: card + contact list grouped ── */
-.ibis-campaign-block {
+/* ── Footer ── */
+#ibis-sidebar-footer {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-top: 1px solid #e8eaed;
+  background: #f0f2f5;
+}
+
+#ibis-footer-status {
+  font-size: 11px;
+  color: #b0b4bc;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+}
+
+/* ── Collapse badge — right-wall pinned, vertical drag ── */
+#ibis-collapse-tab {
+  position: fixed;
+  top: 50%; right: 0;
+  transform: translateY(-50%);
+  width: 40px; height: 40px;
+  background: #C8102E;
+  color: #fff;
+  border-radius: 8px 0 0 8px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  z-index: 999998;
+  box-shadow: none;
+  transition: opacity 0.2s;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+}
+#ibis-collapse-tab:hover  { background: #a50d25; }
+#ibis-collapse-tab.visible { opacity: 1; pointer-events: auto; }
+
+.ibis-tab-i {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 900;
+  font-size: 22px;
+  color: #fff;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
 }
 
-.ibis-campaign-card {
+/* ══════════════════════════════════════════════════════════════════
+   VIEW 1 — HOME: Priority bucket cards
+   ══════════════════════════════════════════════════════════════════ */
+
+.ibis-bucket-card {
   background: #fff;
   border: 1px solid #e8eaed;
   border-radius: 10px;
-  padding: 13px 14px;
+  padding: 11px 13px;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s, border-radius 0.15s;
-  position: relative;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  flex-shrink: 0;
 }
 
-.ibis-campaign-card:hover {
+.ibis-bucket-card:hover {
   border-color: #C8102E;
-  box-shadow: 0 2px 12px rgba(200, 16, 46, 0.08);
+  box-shadow: 0 2px 12px rgba(200,16,46,0.08);
   transform: translateY(-1px);
 }
 
-.ibis-campaign-card:active {
-  transform: translateY(0);
-  box-shadow: none;
-}
+.ibis-bucket-card:active { transform: translateY(0); box-shadow: none; }
 
-/* When expanded: bottom corners go flat to connect with the list below */
-.ibis-campaign-block.expanded .ibis-campaign-card {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  border-bottom-color: #f0f2f5;
+.ibis-bucket-card.placeholder {
+  opacity: 0.55;
+  cursor: default;
+}
+.ibis-bucket-card.placeholder:hover {
+  border-color: #e8eaed;
+  box-shadow: none;
   transform: none;
-  box-shadow: none;
 }
 
-.ibis-campaign-icon {
-  font-size: 20px;
-  line-height: 1;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  background: #f0f2f5;
+.ibis-bucket-card.has-contacts {
+  border-color: #e8eaed; /* subtle — count badge carries the color signal */
+}
+
+.ibis-bucket-icon-wrap {
+  width: 34px; height: 34px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.ibis-campaign-info {
+.ibis-bucket-icon-inner {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ibis-bucket-info {
   flex: 1;
   min-width: 0;
 }
 
-.ibis-campaign-name {
-  font-size: 13.5px;
+.ibis-bucket-name {
+  font-size: 13px;
   font-weight: 600;
   color: #1a1a2e;
   white-space: nowrap;
@@ -215,13 +267,13 @@
   text-overflow: ellipsis;
 }
 
-.ibis-campaign-meta {
-  font-size: 11.5px;
+.ibis-bucket-desc {
+  font-size: 11px;
   color: #9ca3af;
   margin-top: 1px;
 }
 
-.ibis-campaign-badge {
+.ibis-bucket-count {
   background: #f0f2f5;
   border: 1px solid #e2e4e8;
   border-radius: 20px;
@@ -231,51 +283,87 @@
   font-family: 'DM Mono', monospace;
   color: #6b7280;
   flex-shrink: 0;
+  min-width: 28px;
+  text-align: center;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
-.ibis-campaign-badge.has-contacts {
-  background: #fef2f2;
-  border-color: #fca5a5;
-  color: #C8102E;
-}
+/* ══════════════════════════════════════════════════════════════════
+   VIEW 2 — CONTACT LIST
+   ══════════════════════════════════════════════════════════════════ */
 
-/* ── Contact list (collapsible) ── */
-.ibis-contact-list {
+/* Sticky list header: back button + bucket title */
+.ibis-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
   background: #fff;
-  border: 1px solid #e8eaed;
-  border-top: none;
-  border-radius: 0 0 10px 10px;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease;
+  border-bottom: 1px solid #e8eaed;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
-.ibis-contact-list.open {
-  max-height: 320px;
+.ibis-list-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a2e;
+  flex: 1;
+}
+
+.ibis-list-count {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  background: #f0f2f5;
+  border: 1px solid #e2e4e8;
+  border-radius: 20px;
+  padding: 1px 7px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.ibis-contact-list-body {
+  flex: 1;
   overflow-y: auto;
 }
 
-.ibis-contact-list::-webkit-scrollbar        { width: 4px; }
-.ibis-contact-list::-webkit-scrollbar-track  { background: transparent; }
-.ibis-contact-list::-webkit-scrollbar-thumb  { background: #d1d5db; border-radius: 4px; }
+/* ── Shared back button ── */
+.ibis-back-btn {
+  background: none;
+  border: none;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.ibis-back-btn:hover { background: #f0f2f5; color: #1a1a2e; }
 
 /* ── Contact row ── */
 .ibis-contact-row {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 12px;
+  padding: 9px 14px;
   cursor: pointer;
   border-bottom: 1px solid #f3f4f6;
   transition: background 0.1s;
 }
-
 .ibis-contact-row:last-child { border-bottom: none; }
 .ibis-contact-row:hover      { background: #f8f9fb; }
 
 .ibis-contact-avatar {
-  width: 30px;
-  height: 30px;
+  width: 30px; height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -308,6 +396,49 @@
   text-overflow: ellipsis;
 }
 
+.ibis-contact-next-action {
+  font-size: 10.5px;
+  color: #b0b4bc;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Right column: timing chip + stage pill, stacked */
+.ibis-contact-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Stale indicator ── */
+.ibis-stale-dot {
+  font-size: 8px;
+  margin-left: 4px;
+  opacity: 0.5;
+  cursor: default;
+  vertical-align: middle;
+}
+
+/* ── Timing chips ── */
+.ibis-timing-chip {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.tc-urgent    { background: #fee2e2; color: #dc2626; }
+.tc-scheduled { background: #ede9fe; color: #7c3aed; }
+.tc-active    { background: #dcfce7; color: #16a34a; }
+.tc-sent      { background: #fef9c3; color: #d97706; }
+.tc-unknown   { background: #f3f4f6; color: #9ca3af; }
+
 /* ── Stage pill ── */
 .ibis-stage-pill {
   font-size: 10px;
@@ -321,60 +452,200 @@
 
 /* ── Empty state ── */
 .ibis-contact-empty {
-  padding: 14px 12px;
+  padding: 20px 14px;
   font-size: 12px;
   color: #9ca3af;
   text-align: center;
   line-height: 1.6;
 }
+.ibis-contact-empty small { font-size: 11px; color: #b0b4bc; }
 
-.ibis-contact-empty small {
-  font-size: 11px;
-  color: #b0b4bc;
+/* ══════════════════════════════════════════════════════════════════
+   VIEW 3 — THREAD VIEW
+   ══════════════════════════════════════════════════════════════════ */
+
+.ibis-thread-wrap {
+  padding: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
-/* ── Add Campaign button ── */
-#ibis-add-campaign {
-  margin-top: 4px;
+/* Sticky nav bar with back button */
+.ibis-thread-nav {
+  padding: 10px 14px 6px;
+  background: #f0f2f5;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+/* Contact header block */
+.ibis-thread-contact-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 14px 12px;
   background: #fff;
-  border: 1.5px dashed #d1d5db;
-  border-radius: 10px;
-  padding: 11px 14px;
+  border-bottom: 1px solid #e8eaed;
+  flex-shrink: 0;
+}
+
+.ibis-thread-avatar {
+  width: 38px !important;
+  height: 38px !important;
+  font-size: 15px !important;
+}
+
+.ibis-thread-contact-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ibis-thread-contact-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1a1a2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ibis-thread-contact-company {
+  font-size: 11.5px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cadence status bar — the key signal */
+.ibis-thread-status {
+  margin: 10px 14px 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  flex-shrink: 0;
+}
+
+.ibis-thread-status.tc-active  { background: #dcfce7; color: #15803d; }
+.ibis-thread-status.tc-waiting { background: #fef9c3; color: #a16207; }
+.ibis-thread-status.tc-cold    { background: #f3f4f6; color: #6b7280; }
+.ibis-thread-status.tc-unknown { background: #f0f2f5; color: #9ca3af; }
+
+.ibis-thread-status strong { font-weight: 700; }
+
+/* Meta rows: next date, next action */
+.ibis-thread-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 14px 0;
+  font-size: 11.5px;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+.ibis-thread-meta-row span { flex: 1; }
+
+/* Notes block */
+.ibis-thread-notes {
+  margin: 6px 14px 0;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 7px;
+  font-size: 11.5px;
+  color: #374151;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+/* Section label inside thread view */
+.ibis-thread-wrap .ibis-section-label {
+  padding: 0 14px;
+  margin-bottom: 0;
+}
+
+/* Thread email list */
+.ibis-thread-list {
+  flex: 1;
+  overflow-y: auto;
+  background: #fff;
+  border-top: 1px solid #e8eaed;
+  border-bottom: 1px solid #e8eaed;
+  margin-top: 4px;
+}
+
+.ibis-thread-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ibis-thread-row:last-child { border-bottom: none; }
+.ibis-thread-row:hover      { background: #f8f9fb; }
+
+/* Direction badge: ↑ sent, ↓ received */
+.ibis-thread-dir-badge {
+  width: 22px; height: 22px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  cursor: pointer;
-  color: #9ca3af;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.ibis-thread-dir-badge.outbound { background: #dbeafe; color: #1e40af; }
+.ibis-thread-dir-badge.inbound  { background: #dcfce7; color: #16a34a; }
+
+.ibis-thread-email-info { flex: 1; min-width: 0; }
+
+.ibis-thread-subject {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-#ibis-add-campaign:hover {
+.ibis-thread-meta {
+  font-size: 10.5px;
+  color: #9ca3af;
+  margin-top: 2px;
+  font-family: 'DM Mono', monospace;
+}
+
+/* Open in Outlook button */
+.ibis-search-outlook-btn {
+  display: block;
+  margin: 12px 14px 0;
+  background: #fff;
+  border: 1.5px solid #e2e4e8;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  width: calc(100% - 28px);
+  flex-shrink: 0;
+}
+.ibis-search-outlook-btn:hover {
   border-color: #C8102E;
   color: #C8102E;
   background: #fef2f2;
-}
-
-#ibis-add-campaign-icon {
-  font-size: 16px;
-  font-weight: 400;
-}
-
-/* ── Footer ── */
-#ibis-sidebar-footer {
-  flex-shrink: 0;
-  padding: 10px 14px;
-  border-top: 1px solid #e8eaed;
-  background: #f0f2f5;
-}
-
-#ibis-footer-status {
-  font-size: 11px;
-  color: #b0b4bc;
-  text-align: center;
-  font-family: 'DM Mono', monospace;
 }
