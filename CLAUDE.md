@@ -315,8 +315,8 @@ function setFooSortCol(col) {
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v1.3.0
-**Purpose:** Email execution layer that sits on top of Outlook Web — companion to the dashboard
+**Version:** v2.0.0
+**Purpose:** Priority-based contact engine + email history layer on top of Outlook Web — companion to the dashboard
 
 ### Files
 | File | Purpose |
@@ -472,8 +472,12 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
 | 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |
 | ✅ Done | Outreach Extension foundation | `/outreach-extension/` — MV3 Chrome extension. Sidebar on Outlook with 3 campaign cards. Collapse badge (red "I", right-wall pinned, vertical drag). SPA resilience + context invalidation guards. |
-| ✅ Done | Outreach Extension: Workables sync | `bridge.js` on dashboard pushes `ibis_opps` → `chrome.storage.local`. `content.js` reads and renders contacts with stage pills. Contact click → Outlook `from:` search. |
-| ⚠️ Monitor | Outreach Extension: contact count | Workables card shows 0 until user opens dashboard (bridge.js must run at least once per browser session to push data). |
+| ✅ Done | Outreach Extension: Workables sync | `bridge.js` on dashboard pushes `ibis_opps` → `chrome.storage.local`. 3s poll fixes same-window CSV upload detection (storage event only fires cross-tab). |
+| ✅ Done | Outreach Extension: search fix | Contact click searches `from:email OR to:email` (was from-only). URL path auto-detects `/mail/0/` vs `/mail/` for old vs new Outlook. |
+| ✅ Done | Outreach Extension v2.0: Priority Engine | Full rewrite. `config.js` for all settings (MY_EMAIL, thresholds). 3-view sidebar: Home (5 priority buckets) → Contact List (timing chips, stale dot) → Thread View (cadence status, last 10 emails, direction badges). Silent same-origin OWA API fetch — no background tabs, no flicker. Scan queue: BATCH_SIZE parallel, 30min cache, live progress bar. |
+| ⚠️ Monitor | Outreach Extension: OWA API path | Silent fetch targets `outlook.cloud.microsoft/owa/api/v2.0/me/messages`. Must test on Dan's live Outlook — if it returns 401/404, path needs adjusting. Check DevTools console for `[IBISWorld] Scan failed` errors. |
+| ⚠️ Monitor | Outreach Extension: contact count | Workables card shows 0 until dashboard opened once (bridge.js must run at least once per browser session to push data). |
+| 🗺️ Future | Outreach Extension: OWA API fallback | If silent fetch fails consistently, implement background tab fallback (tabs open with `active:false`, scraper.js reads DOM, closes tab). Architecture designed for this swap. |
 | 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
 | 🗺️ Future | Outreach Extension: Samples campaign | Define filter logic + contact list |
 | 🗺️ Future | Outreach Extension: Add Campaign modal | UI + storage for custom campaigns |
