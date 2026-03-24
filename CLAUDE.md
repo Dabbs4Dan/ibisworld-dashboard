@@ -312,6 +312,70 @@ function setFooSortCol(col) {
 
 ---
 
+## OUTREACH EXTENSION — Chrome Extension
+
+**Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
+**Version:** v1.3.0
+**Purpose:** Email execution layer that sits on top of Outlook Web — companion to the dashboard
+
+### Files
+| File | Purpose |
+|---|---|
+| `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
+| `content.js` | Injects collapsible sidebar into Outlook. Reads contacts from `chrome.storage.local` |
+| `sidebar.css` | All sidebar styles. DM Sans/Mono, #C8102E, #f0f2f5 — matches dashboard exactly |
+| `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Relays refresh messages to bridge.js |
+| `bridge.js` | Content script injected into dashboard page. Reads `ibis_opps` from localStorage → writes to `chrome.storage.local` as `outreach_contacts_raw` |
+
+### How data flows
+1. User opens dashboard → `bridge.js` auto-pushes `ibis_opps` into `chrome.storage.local.outreach_contacts_raw`
+2. User opens Outlook → `content.js` reads `outreach_contacts_raw` → parses + displays contacts
+3. Refresh button → asks `background.js` → finds open dashboard tab → tells `bridge.js` to re-push
+4. CSV upload in dashboard → `bridge.js` detects `storage` event → auto-pushes updated data
+
+### Storage keys (chrome.storage.local)
+- `outreach_contacts_raw` — raw `ibis_opps` JSON string, written by bridge.js
+- `outreach_contacts_ts` — timestamp of last push
+- `ibis_sidebar_collapsed` — sidebar open/closed state
+- `ibis_badge_top` — vertical position of the collapse badge
+
+### Sidebar UI
+- 300px right-anchored sidebar, IBISWorld red header
+- 3 campaign cards: 🎯 Workables · 🔄 Winbacks · 📋 Samples
+- 🎯 Workables: populated from `ibis_opps` — filters out `archived=true` and `stage='Lost'`
+- Contact rows: letter avatar (color by initial) · Name · Company · stage pill (dashboard colors)
+- Click contact → navigates Outlook to `from:[email]` search
+- Collapse badge: small red "I" square, pinned to right wall, drag up/down only
+- 🔄 refresh button in header — re-syncs from dashboard tab if open
+
+### Manifest URL patterns (all Outlook variants covered)
+- `https://outlook.live.com/*`
+- `https://outlook.office.com/*`
+- `https://outlook.office365.com/*`
+- `https://outlook.cloud.microsoft/*` ← Microsoft's new URL (important)
+- `https://outlook.microsoft.com/*`
+
+### How to reload after code changes
+1. Edit files locally
+2. `chrome://extensions` → IBISWorld Outreach → click ↺ reload
+3. Hard refresh Outlook tab (Ctrl+Shift+R)
+4. **Do NOT just reload the tab** — must reload the extension first
+
+### How to install fresh
+1. `chrome://extensions` → Enable Developer mode
+2. Load unpacked → select `outreach-extension/` folder
+3. Open dashboard once (so bridge.js pushes contact data)
+4. Open Outlook — sidebar appears automatically
+
+### Design rules (same as dashboard)
+- Font: DM Sans + DM Mono (Google Fonts)
+- Red: `#C8102E`
+- Background: `#f0f2f5`
+- Stage pill colors match dashboard `STAGE_COLORS` exactly
+- No shadows on the collapse badge
+
+---
+
 ## HOW TO WORK WITH DAN
 
 ### Who Dan is
@@ -407,3 +471,11 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Mobile/responsive layout | No media queries exist. |
 | 🗺️ Future | Meetings layer | SF "Activities with Accounts" report |
 | 🗺️ Future | Tasks/Samples layer | SF "Tasks and Events" report |
+| ✅ Done | Outreach Extension foundation | `/outreach-extension/` — MV3 Chrome extension. Sidebar on Outlook with 3 campaign cards. Collapse badge (red "I", right-wall pinned, vertical drag). SPA resilience + context invalidation guards. |
+| ✅ Done | Outreach Extension: Workables sync | `bridge.js` on dashboard pushes `ibis_opps` → `chrome.storage.local`. `content.js` reads and renders contacts with stage pills. Contact click → Outlook `from:` search. |
+| ⚠️ Monitor | Outreach Extension: contact count | Workables card shows 0 until user opens dashboard (bridge.js must run at least once per browser session to push data). |
+| 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
+| 🗺️ Future | Outreach Extension: Samples campaign | Define filter logic + contact list |
+| 🗺️ Future | Outreach Extension: Add Campaign modal | UI + storage for custom campaigns |
+| 🗺️ Future | Outreach Extension: email compose integration | Pre-fill Outlook compose with contact name + template on click |
+| 🗺️ Future | Outreach Extension: activity logging | Log sent emails back to dashboard (surface in Workables tab) |
