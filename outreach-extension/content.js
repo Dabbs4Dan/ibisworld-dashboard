@@ -40,6 +40,18 @@
   // OWA API base — same-origin fetch (credentials auto-included via cookies)
   const OWA_API = 'https://outlook.cloud.microsoft/owa/api/v2.0/me/messages';
 
+  // ── OWA Canary token (required by OWA REST API for CSRF protection) ────────
+  function getOWACanary() {
+    try {
+      if (window.__owa_canary)                   return window.__owa_canary;
+      if (window.UserConfig?.owaCanary)          return window.UserConfig.owaCanary;
+      if (window.g_userConfig?.owaCanary)        return window.g_userConfig.owaCanary;
+      const m = document.cookie.match(/X-OWA-CANARY=([^;]+)/);
+      if (m) return decodeURIComponent(m[1]);
+    } catch (_) {}
+    return null;
+  }
+
   // ── State ─────────────────────────────────────────────────────────────────
 
   let allContacts     = [];
@@ -72,8 +84,8 @@
       if (nd <= today) return 'scheduled';
     }
 
-    // Without real email data, contact is unscanned — not shown in timing buckets yet
-    if (!cache || cache.failed || !cache.ts) return 'unscanned';
+    // Without real email data, default to email_today — they still need an action
+    if (!cache || cache.failed || !cache.ts) return 'email_today';
 
     if (cache.isActiveThread)  return 'active';
     if (cache.daysSinceLastOutbound !== null &&
@@ -122,14 +134,28 @@
       '&$top='       + IBIS_CONFIG.EMAIL_HISTORY_DEPTH +
       '&$orderby=ReceivedDateTime%20desc';
 
-    const resp = await fetch(url, {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' },
-    });
+    const headers = { 'Accept': 'application/json' };
+    const canary  = getOWACanary();
+    if (canary) headers['X-OWA-CANARY'] = canary;
 
-    if (!resp.ok) throw new Error('OWA API ' + resp.status);
+    console.log('[IBISWorld] Fetching OWA:', url.split('?')[0], canary ? '✓ canary' : '✗ no canary');
+    const resp = await fetch(url, { credentials: 'include', headers });
+
+    if (!resp.ok) {
+      const errBody = await resp.text().catch(() => '');
+      console.warn('[IBISWorld] OWA', resp.status, 'for', email,
+        '\nURL:', url,
+        '\nBody:', errBody.slice(0, 400),
+        '\nHint:', resp.status === 403 ? 'Canary token missing/invalid' :
+                  resp.status === 401 ? 'Auth cookies not sent — check host_permissions' :
+                  resp.status === 404 ? 'API path not found on this Outlook variant' : '');
+      throw new Error('OWA API ' + resp.status);
+    }
+
     const data = await resp.json();
-    return data.value || [];
+    const msgs = data.value || [];
+    console.log('[IBISWorld] Got', msgs.length, 'emails for', email);
+    return msgs;
   }
 
   function processEmails(emails) {
@@ -325,10 +351,24 @@
         </div>`;
     }).join('');
 
+    const wCount  = allContacts.length;
+    const wActive = wCount > 0;
+
     body.innerHTML = `
       <div class="ibis-section-label">Priority Engine</div>
       ${bucketCardsHTML}
       <div class="ibis-section-label" style="margin-top:8px">Campaigns</div>
+      <div class="ibis-bucket-card${wActive ? ' has-contacts' : ''}" data-bucket="workables">
+        <div class="ibis-bucket-icon-wrap" style="background:#fef3c7"><span class="ibis-bucket-icon-inner">🎯</span></div>
+        <div class="ibis-bucket-info">
+          <div class="ibis-bucket-name">Workables</div>
+          <div class="ibis-bucket-desc">Full pipeline</div>
+        </div>
+        <div class="ibis-bucket-count${wActive ? ' active-count' : ''}"
+             id="ibis-count-workables"
+             style="${wActive ? 'background:#fef3c7;color:#b45309;border-color:#b4530940' : ''}"
+        >${wCount}</div>
+      </div>
       <div class="ibis-bucket-card placeholder">
         <div class="ibis-bucket-icon-wrap" style="background:#e0f2fe"><span class="ibis-bucket-icon-inner">🔄</span></div>
         <div class="ibis-bucket-info">
@@ -338,7 +378,7 @@
         <div class="ibis-bucket-count">—</div>
       </div>
       <div class="ibis-bucket-card placeholder">
-        <div class="ibis-bucket-icon-wrap" style="background:#fef3c7"><span class="ibis-bucket-icon-inner">📋</span></div>
+        <div class="ibis-bucket-icon-wrap" style="background:#f3e8ff"><span class="ibis-bucket-icon-inner">📋</span></div>
         <div class="ibis-bucket-info">
           <div class="ibis-bucket-name">Samples</div>
           <div class="ibis-bucket-desc">Trial send-outs</div>
@@ -373,12 +413,29 @@
     const body = document.getElementById('ibis-sidebar-body');
     if (!body) return;
 
-    const bucket   = BUCKETS.find(b => b.id === currentBucketId);
-    const contacts = getBucketContacts(currentBucketId);
+    const isWorkables = currentBucketId === 'workables';
+    const bucket      = BUCKETS.find(b => b.id === currentBucketId);
+
+    let contacts;
+    if (isWorkables) {
+      // Show all contacts sorted by urgency (most actionable first)
+      const PRIORITY = { email_today: 0, active: 1, sent_recently: 2, scheduled: 3, ice: 4 };
+      contacts = [...allContacts].sort((a, b) => {
+        const pa = PRIORITY[getPriorityBucket(a, emailCache[a.email])] ?? 5;
+        const pb = PRIORITY[getPriorityBucket(b, emailCache[b.email])] ?? 5;
+        if (pa !== pb) return pa - pb;
+        return (a.accountName || '').localeCompare(b.accountName || '');
+      });
+    } else {
+      contacts = getBucketContacts(currentBucketId);
+    }
+
+    const headerIcon  = isWorkables ? '🎯' : (bucket ? bucket.icon  : '');
+    const headerLabel = isWorkables ? 'Workables' : (bucket ? bucket.label : '');
 
     const rowsHTML = contacts.length
       ? contacts.map(contactRowHTML).join('')
-      : `<div class="ibis-contact-empty">No contacts in this bucket yet.<br>
+      : `<div class="ibis-contact-empty">No contacts here yet.<br>
            <small>${scanActive ? 'Scan in progress…' : 'All caught up!'}</small>
          </div>`;
 
@@ -386,8 +443,8 @@
       <div class="ibis-list-header">
         <button class="ibis-back-btn" id="ibis-back-to-home">← Home</button>
         <div class="ibis-list-title">
-          <span>${bucket ? bucket.icon : ''}</span>
-          <span>${bucket ? bucket.label : ''}</span>
+          <span>${headerIcon}</span>
+          <span>${headerLabel}</span>
           <span class="ibis-list-count">${contacts.length}</span>
         </div>
       </div>
@@ -582,10 +639,13 @@
   function parseContacts(raw) {
     if (!raw) return [];
     try {
-      const opps = JSON.parse(raw);
-      return Object.values(opps)
-        .filter(c => !c.archived && !EXCLUDED_STAGES.has(c.stage))
-        .sort((a, b) => (a.accountName || '').localeCompare(b.accountName || ''));
+      const opps    = JSON.parse(raw);
+      const all     = Object.values(opps);
+      const active  = all.filter(c => !c.archived && !EXCLUDED_STAGES.has(c.stage));
+      const archived = all.filter(c =>  c.archived).length;
+      const lost     = all.filter(c => !c.archived && EXCLUDED_STAGES.has(c.stage)).length;
+      console.log(`[IBISWorld] Contacts loaded: ${active.length} active | ${archived} archived | ${lost} lost (of ${all.length} total)`);
+      return active.sort((a, b) => (a.accountName || '').localeCompare(b.accountName || ''));
     } catch (e) {
       console.error('[IBISWorld] Parse error:', e);
       return [];
