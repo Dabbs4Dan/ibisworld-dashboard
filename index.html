@@ -947,6 +947,24 @@
   /* Toast */
   #opp-toast { position:fixed; bottom:20px; right:20px; background:#1a1a2e; color:white; font-size:13px; padding:10px 18px; border-radius:8px; z-index:9998; font-family:'DM Sans',sans-serif; box-shadow:0 4px 16px rgba(0,0,0,0.3); opacity:0; pointer-events:none; transition:opacity 0.25s ease, transform 0.25s ease; transform:translateY(6px); }
   #opp-toast.show { opacity:1; transform:translateY(0); }
+
+  /* ── Dead Tab ───────────────────────────────────────── */
+  #vnav-dead { color: #6b7280; }
+  #vnav-dead.active { color: #374151; }
+  .dead-section-wrap {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px 24px 24px;
+    margin-bottom: 8px;
+  }
+  .dead-section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f3f4f6;
+  }
 </style>
 </head>
 <body>
@@ -1003,6 +1021,7 @@
     <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
     <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
     <button class="vnav-btn" id="vnav-opps" onclick="setMainView('opps')">🎯 Workables</button>
+    <button class="vnav-btn" id="vnav-dead" onclick="setMainView('dead')">💀 Dead <span id="dead-tab-badge" style="display:none;background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;font-weight:700;"></span></button>
   </div>
 </div>
 
@@ -1082,6 +1101,35 @@
     <div class="stat-label">Avg Days Inactive</div>
     <div class="stat-value" id="ostat-avg-days">—</div>
   </div>
+</div>
+
+<!-- DEAD STATS BAR -->
+<div class="stats-bar hidden" id="stats-dead">
+  <div class="stat-item">
+    <div class="stat-label">Dead Accounts</div>
+    <div class="stat-value" id="dstat-accounts">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Dead Licenses</div>
+    <div class="stat-value" id="dstat-licenses">—</div>
+  </div>
+  <div class="stat-item" style="border-right:none;">
+    <div class="stat-label">Unexpected Drops ⚠️</div>
+    <div class="stat-value" style="color:#f97316;" id="dstat-warnings">—</div>
+  </div>
+</div>
+
+<!-- DEAD CONTROLS -->
+<div class="controls hidden" id="controls-dead">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search dead records..." id="dead-search-input" oninput="renderDead()">
+  </div>
+  <select id="dead-section-select" onchange="renderDead()" style="font-family:'DM Sans',sans-serif;font-size:13px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 10px;color:#374151;background:#fff;">
+    <option value="both">Show All</option>
+    <option value="accounts">Accounts Only</option>
+    <option value="licenses">Licenses Only</option>
+  </select>
 </div>
 
 <!-- ACCOUNTS CONTROLS -->
@@ -1289,6 +1337,64 @@
   </div>
 </div>
 
+<!-- DEAD TAB CONTENT -->
+<div id="content-dead" class="hidden">
+  <!-- Dead Accounts Section -->
+  <div class="dead-section-wrap">
+    <div class="dead-section-header" id="dead-accts-header">
+      <span style="font-size:15px;font-weight:700;color:#374151;">⚰️ Dead Accounts</span>
+      <span id="dead-accts-count" style="background:#f3f4f6;color:#6b7280;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">0</span>
+    </div>
+    <div id="dead-accounts-wrap">
+      <div id="dead-accounts-empty" style="text-align:center;color:#9ca3af;padding:40px 0;font-size:14px;">No dead accounts yet. Accounts removed from your next CSV upload will appear here.</div>
+      <div class="table-wrap hidden" id="dead-accounts-table-wrap">
+        <table class="acct-table">
+          <thead>
+            <tr>
+              <th style="width:28px;"></th>
+              <th>Company</th>
+              <th>Vertical</th>
+              <th>Tier</th>
+              <th>Revenue</th>
+              <th>Status at Death</th>
+              <th>Dead Since</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="dead-accounts-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dead Licenses Section -->
+  <div class="dead-section-wrap" style="margin-top:32px;">
+    <div class="dead-section-header">
+      <span style="font-size:15px;font-weight:700;color:#374151;">🗂 Dead Licenses</span>
+      <span id="dead-lics-count" style="background:#f3f4f6;color:#6b7280;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">0</span>
+    </div>
+    <div id="dead-licenses-wrap">
+      <div id="dead-licenses-empty" style="text-align:center;color:#9ca3af;padding:40px 0;font-size:14px;">No dead licenses yet. Licenses removed from your next CSV upload will appear here.</div>
+      <div class="table-wrap hidden" id="dead-licenses-table-wrap">
+        <table class="lic-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>License Name</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>ACV</th>
+              <th>End Date</th>
+              <th>Dead Since</th>
+            </tr>
+          </thead>
+          <tbody id="dead-licenses-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="opp-toast"></div>
 
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
@@ -1390,6 +1496,8 @@ function vertBubble(acc) {
 }
 
 function init() {
+  loadDead();
+  updateDeadTabBadge();
   const saved = localStorage.getItem('ibis_accounts');
   const savedLocal = localStorage.getItem('ibis_local');
   const savedLic = localStorage.getItem('ibis_licenses');
@@ -1444,6 +1552,30 @@ function handleCSV(e) {
     const text = ev.target.result;
     const newAccounts = parseCSV(text);
     if (accounts.length > 0) detectChanges(accounts, newAccounts);
+
+    // ── Dead account detection ─────────────────────────────────────────
+    if (accounts.length > 0) {
+      const newNameSet = new Set(newAccounts.map(a => normName(getField(a,'Account Name','AccountName'))));
+      const alreadyDeadNorms = new Set(deadAccounts.map(d => normName(getField(d,'Account Name','AccountName'))));
+      const today = new Date().toISOString().slice(0,10);
+      // Move disappeared accounts → dead
+      accounts.forEach(a => {
+        const name = getField(a,'Account Name','AccountName');
+        const norm = normName(name);
+        if (!newNameSet.has(norm) && !alreadyDeadNorms.has(norm)) {
+          const local = localData[name] || {};
+          const status = local.acctStatus || '—';
+          deadAccounts.push({ ...a, _deadSince: today, _statusAtDeath: status,
+            _unexpectedDrop: status !== '✗', _localSnapshot: { ...local } });
+        }
+      });
+      // Resurrect accounts that reappeared in new CSV
+      deadAccounts = deadAccounts.filter(d => !newNameSet.has(normName(getField(d,'Account Name','AccountName'))));
+      saveDead();
+      updateDeadTabBadge();
+    }
+    // ──────────────────────────────────────────────────────────────────
+
     accounts = newAccounts;
     stampLastSeen(accounts);
     pruneStaleLocalData();
@@ -2624,7 +2756,37 @@ function handleLicenseCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    licenses = parseLicenseCSV(ev.target.result);
+    const oldLicenses = licenses.slice(); // snapshot before replace
+    const newLicenses = parseLicenseCSV(ev.target.result);
+
+    // ── Dead license detection ─────────────────────────────────────────
+    if (oldLicenses.length > 0) {
+      const newKeySet = new Set(newLicenses.map(l => licKey(l)));
+      const alreadyDeadKeys = new Set(deadLicenses.map(l => licKey(l)));
+      const today = new Date().toISOString().slice(0,10);
+      // Move disappeared licenses → dead
+      oldLicenses.forEach(l => {
+        const k = licKey(l);
+        if (!newKeySet.has(k) && !alreadyDeadKeys.has(k)) {
+          deadLicenses.push({
+            _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
+            _type: l._type, _acv: l._acv, _currency: l._currency,
+            _endDate: l._endDate ? l._endDate.toISOString() : null,
+            _startDate: l._startDate ? l._startDate.toISOString() : null,
+            _active: l._active, _churnTier: l._churnTier,
+            _confirmedProcurement: l._confirmedProcurement || false,
+            _deadSince: today
+          });
+        }
+      });
+      // Resurrect licenses that reappeared
+      deadLicenses = deadLicenses.filter(d => !newKeySet.has(licKey(d)));
+      saveDead();
+      updateDeadTabBadge();
+    }
+    // ──────────────────────────────────────────────────────────────────
+
+    licenses = newLicenses;
     // Store slim version — only computed fields to avoid bloat
     const slim = licenses.map(l => ({
       _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
@@ -3296,13 +3458,14 @@ function renderLicenses() {
 
 function setMainView(v) {
   mainView = v;
-  ['accounts','licenses','opps'].forEach(tab => {
+  ['accounts','licenses','opps','dead'].forEach(tab => {
     const active = v === tab;
     document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
     document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
     document.getElementById('controls-' + tab)?.classList.toggle('hidden', !active);
     document.getElementById('content-' + tab)?.classList.toggle('hidden', !active);
   });
+  if (v === 'dead') renderDead();
 }
 
 
@@ -3333,7 +3496,7 @@ function checkStorageSize() {
   const WARN_TOTAL_KB = 4096; // warn at 4MB total
   let totalKB = 0;
   let triggered = false;
-  ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps'].forEach(key => {
+  ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead'].forEach(key => {
     const val = localStorage.getItem(key);
     if (!val) return;
     const kb = Math.round((val.length * 2) / 1024);
@@ -3974,6 +4137,196 @@ document.addEventListener('scroll', function() {
   const _asp = document.getElementById('acct-status-portal');
   if (_asp && _asp.style.display === 'block') { _asp.style.display = 'none'; _asp.dataset.wrapId = ''; }
 }, true);
+
+// ── DEAD TAB ──────────────────────────────────────────────────────────────────
+
+let deadAccounts = [];
+let deadLicenses = [];
+
+function licKey(l) {
+  return [(l._name||'').toLowerCase().trim(), (l._licenseName||'').toLowerCase().trim(), (l._oppName||'').toLowerCase().trim()].join('|');
+}
+
+function loadDead() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[]}');
+    deadAccounts = raw.accounts || [];
+    deadLicenses = raw.licenses || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; }
+}
+
+function saveDead() {
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses })); }
+  catch(e) { console.warn('[ibis] Dead save failed:', e); }
+}
+
+function updateDeadTabBadge() {
+  const total = deadAccounts.length + deadLicenses.length;
+  const badge = document.getElementById('dead-tab-badge');
+  if (!badge) return;
+  if (total > 0) { badge.textContent = total; badge.style.display = 'inline'; }
+  else { badge.style.display = 'none'; }
+}
+
+function renderDead() {
+  renderDeadAccounts();
+  renderDeadLicenses();
+  // Update stats bar
+  const warnings = deadAccounts.filter(d => d._unexpectedDrop).length;
+  const dsa = document.getElementById('dstat-accounts');
+  const dsl = document.getElementById('dstat-licenses');
+  const dsw = document.getElementById('dstat-warnings');
+  if (dsa) dsa.textContent = deadAccounts.length;
+  if (dsl) dsl.textContent = deadLicenses.length;
+  if (dsw) dsw.textContent = warnings || '—';
+}
+
+function renderDeadAccounts() {
+  const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
+  const section = document.getElementById('dead-section-select')?.value || 'both';
+  const wrap = document.getElementById('dead-accounts-table-wrap');
+  const empty = document.getElementById('dead-accounts-empty');
+  const body = document.getElementById('dead-accounts-body');
+  const countEl = document.getElementById('dead-accts-count');
+  const acctsSectionWrap = document.querySelector('#content-dead .dead-section-wrap');
+
+  if (!body) return;
+
+  // Show/hide section based on filter
+  if (acctsSectionWrap) acctsSectionWrap.style.display = section === 'licenses' ? 'none' : '';
+
+  let list = deadAccounts.slice();
+
+  // Apply search
+  if (search) {
+    list = list.filter(d => {
+      const name = (getField(d,'Account Name','AccountName') || '').toLowerCase();
+      const vert = (getField(d,'Vertical','Vertical') || '').toLowerCase();
+      return name.includes(search) || vert.includes(search);
+    });
+  }
+
+  // Sort: unexpected drops first, then by deadSince desc
+  list.sort((a, b) => {
+    if (a._unexpectedDrop && !b._unexpectedDrop) return -1;
+    if (!a._unexpectedDrop && b._unexpectedDrop) return 1;
+    return (b._deadSince || '').localeCompare(a._deadSince || '');
+  });
+
+  if (countEl) countEl.textContent = list.length;
+
+  if (!list.length) {
+    wrap?.classList.add('hidden');
+    if (empty) empty.style.display = '';
+    return;
+  }
+  wrap?.classList.remove('hidden');
+  if (empty) empty.style.display = 'none';
+
+  body.innerHTML = list.map(d => {
+    const name = getField(d, 'Account Name', 'AccountName') || '—';
+    const vert = getTrueVertical(d);
+    const vertColor = VERT_COLORS[vert] || '#f3f4f6';
+    const tier = getField(d, 'Major Markets Tier', 'MajorMarketsTier') || '';
+    const snap = d._localSnapshot || {};
+    const rev = snap.rev || snap.revenue || '';
+    const notes = snap.notes || '';
+    const status = d._statusAtDeath || '—';
+    const deadSince = d._deadSince || '—';
+    const domain = (getField(d,'Website','Website')||'').replace(/^https?:\/\//,'').replace(/\/.*/,'').trim();
+    const logoHtml = domain
+      ? `<img src="https://logo.uplead.com/${domain}" style="width:24px;height:24px;border-radius:4px;object-fit:contain;vertical-align:middle;margin-right:7px;" onerror="this.style.display='none'">`
+      : '';
+
+    // Tier diamond
+    const tierMap = { 'T1':'navy','T2':'forest','T3':'sienna','T4':'charcoal' };
+    const tierCls = tierMap[tier] ? `tier-${tierMap[tier]}` : '';
+    const tierHtml = tier ? `<span class="tier-diamond ${tierCls}">${tier}</span>` : '<span style="color:#9ca3af;">—</span>';
+
+    // Status badge
+    const statusMap = { '✓':'#dcfce7|#166534','👁':'#fef9c3|#854d0e','✗':'#fee2e2|#991b1b','—':'#f3f4f6|#6b7280' };
+    const [sbg, scol] = (statusMap[status] || '#f3f4f6|#6b7280').split('|');
+    const statusHtml = `<span style="background:${sbg};color:${scol};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;">${status}</span>`;
+
+    // Warning badge
+    const warnHtml = d._unexpectedDrop
+      ? `<span title="Not marked as Drop when removed" style="font-size:15px;cursor:default;">⚠️</span>`
+      : '';
+
+    return `<tr style="opacity:0.82;${d._unexpectedDrop ? 'background:#fffbeb;' : ''}">
+      <td style="text-align:center;padding:0 6px;">${warnHtml}</td>
+      <td><div style="display:flex;align-items:center;">${logoHtml}<span style="font-weight:600;color:#374151;font-size:13px;">${name}</span></div></td>
+      <td><span class="vert-bubble" style="background:${vertColor};">${vert}</span></td>
+      <td>${tierHtml}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#374151;">${rev || '<span style="color:#9ca3af;">—</span>'}</td>
+      <td>${statusHtml}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#6b7280;">${deadSince}</td>
+      <td style="font-size:12px;color:#6b7280;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${notes || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDeadLicenses() {
+  const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
+  const section = document.getElementById('dead-section-select')?.value || 'both';
+  const wrap = document.getElementById('dead-licenses-table-wrap');
+  const empty = document.getElementById('dead-licenses-empty');
+  const body = document.getElementById('dead-licenses-body');
+  const countEl = document.getElementById('dead-lics-count');
+  const licsSectionWrap = document.querySelectorAll('#content-dead .dead-section-wrap')[1];
+
+  if (!body) return;
+
+  if (licsSectionWrap) licsSectionWrap.style.display = section === 'accounts' ? 'none' : '';
+
+  let list = deadLicenses.slice();
+
+  if (search) {
+    list = list.filter(d => (d._name||'').toLowerCase().includes(search) || (d._licenseName||'').toLowerCase().includes(search));
+  }
+
+  // Sort: by deadSince desc
+  list.sort((a, b) => (b._deadSince || '').localeCompare(a._deadSince || ''));
+
+  if (countEl) countEl.textContent = list.length;
+
+  if (!list.length) {
+    wrap?.classList.add('hidden');
+    if (empty) empty.style.display = '';
+    return;
+  }
+  wrap?.classList.remove('hidden');
+  if (empty) empty.style.display = 'none';
+
+  const typeLabelMap = { US:'US Industry', PIQ:'US Procurement', INTL:'International', TRIAL:'Trial', MIGRATION:'Migration', UNKNOWN:'Other' };
+  const typeClsMap = { US:'ltype-us', PIQ:'ltype-procurement', INTL:'ltype-intl', TRIAL:'ltype-trial', MIGRATION:'ltype-migration', UNKNOWN:'ltype-unknown' };
+
+  body.innerHTML = list.map(d => {
+    const endDate = d._endDate ? new Date(d._endDate) : null;
+    const fmtDate = dt => dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const typeCls = typeClsMap[d._type] || 'ltype-unknown';
+    const typeLabel = typeLabelMap[d._type] || d._type;
+    const churnHtml = d._churnTier === 'newchurn'
+      ? `<span class="lic-status-badge lic-churned" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">🔥 New Churn</span>`
+      : d._churnTier === 'churned'
+        ? `<span class="lic-status-badge lic-churned">❌ Churned</span>`
+        : d._active
+          ? `<span class="lic-status-badge lic-active">✅ Active</span>`
+          : `<span class="lic-status-badge lic-dead">· Dead</span>`;
+
+    const acvStr = d._acv ? `${d._currency||'$'}${Number(d._acv).toLocaleString()}` : '—';
+
+    return `<tr style="opacity:0.82;">
+      <td style="font-weight:600;font-size:13px;color:#374151;">${d._name||'—'}</td>
+      <td style="font-size:12px;color:#6b7280;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d._licenseName||'—'}</td>
+      <td><span class="lic-type-badge ${typeCls}">${typeLabel}</span></td>
+      <td>${churnHtml}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;">${acvStr}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#6b7280;">${fmtDate(endDate)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#f97316;font-weight:600;">${d._deadSince||'—'}</td>
+    </tr>`;
+  }).join('');
+}
 </script>
 <!-- Global portal for account status dropdown — lives outside table to avoid stacking context issues -->
 <div id="acct-status-portal"></div>
