@@ -965,6 +965,26 @@
     padding-bottom: 12px;
     border-bottom: 1px solid #f3f4f6;
   }
+  /* Dead view pill switcher */
+  .dead-view-tabs { display: flex; gap: 6px; align-items: center; }
+  .dvt-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-radius: 20px;
+    border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .dvt-btn:hover:not(.active) { border-color: #d1d5db; color: #374151; background: #f9fafb; }
+  .dvt-btn.active { background: #374151; border-color: #374151; color: #fff; }
+  .dvt-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; padding: 1px 6px; border-radius: 10px;
+    font-size: 11px; font-weight: 700;
+    background: #f3f4f6; color: #374151;
+    transition: background 0.15s, color 0.15s;
+  }
+  .dvt-btn.active .dvt-count { background: rgba(255,255,255,0.2); color: #fff; }
 </style>
 </head>
 <body>
@@ -1121,15 +1141,18 @@
 
 <!-- DEAD CONTROLS -->
 <div class="controls hidden" id="controls-dead">
+  <div class="dead-view-tabs">
+    <button class="dvt-btn active" id="dvt-accounts" onclick="setDeadView('accounts')">
+      ⚰️ Accounts <span class="dvt-count" id="dvt-acct-count">0</span>
+    </button>
+    <button class="dvt-btn" id="dvt-licenses" onclick="setDeadView('licenses')">
+      🗂 Licenses <span class="dvt-count" id="dvt-lic-count">0</span>
+    </button>
+  </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="Search dead records..." id="dead-search-input" oninput="renderDead()">
   </div>
-  <select id="dead-section-select" onchange="renderDead()" style="font-family:'DM Sans',sans-serif;font-size:13px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 10px;color:#374151;background:#fff;">
-    <option value="both">Show All</option>
-    <option value="accounts">Accounts Only</option>
-    <option value="licenses">Licenses Only</option>
-  </select>
 </div>
 
 <!-- ACCOUNTS CONTROLS -->
@@ -4142,6 +4165,15 @@ document.addEventListener('scroll', function() {
 
 let deadAccounts = [];
 let deadLicenses = [];
+let deadView = 'accounts'; // 'accounts' | 'licenses' — extensible for future sections
+
+function setDeadView(v) {
+  deadView = v;
+  ['accounts','licenses'].forEach(tab => {
+    document.getElementById('dvt-' + tab)?.classList.toggle('active', v === tab);
+  });
+  renderDead();
+}
 
 function licKey(l) {
   return [(l._name||'').toLowerCase().trim(), (l._licenseName||'').toLowerCase().trim(), (l._oppName||'').toLowerCase().trim()].join('|');
@@ -4179,11 +4211,15 @@ function renderDead() {
   if (dsa) dsa.textContent = deadAccounts.length;
   if (dsl) dsl.textContent = deadLicenses.length;
   if (dsw) dsw.textContent = warnings || '—';
+  // Update pill counts
+  const pac = document.getElementById('dvt-acct-count');
+  const plc = document.getElementById('dvt-lic-count');
+  if (pac) pac.textContent = deadAccounts.length;
+  if (plc) plc.textContent = deadLicenses.length;
 }
 
 function renderDeadAccounts() {
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  const section = document.getElementById('dead-section-select')?.value || 'both';
   const wrap = document.getElementById('dead-accounts-table-wrap');
   const empty = document.getElementById('dead-accounts-empty');
   const body = document.getElementById('dead-accounts-body');
@@ -4192,8 +4228,8 @@ function renderDeadAccounts() {
 
   if (!body) return;
 
-  // Show/hide section based on filter
-  if (acctsSectionWrap) acctsSectionWrap.style.display = section === 'licenses' ? 'none' : '';
+  // Show/hide section based on active pill view
+  if (acctsSectionWrap) acctsSectionWrap.style.display = deadView === 'licenses' ? 'none' : '';
 
   let list = deadAccounts.slice();
 
@@ -4268,7 +4304,6 @@ function renderDeadAccounts() {
 
 function renderDeadLicenses() {
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  const section = document.getElementById('dead-section-select')?.value || 'both';
   const wrap = document.getElementById('dead-licenses-table-wrap');
   const empty = document.getElementById('dead-licenses-empty');
   const body = document.getElementById('dead-licenses-body');
@@ -4277,7 +4312,8 @@ function renderDeadLicenses() {
 
   if (!body) return;
 
-  if (licsSectionWrap) licsSectionWrap.style.display = section === 'accounts' ? 'none' : '';
+  // Show/hide section based on active pill view
+  if (licsSectionWrap) licsSectionWrap.style.display = deadView === 'accounts' ? 'none' : '';
 
   let list = deadLicenses.slice();
 
