@@ -902,6 +902,34 @@
   .ast-drop    { background:#fee2e2; color:#991b1b; }
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
+  /* Status column collapse toggle */
+  .status-col-toggle { background:none; border:none; cursor:pointer; font-size:11px; color:var(--text-muted); padding:0 0 0 4px; opacity:0.5; vertical-align:middle; line-height:1; }
+  .status-col-toggle:hover { opacity:1; }
+  table.status-col-collapsed th.status-col { width:0 !important; min-width:0 !important; padding:0 !important; overflow:hidden; max-width:0 !important; font-size:0; }
+  table.status-col-collapsed td.status-col { width:0 !important; min-width:0 !important; padding:0 !important; overflow:hidden; max-width:0 !important; }
+  table.status-col-collapsed td.status-col > * { display:none !important; }
+
+  /* Account Priority dropdown — portal pattern mirrors status */
+  .acct-priority-wrap { position:relative; display:inline-block; }
+  .acct-priority-trigger { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.5; min-width:80px; transition:opacity 0.1s; }
+  .acct-priority-trigger::after { content:'▾'; font-size:9px; opacity:0.55; margin-left:2px; }
+  #acct-priority-portal { position:fixed; z-index:9501; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.14); padding:6px; min-width:145px; display:none; }
+  .acct-priority-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
+  .acct-priority-opt:last-child { margin-bottom:0; }
+  .acct-priority-opt:hover { filter:brightness(0.94); }
+  .apr-legendary { background:#fef3c7; color:#92400e; }
+  .apr-veryrare  { background:#ede9fe; color:#5b21b6; }
+  .apr-rare      { background:#dbeafe; color:#1e40af; }
+  .apr-uncommon  { background:#d1fae5; color:#065f46; }
+  .apr-common    { background:#f3f4f6; color:#4b5563; }
+  .apr-none      { background:#f3f4f6; color:#9ca3af; }
+
+  /* Priority filter chip active states */
+  .chip-legendary.active { background:#fef3c7; border-color:#fcd34d; color:#92400e; }
+  .chip-veryrare.active  { background:#ede9fe; border-color:#c4b5fd; color:#5b21b6; }
+  .chip-rare.active      { background:#dbeafe; border-color:#93c5fd; color:#1e40af; }
+  .chip-uncommon.active  { background:#d1fae5; border-color:#6ee7b7; color:#065f46; }
+
   /* Stage custom dropdown */
   .stage-sel-wrap { position:relative; display:inline-block; }
   .stage-sel-trigger { display:inline-flex; align-items:center; gap:4px; padding:3px 10px 3px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.4; }
@@ -1184,6 +1212,11 @@
     <button class="chip chip-monitor" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">👁 Monitor</button>
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
+    <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
+    <button class="chip chip-legendary" onclick="toggleChip(this,'PRIO_LEGENDARY')" data-flag="PRIO_LEGENDARY">💎 Legendary</button>
+    <button class="chip chip-veryrare" onclick="toggleChip(this,'PRIO_VERYRARE')" data-flag="PRIO_VERYRARE">⭐ Very Rare</button>
+    <button class="chip chip-rare" onclick="toggleChip(this,'PRIO_RARE')" data-flag="PRIO_RARE">🔨 Rare</button>
+    <button class="chip chip-uncommon" onclick="toggleChip(this,'PRIO_UNCOMMON')" data-flag="PRIO_UNCOMMON">⛏ Uncommon</button>
   </div>
 </div>
 
@@ -1251,7 +1284,8 @@
       <table>
         <thead>
           <tr>
-            <th onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;">Status <span class="acct-sort-arrow" id="asort-acctStatus"></span></th>
+            <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;">Status <span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
+            <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
@@ -1689,7 +1723,8 @@ function pruneStaleLocalData() {
     const hasNotes = !!(entry.notes && entry.notes.trim());
     const userFlags = (entry.flags || []).filter(f => f !== '🆕');
     const hasStatus = !!(entry.acctStatus);
-    if (hasNotes || userFlags.length > 0 || hasStatus) return; // has real user data — keep
+    const hasPriority = !!(entry.acctPriority);
+    if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority) return; // has real user data — keep
     delete localData[name];
     pruned++;
   });
@@ -1755,6 +1790,10 @@ function getFiltered() {
         else if (f === 'DROP')    { if (acctStatus !== 'drop')    return false; }
         else if (f === 'MONITOR') { if (acctStatus !== 'monitor') return false; }
         else if (f === 'ACTIVE_LIC') { if (!getActiveLicBadges(aName)) return false; }
+        else if (f === 'PRIO_LEGENDARY') { if ((localData[aName]?.acctPriority||'') !== 'legendary') return false; }
+        else if (f === 'PRIO_VERYRARE')  { if ((localData[aName]?.acctPriority||'') !== 'veryrare')  return false; }
+        else if (f === 'PRIO_RARE')      { if ((localData[aName]?.acctPriority||'') !== 'rare')       return false; }
+        else if (f === 'PRIO_UNCOMMON')  { if ((localData[aName]?.acctPriority||'') !== 'uncommon')   return false; }
         else if (!flags.includes(f)) return false;
       }
     }
@@ -1778,6 +1817,7 @@ function getFiltered() {
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
+    if (sort==='acctPriority') { const ord={legendary:0,veryrare:1,rare:2,uncommon:3,common:4,'':5}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??5)-(ord[bp]??5)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     return 0;
   });
@@ -1929,7 +1969,8 @@ function renderTable(list) {
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     return `<tr class="${flags.includes('🆕')?'new-account':''}">
-      <td style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
+      <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
+      <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="td-company"><div class="td-logo">${tdLogoHtml}</div><div><div class="td-name">${name}</div>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
@@ -2716,10 +2757,10 @@ function autoQueueSentiment() {
 let acctSortCol = 'intent';
 let acctSortDir = 'desc';
 let frozenSortOrder = null; // locks row order after explicit sort — cleared only by another header click
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus','acctPriority'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -3127,6 +3168,72 @@ function applyPortalStatus(status) {
     const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
     const trigger = wrap.querySelector('.acct-status-trigger');
     if (trigger) { trigger.className = 'acct-status-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
+  }
+  portal.style.display = 'none'; portal.dataset.wrapId = '';
+}
+
+// Status column collapse toggle
+let statusColCollapsed = false;
+function toggleStatusCol() {
+  statusColCollapsed = !statusColCollapsed;
+  const table = document.querySelector('#table-view table');
+  if (table) table.classList.toggle('status-col-collapsed', statusColCollapsed);
+  const btn = document.getElementById('status-col-toggle');
+  if (btn) { btn.textContent = statusColCollapsed ? '›' : '‹'; btn.title = statusColCollapsed ? 'Show Status column' : 'Hide Status column'; }
+}
+
+// Account Priority custom dropdown — stored in ibis_local[name].acctPriority
+const ACCT_PRIORITY_OPTS = [
+  { key:'legendary', label:'💎 Legendary', cls:'apr-legendary' },
+  { key:'veryrare',  label:'⭐ Very Rare',  cls:'apr-veryrare' },
+  { key:'rare',      label:'🔨 Rare',       cls:'apr-rare' },
+  { key:'uncommon',  label:'⛏ Uncommon',   cls:'apr-uncommon' },
+  { key:'common',    label:'🪵 Common',     cls:'apr-common' },
+  { key:'',          label:'—',             cls:'apr-none' },
+];
+
+function renderAcctPrioritySelect(name) {
+  const priority = (localData[name]?.acctPriority) || '';
+  const safeId = 'apw-' + name.replace(/[^a-z0-9]/gi,'_');
+  const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS[5];
+  return `<div class="acct-priority-wrap" id="${safeId}" onclick="event.stopPropagation()">
+    <button class="acct-priority-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctPriorityPortal('${safeId}',this)">${cur.label}</button>
+  </div>`;
+}
+
+function openAcctPriorityPortal(id, triggerBtn) {
+  const portal = document.getElementById('acct-priority-portal');
+  if (!portal) return;
+  if (portal.dataset.wrapId === id && portal.style.display === 'block') {
+    portal.style.display = 'none'; portal.dataset.wrapId = '';
+    return;
+  }
+  portal.dataset.wrapId = id;
+  portal.innerHTML = ACCT_PRIORITY_OPTS.map(o =>
+    `<button class="acct-priority-opt ${o.cls}" onclick="event.stopPropagation();applyPortalPriority('${o.key}')">${o.label}</button>`
+  ).join('');
+  const rect = triggerBtn.getBoundingClientRect();
+  portal.style.left = Math.max(4, rect.left) + 'px';
+  portal.style.top  = (rect.bottom + 4) + 'px';
+  portal.style.display = 'block';
+}
+
+function applyPortalPriority(priority) {
+  const portal = document.getElementById('acct-priority-portal');
+  if (!portal) return;
+  const id = portal.dataset.wrapId;
+  if (!id) return;
+  const name = accounts.map(a => getField(a,'Account Name','AccountName'))
+    .find(n => ('apw-' + n.replace(/[^a-z0-9]/gi,'_')) === id);
+  if (!name) { portal.style.display='none'; return; }
+  if (!localData[name]) localData[name] = {};
+  localData[name].acctPriority = priority;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  const wrap = document.getElementById(id);
+  if (wrap) {
+    const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS[5];
+    const trigger = wrap.querySelector('.acct-priority-trigger');
+    if (trigger) { trigger.className = 'acct-priority-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
   }
   portal.style.display = 'none'; portal.dataset.wrapId = '';
 }
@@ -4165,6 +4272,11 @@ document.addEventListener('click', function(e) {
   if (_asp && _asp.style.display === 'block' && !e.target.closest('.acct-status-wrap') && !e.target.closest('#acct-status-portal')) {
     _asp.style.display = 'none'; _asp.dataset.wrapId = '';
   }
+  // Close acct priority portal on outside click
+  const _app = document.getElementById('acct-priority-portal');
+  if (_app && _app.style.display === 'block' && !e.target.closest('.acct-priority-wrap') && !e.target.closest('#acct-priority-portal')) {
+    _app.style.display = 'none'; _app.dataset.wrapId = '';
+  }
   // Close tier dropdown on outside click
   const tierDd = document.getElementById('acct-dropdown-tier');
   if (tierDd && !tierDd.classList.contains('hidden') && !tierDd.contains(e.target) && !e.target.closest('#ath-tier')) {
@@ -4179,10 +4291,12 @@ document.addEventListener('click', function(e) {
     openLicDropdown = null;
   }
 });
-// Close the status portal if the user scrolls (so it doesn't float disconnected from its row)
+// Close portals if the user scrolls (so they don't float disconnected from their row)
 document.addEventListener('scroll', function() {
   const _asp = document.getElementById('acct-status-portal');
   if (_asp && _asp.style.display === 'block') { _asp.style.display = 'none'; _asp.dataset.wrapId = ''; }
+  const _app = document.getElementById('acct-priority-portal');
+  if (_app && _app.style.display === 'block') { _app.style.display = 'none'; _app.dataset.wrapId = ''; }
 }, true);
 
 // ── DEAD TAB ──────────────────────────────────────────────────────────────────
@@ -4422,8 +4536,9 @@ function renderDeadLicenses() {
   }).join('');
 }
 </script>
-<!-- Global portal for account status dropdown — lives outside table to avoid stacking context issues -->
+<!-- Global portals for account dropdowns — live outside table to avoid stacking context issues -->
 <div id="acct-status-portal"></div>
+<div id="acct-priority-portal"></div>
 <div id="sentiment-card"></div>
 </body>
 </html>
