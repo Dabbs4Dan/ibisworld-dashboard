@@ -903,10 +903,14 @@
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
   /* Status column collapse toggle */
-  .status-col-toggle { background:none; border:none; cursor:pointer; font-size:11px; color:var(--text-muted); padding:0 0 0 4px; opacity:0.5; vertical-align:middle; line-height:1; }
-  .status-col-toggle:hover { opacity:1; }
-  table.status-col-collapsed th.status-col { width:0 !important; min-width:0 !important; padding:0 !important; overflow:hidden; max-width:0 !important; font-size:0; }
-  table.status-col-collapsed td.status-col { width:0 !important; min-width:0 !important; padding:0 !important; overflow:hidden; max-width:0 !important; }
+  .status-col-toggle { background:#e9eaec; border:none; cursor:pointer; font-size:11px; color:#6b7280; padding:2px 6px; margin-left:6px; border-radius:4px; line-height:1.4; vertical-align:middle; transition:background 0.15s, color 0.15s; font-weight:600; }
+  .status-col-toggle:hover { background:#d1d5db; color:#374151; }
+  /* Collapsed: shrink to a narrow strip with just the expand button */
+  table.status-col-collapsed th.status-col { width:28px !important; min-width:28px !important; max-width:28px !important; padding:4px 2px !important; overflow:hidden; text-align:center; }
+  table.status-col-collapsed th.status-col .status-col-label,
+  table.status-col-collapsed th.status-col .acct-sort-arrow { display:none; }
+  table.status-col-collapsed th.status-col .status-col-toggle { margin-left:0; display:block; width:100%; padding:3px 2px; font-size:12px; }
+  table.status-col-collapsed td.status-col { width:28px !important; min-width:28px !important; max-width:28px !important; padding:0 !important; overflow:hidden; background:#f9fafb; }
   table.status-col-collapsed td.status-col > * { display:none !important; }
 
   /* Account Priority dropdown — portal pattern mirrors status */
@@ -1284,7 +1288,7 @@
       <table>
         <thead>
           <tr>
-            <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;">Status <span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
+            <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
