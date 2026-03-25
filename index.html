@@ -1466,6 +1466,7 @@
 })();
 
 let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(), modalAccount = null, modalFlags = new Set();
+let deadAccounts = [], deadLicenses = [], deadView = 'accounts';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
 // ── Named constants ───────────────────────────────────────────────────────────
@@ -4162,10 +4163,7 @@ document.addEventListener('scroll', function() {
 }, true);
 
 // ── DEAD TAB ──────────────────────────────────────────────────────────────────
-
-let deadAccounts = [];
-let deadLicenses = [];
-let deadView = 'accounts'; // 'accounts' | 'licenses' — extensible for future sections
+// State vars (deadAccounts, deadLicenses, deadView) declared at top with other globals
 
 function setDeadView(v) {
   deadView = v;
