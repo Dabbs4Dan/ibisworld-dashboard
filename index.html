@@ -1375,13 +1375,16 @@
           <thead>
             <tr>
               <th style="width:28px;"></th>
+              <th>Status</th>
               <th>Company</th>
               <th>Vertical</th>
               <th>Tier</th>
               <th>Revenue</th>
-              <th>Status at Death</th>
+              <th>Score</th>
+              <th>Intent</th>
+              <th>Stage</th>
+              <th>Days Inactive</th>
               <th>Dead Since</th>
-              <th>Notes</th>
             </tr>
           </thead>
           <tbody id="dead-accounts-body"></tbody>
@@ -1590,7 +1593,7 @@ function handleCSV(e) {
           const local = localData[name] || {};
           const status = local.acctStatus || '—';
           deadAccounts.push({ ...a, _deadSince: today, _statusAtDeath: status,
-            _unexpectedDrop: status !== '✗', _localSnapshot: { ...local } });
+            _unexpectedDrop: status !== 'drop', _localSnapshot: { ...local } });
         }
       });
       // Resurrect accounts that reappeared in new CSV
@@ -4256,20 +4259,35 @@ function renderDeadAccounts() {
   wrap?.classList.remove('hidden');
   if (empty) empty.style.display = 'none';
 
+  // Status key → display label + color (matches live ACCT_STATUS_OPTS keys)
+  const STATUS_DISPLAY = {
+    keep:    { label:'✓ Keep',    bg:'#dcfce7', col:'#166534' },
+    monitor: { label:'👁 Monitor', bg:'#fef9c3', col:'#854d0e' },
+    drop:    { label:'✕ Drop',    bg:'#fee2e2', col:'#991b1b' },
+    '':      { label:'—',         bg:'#f3f4f6', col:'#6b7280' },
+  };
+
   body.innerHTML = list.map(d => {
-    const name = getField(d, 'Account Name', 'AccountName') || '—';
-    const vert = getTrueVertical(d);
+    const name     = getField(d, 'Account Name', 'AccountName') || '—';
+    const vert     = getTrueVertical(d);
     const vertColor = VERT_COLORS[vert] || '#f3f4f6';
-    const tier = getField(d, 'Major Markets Tier', 'MajorMarketsTier') || '';
-    const snap = d._localSnapshot || {};
-    const rev = snap.rev || snap.revenue || '';
-    const notes = snap.notes || '';
-    const status = d._statusAtDeath || '—';
+    const tier     = getField(d, 'Major Markets Tier', 'MajorMarketsTier') || '';
+    const snap     = d._localSnapshot || {};
+    const rev      = snap.rev?.label || snap.revenue || '';
+    const statusKey = d._statusAtDeath || '';
     const deadSince = d._deadSince || '—';
-    const domain = (getField(d,'Website','Website')||'').replace(/^https?:\/\//,'').replace(/\/.*/,'').trim();
-    const logoHtml = domain
-      ? `<img src="https://logo.uplead.com/${domain}" style="width:24px;height:24px;border-radius:4px;object-fit:contain;vertical-align:middle;margin-right:7px;" onerror="this.style.display='none'">`
-      : '';
+
+    // Re-derive unexpectedDrop from stored key (retroactively fixes old records)
+    const isUnexpected = statusKey !== 'drop';
+
+    // Logo (use same domain override map as live table)
+    const domain = getLogoDomain(d);
+    const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const _res = logoResolved[domain];
+    const logoHtml = !domain
+      ? `<div class="td-logo">${initials}</div>`
+      : _res === '__initials__' ? `<div class="td-logo">${initials}</div>`
+      : `<div class="td-logo"><img src="${_res || 'https://logo.uplead.com/'+domain}" ${logoFallbackChain(domain,initials)} alt="${escHtml(name)}"></div>`;
 
     // Tier diamond
     const tierMap = { 'T1':'navy','T2':'forest','T3':'sienna','T4':'charcoal' };
@@ -4277,24 +4295,42 @@ function renderDeadAccounts() {
     const tierHtml = tier ? `<span class="tier-diamond ${tierCls}">${tier}</span>` : '<span style="color:#9ca3af;">—</span>';
 
     // Status badge
-    const statusMap = { '✓':'#dcfce7|#166534','👁':'#fef9c3|#854d0e','✗':'#fee2e2|#991b1b','—':'#f3f4f6|#6b7280' };
-    const [sbg, scol] = (statusMap[status] || '#f3f4f6|#6b7280').split('|');
-    const statusHtml = `<span style="background:${sbg};color:${scol};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;">${status}</span>`;
+    const sd = STATUS_DISPLAY[statusKey] || STATUS_DISPLAY[''];
+    const statusHtml = `<span style="background:${sd.bg};color:${sd.col};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;">${sd.label}</span>`;
+
+    // Sentiment score (from snapshot)
+    const sent = snap.sentiment;
+    const scoreHtml = sent?.score != null
+      ? `<span style="background:${sent.score>=8?'#dcfce7':sent.score>=5?'#fef9c3':'#fee2e2'};color:${sent.score>=8?'#166534':sent.score>=5?'#854d0e':'#991b1b'};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">${sent.score}</span>`
+      : '<span style="color:#9ca3af;">—</span>';
+
+    // 6sense intent + stage from original account row
+    const intent = getField(d,'6sense Account Intent Score NA','6senseAccountIntentScoreNA') || '';
+    const stage  = getField(d,'6sense Account Buying Stage NA','6senseAccountBuyingStageNA') || '';
+    const intentHtml = intent ? `<span style="font-family:'DM Mono',monospace;font-size:12px;">${intent}</span>` : '<span style="color:#9ca3af;">—</span>';
+    const stageHtml  = stage  ? `<span class="stage-badge" style="font-size:11px;">${stage}</span>` : '<span style="color:#9ca3af;">—</span>';
+
+    // Days inactive from original account row
+    const days = getField(d,'US Days Since Last Activity','USDaysSinceLastActivity') || '';
+    const daysHtml = days ? `<span style="font-family:'DM Mono',monospace;font-size:12px;">${days}</span>` : '<span style="color:#9ca3af;">—</span>';
 
     // Warning badge
-    const warnHtml = d._unexpectedDrop
-      ? `<span title="Not marked as Drop when removed" style="font-size:15px;cursor:default;">⚠️</span>`
+    const warnHtml = isUnexpected
+      ? `<span title="Was not marked ✕ Drop — removed unexpectedly" style="font-size:14px;cursor:default;">⚠️</span>`
       : '';
 
-    return `<tr style="opacity:0.82;${d._unexpectedDrop ? 'background:#fffbeb;' : ''}">
-      <td style="text-align:center;padding:0 6px;">${warnHtml}</td>
-      <td><div style="display:flex;align-items:center;">${logoHtml}<span style="font-weight:600;color:#374151;font-size:13px;">${name}</span></div></td>
+    return `<tr style="opacity:0.85;${isUnexpected ? 'background:#fffbeb;' : ''}">
+      <td style="text-align:center;padding:0 4px;">${warnHtml}</td>
+      <td>${statusHtml}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;">${logoHtml}<span style="font-weight:600;color:#374151;font-size:13px;">${escHtml(name)}</span></div></td>
       <td><span class="vert-bubble" style="background:${vertColor};">${vert}</span></td>
       <td>${tierHtml}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:#374151;">${rev || '<span style="color:#9ca3af;">—</span>'}</td>
-      <td>${statusHtml}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#6b7280;">${deadSince}</td>
-      <td style="font-size:12px;color:#6b7280;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${notes || ''}</td>
+      <td>${scoreHtml}</td>
+      <td>${intentHtml}</td>
+      <td>${stageHtml}</td>
+      <td>${daysHtml}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#f97316;font-weight:600;">${deadSince}</td>
     </tr>`;
   }).join('');
 }
