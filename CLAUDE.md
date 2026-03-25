@@ -35,17 +35,19 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
   - `ibis_updated` → date string of last accounts CSV upload
   - ⚠️ There is **no separate `ibis_revenue` key** — revenue lives inside `ibis_local`
   - `ibis_opps` → contact pipeline rows, keyed by email (lowercase trimmed)
+  - `ibis_dead` → dead accounts array + dead licenses array (`{ accounts: [...], licenses: [...] }`). Accounts added when missing from re-upload CSV; licenses added when missing from re-upload licenses CSV. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v24 (stable)
+## CURRENT STATE — v25 (stable)
 
-### Three tabs live:
+### Four tabs live:
 1. **📋 Accounts tab** — main territory view
 2. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
 3. **🎯 Workables tab** — contact pipeline with Cards + Table view
+4. **💀 Dead tab** — accounts/licenses that have disappeared from CSV uploads
 
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
@@ -156,6 +158,20 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - `oppLogoHTML(opp, size)` — checks `accounts[]` first, then `ibis_local` keys, then `LOGO_DOMAIN_OVERRIDES`, then `guessDomain()`
 - `guessDomain()` improved: detects non-profit/gov keywords → uses `.org` TLD; strips more noise words
 - `LOGO_DOMAIN_OVERRIDES` extended with `Women's Business Development Center of Aurora → wbdc.org`, `New York SBDC Network → nysbdc.org`
+
+### Dead Tab Features (v25)
+- **Purpose:** Accounts/licenses that disappear from a re-upload CSV move here instead of silently vanishing
+- **Pill view switcher** — `⚰️ Accounts` / `🗂 Licenses` buttons (not a dropdown), with live count badges
+- **Resurrection:** if an account/license reappears in a future CSV upload, it's removed from dead and returns to the live tab
+- **Dead accounts detection:** fires in `handleCSV()` when accounts already loaded — compares incoming names against current `accounts[]`; anything absent → pushed to `deadAccounts[]`
+- **Dead licenses detection:** fires in `handleLicenseCSV()` similarly — missing license rows (matched by account name + license name) → pushed to `deadLicenses[]`
+- **⚠️ Unexpected drop warning:** accounts that died WITHOUT being marked as `drop` status get an orange ⚠️ flag and sort to top of the table — these are accounts that left your territory unexpectedly
+- **Status key note:** `_unexpectedDrop` is re-derived live in render as `statusKey !== 'drop'` — fixing any historical records that stored the wrong value
+- **Dead accounts columns:** ⚠️ | Status | Company | Vertical | Tier | Revenue | Score | Intent | Stage | Days Inactive | Dead Since (mirrors live Accounts table)
+- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
+- **State vars** (declared at global scope alongside other state, line ~1469): `let deadAccounts = [], deadLicenses = [], deadView = 'accounts'`
+- **Key functions:** `saveDead()`, `loadDead()`, `updateDeadTabBadge()`, `renderDead()`, `renderDeadAccounts()`, `renderDeadLicenses()`, `setDeadView(v)`
+- **Section IDs:** `dead-accts-section` and `dead-lics-section` — explicit IDs used for show/hide (NOT fragile querySelectorAll indexing)
 
 ### License Intelligence Tab Features
 - Parses SF "Account with Licenses & Products" CSV (~1,082 rows)
@@ -376,6 +392,43 @@ function setFooSortCol(col) {
 
 ---
 
+## EMAIL DATA LAYER — ARCHITECTURE PRINCIPLES
+
+The Priority Engine in the Outreach Extension needs email contact history (last sent, last received, thread status) per contact. This data could come from multiple sources depending on what's available.
+
+### Design rule: swappable data source
+**The extension must never be tightly coupled to any single data source.** Email history is written to a standardized JSON format in `chrome.storage.local` under `outreach_email_cache`. Any source can write to this key — the Priority Engine reads from it the same way regardless of origin.
+
+### Standardized email cache format
+```json
+{
+  "email@domain.com": {
+    "lastSent":    "2026-03-20T14:00:00Z",
+    "lastReceived": "2026-03-22T09:00:00Z",
+    "lastSubject": "Re: IBISWorld demo",
+    "source":      "powerautomate",
+    "ts":          1742000000000
+  }
+}
+```
+The `source` field documents where the data came from. The Priority Engine only reads `lastSent`, `lastReceived`, `lastSubject`.
+
+### Data source priority chain (fallback order)
+1. **Power Automate sync** (`source: "powerautomate"`) — Flow reads Outlook sent+inbox, writes JSON to OneDrive, extension fetches it on load. Best coverage, fully passive. ⚠️ Tied to IBISWorld M365 account — if Dan leaves IBISWorld, this source disappears.
+2. **MutationObserver cache** (`source: "dom_observer"`) — Passively captures emails as Dan browses Outlook naturally. Builds up over time. Works on any machine with the extension installed.
+3. **Click-triggered DOM scrape** (`source: "dom_click"`) — On-demand capture when Dan opens a contact's thread from the sidebar. Zero setup, zero dependencies, works anywhere.
+4. **No data** — Priority Engine degrades gracefully: all contacts default to `email_today` bucket until cache populates.
+
+### ⚠️ Power Automate portability warning
+Power Automate is available because Dan is employed at IBISWorld. **If Dan leaves IBISWorld:** source 1 disappears entirely. Sources 2 + 3 continue working on any new employer's Outlook setup with no changes needed. The extension is designed so sources 2+3 alone produce a usable (if slower-to-populate) Priority Engine.
+
+### Future alternative sources (drop-in replacements for source 1)
+- **IMAP bridge** — small local script (Python/Node) that reads via IMAP and writes the same JSON format to a shared file
+- **Azure AD app** — if IT registers a custom app with Mail.Read, the extension can call Graph directly
+- **Other automation tools** — Zapier, Make.com, n8n — any tool that can read Outlook and write a JSON file to a URL the extension can fetch
+
+---
+
 ## HOW TO WORK WITH DAN
 
 ### Who Dan is
@@ -460,6 +513,7 @@ When a new session begins, Claude Code should:
 | ✅ Done | Frozen sort order | `frozenSortOrder[]` locks row order after explicit sort. Background enrichment + status changes never reshuffle rows. Clears only on explicit header click. |
 | ✅ Done | acctStatus prune protection | `pruneStaleLocalData` now treats `acctStatus` as user data — won't prune an entry that has a Keep/Monitor/Drop set. |
 | ✅ Done | Sentiment Score v24 | Weighted 1–10 composite score per account. Wikipedia + Wikidata + internal data. Battle card popover with factor breakdown. No paid API needed. `SENT_VERSION=1`. |
+| ✅ Done | Dead tab v25 | Accounts/licenses missing from re-upload CSV move here. Pill view switcher. ⚠️ unexpected drop flag. Column parity with live accounts table. Resurrection on re-upload. `ibis_dead` key. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
@@ -476,7 +530,8 @@ When a new session begins, Claude Code should:
 | ✅ Done | Outreach Extension: search fix | `navigateToContact` now uses `window.open(..., '_blank')` to open search in new tab — avoids breaking the cloud.microsoft SPA. |
 | ✅ Done | Outreach Extension v2.0: Priority Engine | Full rewrite. `config.js` for all settings. 3-view sidebar: Home → Contact List → Thread View. CORS fix: all email fetches route through background service worker. `allWorkables` (non-archived incl. Lost) used for Workables campaign count; `allContacts` (non-Lost) for Priority Engine. Diagnostic panel with token scope display. |
 | ✅ Done | Outreach Extension: Workables campaign fix | `allWorkables` array tracks all non-archived contacts (including Lost stage). Workables campaign card shows correct full count. Contact row clicks use correct pool (allWorkables vs allContacts). |
-| 🔥 BLOCKED | Outreach Extension: email scanning | **IBISWorld corporate tenant blocks mail API access.** Full debug trace: (1) cloud.microsoft OWA path → HTML (endpoint doesn't exist). (2) office365.com OWA REST → HTML (no valid cookies for that domain). (3) Graph `me/messages` → **403 ErrorAccessDenied** — Graph token IS found in MSAL localStorage but IBISWorld tenant policy means it's scoped for User.Read only, not Mail.Read. (4) Graph `search/query` → same 403. (5) OWA Bearer → HTML (OWA REST v2 only accepts legacy cookie auth, not Bearer). **Current code state:** 3-tier fallback in background.js (Graph messages → Graph search → OWA Bearer → OWA cookies), `extractMSALTokens()` decodes JWT aud+scp and logs scope to F12 console. **Next step: Dan needs to check F12 console for `[IBISWorld] Token summary:` line** to confirm token scope. If `scp` contains only `openid profile user.read`, the two options are: (A) register an Azure AD app with Mail.Read consent (proper fix, needs IT), or (B) build a DOM scraper that reads email data from the rendered Outlook page without any API. |
+| 🔥 BLOCKED | Outreach Extension: direct email API | IBISWorld tenant blocks all mail API paths — confirmed. Graph token scp = `openid profile user.read` only. All 5 approaches (OWA cloud.microsoft, OWA office365, Graph me/messages, Graph search/query, OWA Bearer) return 403/HTML. **Workaround path chosen: Power Automate → SF Activities → OneDrive JSON** (see below). Direct API unblocking requires IT (Azure AD app reg with Mail.Read). |
+| 🔴 Next | Outreach Extension: PA flow + extension wiring | Build `IBISWorld Contact Activity Sync` PA flow: recurrence trigger (every 2h) → Salesforce Get Records (Tasks, filter by WhoId populated) → compose `contact_activity.json` (one entry per contact email: lastSent, lastReceived, lastSubject, source:"powerautomate") → OneDrive Create/Update file in `IBISWorld Outreach/contact_activity.json`. Then update `config.js` with OneDrive share URL + update `content.js` to fetch + parse into `outreach_email_cache`. Export flow as zip → `/powerautomate-flows/contact-activity-sync.zip` in repo. |
 | ⚠️ Monitor | Outreach Extension: contact count | Workables card shows 0 until dashboard opened once (bridge.js pushes ibis_opps on load). |
 | 🗺️ Future | Outreach Extension: DOM scraper fallback | If Azure AD app registration isn't possible, build `scraper.js` content script that reads email list from Outlook DOM when user opens thread view. No API needed — reads rendered rows. Triggered on-click only (not background scan). |
 | 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
