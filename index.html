@@ -477,11 +477,15 @@
   .stage-tag {
     font-size: 11px; font-weight: 600;
     padding: 2px 8px; border-radius: 5px;
+    transition: opacity 0.1s, outline 0.1s;
   }
   .stage-Decision { background: var(--tag-decision); color: var(--tag-decision-text); }
   .stage-Consideration { background: var(--tag-consideration); color: var(--tag-consideration-text); }
   .stage-Awareness { background: var(--tag-awareness); color: var(--tag-awareness-text); }
   .stage-Other, .stage-unknown { background: var(--tag-other); color: var(--tag-other-text); }
+  .stage-tag.stage-clickable { cursor: pointer; }
+  .stage-tag.stage-clickable:hover { opacity: 0.75; }
+  .stage-tag.stage-active { outline: 2px solid currentColor; outline-offset: 2px; }
 
   /* Workables count bubble */
   .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
@@ -1788,17 +1792,30 @@ function getFiltered() {
     }
     if (activeFlags.size > 0) {
       const flags = localData[aName]?.flags || [];
-      const acctStatus = localData[aName]?.acctStatus || '';
+      const acctStatus   = localData[aName]?.acctStatus   || '';
+      const acctPriority = localData[aName]?.acctPriority || '';
+      const stageVal     = getField(a, '6sense Account Buying Stage NA') || '';
+      // Status group — OR within, AND across groups
+      const statusFs = ['KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f));
+      if (statusFs.length) {
+        const map = {KEEP:'keep',MONITOR:'monitor',DROP:'drop'};
+        if (!statusFs.some(f => map[f] === acctStatus)) return false;
+      }
+      // Priority group — OR within
+      const prioFs = ['PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON'].filter(f => activeFlags.has(f));
+      if (prioFs.length) {
+        const map = {PRIO_LEGENDARY:'legendary',PRIO_VERYRARE:'veryrare',PRIO_RARE:'rare',PRIO_UNCOMMON:'uncommon'};
+        if (!prioFs.some(f => map[f] === acctPriority)) return false;
+      }
+      // Stage group — OR within (clickable badge filter)
+      const stageFs = [...activeFlags].filter(f => f.startsWith('STAGE_'));
+      if (stageFs.length && !stageFs.some(f => f === 'STAGE_' + stageVal)) return false;
+      // Active License — standalone
+      if (activeFlags.has('ACTIVE_LIC') && !getActiveLicBadges(aName)) return false;
+      // Legacy custom flags
+      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
-        if (f === 'KEEP')       { if (acctStatus !== 'keep')    return false; }
-        else if (f === 'DROP')    { if (acctStatus !== 'drop')    return false; }
-        else if (f === 'MONITOR') { if (acctStatus !== 'monitor') return false; }
-        else if (f === 'ACTIVE_LIC') { if (!getActiveLicBadges(aName)) return false; }
-        else if (f === 'PRIO_LEGENDARY') { if ((localData[aName]?.acctPriority||'') !== 'legendary') return false; }
-        else if (f === 'PRIO_VERYRARE')  { if ((localData[aName]?.acctPriority||'') !== 'veryrare')  return false; }
-        else if (f === 'PRIO_RARE')      { if ((localData[aName]?.acctPriority||'') !== 'rare')       return false; }
-        else if (f === 'PRIO_UNCOMMON')  { if ((localData[aName]?.acctPriority||'') !== 'uncommon')   return false; }
-        else if (!flags.includes(f)) return false;
+        if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
     }
     return true;
@@ -1949,7 +1966,7 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
       ${revHtml}
-      <div class="card-footer"><span class="stage-tag ${stageClass(stage)}">${stage||'Unknown'}</span>${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:6px;">${ab}</div>`:''})()}</div>
+      <div class="card-footer"><span class="stage-tag ${stageClass(stage)} stage-clickable${activeFlags.has('STAGE_'+stage)?' stage-active':''}" onclick="toggleStageFilter(${JSON.stringify(stage||'')})" title="Click to filter by stage">${stage||'Unknown'}</span>${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:6px;">${ab}</div>`:''})()}</div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
   }).join('');
@@ -1985,7 +2002,7 @@ function renderTable(list) {
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
-      <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
+      <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`onclick="toggleStageFilter(${JSON.stringify(stage)})" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
       <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
     </tr>`;
@@ -1994,6 +2011,7 @@ function renderTable(list) {
 
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
+function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+stageVal; if(activeFlags.has(key)) activeFlags.delete(key); else activeFlags.add(key); renderAll(); }
 function openModal(name) {
   modalAccount=name;
   const local=localData[name]||{};
