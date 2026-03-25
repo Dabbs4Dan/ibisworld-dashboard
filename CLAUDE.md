@@ -35,7 +35,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
   - `ibis_updated` → date string of last accounts CSV upload
   - ⚠️ There is **no separate `ibis_revenue` key** — revenue lives inside `ibis_local`
   - `ibis_opps` → contact pipeline rows, keyed by email (lowercase trimmed)
-  - `ibis_dead` → dead accounts array + dead licenses array (`{ accounts: [...], licenses: [...] }`). Accounts added when missing from re-upload CSV; licenses added when missing from re-upload licenses CSV. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - `ibis_dead` → dead accounts array + dead licenses array (`{ accounts: [...], licenses: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
@@ -513,7 +513,7 @@ When a new session begins, Claude Code should:
 | ✅ Done | Frozen sort order | `frozenSortOrder[]` locks row order after explicit sort. Background enrichment + status changes never reshuffle rows. Clears only on explicit header click. |
 | ✅ Done | acctStatus prune protection | `pruneStaleLocalData` now treats `acctStatus` as user data — won't prune an entry that has a Keep/Monitor/Drop set. |
 | ✅ Done | Sentiment Score v24 | Weighted 1–10 composite score per account. Wikipedia + Wikidata + internal data. Battle card popover with factor breakdown. No paid API needed. `SENT_VERSION=1`. |
-| ✅ Done | Dead tab v25 | Accounts/licenses missing from re-upload CSV move here. Pill view switcher. ⚠️ unexpected drop flag. Column parity with live accounts table. Resurrection on re-upload. `ibis_dead` key. |
+| ✅ Done | Dead tab v25 | Accounts/licenses missing from re-upload CSV move here. Pill view switcher. ⚠️ unexpected drop flag (clickable to dismiss). Column parity with live accounts table. Resurrection on re-upload. `ibis_dead` key. Account death auto-moves its licenses to dead. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
