@@ -1363,7 +1363,7 @@
 <!-- DEAD TAB CONTENT -->
 <div id="content-dead" class="hidden">
   <!-- Dead Accounts Section -->
-  <div class="dead-section-wrap">
+  <div class="dead-section-wrap" id="dead-accts-section">
     <div class="dead-section-header" id="dead-accts-header">
       <span style="font-size:15px;font-weight:700;color:#374151;">⚰️ Dead Accounts</span>
       <span id="dead-accts-count" style="background:#f3f4f6;color:#6b7280;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">0</span>
@@ -1391,7 +1391,7 @@
   </div>
 
   <!-- Dead Licenses Section -->
-  <div class="dead-section-wrap" style="margin-top:32px;">
+  <div class="dead-section-wrap" id="dead-lics-section" style="margin-top:32px;">
     <div class="dead-section-header">
       <span style="font-size:15px;font-weight:700;color:#374151;">🗂 Dead Licenses</span>
       <span id="dead-lics-count" style="background:#f3f4f6;color:#6b7280;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">0</span>
@@ -4224,11 +4224,10 @@ function renderDeadAccounts() {
   const empty = document.getElementById('dead-accounts-empty');
   const body = document.getElementById('dead-accounts-body');
   const countEl = document.getElementById('dead-accts-count');
-  const acctsSectionWrap = document.querySelector('#content-dead .dead-section-wrap');
-
   if (!body) return;
 
   // Show/hide section based on active pill view
+  const acctsSectionWrap = document.getElementById('dead-accts-section');
   if (acctsSectionWrap) acctsSectionWrap.style.display = deadView === 'licenses' ? 'none' : '';
 
   let list = deadAccounts.slice();
@@ -4308,11 +4307,10 @@ function renderDeadLicenses() {
   const empty = document.getElementById('dead-licenses-empty');
   const body = document.getElementById('dead-licenses-body');
   const countEl = document.getElementById('dead-lics-count');
-  const licsSectionWrap = document.querySelectorAll('#content-dead .dead-section-wrap')[1];
-
   if (!body) return;
 
   // Show/hide section based on active pill view
+  const licsSectionWrap = document.getElementById('dead-lics-section');
   if (licsSectionWrap) licsSectionWrap.style.display = deadView === 'accounts' ? 'none' : '';
 
   let list = deadLicenses.slice();
