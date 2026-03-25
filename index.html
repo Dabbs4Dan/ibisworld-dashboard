@@ -1584,6 +1584,7 @@ function handleCSV(e) {
     if (accounts.length > 0) {
       const newNameSet = new Set(newAccounts.map(a => normName(getField(a,'Account Name','AccountName'))));
       const alreadyDeadNorms = new Set(deadAccounts.map(d => normName(getField(d,'Account Name','AccountName'))));
+      const alreadyDeadKeys = new Set(deadLicenses.map(l => licKey(l)));
       const today = new Date().toISOString().slice(0,10);
       // Move disappeared accounts → dead
       accounts.forEach(a => {
@@ -1591,9 +1592,28 @@ function handleCSV(e) {
         const norm = normName(name);
         if (!newNameSet.has(norm) && !alreadyDeadNorms.has(norm)) {
           const local = localData[name] || {};
-          const status = local.acctStatus || '—';
+          const status = local.acctStatus || '';
           deadAccounts.push({ ...a, _deadSince: today, _statusAtDeath: status,
             _unexpectedDrop: status !== 'drop', _localSnapshot: { ...local } });
+          // Also move this account's licenses to dead
+          if (licenses.length) {
+            const acctLics = licenses.filter(l => normName(l._name) === norm);
+            acctLics.forEach(l => {
+              const k = licKey(l);
+              if (!alreadyDeadKeys.has(k)) {
+                deadLicenses.push({
+                  _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
+                  _type: l._type, _acv: l._acv, _currency: l._currency,
+                  _endDate: l._endDate ? l._endDate.toISOString() : null,
+                  _startDate: l._startDate ? l._startDate.toISOString() : null,
+                  _active: l._active, _churnTier: l._churnTier,
+                  _confirmedProcurement: l._confirmedProcurement || false,
+                  _deadSince: today
+                });
+                alreadyDeadKeys.add(k);
+              }
+            });
+          }
         }
       });
       // Resurrect accounts that reappeared in new CSV
@@ -4205,7 +4225,8 @@ function renderDead() {
   renderDeadAccounts();
   renderDeadLicenses();
   // Update stats bar
-  const warnings = deadAccounts.filter(d => d._unexpectedDrop).length;
+  // Re-derive live so stale stored _unexpectedDrop values don't inflate the count
+  const warnings = deadAccounts.filter(d => ((d._statusAtDeath || '') !== 'drop')).length;
   const dsa = document.getElementById('dstat-accounts');
   const dsl = document.getElementById('dstat-licenses');
   const dsw = document.getElementById('dstat-warnings');
@@ -4273,7 +4294,7 @@ function renderDeadAccounts() {
     const vertColor = VERT_COLORS[vert] || '#f3f4f6';
     const tier     = getField(d, 'Major Markets Tier', 'MajorMarketsTier') || '';
     const snap     = d._localSnapshot || {};
-    const rev      = snap.rev?.label || snap.revenue || '';
+    const rev      = snap.rev?.label || (typeof snap.revenue === 'object' ? snap.revenue?.label : snap.revenue) || '';
     const statusKey = d._statusAtDeath || '';
     const deadSince = d._deadSince || '—';
 
@@ -4314,9 +4335,9 @@ function renderDeadAccounts() {
     const days = getField(d,'US Days Since Last Activity','USDaysSinceLastActivity') || '';
     const daysHtml = days ? `<span style="font-family:'DM Mono',monospace;font-size:12px;">${days}</span>` : '<span style="color:#9ca3af;">—</span>';
 
-    // Warning badge
+    // Warning badge — clickable to dismiss (marks as expected drop)
     const warnHtml = isUnexpected
-      ? `<span title="Was not marked ✕ Drop — removed unexpectedly" style="font-size:14px;cursor:default;">⚠️</span>`
+      ? `<span title="Removed without being marked ✕ Drop. Click to dismiss." onclick="dismissDeadWarning(${JSON.stringify(name)})" style="font-size:14px;cursor:pointer;" onmouseover="this.style.opacity='0.6'" onmouseout="this.style.opacity='1'">⚠️</span>`
       : '';
 
     return `<tr style="opacity:0.85;${isUnexpected ? 'background:#fffbeb;' : ''}">
@@ -4333,6 +4354,11 @@ function renderDeadAccounts() {
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:#f97316;font-weight:600;">${deadSince}</td>
     </tr>`;
   }).join('');
+}
+
+function dismissDeadWarning(name) {
+  const d = deadAccounts.find(a => (getField(a,'Account Name','AccountName') || '') === name);
+  if (d) { d._unexpectedDrop = false; d._statusAtDeath = 'drop'; saveDead(); renderDead(); }
 }
 
 function renderDeadLicenses() {
