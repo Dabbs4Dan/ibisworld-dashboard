@@ -70,6 +70,15 @@ Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | A
 - **Portal dropdown** — menu rendered in `<div id="acct-status-portal">` at `<body>` level (NOT inside the table), `z-index:9500`. Avoids all table stacking context / click-through issues permanently. `openAcctStatusPortal(id, triggerBtn)` positions portal via `getBoundingClientRect()`. `applyPortalStatus(status)` recovers account name by reverse-matching the wrap ID against `accounts[]` — no JS string escaping needed
 - In-place trigger update on selection (no `renderAll()` call) — selection is instant, row order never changes
 - Closes on click-outside and on scroll
+- **Collapsible column** — toggle button (`‹`/`›`) is a visible grey pill in the `<th>`. Collapsed state shrinks to 28px strip (not zero) showing only the expand button; `td` cells get `background:#f9fafb` as visual cue. `<span class="status-col-label">` wraps text so it hides independently from the button. CSS class `table.status-col-collapsed` controls all collapsed states.
+
+#### Priority Column (new in v26)
+- Per-account dropdown with 5 rarity tiers (Minecraft-style item rarity):
+  - 💎 **Legendary** (gold) · ⭐ **Very Rare** (purple) · 🔨 **Rare** (blue) · ⛏ **Uncommon** (green) · 🪵 **Common** (grey) · dash (unset)
+- Stored in `ibis_local[name].acctPriority` — same prune protection as `acctStatus`
+- **Portal dropdown** — `<div id="acct-priority-portal">` at `<body>` level, `z-index:9501`. Same architecture as status portal. `openAcctPriorityPortal(id, triggerBtn)` / `applyPortalPriority(prio)` mirror status pattern exactly.
+- Filter chips: 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon in the top filter bar
+- Sortable column; `acctPriority` added to `ACCT_SORT_DEFAULT_DIR`
 
 #### Workables Column (new in v23)
 - Purple circle `<span class="wkbl-dot">` with count of non-archived entries in `ibis_opps` matching the account name
@@ -84,10 +93,21 @@ Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | A
 - `getActiveLicBadges(name)` — returns coloured badge spans or empty string
 - Grey dash if no active license — renamed from "Licenses" to "Active Client"
 
-#### Filter Chips (v23 — replaced old Hot/Opp/Winback/Watching set)
-- ✓ Keep · 👁 Monitor · ✗ Drop · 🟢 Active License
-- Chips filter by `localData[name].acctStatus` or `getActiveLicBadges(name)`
-- All chips have matching emoji/color to their status
+#### Filter Chips (v23 — replaced old Hot/Opp/Winback/Watching set; updated v26)
+- ✓ Keep · 👁 Monitor · ✗ Drop · 🟢 Active License · 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon
+- **OR-within-group / AND-between-group logic** (v26): chips in the same category are OR; chips from different categories are AND
+  - e.g. Legendary + Very Rare = shows **either** (previously showed nothing)
+  - e.g. Keep + Legendary = shows Keep accounts that are **also** Legendary
+- Groups: Status (KEEP/MONITOR/DROP), Priority (PRIO_*), Stage (STAGE_*), Standalone (ACTIVE_LIC)
+- `toggleChip(el, flag)` toggles individual flags; `renderAll()` re-evaluates all group logic on each filter change
+
+#### Stage Filter (new in v26)
+- Every 6sense Buying Stage badge in the accounts table AND card view is now clickable
+- Click a badge → adds `STAGE_[value]` to `activeFlags`, filters to only that stage; outline ring appears on active badge
+- Click same badge again → clears that stage filter
+- Multiple stage badges can be active simultaneously (OR logic — same group mechanism as priority chips)
+- `toggleStageFilter(stageVal)` — adds/removes `'STAGE_'+stageVal` key from `activeFlags`
+- CSS: `.stage-tag.stage-clickable` (cursor), `.stage-tag.stage-active` (outline ring + offset)
 
 #### Tier Filter Dropdown (new in v23)
 - Multi-select checkbox dropdown on the Tier column header (matches license tab filter pattern)
@@ -514,6 +534,8 @@ When a new session begins, Claude Code should:
 | ✅ Done | acctStatus prune protection | `pruneStaleLocalData` now treats `acctStatus` as user data — won't prune an entry that has a Keep/Monitor/Drop set. |
 | ✅ Done | Sentiment Score v24 | Weighted 1–10 composite score per account. Wikipedia + Wikidata + internal data. Battle card popover with factor breakdown. No paid API needed. `SENT_VERSION=1`. |
 | ✅ Done | Dead tab v25 | Accounts/licenses missing from re-upload CSV move here. Pill view switcher. ⚠️ unexpected drop flag (clickable to dismiss). Column parity with live accounts table. Resurrection on re-upload. `ibis_dead` key. Account death auto-moves its licenses to dead. |
+| ✅ Done | Priority column v26 | Rarity-tier dropdown (💎 Legendary → 🪵 Common) via portal pattern. Stored in `ibis_local[name].acctPriority`. Filter chips in top bar. Sortable. Status column now collapsible to 28px strip with visible expand button. |
+| ✅ Done | Stage filter + OR chip logic v26 | Stage badges in table + card are clickable to filter; active badge shows outline ring. Filter chips use OR-within-group / AND-between-group: Legendary+Very Rare shows either; Keep+Legendary shows intersection. `toggleStageFilter()` + group-aware filter logic in `renderAll()`. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
