@@ -1029,7 +1029,7 @@
 
   /* Sticky nav bar */
   .ap-nav {
-    position: sticky; top: 0; z-index: 200;
+    position: sticky; top: 90px; z-index: 98;
     background: #fff; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
     padding: 9px 24px;
@@ -3797,8 +3797,8 @@ function renderLicenses() {
     return `<tr>
       <td>
         <div class="td-company">
-          ${logoHtml}
-          <div><div class="lic-name-main">${l._name}</div>${licDesc ? `<div class="td-sub-vert">${licDesc}</div>` : ''}</div>
+          <div class="acct-logo-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(l._name)}">${logoHtml}</div>
+          <div><div class="lic-name-main acct-name-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(l._name)}">${escHtml(l._name)}</div>${licDesc ? `<div class="td-sub-vert">${licDesc}</div>` : ''}</div>
         </div>
       </td>
       <td>
@@ -4092,11 +4092,10 @@ function renderAPLicenses(name) {
       const status = l._active ? 'Active' : yr ? `Churned ${yr}` : '—';
       const statusColor = l._active ? '#059669' : l._churnTier === 'newchurn' ? '#b45309' : '#9ca3af';
       const acvStr = l._acv && l._acv > 0 ? `$${l._acv >= 1000 ? (l._acv/1000).toFixed(0)+'K' : l._acv}` : '';
-      const licTrunc = (l._licenseName||'').length > 42 ? (l._licenseName||'').slice(0,42)+'…' : (l._licenseName||'');
       return `<div class="ap-lic-row">
         <span class="lic-type-badge ${tm.cls}">${tm.label}</span>
         <div class="ap-lic-info">
-          <div class="ap-lic-name" title="${escHtml(l._licenseName||'')}">${escHtml(licTrunc)}</div>
+          <div class="ap-lic-name" title="${escHtml(l._licenseName||'')}">${escHtml(l._licenseName||'')}</div>
           <div class="ap-lic-status" style="color:${statusColor};">${status}</div>
         </div>
         ${acvStr ? `<div class="ap-lic-acv">${acvStr}</div>` : ''}
@@ -4566,7 +4565,7 @@ function renderOppCard(o) {
       </div>
       ${isInTerritory(o)?'<span class="patch-dot" title="In your territory" style="margin-left:auto;flex-shrink:0;"></span>':''}
     </div>
-    ${o.accountName ? `<div class="opp-acct-badge">${oppBadgeLogoHTML(o)}${escHtml(o.accountName)}</div>` : ''}
+    ${o.accountName ? `<div class="opp-acct-badge acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppBadgeLogoHTML(o)}${escHtml(o.accountName)}</div>` : ''}
     <div class="opp-card-footer">
       <span class="opp-days">📅 ${daysStr}</span>
       <div style="display:flex;gap:4px;align-items:center;">
@@ -4617,7 +4616,7 @@ function renderOppsTable(pipeline) {
         const inTerritory = isInTerritory(o);
         return `<tr class="${o.sfOpp?'tr-opp-active':''}">
           <td style="text-align:center;padding:0 4px 0 10px;" title="${inTerritory?'In your territory':''}">${inTerritory?'<span class="patch-dot"></span>':''}</td>
-          <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
+          <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName)}</span></div></td>
           <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name)}</div></td>
           <td style="font-size:12px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
           <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppAmt('${email}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(o.closeDate||'')}" onblur="saveOppField('${email}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
@@ -4655,7 +4654,7 @@ function renderColdOpps(cold) {
           const email = escHtml(o.email);
           return `<tr style="opacity:0.7;">
             <td style="font-weight:500;padding:9px 8px 9px 14px;">${escHtml(o.name)}</td>
-            <td><div style="display:flex;align-items:center;gap:8px;">${oppLogoHTML(o,24)}<span style="font-size:12px;color:var(--text-secondary);">${escHtml(o.accountName)}</span></div></td>
+            <td><div style="display:flex;align-items:center;gap:8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName)}</span></div></td>
             <td style="font-size:12px;color:var(--text-muted);">${escHtml(o.title||'')}</td>
             <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${daysAgo!==null?daysAgo+'d ago':'—'}</td>
             <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${o.dateAdded||'—'}</td>
