@@ -367,6 +367,62 @@ function setFooSortCol(col) {
 
 ---
 
+## POWER AUTOMATE PIPELINE — In Progress
+
+### Goal
+Replace manual CSV uploads with an automated PA flow that runs every 4 hours, writes JSON files to OneDrive, and the dashboard fetches on load.
+
+### Flow: "Dashboard Sync" (created in make.powerautomate.com)
+- **Trigger:** Recurrence every 4 hours
+- **SF Connection:** "Unique Dashboard Connection" (Dan's personal IBISWorld SF credentials, Production)
+- **Dan's SF User ID:** `005U100000534tpIAA`
+
+### Step 1 ✅ DONE — Get Dan's Account IDs
+- Action: **Get records** → Salesforce Object Type: **Account Teams**
+- Filter: `UserId eq '005U100000534tpIAA'`
+- Returns: 150 records, each with `AccountId` field — Dan's exact territory
+- Confirmed working: status 200, correct TeamMemberRole: "BDM"
+
+### Step 2 🔴 NEXT — Get Full Account Data
+Build these PA steps after Step 1:
+1. **Select** (Data Operations) — map `value` array → extract just `AccountId` field → output: array of 150 IDs
+2. **Join** (Data Operations) — join array with separator `','` → output: `id1','id2','id3'...`
+3. **Compose** (Data Operations) — expression: `concat('Id in (''', outputs('Join'), ''')')` → builds OData IN filter
+4. **Get records** (Salesforce) — Object Type: **Accounts**, Filter Query: output of Compose step, no Top Count limit
+5. **Create file** (OneDrive) — folder: `/IBISWorld Dashboard/data/`, filename: `accounts.json`, content: body of Step 4
+
+### SF Field Mappings (confirmed from test run)
+| Dashboard CSV column | SF API field name |
+|---|---|
+| Account Name | `Name` |
+| Website | `Website` |
+| Major Markets Tier | `Major_Markets_Tier__c` |
+| Vertical | `Vertical__c` ⚠️ returns a number — needs lookup table |
+| Sub-Vertical | `Sub_Vertical__c` |
+| Employees | `NumberOfEmployees` |
+| Annual Revenue | `AnnualRevenue` |
+| Annual Revenue Currency | `CurrencyIsoCode` |
+| # Core Clients | `Core_Clients__c` |
+| # Core Opportunities | `Core_Opportunities__c` |
+| US Days Since Last Activity | `US_Days_Since_Last_Activity__c` |
+| 6sense Intent Score NA | `X6sense_Account_Intent_Score_IW__c` |
+| 6sense Buying Stage NA | `X6sense_Account_Buying_Stage_IW__c` |
+
+### ⚠️ Vertical Number Mapping Problem
+`Vertical__c` stores numbers ("1", "13", "44" etc.) not text labels. The dashboard currently uses text labels ("Finance", "Manufacturing" etc.). Need to either:
+- A) Add a lookup table in the dashboard JS that converts numbers to labels
+- B) Find a text-label vertical field in SF (not confirmed to exist yet)
+
+### Steps 3–5 (not started)
+- Step 3: Repeat for Licenses (Account with Licenses & Products)
+- Step 4: Repeat for Workables/Contacts
+- Step 5: Dashboard code — fetch from OneDrive on load, fall back to localStorage CSV if fetch fails
+
+### Security note
+OneDrive share link must NOT be committed to GitHub. Store in a `CONFIG` object in `index.html` — clearly labeled. Full security pass deferred (low risk for now).
+
+---
+
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
@@ -559,6 +615,7 @@ When a new session begins, Claude Code should:
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
+| 🔴 Next | PA Flow: Step 2 — Accounts query | Step 1 done: "Get records" on AccountTeamMember filtered by UserId `005U100000534tpIAA` returns Dan's 150 account IDs. Step 2: extract those AccountIds → build filter → query Account object for full field data → write to OneDrive as `accounts.json`. SF field mappings confirmed (see PA PIPELINE section below). |
 | 🔴 Next | Account page: PA live data sync | Power Automate flow reads SF + Outlook → writes JSON to OneDrive → dashboard fetches on load. Removes CSV upload friction. Account page gets fresher data automatically. |
 | 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
 | 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |
