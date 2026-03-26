@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~3,980+ lines
+**File:** `index.html` — single self-contained file, ~4,700+ lines
 
 ---
 
@@ -41,7 +41,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ---
 
-## CURRENT STATE — v25 (stable)
+## CURRENT STATE — v27 (stable)
 
 ### Four tabs live:
 1. **📋 Accounts tab** — main territory view
@@ -135,6 +135,25 @@ Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | A
 - All subsequent `renderAll()` calls (background enrichment, status changes, filter changes) preserve the frozen order — rows never shuffle mid-session
 - Lock clears ONLY when user clicks a column header again (`setSortCol` / `onAcctSortSelectChange` set `frozenSortOrder = null`)
 - New accounts not in the frozen list appear at the bottom
+
+### Account Deep-Dive Page (new in v27)
+- Full-page view — clicking any account name or logo transitions the entire dashboard to the account page (not a modal or drawer)
+- **Entry points:** account name text + logo in Accounts table, Accounts cards, Licenses tab, Workables cards, Workables table (active + cold rows). Click targets are constrained — name text and logo only, not whole row.
+- **Click handler pattern:** `onclick="goToAccount(this.dataset.name)"` + `data-name="${escHtml(name)}"` — safe for all account names including special characters. `event.stopPropagation()` used in table contexts.
+- **Navigation:** sticky nav bar at `top:90px` (below 52px site header + 38px tab nav), `z-index:98`. Left: ← Back button + breadcrumb (`origin tab · Account Name`). Right: `‹ N / total ›` prev/next arrows.
+- **Prev/next logic:** `goToAccount(name)` snapshots `getFilteredOrderedNames()` at click time (respects frozen sort + active filters). `accountPageOrigin`, `accountPageList`, `accountPageIdx` are global state vars.
+- **Back navigation:** `closeAccountPage()` calls `setMainView(accountPageOrigin)` — returns to whichever tab opened the page. `setMainView()` also hides the account page whenever any tab is clicked directly.
+- **Six panels in a CSS grid (3 cols, 2 rows):**
+  - Row 1, full width: **Header** — logo (same cascade), name, meta strip (Tier · Revenue · Vertical · Sentiment badge · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · Workables · Priority)
+  - Row 2 col 1: **🎯 Priority Outreach** — contacts sorted by urgency, action labels (Email today / Follow up / Re-engage / On ice)
+  - Row 2 col 2: **👥 Campaigns** — all non-archived contacts with avatar, stage pill, days chip; "+ Add contact" placeholder
+  - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout, type badges use existing `.lic-type-badge` classes
+  - Row 3 col 1: **📈 Opportunities** — contacts with `sfOpp=true`, stage pill, amount, close date; placeholder button
+  - Row 3 cols 2–3: **📝 Account Plan** — inline editable textarea, auto-saves to `ibis_local[name].accountPlan` on every keystroke
+- **Account plan persistence:** `accountPlan` stored in `ibis_local` — survives CSV re-uploads. `pruneStaleLocalData` treats it as user data (won't prune).
+- **State vars:** `accountPageOrigin`, `accountPageList`, `accountPageIdx` declared at global scope near `frozenSortOrder`
+- **Key functions:** `goToAccount(name)`, `openAccountPage(name, origin, list, idx)`, `closeAccountPage()`, `navAccountPage(dir)`, `renderAccountPage(name)`, `renderAPHeader`, `renderAPPriorityOutreach`, `renderAPCampaigns`, `renderAPLicenses`, `renderAPOpportunities`, `renderAPPlan`
+- **Not yet built:** live PA data sync, AI briefing panel, campaign type segmentation (Workables/Winbacks/Samples), prev/next for Licenses+Workables origins (currently passes empty list — arrows disabled)
 
 ### Splash Screen
 - Fires on every page load/refresh (no sessionStorage gate — JS tab switching never reloads so no risk of retrigger)
@@ -536,9 +555,16 @@ When a new session begins, Claude Code should:
 | ✅ Done | Dead tab v25 | Accounts/licenses missing from re-upload CSV move here. Pill view switcher. ⚠️ unexpected drop flag (clickable to dismiss). Column parity with live accounts table. Resurrection on re-upload. `ibis_dead` key. Account death auto-moves its licenses to dead. |
 | ✅ Done | Priority column v26 | Rarity-tier dropdown (💎 Legendary → 🪵 Common) via portal pattern. Stored in `ibis_local[name].acctPriority`. Filter chips in top bar. Sortable. Status column now collapsible to 28px strip with visible expand button. |
 | ✅ Done | Stage filter + OR chip logic v26 | Stage badges in table + card are clickable to filter; active badge shows outline ring. Filter chips use OR-within-group / AND-between-group: Legendary+Very Rare shows either; Keep+Legendary shows intersection. `toggleStageFilter()` + group-aware filter logic in `renderAll()`. |
+| ✅ Done | Account deep-dive page v27 (bones) | Full-page account view. Sticky nav + breadcrumb + prev/next. Six panels: header, priority outreach, campaigns, license history, opportunities, account plan. Click targets wired across Accounts (table + cards), Licenses tab, Workables (cards + table active + cold). `accountPlan` persists in `ibis_local`. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
+| 🔴 Next | Account page: PA live data sync | Power Automate flow reads SF + Outlook → writes JSON to OneDrive → dashboard fetches on load. Removes CSV upload friction. Account page gets fresher data automatically. |
+| 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
+| 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |
+| 🗺️ Future | Account page: prev/next for Licenses+Workables origins | Currently passes empty list when entering from Licenses or Workables tab — arrows disabled. Build unique account list from filtered license/workables view for proper prev/next. |
+| 🗺️ Future | Account page: refresh on CSV re-upload | Account page is a snapshot at open time. If CSV uploads while page is open, data stays stale. Add re-render hook to `handleCSV` / `handleLicenseCSV`. |
+| 🗺️ Future | Workables → Campaigns tab rename | Rename Workables tab to Campaigns. Add campaign type selector. Workables becomes first campaign type. Winbacks, Samples as additional campaigns. |
 | 🗺️ Future | Workables filter chips | Active Workables, Active Opportunities, Lost, Stalled filter chips — spec agreed but not yet built. |
 | 🗺️ Future | Workables controls bar | Search field positioning, filter chip styling to match Licenses tab controls bar. |
 | 🗺️ Future | Workables sort persistence | Sort state for Workables table not yet saved to `ibis_sort`. |
