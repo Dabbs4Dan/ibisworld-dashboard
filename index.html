@@ -501,6 +501,7 @@
   }
   .account-card:hover { background: var(--card-hover); border-color: var(--border-hover); }
   .account-card.new-account { border-color: #6ee7b7; background: #f0fdf9; }
+  .account-card.card-opp-active { border-color:#00aef0; box-shadow:0 0 0 2px rgba(0,174,240,0.15), 0 0 12px rgba(0,174,240,0.12); }
 
   .card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
   .card-identity { display: flex; align-items: center; gap: 10px; }
@@ -563,7 +564,7 @@
   .stage-tag.stage-active { outline: 2px solid currentColor; outline-offset: 2px; }
 
   /* Action pill — wraps company cell in Accounts table */
-  .actn-pill { display:inline-flex; align-items:stretch; border:1.5px solid #efefef; border-radius:999px; padding:0 0 0 10px; gap:0; min-height:36px; transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .actn-pill { display:flex; width:100%; align-items:stretch; border:1.5px solid #efefef; border-radius:999px; padding:0 0 0 10px; gap:0; min-height:36px; transition:border-color 150ms ease, box-shadow 150ms ease; box-sizing:border-box; }
   .actn-pill .td-company { flex:1; align-self:center; padding:5px 0; }
   .actn-pill-active { border-color:#22d3ee; box-shadow:0 0 0 2px rgba(34,211,238,0.12), 0 0 10px rgba(34,211,238,0.18); }
   .actn-pill-btn { border-radius:0 999px 999px 0; padding:0 12px 0 10px; background:#f5f5f5; border:none; border-left:1.5px solid #efefef; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background 150ms ease; margin-left:8px; }
@@ -961,9 +962,9 @@
   .opp-inline-input:focus { border-bottom-color:var(--border); }
   /* Campaign selector — stats bar variant */
   .campaign-stat-item { position:relative; }
-  .campaign-stat-btn { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border-hover); border-radius:6px; cursor:pointer; padding:5px 12px 5px 10px; font-family:'DM Sans',sans-serif; transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .campaign-stat-btn { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border-hover); border-radius:6px; cursor:pointer; padding:3px 10px 3px 8px; font-family:'DM Sans',sans-serif; transition:border-color 150ms ease, box-shadow 150ms ease; }
   .campaign-stat-btn:hover, .campaign-stat-btn.open { border-color:var(--ibis-red); box-shadow:0 0 0 3px rgba(200,16,46,0.08); }
-  .campaign-stat-name { font-size:20px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.15; }
+  .campaign-stat-name { font-size:16px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.2; }
   .campaign-stat-count-badge { font-size:12px; font-weight:700; background:#f3f4f6; color:#6b7280; border-radius:999px; padding:2px 8px; align-self:center; }
   .campaign-stat-chevron { font-size:13px; color:var(--text-secondary); align-self:center; transition:transform 0.15s; }
   .campaign-stat-btn.open .campaign-stat-chevron { transform:rotate(180deg); }
@@ -1336,14 +1337,16 @@
         <table id="action-table">
           <thead>
             <tr>
-              <th style="min-width:220px;">Company</th>
-              <th style="min-width:130px;">Opp</th>
+              <th style="min-width:200px;">Company</th>
+              <th style="text-align:center;min-width:110px;">Opp</th>
+              <th style="min-width:160px;">Action Headline</th>
+              <th style="min-width:90px;">Next Date</th>
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
-              <th onclick="setActionSortCol('tier')" style="cursor:pointer;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
-              <th onclick="setActionSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
-              <th onclick="setActionSortCol('workables')" style="cursor:pointer;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
+              <th onclick="setActionSortCol('tier')" style="cursor:pointer;text-align:center;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
+              <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
+              <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
               <th onclick="setActionSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="axsort-revenue"></span></th>
-              <th onclick="setActionSortCol('sentiment')" style="cursor:pointer;">Score <span class="acct-sort-arrow" id="axsort-sentiment"></span></th>
+              <th onclick="setActionSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="axsort-sentiment"></span></th>
               <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
           </thead>
@@ -1540,6 +1543,7 @@
     <button class="chip chip-monitor" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">👁 Monitor</button>
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
+    <button class="chip" onclick="toggleChip(this,'HAS_OPP')" data-flag="HAS_OPP">💼 Active Opp</button>
     <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
     <button class="chip chip-action" onclick="toggleChip(this,'HAS_ACTION')" data-flag="HAS_ACTION">⚡ In Action</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
@@ -1630,6 +1634,7 @@
             <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
+            <th style="text-align:center;min-width:120px;">Opp</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -2023,11 +2028,13 @@ function processAccountRows(newAccounts) {
     const alreadyDeadNorms = new Set(deadAccounts.map(d => normName(getField(d,'Account Name','AccountName'))));
     const alreadyDeadKeys = new Set(deadLicenses.map(l => licKey(l)));
     const today = new Date().toISOString().slice(0,10);
-    // Move disappeared accounts → dead
+    // Move disappeared accounts → dead (skip action-protected ones)
     accounts.forEach(a => {
       const name = getField(a,'Account Name','AccountName');
       const norm = normName(name);
       if (!newNameSet.has(norm) && !alreadyDeadNorms.has(norm)) {
+        // ⚡ Action-protected: keep alive in accounts, skip dead detection
+        if (localData[name]?.hasAction) return;
         const local = localData[name] || {};
         const status = local.acctStatus || '';
         deadAccounts.push({ ...a, _deadSince: today, _statusAtDeath: status,
@@ -2060,7 +2067,15 @@ function processAccountRows(newAccounts) {
   }
   // ──────────────────────────────────────────────────────────────────
 
-  accounts = newAccounts;
+  // Keep action-protected dropped accounts alive (merged back with _droppedFromCSV flag)
+  const actionProtected = accounts
+    .filter(a => {
+      const name = getField(a,'Account Name','AccountName');
+      return !new Set(newAccounts.map(n => normName(getField(n,'Account Name','AccountName')))).has(normName(name)) && localData[name]?.hasAction;
+    })
+    .map(a => ({ ...a, _droppedFromCSV: true }));
+
+  accounts = [...newAccounts, ...actionProtected];
   stampLastSeen(accounts);
   pruneStaleLocalData();
   localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
@@ -2126,7 +2141,7 @@ function pruneStaleLocalData() {
     const hasStatus = !!(entry.acctStatus);
     const hasPriority = !!(entry.acctPriority);
     const hasPlan   = !!(entry.accountPlan && entry.accountPlan.trim());
-    const hasAction = !!(entry.hasAction);
+    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate);
     if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction) return; // has real user data — keep
     delete localData[name];
     pruned++;
@@ -2207,12 +2222,14 @@ function getFiltered() {
       if (stageFs.length && !stageFs.some(f => f === 'STAGE_' + stageVal)) return false;
       // Active License — standalone
       if (activeFlags.has('ACTIVE_LIC') && !getActiveLicBadges(aName)) return false;
+      // Active Opp — standalone
+      if (activeFlags.has('HAS_OPP') && !hasActiveOpp(aName)) return false;
       // Has Workables — standalone
       if (activeFlags.has('HAS_WORKABLES') && getWorkableCount(aName) === 0) return false;
       // In Action — standalone
       if (activeFlags.has('HAS_ACTION') && !localData[aName]?.hasAction) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_WORKABLES','HAS_ACTION','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -2348,12 +2365,20 @@ function renderCards(list) {
   c.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
-    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical'), sub=getField(acc,'Sub-Vertical');
+    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), sfOppsNum=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical'), sub=getField(acc,'Sub-Vertical');
     const revInfo = getRevDisplay(acc);
     const revLabel = revInfo ? revInfo.label.replace('USD ', '$') : null;
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
-    return `<div class="account-card${flags.includes('🆕')?' new-account':''}">
+    const cardOppEmail = getAccountOppEmail(name);
+    const cardOpp = cardOppEmail ? opps[cardOppEmail] : null;
+    const cardHasActiveOpp = !!(cardOpp?.sfOpp);
+    const cardOppBtn = cardOpp
+      ? (cardOpp.sfOpp
+          ? `<button class="opp-sf-pill" style="border-radius:6px;padding:3px 9px;font-size:10px;" onclick="event.stopPropagation();toggleActionOpp('${escHtml(cardOppEmail)}');renderAll()" title="Toggle off Opp">Opp</button>`
+          : `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleActionOpp('${escHtml(cardOppEmail)}');renderAll()" title="Mark as Opp"><span class="opp-dot"></span></button>`)
+      : '';
+    return `<div class="account-card${flags.includes('🆕')?' new-account':''}${cardHasActiveOpp?' card-opp-active':''}">
       <button class="card-actn-btn${local.hasAction?' card-actn-active':''}" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button>
       <div class="card-top"><div class="card-identity"><div class="acct-logo-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${logoHTML(acc)}</div><div><div class="company-name acct-name-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</div>${(local.desc||sub)?`<div class="card-sub-vert">${local.desc||sub}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
@@ -2362,12 +2387,18 @@ function renderCards(list) {
         <div class="stat-cell"><div class="label">Score</div><div class="val">${renderSentimentBadge(name)}</div></div>
         <div class="stat-cell"><div class="label">Intent</div><div class="val">${intent||'—'}</div></div>
         <div class="stat-cell"><div class="label">Days Out</div><div class="val ${daysColor(days)}">${days||'—'}</div></div>
-        <div class="stat-cell"><div class="label">Opps</div><div class="val">${opps||'0'}</div></div>
+        <div class="stat-cell"><div class="label">Opps</div><div class="val">${sfOppsNum||'0'}</div></div>
         <div class="stat-cell"><div class="label">Licenses</div><div class="val">${getLicCount(name)||'—'}</div></div>
         <div class="stat-cell"><div class="label">Stage</div><div class="val" style="font-size:10px;color:var(--text-muted)">${stage?stage.split(' ')[0]:'—'}</div></div>
       </div>
       ${revHtml}
-      <div class="card-footer"><span class="stage-tag ${stageClass(stage)} stage-clickable${activeFlags.has('STAGE_'+stage)?' stage-active':''}" onclick="toggleStageFilter(${JSON.stringify(stage||'')})" title="Click to filter by stage">${stage||'Unknown'}</span>${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:6px;">${ab}</div>`:''})()}</div>
+      <div class="card-footer" style="justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <span class="stage-tag ${stageClass(stage)} stage-clickable${activeFlags.has('STAGE_'+stage)?' stage-active':''}" onclick="toggleStageFilter(${JSON.stringify(stage||'')})" title="Click to filter by stage">${stage||'Unknown'}</span>
+          ${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;">${ab}</div>`:''})()}
+        </div>
+        ${cardOppBtn ? `<div style="display:flex;align-items:center;">${cardOppBtn}</div>` : ''}
+      </div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
   }).join('');
@@ -2376,11 +2407,12 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
-    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), opps=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical');
+    const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), sfOppsVal=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical');
+    const isDropped = !!acc._droppedFromCSV;
     const domain = getLogoDomain(acc), initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const _res = domain && logoResolved[domain];
     const tdLogoHtml = !domain ? initials
@@ -2390,10 +2422,20 @@ function renderTable(list) {
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-    return `<tr class="${flags.includes('🆕')?'new-account':''}">
+    // Opp cell — shared data with Campaigns and Action tabs
+    const oppEmail = getAccountOppEmail(name);
+    const acctOpp = oppEmail ? opps[oppEmail] : null;
+    const acctOppCell = acctOpp ? (acctOpp.sfOpp
+      ? `<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="event.stopPropagation();toggleActionOpp('${escHtml(oppEmail)}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(acctOpp.sfAmt||'')}" onblur="saveOppAmt('${escHtml(oppEmail)}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(acctOpp.closeDate||'')}" onblur="saveOppField('${escHtml(oppEmail)}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`
+      : `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleActionOpp('${escHtml(oppEmail)}')"><span class="opp-dot"></span></button>`)
+      : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+    const droppedBadge = isDropped ? `<span style="color:#ea580c;font-size:10px;font-weight:600;background:#fff7ed;border-radius:999px;padding:1px 7px;margin-left:6px;border:1px solid #fed7aa;">dropped from CSV</span>` : '';
+    const nameDisplay = `<span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}`;
+    return `<tr class="${flags.includes('🆕')?'new-account':''}${isDropped?' dropped-row':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</span>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
+      <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
+      <td style="text-align:center;padding:4px 8px;">${acctOppCell}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -2402,7 +2444,7 @@ function renderTable(list) {
       <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
-      <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
+      <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`onclick="toggleStageFilter(${JSON.stringify(stage)})" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
@@ -2422,6 +2464,19 @@ function getAccountOppEmail(name) {
   if (!contacts.length) return null;
   const withOpp = contacts.find(([_, o]) => o.sfOpp);
   return (withOpp || contacts[0])[0];
+}
+
+// Returns true if any non-archived contact for this account has sfOpp=true
+function hasActiveOpp(name) {
+  const n = normName(name);
+  return Object.values(opps).some(o => !o.archived && normName(o.accountName) === n && o.sfOpp);
+}
+
+// Save a field to ibis_local[name] (used by Action tab inputs)
+function saveActionField(name, field, value) {
+  if (!localData[name]) localData[name] = {};
+  localData[name][field] = value;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
 }
 
 // Toggle opp from Action table — syncs with Campaigns (shared ibis_opps data)
@@ -4523,7 +4578,7 @@ function updateActionStats(rows) {
 function renderActionTable(rows) {
   const tbody = document.getElementById('action-tbody');
   if (!tbody) return;
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
 
   tbody.innerHTML = rows.map(({acc, name, days}) => {
     const local = localData[name] || {};
@@ -4532,6 +4587,7 @@ function renderActionTable(rows) {
     const rev = local.revCache || '—';
     const sent = local.sentiment;
     const wCount = getWorkableCount(name);
+    const isDropped = !!acc._droppedFromCSV;
 
     // Days badge color
     const daysBg = days <= 30 ? '#dcfce7' : days <= 90 ? '#fef9c3' : '#fee2e2';
@@ -4542,14 +4598,15 @@ function renderActionTable(rows) {
     const wBadge = wCount > 0 ? `<span class="wkbl-dot">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
     const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
 
-    // Company cell — matches accounts table pattern
+    // Company cell + dropped badge
     const tdLogoHtml = logoHTML(acc, 28);
+    const droppedBadge = isDropped ? `<span style="color:#ea580c;font-size:10px;font-weight:600;background:#fff7ed;border-radius:999px;padding:1px 7px;margin-left:6px;border:1px solid #fed7aa;">dropped from CSV</span>` : '';
     const companyCell = `<div class="td-company">
       <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
-      <div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${local.description?`<div class="td-sub">${escHtml(local.description)}</div>`:''}</div>
+      <div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}${local.description?`<div class="td-sub">${escHtml(local.description)}</div>`:''}</div>
     </div>`;
 
-    // Opp cell — reads from ibis_opps (shared data system with Campaigns)
+    // Opp cell — shared data system with Campaigns and Accounts tabs
     const oppEmail = getAccountOppEmail(name);
     const opp = oppEmail ? opps[oppEmail] : null;
     let oppCell;
@@ -4561,9 +4618,17 @@ function renderActionTable(rows) {
       oppCell = `<button class="opp-dot-btn" onclick="toggleActionOpp('${escHtml(oppEmail)}')"><span class="opp-dot"></span></button>`;
     }
 
+    // Action Headline — custom text, stored in ibis_local[name].actionHeadline
+    const headlineCell = `<input class="opp-inline-input" style="width:150px;" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+
+    // Next Date — custom date, stored in ibis_local[name].actionNextDate
+    const nextDateCell = `<input class="opp-inline-input" style="width:90px;" type="text" value="${escHtml(local.actionNextDate||'')}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+
     return `<tr>
       <td style="padding:6px 12px;">${companyCell}</td>
-      <td style="text-align:center;">${oppCell}</td>
+      <td style="text-align:center;padding:4px 8px;">${oppCell}</td>
+      <td style="padding:6px 8px;">${headlineCell}</td>
+      <td style="padding:6px 8px;">${nextDateCell}</td>
       <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td style="text-align:center;">${tierBadge}</td>
       <td style="text-align:center;">${daysBadge}</td>
@@ -5409,10 +5474,12 @@ function selectCampaignFromMenu(name) {
 }
 
 // Close campaign dropdown on click outside
+// IMPORTANT: menu is position:fixed at body level — must check BOTH wrap AND menu
 document.addEventListener('click', function(e) {
   const wrap = document.getElementById('campaign-selector-wrap');
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById('campaign-selector-menu')?.classList.add('hidden');
+  const menu = document.getElementById('campaign-selector-menu');
+  if (wrap && !wrap.contains(e.target) && menu && !menu.contains(e.target)) {
+    menu.classList.add('hidden');
     document.getElementById('campaign-selector-btn')?.classList.remove('open');
   }
 });
