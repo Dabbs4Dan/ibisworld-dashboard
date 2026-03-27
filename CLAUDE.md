@@ -429,7 +429,7 @@ Final flow structure (all saved in "Dashboard Sync"):
 - Step 5: Dashboard code — fetch from OneDrive on load, fall back to localStorage CSV if fetch fails
 
 ### Security note
-OneDrive share link is currently committed to GitHub (public repo). Low risk — "Anyone" read-only access to account metadata only. **Future work: move URL out of committed code** — options include a separate untracked config file, a GitHub Actions secret, or a Cloudflare Worker that proxies the fetch so the raw URL is never in the repo.
+OneDrive share link is currently committed to GitHub (public repo). **However, it doesn't matter for now — SharePoint blocks cross-origin fetch() from GitHub Pages (CORS), so the dashboard can't use it anyway.** Fix is to switch PA to write to GitHub directly (see Open Items). Once fixed, the URL in `PA_CONFIG.accountsUrl` will point to `raw.githubusercontent.com` (public, no secrets needed).
 
 ---
 
@@ -627,8 +627,9 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
 | ✅ Done | PA Flow: Step 2 — Accounts sync | Flow rebuilt with Apply to each loop. Writes all 150 accounts to `accounts.json` in OneDrive. Vertical__c = numbers (needs lookup table). See PA PIPELINE section for full flow structure. |
 | ✅ Done | Dead tab badge clears on first visit | `deadSeenKeys` Set (persisted to `ibis_dead_seen` localStorage). Badge shows only NEW unseen dead items. Clears when user opens Dead tab. `markDeadAsSeen()` called in `setMainView('dead')`. |
-| ✅ Done | Wire accounts.json → dashboard (eliminate CSV upload) | SharePoint URL in `PA_CONFIG.accountsUrl`. `fetchAccountsFromPA()` runs silently on init. All 150 accounts, all vertical numbers covered. CSV upload still works as fallback. Security cleanup deferred (see PA security note). |
-| 🔴 Next | Account page: PA live data sync | Power Automate flow reads SF + Outlook → writes JSON to OneDrive → dashboard fetches on load. Removes CSV upload friction. Account page gets fresher data automatically. |
+| ⚠️ Blocked | Wire accounts.json → dashboard (CORS fix needed) | SharePoint URL is in `PA_CONFIG.accountsUrl` and `fetchAccountsFromPA()` runs on init — BUT SharePoint blocks cross-origin `fetch()` from GitHub Pages (CORS). Fix: change PA flow to write via **GitHub API** instead of OneDrive. Dashboard then reads from `raw.githubusercontent.com/Dabbs4Dan/ibisworld-dashboard/main/Data/accounts.json` (CORS-friendly). **Next session steps:** (1) Dan creates GitHub PAT (`public_repo` scope) and pastes token. (2) Claude updates PA flow: replace "Create file OneDrive" with 2 HTTP steps — GET sha + PUT file to GitHub API. (3) Claude updates `PA_CONFIG.accountsUrl` to GitHub raw URL. CSV upload continues working as fallback until then. |
+| ✅ Done | Shift+D debug panel | `openDebugPanel()` / `closeDebugPanel()` / `copyDebugReport()`. Shows PA sync status, Claude enrichment stats, localStorage sizes, data state, event log. `_dbg` global captures events. Press Shift+D anywhere to open; "Copy Report" button copies JSON to clipboard for Claude. |
+| 🔴 Next | Account page: PA live data sync | Blocked until CORS fix above is complete. Power Automate writes to GitHub → dashboard auto-loads on every page open. |
 | 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
 | 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |
 | 🗺️ Future | Account page: prev/next for Licenses+Workables origins | Currently passes empty list when entering from Licenses or Workables tab — arrows disabled. Build unique account list from filtered license/workables view for proper prev/next. |
