@@ -563,13 +563,22 @@
   .stage-tag.stage-active { outline: 2px solid currentColor; outline-offset: 2px; }
 
   /* Action pill — wraps company cell in Accounts table */
-  .actn-pill { display:inline-flex; align-items:center; border:1.5px solid #e5e7eb; border-radius:999px; padding:2px 2px 2px 0; transition:border-color 150ms ease, box-shadow 150ms ease; }
-  .actn-pill .td-company { padding-left:4px; flex:1; }
+  .actn-pill { display:inline-flex; align-items:stretch; border:1.5px solid #efefef; border-radius:999px; padding:5px 0 5px 10px; gap:0; transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .actn-pill .td-company { flex:1; align-self:center; }
   .actn-pill-active { border-color:#22d3ee; box-shadow:0 0 0 2px rgba(34,211,238,0.12), 0 0 10px rgba(34,211,238,0.18); }
-  .actn-pill-btn { width:26px; height:26px; border-radius:999px; background:#f3f4f6; border:none; cursor:pointer; font-size:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; color:#9ca3af; margin-left:6px; line-height:1; }
-  .actn-pill-btn:hover { background:#cffafe; color:#0891b2; }
-  .actn-pill-active .actn-pill-btn { background:#22d3ee; color:#fff; box-shadow:0 0 6px rgba(34,211,238,0.45); }
+  .actn-pill-btn { border-radius:0 999px 999px 0; padding:0 12px 0 10px; background:#f5f5f5; border:none; border-left:1.5px solid #efefef; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background 150ms ease; margin-left:8px; }
+  .actn-bolt { display:inline-block; font-size:13px; filter:brightness(0) invert(1); transition:filter 150ms ease; }
+  .actn-pill-btn:hover { background:#cffafe; }
+  .actn-pill-btn:hover .actn-bolt { filter:none; }
+  .actn-pill-active .actn-pill-btn { background:#22d3ee; border-left-color:#22d3ee; }
+  .actn-pill-active .actn-bolt { filter:none; }
   .actn-pill-active .actn-pill-btn:hover { background:#06b6d4; }
+  /* Card action button — top-right rounded square */
+  .card-actn-btn { position:absolute; top:10px; right:10px; width:28px; height:28px; border-radius:6px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; }
+  .card-actn-btn:hover { background:#cffafe; }
+  .card-actn-btn.card-actn-active { background:#22d3ee; box-shadow:0 0 8px rgba(34,211,238,0.4); }
+  .card-actn-btn .actn-bolt { filter:brightness(0) invert(1); }
+  .card-actn-btn.card-actn-active .actn-bolt { filter:none; }
   /* Action filter chip active color */
   .chip-action.active { background:#ecfeff; border-color:#22d3ee; color:#0891b2; }
 
@@ -1291,8 +1300,8 @@
 <!-- ACTION CONTROLS -->
 <div class="controls hidden" id="controls-action">
   <div class="view-toggle">
-    <button class="view-btn active" onclick="setActionView('table')" id="btn-action-table">☰ Table</button>
-    <button class="view-btn" onclick="setActionView('cards')" id="btn-action-cards">⊞ Cards</button>
+    <button class="view-btn active" onclick="setActionView('cards')" id="btn-action-cards">⊞ Cards</button>
+    <button class="view-btn" onclick="setActionView('table')" id="btn-action-table">☰ Table</button>
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -2339,6 +2348,7 @@ function renderCards(list) {
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}">
+      <button class="card-actn-btn${local.hasAction?' card-actn-active':''}" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button>
       <div class="card-top"><div class="card-identity"><div class="acct-logo-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${logoHTML(acc)}</div><div><div class="company-name acct-name-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</div>${(local.desc||sub)?`<div class="card-sub-vert">${local.desc||sub}</div>`:''}</div></div>
       <div class="card-flags">${flags.map(f=>`<span class="flag">${f}</span>`).join('')}</div></div>
       <div class="card-stats">
@@ -2377,7 +2387,7 @@ function renderTable(list) {
     return `<tr class="${flags.includes('🆕')?'new-account':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</span>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab">⚡</button></div></td>
+      <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</span>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -2401,12 +2411,14 @@ function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+
 function toggleAction(e) {
   e.stopPropagation();
   const name = e.currentTarget.dataset.name;
-  const n = normName(name);
-  if (!localData[n]) localData[n] = {};
-  localData[n].hasAction = !localData[n].hasAction;
+  if (!localData[name]) localData[name] = {};
+  localData[name].hasAction = !localData[name].hasAction;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
+  // Update pill (table view)
   const pill = e.currentTarget.closest('.actn-pill');
-  if (pill) pill.classList.toggle('actn-pill-active', !!localData[n].hasAction);
+  if (pill) pill.classList.toggle('actn-pill-active', !!localData[name].hasAction);
+  // Update button (card view)
+  e.currentTarget.classList.toggle('card-actn-active', !!localData[name].hasAction);
 }
 /* ============================================================
    REVENUE ENGINE
@@ -4019,7 +4031,7 @@ function getFilteredActionAccountNames() {
   const q = (document.getElementById('action-search-input')?.value || '').toLowerCase();
   let rows = accounts
     .map(acc => ({ acc, name: getField(acc,'Account Name'), days: parseInt(getField(acc,'US Days Since Last Activity'))||0 }))
-    .filter(r => localData[normName(r.name)]?.hasAction === true);
+    .filter(r => localData[r.name]?.hasAction === true);
   if (actionFilter === 'active')    rows = rows.filter(r => r.days <= 30);
   if (actionFilter === 'cooling')   rows = rows.filter(r => r.days > 30 && r.days <= 90);
   if (actionFilter === 'overdue')   rows = rows.filter(r => r.days > 90);
@@ -4356,13 +4368,11 @@ function renderAPPlan(acc, local, name) {
 let actionSortCol = 'days';
 let actionSortDir = 'asc';
 let actionFilter = null;
-let actionView = 'table';
+let actionView = 'cards';
 const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function setActionView(v) {
   actionView = v;
-  document.getElementById('action-table-view')?.classList.toggle('hidden', v !== 'table');
-  document.getElementById('action-cards-view')?.classList.toggle('hidden', v !== 'cards');
   document.getElementById('btn-action-table')?.classList.toggle('active', v === 'table');
   document.getElementById('btn-action-cards')?.classList.toggle('active', v === 'cards');
   renderAction();
@@ -4398,25 +4408,30 @@ function renderAction() {
   // Base pool: only accounts manually toggled into Action
   let rows = accounts
     .map(acc => ({ acc, name: getField(acc,'Account Name'), days: parseInt(getField(acc,'US Days Since Last Activity'))||0 }))
-    .filter(r => localData[normName(r.name)]?.hasAction === true);
+    .filter(r => localData[r.name]?.hasAction === true);
 
   // Empty states
+  const tableWrap = document.getElementById('action-table-view');
+  const cardsWrap = document.getElementById('action-cards-view');
+
   if (!accounts.length) {
     emptyEl.style.display = '';
     emptyEl.innerHTML = `<div class="empty-icon">⚡</div><div class="empty-title">No accounts loaded</div><div class="empty-desc">Upload your Accounts CSV to get started, then toggle ⚡ on any account.</div>`;
     if (label) label.textContent = '';
-    renderActionTable([]); renderActionCards([]);
+    tableWrap?.classList.add('hidden'); cardsWrap?.classList.add('hidden');
     return;
   }
   if (!rows.length) {
     emptyEl.style.display = '';
     emptyEl.innerHTML = `<div class="empty-icon">⚡</div><div class="empty-title">No accounts in Action yet</div><div class="empty-desc">Go to the Accounts tab and click the ⚡ button on any company row to add it here.</div>`;
     if (label) label.textContent = '';
-    renderActionTable([]); renderActionCards([]);
+    tableWrap?.classList.add('hidden'); cardsWrap?.classList.add('hidden');
     updateActionStats([]);
     return;
   }
   emptyEl.style.display = 'none';
+  tableWrap?.classList.toggle('hidden', actionView !== 'table');
+  cardsWrap?.classList.toggle('hidden', actionView !== 'cards');
 
   const q = (document.getElementById('action-search-input')?.value || '').toLowerCase();
 
