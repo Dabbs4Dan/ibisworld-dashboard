@@ -563,8 +563,8 @@
   .stage-tag.stage-active { outline: 2px solid currentColor; outline-offset: 2px; }
 
   /* Action pill — wraps company cell in Accounts table */
-  .actn-pill { display:inline-flex; align-items:stretch; border:1.5px solid #efefef; border-radius:999px; padding:5px 0 5px 10px; gap:0; transition:border-color 150ms ease, box-shadow 150ms ease; }
-  .actn-pill .td-company { flex:1; align-self:center; }
+  .actn-pill { display:inline-flex; align-items:stretch; border:1.5px solid #efefef; border-radius:999px; padding:0 0 0 10px; gap:0; min-height:36px; transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .actn-pill .td-company { flex:1; align-self:center; padding:5px 0; }
   .actn-pill-active { border-color:#22d3ee; box-shadow:0 0 0 2px rgba(34,211,238,0.12), 0 0 10px rgba(34,211,238,0.18); }
   .actn-pill-btn { border-radius:0 999px 999px 0; padding:0 12px 0 10px; background:#f5f5f5; border:none; border-left:1.5px solid #efefef; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background 150ms ease; margin-left:8px; }
   .actn-bolt { display:inline-block; font-size:13px; filter:brightness(0) invert(1); transition:filter 150ms ease; }
@@ -970,7 +970,7 @@
   /* Shared dropdown menu */
   .campaign-selector-menu { position:fixed; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.10); z-index:9400; padding:5px 0; }
   .campaign-selector-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-primary); transition:background 0.1s; }
-  .campaign-selector-item:hover { background:#f9fafb; }
+  .campaign-selector-item:hover { background:#f0f2f5; pointer-events:all; }
   .campaign-selector-item.active { color:var(--ibis-red); font-weight:700; }
   .campaign-selector-item.disabled { color:var(--text-muted); cursor:default; font-size:12px; font-style:italic; }
   .campaign-selector-item.disabled:hover { background:none; }
@@ -1075,8 +1075,14 @@
   .ap-header {
     background: #fff; border: 1px solid var(--border); border-radius: 12px;
     padding: 18px 22px; margin-bottom: 18px;
-    display: flex; align-items: flex-start; gap: 18px;
+    display: flex; align-items: flex-start; gap: 18px; position: relative;
   }
+  /* Action toggle button on Account page header */
+  .ap-actn-btn { position:absolute; top:14px; right:16px; width:32px; height:32px; border-radius:8px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; font-size:14px; }
+  .ap-actn-btn:hover { background:#cffafe; }
+  .ap-actn-btn.active { background:#22d3ee; box-shadow:0 0 8px rgba(34,211,238,0.4); }
+  .ap-actn-btn .actn-bolt { filter:brightness(0) invert(1); }
+  .ap-actn-btn.active .actn-bolt { filter:none; }
   .ap-header-logo {
     width: 52px; height: 52px; border-radius: 10px; border: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center;
@@ -1330,15 +1336,15 @@
         <table id="action-table">
           <thead>
             <tr>
-              <th onclick="setActionSortCol('acctStatus')" style="cursor:pointer;min-width:80px;">Status <span class="acct-sort-arrow" id="axsort-acctStatus"></span></th>
-              <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
-              <th>Company</th>
+              <th style="min-width:220px;">Company</th>
+              <th style="min-width:130px;">Opp</th>
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th onclick="setActionSortCol('tier')" style="cursor:pointer;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
               <th onclick="setActionSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
               <th onclick="setActionSortCol('workables')" style="cursor:pointer;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
               <th onclick="setActionSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="axsort-revenue"></span></th>
               <th onclick="setActionSortCol('sentiment')" style="cursor:pointer;">Score <span class="acct-sort-arrow" id="axsort-sentiment"></span></th>
+              <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
           </thead>
           <tbody id="action-tbody"></tbody>
@@ -2408,6 +2414,34 @@ function renderTable(list) {
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
 function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+stageVal; if(activeFlags.has(key)) activeFlags.delete(key); else activeFlags.add(key); renderAll(); }
+// Returns the "primary" contact email for an account in ibis_opps (shared with Campaigns)
+// Prefers contacts with sfOpp=true, falls back to first non-archived contact
+function getAccountOppEmail(name) {
+  const n = normName(name);
+  const contacts = Object.entries(opps).filter(([_, o]) => !o.archived && normName(o.accountName) === n);
+  if (!contacts.length) return null;
+  const withOpp = contacts.find(([_, o]) => o.sfOpp);
+  return (withOpp || contacts[0])[0];
+}
+
+// Toggle opp from Action table — syncs with Campaigns (shared ibis_opps data)
+function toggleActionOpp(email) {
+  if (!opps[email]) return;
+  opps[email].sfOpp = !opps[email].sfOpp;
+  saveOpps();
+  renderOpps();
+  renderAction();
+}
+
+// Toggle ⚡ action from the Account page header button
+function toggleActionFromPage(name) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].hasAction = !localData[name].hasAction;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  renderAccountPage(name);
+  renderAll();
+}
+
 function toggleAction(e) {
   e.stopPropagation();
   const name = e.currentTarget.dataset.name;
@@ -4170,8 +4204,11 @@ function renderAPHeader(acc, local, name) {
   const sentMeta  = `<span class="ap-meta-sep">·</span>${sentBadge}`;
   const daysMeta  = days ? `<span class="ap-meta-sep">·</span><span style="${daysStyle}">${days}d inactive</span>` : '';
 
+  const hasAction = !!localData[name]?.hasAction;
+
   return `
     <div class="ap-header">
+      <button class="ap-actn-btn${hasAction?' active':''}" onclick="toggleActionFromPage('${escHtml(name)}')" title="${hasAction?'Remove from ⚡ Action':'Add to ⚡ Action'}"><span class="actn-bolt">⚡</span></button>
       <div class="ap-header-logo">${logoInner}</div>
       <div class="ap-header-info">
         <div class="ap-header-name">${escHtml(name)}</div>
@@ -4394,7 +4431,7 @@ function setActionSortCol(col) {
 }
 
 function updateActionSortArrows() {
-  ['acctStatus','acctPriority','vertical','tier','days','workables','revenue','sentiment'].forEach(col => {
+  ['acctPriority','vertical','tier','days','workables','revenue','sentiment'].forEach(col => {
     const el = document.getElementById('axsort-' + col);
     if (!el) return;
     el.textContent = actionSortCol === col ? (actionSortDir === 'asc' ? '▲' : '▼') : '';
@@ -4446,8 +4483,8 @@ function renderAction() {
   // Sort
   filtered.sort((a, b) => {
     let av, bv;
-    const al = localData[normName(a.name)] || {};
-    const bl = localData[normName(b.name)] || {};
+    const al = localData[a.name] || {};
+    const bl = localData[b.name] || {};
     switch (actionSortCol) {
       case 'days':        av = a.days; bv = b.days; break;
       case 'name':        av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
@@ -4488,12 +4525,8 @@ function renderActionTable(rows) {
   if (!tbody) return;
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
 
-  const PRIO_LABELS = { legendary:'💎 Legendary', veryrare:'⭐ Very Rare', rare:'🔨 Rare', uncommon:'⛏ Uncommon', common:'🪵 Common' };
-  const PRIO_COLORS = { legendary:{bg:'#fef9c3',c:'#a16207'}, veryrare:{bg:'#f3e8ff',c:'#7e22ce'}, rare:{bg:'#dbeafe',c:'#1d4ed8'}, uncommon:{bg:'#dcfce7',c:'#15803d'}, common:{bg:'#f3f4f6',c:'#6b7280'} };
-  const STATUS_STYLES = { keep:{bg:'#dcfce7',c:'#15803d',label:'✓ Keep'}, monitor:{bg:'#fef9c3',c:'#a16207',label:'👁 Monitor'}, drop:{bg:'#fee2e2',c:'#b91c1c',label:'✗ Drop'} };
-
   tbody.innerHTML = rows.map(({acc, name, days}) => {
-    const local = localData[normName(name)] || {};
+    const local = localData[name] || {};
     const tier = getField(acc,'Major Markets Tier') || '—';
     const vertical = getField(acc,'Vertical') || '—';
     const rev = local.revCache || '—';
@@ -4505,36 +4538,39 @@ function renderActionTable(rows) {
     const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
     const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
 
-    const ss = STATUS_STYLES[local.acctStatus] || null;
-    const statusCell = ss ? `<span style="background:${ss.bg};color:${ss.c};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;">${ss.label}</span>` : '<span style="color:var(--text-muted);">—</span>';
-
-    const pp = PRIO_COLORS[local.acctPriority];
-    const prioCell = pp ? `<span style="background:${pp.bg};color:${pp.c};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;">${PRIO_LABELS[local.acctPriority]}</span>` : '<span style="color:var(--text-muted);">—</span>';
-
     const sentBadge = sent ? `<span class="sent-badge sent-${sent.score>=8?'green':sent.score>=5?'amber':'red'}" style="cursor:pointer;" onclick="openSentimentCard('${escHtml(name)}')">${sent.score}</span>` : '<span style="color:var(--text-muted);">—</span>';
-
     const wBadge = wCount > 0 ? `<span class="wkbl-dot">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
+    const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
 
-    const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}">${tier}</span>` : '<span style="color:var(--text-muted);">—</span>';
+    // Company cell — matches accounts table pattern
+    const tdLogoHtml = logoHTML(acc, 28);
+    const companyCell = `<div class="td-company">
+      <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
+      <div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${local.description?`<div class="td-sub">${escHtml(local.description)}</div>`:''}</div>
+    </div>`;
 
-    const logoHtml = logoHTML(acc, 28);
+    // Opp cell — reads from ibis_opps (shared data system with Campaigns)
+    const oppEmail = getAccountOppEmail(name);
+    const opp = oppEmail ? opps[oppEmail] : null;
+    let oppCell;
+    if (!opp) {
+      oppCell = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+    } else if (opp.sfOpp) {
+      oppCell = `<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleActionOpp('${escHtml(oppEmail)}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(opp.sfAmt||'')}" onblur="saveOppAmt('${escHtml(oppEmail)}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(opp.closeDate||'')}" onblur="saveOppField('${escHtml(oppEmail)}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`;
+    } else {
+      oppCell = `<button class="opp-dot-btn" onclick="toggleActionOpp('${escHtml(oppEmail)}')"><span class="opp-dot"></span></button>`;
+    }
 
     return `<tr>
-      <td>${statusCell}</td>
-      <td>${prioCell}</td>
-      <td class="td-logo">
-        ${logoHtml}
-        <div>
-          <div class="company-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</div>
-          <div class="company-desc">${escHtml(local.description||'')}</div>
-        </div>
-      </td>
-      <td><span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span></td>
-      <td>${tierBadge}</td>
-      <td>${daysBadge}</td>
-      <td>${wBadge}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px;">${escHtml(rev)}</td>
-      <td>${sentBadge}</td>
+      <td style="padding:6px 12px;">${companyCell}</td>
+      <td style="text-align:center;">${oppCell}</td>
+      <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
+      <td style="text-align:center;">${tierBadge}</td>
+      <td style="text-align:center;">${daysBadge}</td>
+      <td style="text-align:center;">${wBadge}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;white-space:nowrap;">${escHtml(rev)}</td>
+      <td style="text-align:center;">${sentBadge}</td>
+      <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
     </tr>`;
   }).join('');
 }
@@ -4547,7 +4583,7 @@ function renderActionCards(rows) {
   const STATUS_STYLES = { keep:{bg:'#dcfce7',c:'#15803d',label:'✓ Keep'}, monitor:{bg:'#fef9c3',c:'#a16207',label:'👁 Monitor'}, drop:{bg:'#fee2e2',c:'#b91c1c',label:'✗ Drop'} };
 
   grid.innerHTML = rows.map(({acc, name, days}) => {
-    const local = localData[normName(name)] || {};
+    const local = localData[name] || {};
     const tier = getField(acc,'Major Markets Tier') || '—';
     const vertical = getField(acc,'Vertical') || '—';
     const wCount = getWorkableCount(name);
