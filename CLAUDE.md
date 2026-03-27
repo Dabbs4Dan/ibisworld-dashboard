@@ -267,6 +267,10 @@ Glencore → glencore.com
 ---
 
 ## DESIGN — LOCKED, DO NOT CHANGE
+> 📐 **Full design system lives in `DESIGN.md`** — read it at session start (`/start-session` loads it automatically).
+> Before writing any CSS or HTML: check DESIGN.md for the component you're building.
+> After UI work: update the DESIGN.md changelog in `/end-session`.
+
 - Background: `#f0f2f5`
 - IBISWorld red: `#C8102E`
 - Fonts: DM Sans + DM Mono (Google Fonts)
@@ -301,7 +305,7 @@ Transportation/Logistics=#e0f2fe, Wholesale=#f0fdf4
 - **Animations must feel intentional and premium** — never decorative. Every transition should serve a purpose: confirming an action, guiding the eye, or communicating state. No animation for animation's sake.
 - **Every component must match the existing design language exactly** — DM Sans + DM Mono, IBISWorld red `#C8102E`, light theme `#f0f2f5`, the tier diamond system, the vertical color palette. New components must feel like they were always there.
 - **Think like a designer AND an engineer simultaneously** — visual quality and code quality are equally non-negotiable. A feature that works but looks wrong is not done.
-- **Reference the frontend-design skill** at `/mnt/skills/public/frontend-design/SKILL.md` when building or modifying any UI component.
+- **Reference `DESIGN.md`** (in this repo) when building or modifying any UI component — it contains the full locked token set, component reference, and anti-patterns list.
 - **Information hierarchy first** — before writing a single line of CSS, ask: what does the user need to see first? Design the visual weight to match that answer.
 - **Progressive disclosure over information overload** — show the most important data always; let the rest live one interaction away. Don't cram everything into a card.
 
