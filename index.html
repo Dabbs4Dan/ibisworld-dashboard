@@ -971,13 +971,22 @@
   .opp-next-empty { color:var(--text-muted); }
   .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
   .opp-inline-input:focus { border-bottom-color:var(--border); }
-  /* Campaign strip */
-  .campaign-strip { display:flex; gap:0; padding:0 24px; border-bottom:1px solid var(--border); background:var(--surface); margin-bottom:0; }
-  .campaign-pill { display:inline-flex; align-items:center; gap:8px; padding:12px 18px 11px; border:none; border-bottom:2px solid transparent; background:none; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color 0.15s, border-color 0.15s; }
-  .campaign-pill:hover { color:var(--text-primary); }
-  .campaign-pill.active { color:var(--ibis-red); border-bottom-color:var(--ibis-red); }
-  .cpill-count { background:#f3f4f6; color:#6b7280; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700; transition:background 0.15s, color 0.15s; }
-  .campaign-pill.active .cpill-count { background:#fee2e2; color:#c8102e; }
+  /* Campaign selector dropdown */
+  .campaign-selector-wrap { position:relative; display:inline-flex; align-items:center; margin-right:12px; }
+  .campaign-selector-btn { display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border:1.5px solid var(--border); border-radius:8px; background:var(--surface); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--text-primary); cursor:pointer; white-space:nowrap; transition:border-color 0.15s, box-shadow 0.15s; }
+  .campaign-selector-btn:hover { border-color:#9ca3af; }
+  .campaign-selector-btn.open { border-color:var(--ibis-red); box-shadow:0 0 0 3px rgba(200,16,46,0.08); }
+  .campaign-selector-chevron { font-size:10px; color:var(--text-muted); transition:transform 0.15s; }
+  .campaign-selector-btn.open .campaign-selector-chevron { transform:rotate(180deg); }
+  .campaign-selector-menu { position:absolute; top:calc(100% + 6px); left:0; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,0.11); z-index:9400; padding:5px 0; }
+  .campaign-selector-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-primary); transition:background 0.1s; }
+  .campaign-selector-item:hover { background:#f9fafb; }
+  .campaign-selector-item.active { color:var(--ibis-red); font-weight:700; }
+  .campaign-selector-item.disabled { color:var(--text-muted); cursor:default; font-size:12px; font-style:italic; }
+  .campaign-selector-item.disabled:hover { background:none; }
+  .campaign-selector-count-badge { margin-left:auto; background:#f3f4f6; color:#6b7280; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700; }
+  .campaign-selector-item.active .campaign-selector-count-badge { background:#fee2e2; color:#c8102e; }
+  .campaign-selector-divider { height:1px; background:var(--border); margin:5px 0; }
   /* Cold section */
   .cold-section { padding:0 24px 24px; }
   .cold-section-hdr { display:flex; align-items:center; gap:10px; padding:12px 0 8px; cursor:pointer; border-top:1px solid var(--border); user-select:none; }
@@ -1410,6 +1419,7 @@
     <button class="chip chip-monitor" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">👁 Monitor</button>
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
+    <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip chip-legendary" onclick="toggleChip(this,'PRIO_LEGENDARY')" data-flag="PRIO_LEGENDARY">💎 Legendary</button>
     <button class="chip chip-veryrare" onclick="toggleChip(this,'PRIO_VERYRARE')" data-flag="PRIO_VERYRARE">⭐ Very Rare</button>
@@ -1438,14 +1448,25 @@
 
 <!-- OPPORTUNITIES CONTROLS -->
 <div class="controls hidden" id="controls-campaigns">
-  <!-- Campaign selector strip -->
-  <div class="campaign-strip">
-    <button class="campaign-pill active" id="cpill-workables" onclick="setCampaign('workables')">
-      🎯 Workables <span class="cpill-count" id="cpill-count-workables">0</span>
+  <!-- Campaign selector dropdown -->
+  <div class="campaign-selector-wrap" id="campaign-selector-wrap">
+    <button class="campaign-selector-btn" id="campaign-selector-btn" onclick="toggleCampaignDropdown(event)">
+      <span id="campaign-selector-label">🎯 Workables</span>
+      <span class="campaign-selector-count-badge" id="campaign-selector-count" style="background:#fee2e2;color:#c8102e;">0</span>
+      <span class="campaign-selector-chevron">▾</span>
     </button>
-    <button class="campaign-pill" id="cpill-samples" onclick="setCampaign('samples')">
-      🧪 Old Samples <span class="cpill-count" id="cpill-count-samples">0</span>
-    </button>
+    <div class="campaign-selector-menu hidden" id="campaign-selector-menu">
+      <div class="campaign-selector-item active" id="cmenu-workables" onclick="selectCampaignFromMenu('workables')">
+        <span>🎯 Workables</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-workables">0</span>
+      </div>
+      <div class="campaign-selector-item" id="cmenu-samples" onclick="selectCampaignFromMenu('samples')">
+        <span>🧪 Old Samples</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
+      </div>
+      <div class="campaign-selector-divider"></div>
+      <div class="campaign-selector-item disabled">+ Add campaign (coming soon)</div>
+    </div>
   </div>
   <!-- Workables controls -->
   <div id="controls-workables-inner">
@@ -2162,8 +2183,10 @@ function getFiltered() {
       if (stageFs.length && !stageFs.some(f => f === 'STAGE_' + stageVal)) return false;
       // Active License — standalone
       if (activeFlags.has('ACTIVE_LIC') && !getActiveLicBadges(aName)) return false;
+      // Has Workables — standalone
+      if (activeFlags.has('HAS_WORKABLES') && getWorkableCount(aName) === 0) return false;
       // Legacy custom flags
-      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_WORKABLES','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -5008,7 +5031,7 @@ function renderSamples() {
       <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.title||'')}</td>
       <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.country||'')}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days + 'd' : '—'}</td>
-      <td><button class="del-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove">🗑</button></td>
+      <td><button class="opp-delete-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
     </tr>`;
   }).join('');
 }
@@ -5034,27 +5057,68 @@ function getSampleCount(name) {
   return Object.values(samples).filter(o => normName(o.accountName) === n).length;
 }
 
+const CAMPAIGN_DEFS = {
+  workables: { emoji:'🎯', label:'Workables' },
+  samples:   { emoji:'🧪', label:'Old Samples' },
+};
+
 function updateCampaignPillCounts() {
-  const workCount = Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ').length;
+  const workCount   = Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ').length;
   const sampleCount = Object.values(samples).length;
-  const el1 = document.getElementById('cpill-count-workables');
-  const el2 = document.getElementById('cpill-count-samples');
-  if (el1) el1.textContent = workCount;
-  if (el2) el2.textContent = sampleCount;
+  const counts = { workables: workCount, samples: sampleCount };
+  // Update dropdown menu badges
+  Object.keys(counts).forEach(c => {
+    const el = document.getElementById('cmenu-count-' + c);
+    if (el) el.textContent = counts[c];
+  });
+  // Update the main button badge for the active campaign
+  const activeCount = counts[currentCampaign] ?? 0;
+  const btnCount = document.getElementById('campaign-selector-count');
+  if (btnCount) btnCount.textContent = activeCount;
 }
 
 function setCampaign(name) {
   currentCampaign = name;
+  const def = CAMPAIGN_DEFS[name] || { emoji:'📣', label:name };
+  // Switch views + inner controls
   ['workables','samples'].forEach(c => {
-    document.getElementById('cpill-' + c)?.classList.toggle('active', c === name);
     document.getElementById('campaign-view-' + c)?.classList.toggle('hidden', c !== name);
     document.getElementById('controls-' + c + '-inner')?.classList.toggle('hidden', c !== name);
+    document.getElementById('cmenu-' + c)?.classList.toggle('active', c === name);
   });
+  // Update the selector button label
+  const labelEl = document.getElementById('campaign-selector-label');
+  if (labelEl) labelEl.textContent = `${def.emoji} ${def.label}`;
   // Stats bar only meaningful for Workables
   document.getElementById('stats-campaigns')?.classList.toggle('hidden', name !== 'workables');
   updateCampaignPillCounts();
   if (name === 'samples') renderSamples();
 }
+
+function toggleCampaignDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('campaign-selector-menu');
+  const btn  = document.getElementById('campaign-selector-btn');
+  if (!menu) return;
+  const isOpen = !menu.classList.contains('hidden');
+  menu.classList.toggle('hidden', isOpen);
+  btn?.classList.toggle('open', !isOpen);
+}
+
+function selectCampaignFromMenu(name) {
+  document.getElementById('campaign-selector-menu')?.classList.add('hidden');
+  document.getElementById('campaign-selector-btn')?.classList.remove('open');
+  setCampaign(name);
+}
+
+// Close campaign dropdown on click outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('campaign-selector-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('campaign-selector-menu')?.classList.add('hidden');
+    document.getElementById('campaign-selector-btn')?.classList.remove('open');
+  }
+});
 
 function showOppToast(msg) {
   const toast = document.getElementById('opp-toast');
