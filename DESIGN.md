@@ -284,6 +284,98 @@ No hover = broken. Flag it and fix it.
 - **Stage colors** (`STAGE_COLORS` in JS) — data encoding
 - Any JS function, logic, or localStorage operation
 
+### Account-Level Opp Widget
+
+Used in: Accounts table (Opp column), Action tab table, Account page header
+
+```
+Inactive (grey dot): .opp-dot-btn → .opp-dot
+  cursor:pointer; opens active state on click
+
+Active (blue pill): .opp-active-wrap → display:inline-flex
+  "Opp" pill (.opp-sf-pill) + amount input (.opp-amt-input) + close date input (.opp-close-input)
+  Box-shadow glow: 0 0 0 3px rgba(0,174,240,0.15)
+
+Table cell containing opp widget:
+  padding: 0 8px; vertical-align: middle
+  (No vertical padding — prevents white slivers above/below active pill)
+```
+
+**Rule:** Every account row always shows an interactive grey dot — never a plain dash. Opp state is account-level (`ibis_local[name].acctOpp`), not tied to contact email keys.
+
+**Active state rows:**
+- Table row: `.tr-opp-active` → `background: #eff6ff` (very light blue)
+- Account card: `.card-opp-active` → `border-color:#00aef0; box-shadow: 0 0 0 2px rgba(0,174,240,0.15), 0 0 12px rgba(0,174,240,0.12)`
+- Account page header: `.ap-header-opp-active` → `border-color:#00aef0; box-shadow: 0 0 0 3px rgba(0,174,240,0.15), 0 0 16px rgba(0,174,240,0.14)`
+
+---
+
+### AP Action Block (Account Deep-Dive Page)
+
+Full-width card that appears between the header and the 3-column panel grid.
+
+```
+.ap-action-block:
+  bg #fff · border 1px var(--border) · border-radius 12px
+  padding 18px 22px · margin-bottom 18px
+
+Layout: .ap-action-top (flex row, gap 16px, flex-wrap) → field labels above inputs
+  then full-width textarea below
+
+Fields:
+  .ap-action-input: height 32px · border 1.5px var(--border) · border-radius 6px
+    padding 0 10px · font DM Sans 500 13px · bg #fafafa
+    focus: border-color #22d3ee + bg #fff
+
+  .ap-action-notes: full-width textarea · min-height 80px
+    border 1.5px var(--border) · border-radius 8px · padding 10px 12px
+    focus: border-color #22d3ee + bg #fff
+
+  .ap-action-field-label: DM Sans 600, 10px, uppercase, letter-spacing 0.5px, color var(--text-muted)
+```
+
+**Data persistence:** `ibis_local[name].actionHeadline`, `actionNextDate`, `actionNotes` — same keys used by Action tab table inputs.
+
+---
+
+### Action Tab — Pill Row Pattern
+
+Action tab table uses a pill-shaped row wrapper so all company rows are uniform width.
+
+```
+.actn-pill:
+  display:flex; width:100%; align-items:stretch
+  border: 1.5px solid #efefef · border-radius: 999px
+  padding: 0 0 0 10px · gap: 0 · min-height: 36px
+  box-sizing: border-box
+
+.actn-pill .td-company:
+  flex:1; align-self:center; padding: 5px 0
+```
+
+**Rule:** All pills fill 100% of their cell width. Logo sits flush left inside the pill with no padding gap. Tier badge and priority dropdown sit on the right side of the pill.
+
+---
+
+### Campaign Selector Dropdown — Z-Index Rule
+
+The campaign selector menu (`#campaign-selector-menu`) is `position:fixed` at body level.
+
+**Critical:** Must use `z-index: 9800` minimum. The `.controls` div (which renders after `.stats-bar` in DOM order) creates a stacking context that would cover a `z-index: 9400` menu.
+
+```
+.campaign-selector-menu:
+  position: fixed · z-index: 9800 · background: #fff
+  border-radius: 10px · shadow: high · padding: 5px 0
+
+.campaign-selector-item:
+  display:flex; align-items:center; gap:10px; padding: 9px 16px
+  font: DM Sans 500 13px · background: #fff (explicit — prevents transparency)
+  hover: background #f0f2f5
+```
+
+**Click-outside rule:** The close handler must check BOTH `wrap.contains(e.target)` AND `menu.contains(e.target)` before closing — the menu is outside the wrap in the DOM, so clicking a menu item would otherwise trigger "click outside wrap" and close before the item's onclick fires.
+
 ---
 
 ## CHANGELOG
@@ -297,3 +389,7 @@ No hover = broken. Flag it and fix it.
 | v28 | 2026-03-27 | `:root` CSS vars aligned to design tokens: `--text-primary` #1a1a2e→#111827, `--text-secondary` #4a5568→#6b7280, `--text-muted` #9aa5b4→#9ca3af, `--border` #e8ecf0→#e5e7eb, `--border-hover` #cbd2d9→#d1d5db. |
 | v28 | 2026-03-27 | `/design-pass` command updated to accept tab scope argument: `campaigns`, `accounts`, `licenses`, `dead`, `account-page`, `all`. Includes component map per tab. |
 | v28 | 2026-03-27 | Controls bar + campaign selector fixes. Added canonical Controls Bar and Stats Bar Selector patterns to COMPONENT REFERENCE. Campaigns controls now single-row (display:contents fix). Campaign dropdown now has visible border/hover affordance. |
+| v28 | 2026-03-27 | Account-level Opp Widget pattern documented: grey dot always visible, active pill state, row/card/header active states (light blue bg + neon blue border). Opp td must use padding:0 to prevent white slivers. |
+| v28 | 2026-03-27 | AP Action Block documented: full-width card between AP header and panel grid. Fields use cyan (#22d3ee) focus color. Same ibis_local keys as Action tab table. |
+| v28 | 2026-03-27 | Action tab pill row pattern documented: `.actn-pill` uniform width fills column, all rows identical height regardless of company name length. |
+| v28 | 2026-03-27 | Campaign selector dropdown z-index rule documented: must be ≥9800. Click-outside handler must check both wrap AND menu containers. Items need explicit `background:#fff`. |
