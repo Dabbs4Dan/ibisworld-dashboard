@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~4,700+ lines
+**File:** `index.html` — single self-contained file, ~5,200+ lines
 
 ---
 
@@ -41,13 +41,13 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ---
 
-## CURRENT STATE — v27 (stable)
+## CURRENT STATE — v28 (stable)
 
 ### Four tabs live:
 1. **📋 Accounts tab** — main territory view
 2. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
-3. **🎯 Workables tab** — contact pipeline with Cards + Table view
-4. **💀 Dead tab** — accounts/licenses that have disappeared from CSV uploads
+3. **📣 Campaigns tab** — multi-campaign contact hub (was Workables); campaign dropdown lives in stats bar
+4. **💀 Dead tab** — accounts/licenses/contacts that have disappeared from CSV uploads
 
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
@@ -622,21 +622,31 @@ When a new session begins, Claude Code should:
 | ✅ Done | Priority column v26 | Rarity-tier dropdown (💎 Legendary → 🪵 Common) via portal pattern. Stored in `ibis_local[name].acctPriority`. Filter chips in top bar. Sortable. Status column now collapsible to 28px strip with visible expand button. |
 | ✅ Done | Stage filter + OR chip logic v26 | Stage badges in table + card are clickable to filter; active badge shows outline ring. Filter chips use OR-within-group / AND-between-group: Legendary+Very Rare shows either; Keep+Legendary shows intersection. `toggleStageFilter()` + group-aware filter logic in `renderAll()`. |
 | ✅ Done | Account deep-dive page v27 (bones) | Full-page account view. Sticky nav + breadcrumb + prev/next. Six panels: header, priority outreach, campaigns, license history, opportunities, account plan. Click targets wired across Accounts (table + cards), Licenses tab, Workables (cards + table active + cold). `accountPlan` persists in `ibis_local`. |
+| ✅ Done | DQ stage for Workables | Auto-tags contacts missing from re-upload CSV as DQ (grey stage). Hidden from main list by default. `⬜ DQ` filter chip shows them. Contacts that return in future upload → restored to Introduction. Toast shows DQ'd count. |
+| ✅ Done | Campaigns tab v28 | Renamed from Workables. Campaign selector dropdown lives in the stats bar (large bold value, left side). Workables + Old Samples stats shown inline to the right. `📣 Campaigns` tab at top nav. Campaign dropdown is scalable to N campaigns. |
+| ✅ Done | Old Samples campaign | `🧪 Old Samples` — second campaign under Campaigns tab. Same CSV schema as Workables (Account Name, First/Last Name, Title, Mailing Country, Email, Last Activity). Simple table view (no kanban). `ibis_samples` localStorage key. `parseSamplesCSV` reuses `parseOppsCSV`. Shows in Account deep-dive Campaigns panel with `🧪 Sample` badge. |
+| ✅ Done | Dead Contacts tab section | `☠️ Contacts` pill added to Dead tab. When Old Samples CSV re-uploaded, missing contacts → moved to `deadSampleContacts[]` (stored in `ibis_dead.sampleContacts`). Badge shows `🧪 Old Sample`. Dead tab badge count includes unseen contacts. `renderDeadContacts()` function. |
+| ✅ Done | Has Workables filter chip | Accounts tab filter bar — new `🎯 Has Workables` chip filters to accounts with ≥1 workable. Standalone filter, AND logic with other chips. `HAS_WORKABLES` flag in `knownFlags`. |
+| ✅ Done | Samples column in Accounts table | Green count bubble (like Workables purple bubble) showing sample contact count per account. `getSampleCount(name)`. Sortable via `samples` sort key. |
+| ✅ Done | Tier badge fix on Account page | Account deep-dive header showed `T2` — now shows `2` matching rest of dashboard. |
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
 | ✅ Done | PA Flow: Step 2 — Accounts sync | Flow rebuilt with Apply to each loop. Writes all 150 accounts to `accounts.json` in OneDrive. Vertical__c = numbers (needs lookup table). See PA PIPELINE section for full flow structure. |
 | ✅ Done | Dead tab badge clears on first visit | `deadSeenKeys` Set (persisted to `ibis_dead_seen` localStorage). Badge shows only NEW unseen dead items. Clears when user opens Dead tab. `markDeadAsSeen()` called in `setMainView('dead')`. |
-| 🔴 Next | Wire accounts.json → dashboard via PowerShell auto-push | PA already writes `accounts.json` to OneDrive ✅. OneDrive syncs to local desktop ✅. **Next session:** write a PowerShell script that runs on schedule and does `git add Data/accounts.json → commit → push`. Dashboard then reads from `raw.githubusercontent.com` (CORS-friendly). Dan has a fine-grained GitHub PAT already generated (stored in password manager). PA flow needs no changes. Abandoned PA HTTP action approach (PA kept injecting `\n` characters into header fields). `PA_CONFIG.accountsUrl` in dashboard needs updating to GitHub raw URL once script is working. |
+| 🗺️ Shelved | Wire accounts.json → dashboard via PowerShell | Dan decided to abandon PA/auto-sync approach and stick with CSV uploads. PA flow left intact in make.powerautomate.com if ever revisited. GitHub PAT stored in Dan's password manager. |
 | ✅ Done | Shift+D debug panel | `openDebugPanel()` / `closeDebugPanel()` / `copyDebugReport()`. Shows PA sync status, Claude enrichment stats, localStorage sizes, data state, event log. `_dbg` global captures events. Press Shift+D anywhere to open; "Copy Report" button copies JSON to clipboard for Claude. |
 | 🔴 Next | Account page: PA live data sync | Depends on PowerShell auto-push above. Once accounts.json lands in GitHub, dashboard auto-loads on every page open. |
 | 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
 | 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |
 | 🗺️ Future | Account page: prev/next for Licenses+Workables origins | Currently passes empty list when entering from Licenses or Workables tab — arrows disabled. Build unique account list from filtered license/workables view for proper prev/next. |
 | 🗺️ Future | Account page: refresh on CSV re-upload | Account page is a snapshot at open time. If CSV uploads while page is open, data stays stale. Add re-render hook to `handleCSV` / `handleLicenseCSV`. |
-| 🗺️ Future | Workables → Campaigns tab rename | Rename Workables tab to Campaigns. Add campaign type selector. Workables becomes first campaign type. Winbacks, Samples as additional campaigns. |
-| 🗺️ Future | Workables filter chips | Active Workables, Active Opportunities, Lost, Stalled filter chips — spec agreed but not yet built. |
-| 🗺️ Future | Workables controls bar | Search field positioning, filter chip styling to match Licenses tab controls bar. |
+| ✅ Done | Workables → Campaigns tab rename | `📣 Campaigns` tab. Campaign dropdown in stats bar (large bold value). Workables + Old Samples campaigns. Scalable to N campaigns via `CAMPAIGN_DEFS`. |
+| 🔴 Next | Campaigns tab UI/UX polish pass | Full audit needed — controls bar layout, card/table spacing, consistency with Accounts tab. Dan flagged multiple visual issues in v28 session. Focus of next session. |
+| 🔴 Next | Dead Contacts resurrection logic | If a dead sample contact reappears in a future Old Samples CSV re-upload, restore them to `samples` and remove from `deadSampleContacts`. Not yet implemented. |
+| 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
+| 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |
+| 🗺️ Future | Campaigns: Winbacks campaign | Third campaign type — churned license accounts + lost contacts. |
 | 🗺️ Future | Workables sort persistence | Sort state for Workables table not yet saved to `ibis_sort`. |
 | 🗺️ Future | Opp dollar auto-format | Format sfAmt as currency on blur ($ prefix, comma separation). |
 | 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs position:fixed dropdown. |
