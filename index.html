@@ -209,11 +209,6 @@
   .revenue-val { font-size:12px; font-weight:600; font-family:'DM Mono',monospace; color:var(--text-primary); }
   .revenue-meta { display:flex; align-items:center; gap:5px; }
   .rev-source-text { font-size:10px; color:var(--text-muted); font-family:'DM Sans',sans-serif; }
-  .modal-revenue-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .modal-revenue-val { font-size:14px; font-weight:600; font-family:'DM Mono',monospace; color:var(--text-primary); }
-  .enrich-modal-btn { font-size:12px; padding:4px 10px; border:1px solid var(--border); border-radius:5px; background:white; cursor:pointer; font-family:'DM Sans',sans-serif; color:var(--text-secondary); }
-  .enrich-modal-btn:hover { border-color:var(--ibis-red); color:var(--ibis-red); }
-  .enrich-result { font-size:11px; color:var(--text-muted); margin-top:4px; }
   @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
   body {
     font-family: 'DM Sans', sans-serif;
@@ -489,6 +484,8 @@
 
   /* Workables count bubble */
   .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
+  /* Samples count bubble */
+  .smpl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#059669; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
   /* US Client check pill */
   .us-check { display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#16a34a; background:#dcfce7; border-radius:5px; padding:2px 8px; font-family:'DM Sans',sans-serif; }
   /* Sentiment score badge */
@@ -530,14 +527,6 @@
   .sc-bar-amber { background:#d97706; }
   .sc-bar-red   { background:#dc2626; }
   .sc-bar-grey  { background:#d1d5db; }
-  /* legacy — kept for cards footer CLIENT badge */
-  .client-badge {
-    font-size: 11px; font-weight: 600;
-    padding: 2px 8px; border-radius: 5px;
-    background: var(--ibis-red-light);
-    color: var(--ibis-red);
-    letter-spacing: 0.3px;
-  }
 
   .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); background: white; }
 
@@ -605,7 +594,6 @@
 
   .days-val { font-family: 'DM Mono', monospace; }
 
-  .flags-cell { display: flex; gap: 3px; }
 
   .empty-state {
     text-align: center;
@@ -616,81 +604,6 @@
   .empty-title { font-size: 18px; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; }
   .empty-desc { font-size: 14px; line-height: 1.6; max-width: 360px; margin: 0 auto 24px; color: var(--text-muted); }
 
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.4);
-    z-index: 200;
-    display: none;
-    align-items: center;
-    justify-content: center;
-  }
-  .modal-overlay.open { display: flex; }
-
-  .modal {
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 22px 24px;
-    width: 340px;
-    max-width: 90vw;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
-  }
-
-  .modal-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; color: var(--text-primary); }
-  .modal-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
-
-  .flag-options {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 8px; margin-bottom: 16px;
-  }
-
-  .flag-option {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-size: 13px;
-    color: var(--text-secondary);
-    background: var(--surface);
-  }
-  .flag-option:hover { border-color: var(--border-hover); background: var(--card-hover); }
-  .flag-option.selected { border-color: var(--ibis-red); background: var(--ibis-red-light); color: var(--ibis-red); font-weight: 500; }
-  .flag-option .fe { font-size: 18px; }
-
-  .notes-area {
-    width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
-    padding: 8px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-family: 'DM Sans', sans-serif;
-    resize: vertical;
-    min-height: 60px;
-    outline: none;
-    margin-bottom: 14px;
-  }
-  .notes-area:focus { border-color: var(--ibis-red); }
-
-  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-  .btn-cancel {
-    padding: 7px 14px; border-radius: 6px;
-    border: 1px solid var(--border);
-    background: none; color: var(--text-secondary);
-    cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px;
-  }
-  .btn-cancel:hover { background: var(--surface); }
-  .btn-save {
-    padding: 7px 14px; border-radius: 6px;
-    border: none; background: var(--ibis-red);
-    color: white; cursor: pointer;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
-    transition: opacity 0.15s;
-  }
-  .btn-save:hover { opacity: 0.88; }
 
   #file-input, #lic-file-input, #opp-file-input { display: none; }
 
@@ -819,34 +732,6 @@
     0%, 80%, 100% { background: rgba(255,255,255,0.2); transform: scale(1); }
     40%            { background: rgba(200,16,46,0.85);  transform: scale(1.35); }
   }
-  /* === CSV BUTTON GROUPS === */
-  .csv-btn-group {
-    display: flex;
-    border-radius: 6px;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .csv-btn-group .upload-btn,
-  .csv-btn-group .upload-btn-license {
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .clear-csv-btn {
-    background: rgba(0,0,0,0.22);
-    border: none;
-    border-left: 1px solid rgba(255,255,255,0.18);
-    color: rgba(255,255,255,0.6);
-    width: 30px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s, color 0.15s;
-    flex-shrink: 0;
-    padding: 0;
-  }
-  .clear-csv-btn:hover {
-    background: rgba(0,0,0,0.38);
-    color: rgba(255,255,255,0.9);
-  }
 
   /* === OPPORTUNITIES TAB === */
   .opp-kanban { display:flex; gap:12px; overflow-x:auto; padding:16px 24px 24px; align-items:flex-start; }
@@ -855,11 +740,13 @@
   .opp-col-count { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-muted); background:var(--surface); border-radius:10px; padding:1px 7px; }
   .opp-col-body { overflow-y:auto; max-height:calc(100vh - 290px); padding:8px; display:flex; flex-direction:column; gap:8px; min-height:52px; }
   .opp-col.drag-over > .opp-col-body { background:rgba(200,16,46,0.04); border-radius:0 0 10px 10px; }
-  .opp-col[data-stage="Introduction"] > .opp-col-header { border-top:3px solid #f59e0b; }
-  .opp-col[data-stage="Walkthrough"]  > .opp-col-header { border-top:3px solid #3b82f6; }
-  .opp-col[data-stage="Proposal"]     > .opp-col-header { border-top:3px solid #059669; }
-  .opp-col[data-stage="Stalled"]      > .opp-col-header { border-top:3px solid #d97706; }
-  .opp-col[data-stage="Lost"]         > .opp-col-header { border-top:3px solid #be185d; }
+  .opp-col[data-stage="Introduction"]   > .opp-col-header { border-top:3px solid #f59e0b; }
+  .opp-col[data-stage="Walkthrough"]    > .opp-col-header { border-top:3px solid #3b82f6; }
+  .opp-col[data-stage="Proposal"]       > .opp-col-header { border-top:3px solid #059669; }
+  .opp-col[data-stage="Stalled"]        > .opp-col-header { border-top:3px solid #d97706; }
+  .opp-col[data-stage="Lost"]           > .opp-col-header { border-top:3px solid #be185d; }
+  .opp-col[data-stage="Future Revisit"] > .opp-col-header { border-top:3px solid #7c3aed; }
+  .opp-col[data-stage="DQ"]             > .opp-col-header { border-top:3px solid #9ca3af; }
   .opp-card { background:white; border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:grab; transition:box-shadow 0.15s, transform 0.15s, opacity 0.15s; }
   .opp-card:active { cursor:grabbing; }
   .opp-card.dragging { opacity:0.35; }
@@ -1007,7 +894,7 @@
 
   /* ── Dead Tab ───────────────────────────────────────── */
   #vnav-dead { color: #6b7280; }
-  #vnav-dead.active { color: #374151; }
+  #vnav-dead.active { color: var(--ibis-red); border-bottom-color: var(--ibis-red); }
   .dead-section-wrap {
     background: #fff;
     border: 1px solid #e5e7eb;
@@ -1033,7 +920,7 @@
     white-space: nowrap;
   }
   .dvt-btn:hover:not(.active) { border-color: #d1d5db; color: #374151; background: #f9fafb; }
-  .dvt-btn.active { background: #374151; border-color: #374151; color: #fff; }
+  .dvt-btn.active { background: var(--ibis-red); border-color: var(--ibis-red); color: #fff; }
   .dvt-count {
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 20px; padding: 1px 6px; border-radius: 10px;
@@ -1442,18 +1329,24 @@
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search accounts..." id="search-input" oninput="renderAll()">
+    <input type="text" placeholder="Search accounts..." id="search-input" oninput="debouncedRenderAll()">
   </div>
   <select id="sort-select" onchange="onAcctSortSelectChange()">
     <option value="intent">Intent Score</option>
     <option value="revenue">Revenue</option>
     <option value="sentiment">Score</option>
+    <option value="acctPriority">Priority</option>
+    <option value="acctStatus">Status</option>
     <option value="vertical">Vertical A–Z</option>
     <option value="days">Days Inactive</option>
     <option value="tier">Tier</option>
     <option value="name">Name A–Z</option>
     <option value="opps">Open Opps</option>
     <option value="licenses">Licenses</option>
+    <option value="workables">Workables</option>
+    <option value="samples">Samples</option>
+    <option value="usClient">US Client</option>
+    <option value="activeClient">Active Client</option>
   </select>
   <select id="vertical-filter" onchange="renderAll()">
     <option value="">All Verticals</option>
@@ -1778,36 +1671,6 @@
 
 <div id="opp-toast"></div>
 
-<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title" id="modal-company-name">Edit Account</div>
-    <div class="modal-sub">Set flags, add notes, and enrich revenue</div>
-    <div class="flag-options" id="flag-options">
-      <div class="flag-option" onclick="toggleFlag('🔥')" id="fo-🔥"><span class="fe">🔥</span> Hot Priority</div>
-      <div class="flag-option" onclick="toggleFlag('✅')" id="fo-✅"><span class="fe">✅</span> Active Opp</div>
-      <div class="flag-option" onclick="toggleFlag('🔄')" id="fo-🔄"><span class="fe">🔄</span> Winback</div>
-      <div class="flag-option" onclick="toggleFlag('👀')" id="fo-👀"><span class="fe">👀</span> Watching</div>
-      <div class="flag-option" onclick="toggleFlag('💤')" id="fo-💤"><span class="fe">💤</span> Gone Cold</div>
-      <div class="flag-option" onclick="toggleFlag('🆕')" id="fo-🆕"><span class="fe">🆕</span> New Account</div>
-      <div class="flag-option" onclick="toggleFlag('⚡')" id="fo-⚡"><span class="fe">⚡</span> Urgent</div>
-      <div class="flag-option" onclick="toggleFlag('🎯')" id="fo-🎯"><span class="fe">🎯</span> Target</div>
-    </div>
-    <textarea class="notes-area" id="notes-area" placeholder="Add notes about this account..."></textarea>
-    <div id="modal-rev-section" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;" id="modal-rev-title">💰 Revenue</div>
-      <div class="modal-revenue-row">
-        <div id="modal-rev-display" class="modal-revenue-val">—</div>
-        <div id="modal-rev-badge"></div>
-        <button class="enrich-modal-btn" id="enrich-modal-btn" onclick="enrichRevenue()">🤖 Enrich with AI</button>
-      </div>
-      <div id="enrich-result" class="enrich-result hidden"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModalBtn()">Cancel</button>
-      <button class="btn-save" onclick="saveModal()">Save</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // === SPLASH SCREEN INIT ===
@@ -1823,7 +1686,7 @@
   }, 3200);
 })();
 
-let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(), modalAccount = null, modalFlags = new Set();
+let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set();
 
 // ── Debug telemetry ──────────────────────────────────────────────────────────
 const _dbg = {
@@ -1843,6 +1706,15 @@ let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 let samples = {};
 let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
+
+// ── Debounced render helpers ──────────────────────────────────────────────────
+// Prevents excessive DOM rebuilds from rapid search typing or concurrent enrichment queues.
+let _renderAllTimer = null;
+function debouncedRenderAll() {
+  clearTimeout(_renderAllTimer);
+  _renderAllTimer = setTimeout(renderAll, 150);
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Named constants ───────────────────────────────────────────────────────────
 const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
@@ -1894,12 +1766,10 @@ function vertBubble(acc) {
   return `<span class="vert-bubble" style="background:${color};">${tv}</span>`;
 }
 
-// ── Power Automate auto-sync ──────────────────────────────────────────────────
-// Paste your OneDrive share link for Data/accounts.json here.
-// Append &download=1 to get raw JSON. This file is committed to GitHub (public).
-// Full security review deferred — link grants read-only access to account metadata.
+// ── Power Automate auto-sync (shelved — using CSV upload for now) ─────────────
+// Set accountsUrl to a OneDrive/GitHub raw link if PA pipeline is revived.
 const PA_CONFIG = {
-  accountsUrl: 'https://ibisworld-my.sharepoint.com/:u:/p/daniel_starr/IQDpe1v38G-PQrz1DAl_ncxKAQlN9yfglMrDCexsfS0D0TI?e=bheqSV',
+  accountsUrl: 'PASTE_SHAREPOINT_URL_HERE',
 };
 
 // Salesforce Vertical__c picklist number → dashboard vertical label
@@ -1930,13 +1800,8 @@ function init() {
   const savedLocal = localStorage.getItem('ibis_local');
   const savedLic = localStorage.getItem('ibis_licenses');
   if (saved) {
-    try {
-      accounts = JSON.parse(saved);
-      localData = savedLocal ? JSON.parse(savedLocal) : {};
-    } catch(e) {
-      console.error('localStorage data corrupted, resetting:', e);
-      accounts = []; localData = {};
-    }
+    try { accounts = JSON.parse(saved); } catch(e) { console.error('ibis_accounts corrupted, resetting:', e); accounts = []; }
+    try { localData = savedLocal ? JSON.parse(savedLocal) : {}; } catch(e) { console.error('ibis_local corrupted, resetting:', e); localData = {}; }
     applySeedsToLocalData(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
   }
@@ -2233,7 +2098,7 @@ function getFiltered() {
       if (activeFlags.has('ACTIVE_LIC') && !getActiveLicBadges(aName)) return false;
       // Has Workables — standalone
       if (activeFlags.has('HAS_WORKABLES') && getWorkableCount(aName) === 0) return false;
-      // Legacy custom flags
+      // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
       const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_WORKABLES','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
@@ -2420,7 +2285,7 @@ function renderTable(list) {
       <td style="white-space:nowrap;">${revCell}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
-      <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="wkbl-dot" style="background:#059669;">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
@@ -2435,27 +2300,6 @@ function renderTable(list) {
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
 function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+stageVal; if(activeFlags.has(key)) activeFlags.delete(key); else activeFlags.add(key); renderAll(); }
-function openModal(name) {
-  modalAccount=name;
-  const local=localData[name]||{};
-  modalFlags=new Set(local.flags||[]);
-  document.getElementById('modal-company-name').textContent=name;
-  document.getElementById('notes-area').value=local.notes||'';
-  FLAGS.forEach(f=>{const el=document.getElementById(`fo-${f}`);if(el)el.classList.toggle('selected',modalFlags.has(f));});
-  // Revenue
-  const revInfo = local.rev;
-  document.getElementById('modal-rev-display').textContent = revInfo ? revInfo.label : '—';
-  document.getElementById('modal-rev-badge').innerHTML = revInfo ? sourceBadge(revInfo.source) : '';
-  document.getElementById('enrich-modal-btn').textContent = '🤖 Enrich with AI';
-  document.getElementById('enrich-modal-btn').disabled = false;
-  const resultEl = document.getElementById('enrich-result');
-  resultEl.classList.add('hidden'); resultEl.textContent='';
-  document.getElementById('modal-overlay').classList.add('open');
-}
-function toggleFlag(f) { if(modalFlags.has(f)) modalFlags.delete(f); else modalFlags.add(f); const el=document.getElementById(`fo-${f}`); if(el) el.classList.toggle('selected',modalFlags.has(f)); }
-function closeModal(e) { if(e.target===document.getElementById('modal-overlay')) closeModalBtn(); }
-function closeModalBtn() { document.getElementById('modal-overlay').classList.remove('open'); modalAccount=null; }
-function saveModal() { if(!modalAccount) return; if(!localData[modalAccount]) localData[modalAccount]={}; localData[modalAccount].flags=[...modalFlags]; localData[modalAccount].notes=document.getElementById('notes-area').value; localStorage.setItem('ibis_local',JSON.stringify(localData)); closeModalBtn(); renderAll(); }
 /* ============================================================
    REVENUE ENGINE
    1. Seed table (instant) → 2. Claude AI (web search) → 3. SF CSV fallback
@@ -2558,12 +2402,12 @@ async function runClaudeQueue() {
     await fetchRevenueFromClaude(name);
     done++;
     showEnrichProgress(done, total);
-    if (done % 5 === 0) renderAll();
+    if (done % 5 === 0) debouncedRenderAll();
     await new Promise(r => setTimeout(r, ENRICH_DELAY_MS));
   }
   claudeRunning = false;
   hideEnrichProgress();
-  renderAll();
+  renderAll(); // final render: always immediate after queue completes
 }
 
 function showEnrichProgress(done, total) {
@@ -2683,46 +2527,6 @@ Set sentiment.score to null only if company is too obscure for any assessment. T
   return null;
 }
 
-async function enrichRevenue() {
-  if (!modalAccount) return;
-  const btn = document.getElementById('enrich-modal-btn');
-  const resultEl = document.getElementById('enrich-result');
-  resultEl.classList.remove('hidden');
-
-  // If auto-queue is already running, route through it to avoid parallel requests
-  if (claudeRunning) {
-    btn.disabled = true; btn.textContent = '⏳ Queued…';
-    resultEl.textContent = 'Added to enrichment queue (runs next)…';
-    queueClaudeEnrich(modalAccount, true); // priority = front of queue
-    // Poll until this account's revenue is written
-    const poll = setInterval(() => {
-      if (localData[modalAccount]?.rev) {
-        clearInterval(poll);
-        document.getElementById('modal-rev-display').textContent = localData[modalAccount].rev.label;
-        document.getElementById('modal-rev-badge').innerHTML = sourceBadge(localData[modalAccount].rev.source);
-        resultEl.textContent = `📌 ${localData[modalAccount].rev.srcNote || 'Web search'} · ${localData[modalAccount].rev.year || ''}`;
-        btn.textContent = '🔄 Re-check'; btn.disabled = false;
-        renderAll();
-      }
-    }, 800);
-    return;
-  }
-
-  btn.disabled = true; btn.textContent = '⏳ Searching…';
-  resultEl.textContent = 'Searching the web for revenue…';
-  const result = await fetchRevenueFromClaude(modalAccount);
-  if (result) {
-    document.getElementById('modal-rev-display').textContent = localData[modalAccount].rev.label;
-    document.getElementById('modal-rev-badge').innerHTML = sourceBadge('claude');
-    resultEl.textContent = `📌 ${localData[modalAccount].rev.srcNote || 'Web search'} · ${localData[modalAccount].rev.year || ''}`;
-    btn.textContent = '🔄 Re-check';
-    renderAll();
-  } else {
-    resultEl.textContent = '⚠️ Could not find revenue.';
-    btn.textContent = '🤖 Try Again';
-  }
-  btn.disabled = false;
-}
 
 function autoQueueAccounts() {
   // Tier-1 first, then rest
@@ -2763,7 +2567,7 @@ async function runDescQueue() {
     const name = descQueue.shift();
     if (localData[name]?.desc && localData[name]?.descV === DESC_VERSION) continue;  // fetched while waiting
     await fetchDescFromWiki(name);
-    renderAll();
+    debouncedRenderAll();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   descRunning = false;
@@ -2953,7 +2757,7 @@ async function runSentQueue() {
     const name = sentQueue.shift();
     if (localData[name]?.sentiment?.v === SENT_VERSION) continue;
     await fetchSentimentData(name);
-    renderAll();
+    debouncedRenderAll();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   sentRunning = false;
@@ -3259,7 +3063,7 @@ function saveSortPref() {
     prefs.accounts = { col: acctSortCol, dir: acctSortDir };
     prefs.licenses = { col: licSortCol, dir: licSortDir };
     localStorage.setItem('ibis_sort', JSON.stringify(prefs));
-  } catch(e) {}
+  } catch(e) { console.warn('[ibis-sort] save failed:', e); }
 }
 
 function restoreSortPref() {
@@ -3275,7 +3079,7 @@ function restoreSortPref() {
       licSortCol = prefs.licenses.col;
       licSortDir = prefs.licenses.dir || LIC_SORT_DEFAULT_DIR[licSortCol] || 'asc';
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[ibis-sort] restore failed:', e); }
 }
 
 /* ============================================================
@@ -3580,26 +3384,25 @@ function renderAcctStatusSelect(name) {
   const status = (localData[name]?.acctStatus) || '';
   const safeId = 'ast-' + name.replace(/[^a-z0-9]/gi,'_');
   const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
-  // No inline menu — portal handles it. Name stored on wrapper via data attribute.
-  return `<div class="acct-status-wrap" id="${safeId}" onclick="event.stopPropagation()">
+  // Name stored on wrapper div so portal can read it directly — no safeId reverse-lookup needed.
+  return `<div class="acct-status-wrap" id="${safeId}" data-acct-name="${escHtml(name)}" onclick="event.stopPropagation()">
     <button class="acct-status-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctStatusPortal('${safeId}',this)">${cur.label}</button>
   </div>`;
 }
 
-// name is read from wrapper's data attribute — zero escaping issues
 function openAcctStatusPortal(id, triggerBtn) {
   const portal = document.getElementById('acct-status-portal');
   if (!portal) return;
   // Toggle: clicking same trigger again closes it
   if (portal.dataset.wrapId === id && portal.style.display === 'block') {
-    portal.style.display = 'none'; portal.dataset.wrapId = '';
+    portal.style.display = 'none'; portal.dataset.wrapId = ''; portal.dataset.acctName = '';
     return;
   }
-  // Store context on portal (no JS escaping — raw strings via dataset)
+  // Store account name directly on portal via dataset — avoids collision-prone safeId reverse-lookup
   const wrap = document.getElementById(id);
-  const name = wrap ? wrap.closest('td')?.querySelector('[data-acct-name]')?.dataset.acctName : null;
-  // Fallback: read name from localData by wrap id prefix match
+  const acctName = wrap?.dataset.acctName || '';
   portal.dataset.wrapId = id;
+  portal.dataset.acctName = acctName;
   portal.innerHTML = ACCT_STATUS_OPTS.map(o =>
     `<button class="acct-status-opt ${o.cls}" onclick="event.stopPropagation();applyPortalStatus('${o.key}')">${o.label}</button>`
   ).join('');
@@ -3614,10 +3417,8 @@ function applyPortalStatus(status) {
   if (!portal) return;
   const id = portal.dataset.wrapId;
   if (!id) return;
-  // Recover account name from the safeId (reverse: 'ast-' prefix, underscores may be non-alpha)
-  // Instead, look up account by matching safeId against all localData keys
-  const name = accounts.map(a => getField(a,'Account Name','AccountName'))
-    .find(n => ('ast-' + n.replace(/[^a-z0-9]/gi,'_')) === id);
+  // Name stored directly on portal at open time — no O(n) scan, no collision risk
+  const name = portal.dataset.acctName;
   if (!name) { portal.style.display='none'; return; }
   if (!localData[name]) localData[name] = {};
   localData[name].acctStatus = status;
@@ -3656,7 +3457,7 @@ function renderAcctPrioritySelect(name) {
   const priority = (localData[name]?.acctPriority) || '';
   const safeId = 'apw-' + name.replace(/[^a-z0-9]/gi,'_');
   const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS[5];
-  return `<div class="acct-priority-wrap" id="${safeId}" onclick="event.stopPropagation()">
+  return `<div class="acct-priority-wrap" id="${safeId}" data-acct-name="${escHtml(name)}" onclick="event.stopPropagation()">
     <button class="acct-priority-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctPriorityPortal('${safeId}',this)">${cur.label}</button>
   </div>`;
 }
@@ -3665,10 +3466,12 @@ function openAcctPriorityPortal(id, triggerBtn) {
   const portal = document.getElementById('acct-priority-portal');
   if (!portal) return;
   if (portal.dataset.wrapId === id && portal.style.display === 'block') {
-    portal.style.display = 'none'; portal.dataset.wrapId = '';
+    portal.style.display = 'none'; portal.dataset.wrapId = ''; portal.dataset.acctName = '';
     return;
   }
+  const wrap = document.getElementById(id);
   portal.dataset.wrapId = id;
+  portal.dataset.acctName = wrap?.dataset.acctName || '';
   portal.innerHTML = ACCT_PRIORITY_OPTS.map(o =>
     `<button class="acct-priority-opt ${o.cls}" onclick="event.stopPropagation();applyPortalPriority('${o.key}')">${o.label}</button>`
   ).join('');
@@ -3683,8 +3486,7 @@ function applyPortalPriority(priority) {
   if (!portal) return;
   const id = portal.dataset.wrapId;
   if (!id) return;
-  const name = accounts.map(a => getField(a,'Account Name','AccountName'))
-    .find(n => ('apw-' + n.replace(/[^a-z0-9]/gi,'_')) === id);
+  const name = portal.dataset.acctName;
   if (!name) { portal.style.display='none'; return; }
   if (!localData[name]) localData[name] = {};
   localData[name].acctPriority = priority;
@@ -4443,12 +4245,15 @@ function clearLicensesData() {
   location.reload();
 }
 
+// Single source of truth for all localStorage keys used by the dashboard
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen'];
+
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
   const WARN_TOTAL_KB = 4096; // warn at 4MB total
   let totalKB = 0;
   let triggered = false;
-  ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead','ibis_samples'].forEach(key => {
+  ALL_STORAGE_KEYS.forEach(key => {
     const val = localStorage.getItem(key);
     if (!val) return;
     const kb = Math.round((val.length * 2) / 1024);
@@ -5455,26 +5260,28 @@ function renderDeadAccounts() {
       : _res === '__initials__' ? `<div class="td-logo">${initials}</div>`
       : `<div class="td-logo"><img src="${_res || 'https://logo.uplead.com/'+domain}" ${logoFallbackChain(domain,initials)} alt="${escHtml(name)}"></div>`;
 
-    // Tier diamond
-    const tierMap = { 'T1':'navy','T2':'forest','T3':'sienna','T4':'charcoal' };
-    const tierCls = tierMap[tier] ? `tier-${tierMap[tier]}` : '';
-    const tierHtml = tier ? `<span class="tier-diamond ${tierCls}">${tier}</span>` : '<span style="color:#9ca3af;">—</span>';
+    // Tier diamond — matches live accounts table rendering
+    const tierCls = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
+    const tierHtml = tier ? `<span class="tier-badge ${tierCls}"><span>${tier}</span></span>` : '<span style="color:#9ca3af;">—</span>';
 
-    // Status badge
+    // Status badge — reuse portal button classes
     const sd = STATUS_DISPLAY[statusKey] || STATUS_DISPLAY[''];
-    const statusHtml = `<span style="background:${sd.bg};color:${sd.col};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;">${sd.label}</span>`;
+    const statusCls = statusKey === 'keep' ? 'ast-keep' : statusKey === 'monitor' ? 'ast-monitor' : statusKey === 'drop' ? 'ast-drop' : 'ast-none';
+    const statusHtml = `<span class="acct-status-trigger ${statusCls}" style="cursor:default;">${sd.label}</span>`;
 
-    // Sentiment score (from snapshot)
+    // Sentiment score (from snapshot) — reuse .sent-badge classes
     const sent = snap.sentiment;
+    const sentCls = sent?.score != null ? (sent.score >= 8 ? 'sent-green' : sent.score >= 5 ? 'sent-amber' : 'sent-red') : 'sent-null';
     const scoreHtml = sent?.score != null
-      ? `<span style="background:${sent.score>=8?'#dcfce7':sent.score>=5?'#fef9c3':'#fee2e2'};color:${sent.score>=8?'#166534':sent.score>=5?'#854d0e':'#991b1b'};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">${sent.score}</span>`
+      ? `<span class="sent-badge ${sentCls}">${sent.score}</span>`
       : '<span style="color:#9ca3af;">—</span>';
 
     // 6sense intent + stage from original account row
     const intent = getField(d,'6sense Account Intent Score NA','6senseAccountIntentScoreNA') || '';
     const stage  = getField(d,'6sense Account Buying Stage NA','6senseAccountBuyingStageNA') || '';
     const intentHtml = intent ? `<span style="font-family:'DM Mono',monospace;font-size:12px;">${intent}</span>` : '<span style="color:#9ca3af;">—</span>';
-    const stageHtml  = stage  ? `<span class="stage-badge" style="font-size:11px;">${stage}</span>` : '<span style="color:#9ca3af;">—</span>';
+    const stageCls = stage === 'Decision' ? 'stage-Decision' : stage === 'Consideration' ? 'stage-Consideration' : stage === 'Awareness' ? 'stage-Awareness' : 'stage-Other';
+    const stageHtml = stage ? `<span class="stage-tag ${stageCls}">${stage}</span>` : '<span style="color:#9ca3af;">—</span>';
 
     // Days inactive from original account row
     const days = getField(d,'US Days Since Last Activity','USDaysSinceLastActivity') || '';
@@ -5496,13 +5303,14 @@ function renderDeadAccounts() {
       <td>${intentHtml}</td>
       <td>${stageHtml}</td>
       <td>${daysHtml}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#f97316;font-weight:600;">${deadSince}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:#b45309;font-weight:600;">${deadSince}</td>
     </tr>`;
   }).join('');
 }
 
 function dismissDeadWarning(name) {
-  const d = deadAccounts.find(a => (getField(a,'Account Name','AccountName') || '') === name);
+  const norm = normName(name);
+  const d = deadAccounts.find(a => normName(getField(a,'Account Name','AccountName')) === norm);
   if (d) { d._unexpectedDrop = false; d._statusAtDeath = 'drop'; saveDead(); renderDead(); }
 }
 
@@ -5695,7 +5503,7 @@ function renderDebugContent() {
   ];
 
   // Storage
-  const storageKeys = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead','ibis_sort'];
+  const storageKeys = ALL_STORAGE_KEYS;
   let totalKb = 0;
   const storageRows = storageKeys.map(k => {
     const v = localStorage.getItem(k);
@@ -5747,9 +5555,8 @@ function renderDebugContent() {
 }
 
 function copyDebugReport() {
-  const storageKeys = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead'];
   const sizes = {};
-  storageKeys.forEach(k => { const v = localStorage.getItem(k); sizes[k] = v ? Math.round(v.length * 2 / 1024) + 'KB' : '—'; });
+  ALL_STORAGE_KEYS.forEach(k => { const v = localStorage.getItem(k); sizes[k] = v ? Math.round(v.length * 2 / 1024) + 'KB' : '—'; });
   const report = {
     ts: new Date().toISOString(),
     pa: _dbg.pa,
