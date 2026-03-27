@@ -383,13 +383,18 @@ Replace manual CSV uploads with an automated PA flow that runs every 4 hours, wr
 - Returns: 150 records, each with `AccountId` field — Dan's exact territory
 - Confirmed working: status 200, correct TeamMemberRole: "BDM"
 
-### Step 2 🔴 NEXT — Get Full Account Data
-Build these PA steps after Step 1:
-1. **Select** (Data Operations) — map `value` array → extract just `AccountId` field → output: array of 150 IDs
-2. **Join** (Data Operations) — join array with separator `','` → output: `id1','id2','id3'...`
-3. **Compose** (Data Operations) — expression: `concat('Id in (''', outputs('Join'), ''')')` → builds OData IN filter
-4. **Get records** (Salesforce) — Object Type: **Accounts**, Filter Query: output of Compose step, no Top Count limit
-5. **Create file** (OneDrive) — folder: `/IBISWorld Dashboard/data/`, filename: `accounts.json`, content: body of Step 4
+### Step 2 🟡 IN PROGRESS — Get Full Account Data
+
+**Flow built and saved in PA. Steps 1–5 all exist. Stuck on filter syntax.**
+
+Current flow structure (all saved in "Dashboard Sync"):
+1. ✅ **Select** (Data Operations) — From: `body/value` (Get records), Map key: empty, value: `item()['AccountId']`
+2. ✅ **Join** (Data Operations) — From: Output (Select), Join with: `','`
+3. ✅ **Compose** (Data Operations) — Inputs (fx expression): `replace(replace(concat('Id in (''', body('Join'), ''')'), '{"":"', ''), '"}', '')`
+4. 🔴 **Get records 1** (Salesforce) — Object Type: Accounts, Filter Query: Outputs (Compose). **FAILING** — "Syntax error at position 5" even though Compose output looks correct: `Id in ('0013j00003EjGh6AAF','0013j00003Ej5eUAAR',...)`. Salesforce PA connector may not support `IN` operator — may need `or` chain instead: `Id eq 'id1' or Id eq 'id2' or ...`
+5. ✅ **Create file** (OneDrive for Business) — Folder: `/Desktop/ibisworld-dashboard/Data`, File Name: `accounts.json`, File Content: Get records 1 (body)
+
+**Next session action:** Fix step 4 filter. Use PA Copilot to generate correct filter syntax. Try prompting Copilot: *"The Filter Query on my Get records (Accounts) step needs to filter by a list of 150 Account IDs. The IDs come from the output of my Compose step. Generate the correct filter expression."* If `IN` doesn't work, rewrite Compose to output an `or`-chained filter instead.
 
 ### SF Field Mappings (confirmed from test run)
 | Dashboard CSV column | SF API field name |
@@ -615,7 +620,7 @@ When a new session begins, Claude Code should:
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
-| 🔴 Next | PA Flow: Step 2 — Accounts query | Step 1 done: "Get records" on AccountTeamMember filtered by UserId `005U100000534tpIAA` returns Dan's 150 account IDs. Step 2: extract those AccountIds → build filter → query Account object for full field data → write to OneDrive as `accounts.json`. SF field mappings confirmed (see PA PIPELINE section below). |
+| 🟡 In Progress | PA Flow: Step 2 — Fix Accounts filter | All 6 PA steps built and saved. Compose outputs `Id in ('id1','id2',...)` correctly but SF connector rejects it with "Syntax error at position 5". Next: use PA Copilot to fix filter syntax — likely need `or`-chained expression instead of `IN`. See PA PIPELINE section for exact stopping point + Copilot prompt. |
 | 🔴 Next | Account page: PA live data sync | Power Automate flow reads SF + Outlook → writes JSON to OneDrive → dashboard fetches on load. Removes CSV upload friction. Account page gets fresher data automatically. |
 | 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
 | 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |

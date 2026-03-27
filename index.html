@@ -1690,6 +1690,7 @@
 
 let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(), modalAccount = null, modalFlags = new Set();
 let deadAccounts = [], deadLicenses = [], deadView = 'accounts';
+let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
 // ── Named constants ───────────────────────────────────────────────────────────
@@ -1744,6 +1745,7 @@ function vertBubble(acc) {
 
 function init() {
   loadDead();
+  loadDeadSeen();
   updateDeadTabBadge();
   const saved = localStorage.getItem('ibis_accounts');
   const savedLocal = localStorage.getItem('ibis_local');
@@ -4154,7 +4156,7 @@ function setMainView(v) {
     document.getElementById('controls-' + tab)?.classList.toggle('hidden', !active);
     document.getElementById('content-' + tab)?.classList.toggle('hidden', !active);
   });
-  if (v === 'dead') renderDead();
+  if (v === 'dead') { renderDead(); markDeadAsSeen(); }
 }
 
 
@@ -4862,11 +4864,29 @@ function saveDead() {
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
+function deadItemKey(d, type) {
+  if (type === 'account') return 'a|' + normName(getField(d,'Account Name','AccountName')||'') + '|' + (d._deadSince||'');
+  return 'l|' + normName(getField(d,'Account Name','AccountName')||'') + '|' + (d['License Name']||'') + '|' + (d._deadSince||'');
+}
+function loadDeadSeen() {
+  try { deadSeenKeys = new Set(JSON.parse(localStorage.getItem('ibis_dead_seen')||'[]')); } catch(e) { deadSeenKeys = new Set(); }
+}
+function saveDeadSeen() {
+  localStorage.setItem('ibis_dead_seen', JSON.stringify([...deadSeenKeys]));
+}
+function markDeadAsSeen() {
+  deadAccounts.forEach(d => deadSeenKeys.add(deadItemKey(d,'account')));
+  deadLicenses.forEach(d => deadSeenKeys.add(deadItemKey(d,'license')));
+  saveDeadSeen();
+  updateDeadTabBadge();
+}
 function updateDeadTabBadge() {
-  const total = deadAccounts.length + deadLicenses.length;
+  const unseenAccts = deadAccounts.filter(d => !deadSeenKeys.has(deadItemKey(d,'account'))).length;
+  const unseenLics  = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
+  const unseen = unseenAccts + unseenLics;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
-  if (total > 0) { badge.textContent = total; badge.style.display = 'inline'; }
+  if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
   else { badge.style.display = 'none'; }
 }
 
