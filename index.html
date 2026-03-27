@@ -371,7 +371,8 @@
   #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
   #controls-licenses { flex-wrap: nowrap; }
   #controls-licenses select { flex-shrink: 0; }
-  #controls-workables-inner, #controls-samples-inner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+  #controls-workables-inner, #controls-samples-inner { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex: 1; min-width: 0; }
+  #controls-campaigns { flex-wrap: nowrap; overflow-x: auto; }
   #controls-action { flex-wrap: nowrap; }
 
   .search-wrap { position: relative; flex: 0 0 220px; }
@@ -560,6 +561,17 @@
   .stage-tag.stage-clickable { cursor: pointer; }
   .stage-tag.stage-clickable:hover { opacity: 0.75; }
   .stage-tag.stage-active { outline: 2px solid currentColor; outline-offset: 2px; }
+
+  /* Action pill — wraps company cell in Accounts table */
+  .actn-pill { display:inline-flex; align-items:center; border:1.5px solid #e5e7eb; border-radius:999px; padding:2px 2px 2px 0; transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .actn-pill .td-company { padding-left:4px; flex:1; }
+  .actn-pill-active { border-color:#22d3ee; box-shadow:0 0 0 2px rgba(34,211,238,0.12), 0 0 10px rgba(34,211,238,0.18); }
+  .actn-pill-btn { width:26px; height:26px; border-radius:999px; background:#f3f4f6; border:none; cursor:pointer; font-size:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; color:#9ca3af; margin-left:6px; line-height:1; }
+  .actn-pill-btn:hover { background:#cffafe; color:#0891b2; }
+  .actn-pill-active .actn-pill-btn { background:#22d3ee; color:#fff; box-shadow:0 0 6px rgba(34,211,238,0.45); }
+  .actn-pill-active .actn-pill-btn:hover { background:#06b6d4; }
+  /* Action filter chip active color */
+  .chip-action.active { background:#ecfeff; border-color:#22d3ee; color:#0891b2; }
 
   /* Workables count bubble */
   .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
@@ -947,7 +959,7 @@
   .campaign-stat-chevron { font-size:13px; color:var(--text-secondary); align-self:center; transition:transform 0.15s; }
   .campaign-stat-btn.open .campaign-stat-chevron { transform:rotate(180deg); }
   /* Shared dropdown menu */
-  .campaign-selector-menu { position:absolute; top:calc(100% + 8px); left:0; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.10); z-index:9400; padding:5px 0; }
+  .campaign-selector-menu { position:fixed; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.10); z-index:9400; padding:5px 0; }
   .campaign-selector-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-primary); transition:background 0.1s; }
   .campaign-selector-item:hover { background:#f9fafb; }
   .campaign-selector-item.active { color:var(--ibis-red); font-weight:700; }
@@ -1514,6 +1526,7 @@
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
     <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
+    <button class="chip chip-action" onclick="toggleChip(this,'HAS_ACTION')" data-flag="HAS_ACTION">⚡ In Action</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip chip-legendary" onclick="toggleChip(this,'PRIO_LEGENDARY')" data-flag="PRIO_LEGENDARY">💎 Legendary</button>
     <button class="chip chip-veryrare" onclick="toggleChip(this,'PRIO_VERYRARE')" data-flag="PRIO_VERYRARE">⭐ Very Rare</button>
@@ -2097,8 +2110,9 @@ function pruneStaleLocalData() {
     const userFlags = (entry.flags || []).filter(f => f !== '🆕');
     const hasStatus = !!(entry.acctStatus);
     const hasPriority = !!(entry.acctPriority);
-    const hasPlan = !!(entry.accountPlan && entry.accountPlan.trim());
-    if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan) return; // has real user data — keep
+    const hasPlan   = !!(entry.accountPlan && entry.accountPlan.trim());
+    const hasAction = !!(entry.hasAction);
+    if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction) return; // has real user data — keep
     delete localData[name];
     pruned++;
   });
@@ -2180,8 +2194,10 @@ function getFiltered() {
       if (activeFlags.has('ACTIVE_LIC') && !getActiveLicBadges(aName)) return false;
       // Has Workables — standalone
       if (activeFlags.has('HAS_WORKABLES') && getWorkableCount(aName) === 0) return false;
+      // In Action — standalone
+      if (activeFlags.has('HAS_ACTION') && !localData[aName]?.hasAction) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_WORKABLES','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_WORKABLES','HAS_ACTION','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -2361,7 +2377,7 @@ function renderTable(list) {
     return `<tr class="${flags.includes('🆕')?'new-account':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</span>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
+      <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</span>${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab">⚡</button></div></td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -2382,6 +2398,16 @@ function renderTable(list) {
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
 function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+stageVal; if(activeFlags.has(key)) activeFlags.delete(key); else activeFlags.add(key); renderAll(); }
+function toggleAction(e) {
+  e.stopPropagation();
+  const name = e.currentTarget.dataset.name;
+  const n = normName(name);
+  if (!localData[n]) localData[n] = {};
+  localData[n].hasAction = !localData[n].hasAction;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  const pill = e.currentTarget.closest('.actn-pill');
+  if (pill) pill.classList.toggle('actn-pill-active', !!localData[n].hasAction);
+}
 /* ============================================================
    REVENUE ENGINE
    1. Seed table (instant) → 2. Claude AI (web search) → 3. SF CSV fallback
@@ -3991,7 +4017,9 @@ function getFilteredCampaignAccountNames() {
 // Build ordered account name list from visible action rows
 function getFilteredActionAccountNames() {
   const q = (document.getElementById('action-search-input')?.value || '').toLowerCase();
-  let rows = accounts.map(acc => ({ acc, name: getField(acc,'Account Name'), days: parseInt(getField(acc,'US Days Since Last Activity'))||0 }));
+  let rows = accounts
+    .map(acc => ({ acc, name: getField(acc,'Account Name'), days: parseInt(getField(acc,'US Days Since Last Activity'))||0 }))
+    .filter(r => localData[normName(r.name)]?.hasAction === true);
   if (actionFilter === 'active')    rows = rows.filter(r => r.days <= 30);
   if (actionFilter === 'cooling')   rows = rows.filter(r => r.days > 30 && r.days <= 90);
   if (actionFilter === 'overdue')   rows = rows.filter(r => r.days > 90);
@@ -4364,32 +4392,44 @@ function updateActionSortArrows() {
 }
 
 function renderAction() {
+  const emptyEl = document.getElementById('action-empty-state');
+  const label   = document.getElementById('action-count-label');
+
+  // Base pool: only accounts manually toggled into Action
+  let rows = accounts
+    .map(acc => ({ acc, name: getField(acc,'Account Name'), days: parseInt(getField(acc,'US Days Since Last Activity'))||0 }))
+    .filter(r => localData[normName(r.name)]?.hasAction === true);
+
+  // Empty states
   if (!accounts.length) {
-    document.getElementById('action-empty-state').style.display = '';
-    document.getElementById('action-count-label').textContent = '';
+    emptyEl.style.display = '';
+    emptyEl.innerHTML = `<div class="empty-icon">⚡</div><div class="empty-title">No accounts loaded</div><div class="empty-desc">Upload your Accounts CSV to get started, then toggle ⚡ on any account.</div>`;
+    if (label) label.textContent = '';
+    renderActionTable([]); renderActionCards([]);
     return;
   }
-  document.getElementById('action-empty-state').style.display = 'none';
+  if (!rows.length) {
+    emptyEl.style.display = '';
+    emptyEl.innerHTML = `<div class="empty-icon">⚡</div><div class="empty-title">No accounts in Action yet</div><div class="empty-desc">Go to the Accounts tab and click the ⚡ button on any company row to add it here.</div>`;
+    if (label) label.textContent = '';
+    renderActionTable([]); renderActionCards([]);
+    updateActionStats([]);
+    return;
+  }
+  emptyEl.style.display = 'none';
 
   const q = (document.getElementById('action-search-input')?.value || '').toLowerCase();
 
-  let rows = accounts.map(acc => {
-    const name = getField(acc, 'Account Name');
-    const days = parseInt(getField(acc, 'US Days Since Last Activity')) || 0;
-    return { acc, name, days };
-  });
-
-  // Apply filter chip
-  if (actionFilter === 'active')   rows = rows.filter(r => r.days <= 30);
-  if (actionFilter === 'cooling')  rows = rows.filter(r => r.days > 30 && r.days <= 90);
-  if (actionFilter === 'overdue')  rows = rows.filter(r => r.days > 90);
-  if (actionFilter === 'workables') rows = rows.filter(r => getWorkableCount(r.name) > 0);
-
-  // Apply search
-  if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q) || (getField(r.acc,'Vertical')||'').toLowerCase().includes(q));
+  // Apply filter chips
+  let filtered = rows.slice();
+  if (actionFilter === 'active')    filtered = filtered.filter(r => r.days <= 30);
+  if (actionFilter === 'cooling')   filtered = filtered.filter(r => r.days > 30 && r.days <= 90);
+  if (actionFilter === 'overdue')   filtered = filtered.filter(r => r.days > 90);
+  if (actionFilter === 'workables') filtered = filtered.filter(r => getWorkableCount(r.name) > 0);
+  if (q) filtered = filtered.filter(r => r.name.toLowerCase().includes(q) || (getField(r.acc,'Vertical')||'').toLowerCase().includes(q));
 
   // Sort
-  rows.sort((a, b) => {
+  filtered.sort((a, b) => {
     let av, bv;
     const al = localData[normName(a.name)] || {};
     const bl = localData[normName(b.name)] || {};
@@ -4402,7 +4442,7 @@ function renderAction() {
       case 'sentiment':   av = al.sentiment?.score ?? -1; bv = bl.sentiment?.score ?? -1; break;
       case 'workables':   av = getWorkableCount(a.name); bv = getWorkableCount(b.name); break;
       case 'acctStatus':  av = ['keep','monitor','drop',''].indexOf(al.acctStatus||''); bv = ['keep','monitor','drop',''].indexOf(bl.acctStatus||''); break;
-      case 'acctPriority':{ const pm = {legendary:0,veryrare:1,rare:2,uncommon:3,common:4}; av = pm[al.acctPriority]??99; bv = pm[bl.acctPriority]??99; break; }
+      case 'acctPriority':{ const pm={legendary:0,veryrare:1,rare:2,uncommon:3,common:4}; av=pm[al.acctPriority]??99; bv=pm[bl.acctPriority]??99; break; }
       default: av = a.days; bv = b.days;
     }
     if (av < bv) return actionSortDir === 'asc' ? -1 : 1;
@@ -4410,24 +4450,22 @@ function renderAction() {
     return 0;
   });
 
-  // Update stats
-  const allDays = accounts.map(acc => parseInt(getField(acc,'US Days Since Last Activity'))||0);
-  const avgDays = allDays.length ? Math.round(allDays.reduce((s,d)=>s+d,0)/allDays.length) : 0;
-  document.getElementById('action-stat-total').textContent    = accounts.length;
-  document.getElementById('action-stat-active').textContent   = allDays.filter(d=>d<=30).length;
-  document.getElementById('action-stat-cooling').textContent  = allDays.filter(d=>d>30&&d<=90).length;
-  document.getElementById('action-stat-overdue').textContent  = allDays.filter(d=>d>90).length;
-  document.getElementById('action-stat-avg').textContent      = avgDays + 'd';
+  updateActionStats(rows);
+  if (label) label.textContent = filtered.length !== rows.length ? `Showing ${filtered.length} of ${rows.length} action accounts` : `${rows.length} account${rows.length!==1?'s':''} in Action`;
 
-  const label = document.getElementById('action-count-label');
-  if (label) label.textContent = rows.length !== accounts.length ? `Showing ${rows.length} of ${accounts.length} accounts` : '';
-
-  if (actionView === 'table') {
-    renderActionTable(rows);
-  } else {
-    renderActionCards(rows);
-  }
+  if (actionView === 'table') renderActionTable(filtered);
+  else renderActionCards(filtered);
   updateActionSortArrows();
+}
+
+function updateActionStats(rows) {
+  const days = rows.map(r => r.days);
+  const avg  = days.length ? Math.round(days.reduce((s,d)=>s+d,0)/days.length) : 0;
+  document.getElementById('action-stat-total').textContent    = rows.length || '—';
+  document.getElementById('action-stat-active').textContent   = days.filter(d=>d<=30).length || '—';
+  document.getElementById('action-stat-cooling').textContent  = days.filter(d=>d>30&&d<=90).length || '—';
+  document.getElementById('action-stat-overdue').textContent  = days.filter(d=>d>90).length || '—';
+  document.getElementById('action-stat-avg').textContent      = rows.length ? avg + 'd' : '—';
 }
 
 function renderActionTable(rows) {
@@ -5304,6 +5342,11 @@ function toggleCampaignDropdown(e) {
   const btn  = document.getElementById('campaign-selector-btn');
   if (!menu) return;
   const isOpen = !menu.classList.contains('hidden');
+  if (!isOpen && btn) {
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + 8) + 'px';
+    menu.style.left = rect.left + 'px';
+  }
   menu.classList.toggle('hidden', isOpen);
   btn?.classList.toggle('open', !isOpen);
 }
