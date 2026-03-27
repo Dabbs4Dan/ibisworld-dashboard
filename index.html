@@ -1766,31 +1766,6 @@ function vertBubble(acc) {
   return `<span class="vert-bubble" style="background:${color};">${tv}</span>`;
 }
 
-// ── Power Automate auto-sync (shelved — using CSV upload for now) ─────────────
-// Set accountsUrl to a OneDrive/GitHub raw link if PA pipeline is revived.
-const PA_CONFIG = {
-  accountsUrl: 'PASTE_SHAREPOINT_URL_HERE',
-};
-
-// Salesforce Vertical__c picklist number → dashboard vertical label
-const SF_VERTICAL_MAP = {
-  '1':  'Academic',
-  '2':  'Accounting',
-  '4':  'Consulting',
-  '7':  'Legal',
-  '13': 'Manufacturing',
-  '18': 'Commercial Banking',
-  '23': 'Government',
-  '25': 'Health & Community Services',
-  '37': 'Construction, Engineering & Real Estate',
-  '39': 'Finance',
-  '44': 'Retail',
-  '48': 'Retail',
-  '50': 'Transportation, Logistics or Storage',
-  '53': 'Business Support Services',
-  '57': 'Energy & Waste',
-};
-// ─────────────────────────────────────────────────────────────────────────────
 
 function init() {
   loadDead();
@@ -1843,8 +1818,6 @@ function init() {
     autoQueueLicDescriptions();
   }
   updateUploadDots();
-  // Auto-load from Power Automate OneDrive sync (runs silently in background)
-  fetchAccountsFromPA();
 }
 
 function handleCSV(e) {
@@ -1914,56 +1887,6 @@ function processAccountRows(newAccounts) {
   checkStorageSize();
 }
 
-// ── Power Automate JSON parsing ───────────────────────────────────────────────
-function parseAccountsFromPA(paData) {
-  // paData = array of {value: [{account fields}]} objects (one per account)
-  return paData
-    .map(r => r.value && r.value[0])
-    .filter(Boolean)
-    .map(a => ({
-      'Account Name':                   a.Name || '',
-      'Website':                        a.Website || '',
-      'Major Markets Tier':             a.Major_Markets_Tier__c ? String(a.Major_Markets_Tier__c) : '',
-      'Vertical':                       SF_VERTICAL_MAP[String(a.Vertical__c)] || '',
-      'Sub-Vertical':                   a.Sub_Vertical__c || '',
-      'Employees':                      a.NumberOfEmployees != null ? String(a.NumberOfEmployees) : '',
-      'Annual Revenue Currency':        a.CurrencyIsoCode || 'USD',
-      'Annual Revenue':                 a.AnnualRevenue != null ? String(a.AnnualRevenue) : '',
-      '# Core Clients':                 a.Core_Clients__c != null ? String(a.Core_Clients__c) : '',
-      '# Core Opportunities':           a.Core_Opportunities__c != null ? String(a.Core_Opportunities__c) : '',
-      'US Days Since Last Activity':    a.US_Days_Since_Last_Activity__c != null ? String(a.US_Days_Since_Last_Activity__c) : '',
-      '6sense Account Intent Score NA': a.X6sense_Account_Intent_Score_IW__c != null ? String(a.X6sense_Account_Intent_Score_IW__c) : '',
-      '6sense Account Buying Stage NA': a.X6sense_Account_Buying_Stage_IW__c || '',
-    }));
-}
-
-async function fetchAccountsFromPA() {
-  const url = PA_CONFIG.accountsUrl;
-  if (!url || url === 'PASTE_SHAREPOINT_URL_HERE') {
-    _dbg.pa.status = 'no-url'; _dbg.pa.ts = new Date().toLocaleTimeString();
-    _dbgLog('pa', 'PA_CONFIG.accountsUrl not set — using CSV upload');
-    return;
-  }
-  _dbg.pa.status = 'fetching'; _dbg.pa.ts = new Date().toLocaleTimeString();
-  _dbgLog('pa', 'Fetching accounts from OneDrive...');
-  try {
-    const dlUrl = url.includes('?') ? url + '&download=1' : url + '?download=1';
-    const resp = await fetch(dlUrl);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const paData = await resp.json();
-    if (!Array.isArray(paData) || paData.length < 10) throw new Error('Unexpected format or too few rows (' + (Array.isArray(paData) ? paData.length : typeof paData) + ')');
-    const rows = parseAccountsFromPA(paData);
-    _dbg.pa.status = 'ok'; _dbg.pa.rows = rows.length; _dbg.pa.error = null;
-    _dbgLog('pa', `✅ Loaded ${rows.length} accounts from OneDrive (raw array length: ${paData.length})`);
-    console.log('[PA] Auto-loaded', rows.length, 'accounts from OneDrive');
-    processAccountRows(rows);
-  } catch (e) {
-    _dbg.pa.status = 'error'; _dbg.pa.error = e.message; _dbg.pa.ts = new Date().toLocaleTimeString();
-    _dbgLog('pa', '❌ PA fetch failed: ' + e.message);
-    console.warn('[PA] Could not auto-load accounts:', e.message, '— use CSV upload as fallback');
-  }
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 function parseCSV(text) {
   text = text.replace(/^\ufeff/, '').normalize('NFC'); // strip BOM (Excel CSV)
@@ -3887,10 +3810,32 @@ function getFilteredOrderedNames() {
   return raw.map(a => getField(a,'Account Name','AccountName'));
 }
 
+// Build ordered account name list from visible license rows
+function getFilteredLicenseAccountNames() {
+  const seen = new Set(); const names = [];
+  getLicFiltered().forEach(l => { if (!seen.has(l._name)) { seen.add(l._name); names.push(l._name); } });
+  return names;
+}
+
+// Build ordered account name list from visible campaign contacts
+function getFilteredCampaignAccountNames() {
+  if (currentCampaign === 'samples') {
+    return [...new Set(Object.values(samples).map(s => s.accountName).filter(Boolean))];
+  }
+  return [...new Set(
+    Object.values(opps)
+      .filter(o => !o.archived && o.stage !== 'DQ' && o.accountName)
+      .map(o => o.accountName)
+  )];
+}
+
 // Entry point from any click on account name/logo
 function goToAccount(name) {
   if (!accounts.length) return;
-  const list = getFilteredOrderedNames();
+  let list;
+  if (mainView === 'licenses') list = getFilteredLicenseAccountNames();
+  else if (mainView === 'campaigns') list = getFilteredCampaignAccountNames();
+  else list = getFilteredOrderedNames();
   const idx = list.indexOf(name);
   openAccountPage(name, mainView, list, idx);
 }
@@ -4923,45 +4868,52 @@ function getSampleCount(name) {
 }
 
 const CAMPAIGN_DEFS = {
-  workables: { emoji:'🎯', label:'Workables' },
-  samples:   { emoji:'🧪', label:'Old Samples' },
+  workables: {
+    emoji: '🎯',
+    label: 'Workables',
+    getCount: () => Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ').length,
+    onActivate: null,
+  },
+  samples: {
+    emoji: '🧪',
+    label: 'Old Samples',
+    getCount: () => Object.values(samples).length,
+    onActivate: () => renderSamples(),
+  },
 };
 
 function updateCampaignPillCounts() {
-  const workCount   = Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ').length;
-  const sampleCount = Object.values(samples).length;
-  const counts = { workables: workCount, samples: sampleCount };
-  // Update dropdown menu badges
-  Object.keys(counts).forEach(c => {
+  // Update dropdown menu badges using CAMPAIGN_DEFS.getCount()
+  Object.keys(CAMPAIGN_DEFS).forEach(c => {
+    const count = CAMPAIGN_DEFS[c].getCount();
     const el = document.getElementById('cmenu-count-' + c);
-    if (el) el.textContent = counts[c];
+    if (el) el.textContent = count;
   });
   // Update the main button badge for the active campaign
-  const activeCount = counts[currentCampaign] ?? 0;
+  const activeCount = CAMPAIGN_DEFS[currentCampaign]?.getCount() ?? 0;
   const btnCount = document.getElementById('campaign-selector-count');
   if (btnCount) btnCount.textContent = activeCount;
-  // Update Old Samples total stat
+  // Update Old Samples total stat element
   const sstotal = document.getElementById('sstat-total');
-  if (sstotal) sstotal.textContent = sampleCount || '—';
+  if (sstotal) sstotal.textContent = CAMPAIGN_DEFS.samples.getCount() || '—';
 }
 
 function setCampaign(name) {
   currentCampaign = name;
   const def = CAMPAIGN_DEFS[name] || { emoji:'📣', label:name };
-  // Switch views + inner controls
-  ['workables','samples'].forEach(c => {
+  // Switch views + inner controls — driven by CAMPAIGN_DEFS keys
+  Object.keys(CAMPAIGN_DEFS).forEach(c => {
     document.getElementById('campaign-view-' + c)?.classList.toggle('hidden', c !== name);
     document.getElementById('controls-' + c + '-inner')?.classList.toggle('hidden', c !== name);
     document.getElementById('cmenu-' + c)?.classList.toggle('active', c === name);
+    const statsEl = document.getElementById('campaign-' + c + '-stats');
+    if (statsEl) statsEl.style.display = c === name ? 'flex' : 'none';
   });
   // Update the selector button label
   const labelEl = document.getElementById('campaign-selector-label');
   if (labelEl) labelEl.textContent = `${def.emoji} ${def.label}`;
-  // Toggle which inline stats show (stats bar stays visible always)
-  document.getElementById('campaign-workables-stats').style.display = (name === 'workables') ? 'flex' : 'none';
-  document.getElementById('campaign-samples-stats').style.display  = (name === 'samples')   ? 'flex' : 'none';
   updateCampaignPillCounts();
-  if (name === 'samples') renderSamples();
+  if (def.onActivate) def.onActivate();
 }
 
 function toggleCampaignDropdown(e) {
