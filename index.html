@@ -1689,6 +1689,20 @@
 })();
 
 let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(), modalAccount = null, modalFlags = new Set();
+
+// ── Debug telemetry ──────────────────────────────────────────────────────────
+const _dbg = {
+  pa:     { status: 'pending', rows: 0, ts: null, error: null },
+  enrich: { attempted: 0, succeeded: 0, failed: 0, failedNames: [] },
+  desc:   { attempted: 0, succeeded: 0, failed: 0 },
+  sent:   { attempted: 0, succeeded: 0, failed: 0 },
+  log:    [],
+};
+function _dbgLog(type, msg, data) {
+  _dbg.log.unshift({ t: new Date().toLocaleTimeString(), type, msg, ...(data ? { data } : {}) });
+  if (_dbg.log.length > 120) _dbg.log.pop();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 let deadAccounts = [], deadLicenses = [], deadView = 'accounts';
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
@@ -1916,18 +1930,27 @@ function parseAccountsFromPA(paData) {
 
 async function fetchAccountsFromPA() {
   const url = PA_CONFIG.accountsUrl;
-  if (!url || url === 'PASTE_SHAREPOINT_URL_HERE') return;
+  if (!url || url === 'PASTE_SHAREPOINT_URL_HERE') {
+    _dbg.pa.status = 'no-url'; _dbg.pa.ts = new Date().toLocaleTimeString();
+    _dbgLog('pa', 'PA_CONFIG.accountsUrl not set — using CSV upload');
+    return;
+  }
+  _dbg.pa.status = 'fetching'; _dbg.pa.ts = new Date().toLocaleTimeString();
+  _dbgLog('pa', 'Fetching accounts from OneDrive...');
   try {
-    // Append &download=1 to force raw file download (not SharePoint viewer)
     const dlUrl = url.includes('?') ? url + '&download=1' : url + '?download=1';
     const resp = await fetch(dlUrl);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const paData = await resp.json();
-    if (!Array.isArray(paData) || paData.length < 10) throw new Error('Unexpected format or too few rows');
+    if (!Array.isArray(paData) || paData.length < 10) throw new Error('Unexpected format or too few rows (' + (Array.isArray(paData) ? paData.length : typeof paData) + ')');
     const rows = parseAccountsFromPA(paData);
+    _dbg.pa.status = 'ok'; _dbg.pa.rows = rows.length; _dbg.pa.error = null;
+    _dbgLog('pa', `✅ Loaded ${rows.length} accounts from OneDrive (raw array length: ${paData.length})`);
     console.log('[PA] Auto-loaded', rows.length, 'accounts from OneDrive');
     processAccountRows(rows);
   } catch (e) {
+    _dbg.pa.status = 'error'; _dbg.pa.error = e.message; _dbg.pa.ts = new Date().toLocaleTimeString();
+    _dbgLog('pa', '❌ PA fetch failed: ' + e.message);
     console.warn('[PA] Could not auto-load accounts:', e.message, '— use CSV upload as fallback');
   }
 }
@@ -2490,15 +2513,25 @@ Set sentiment.score to null only if company is too obscure for any assessment. T
       } else if (parsed.sentiment) {
         localData[companyName].sentiment = { score: null };
       }
+      _dbg.enrich.attempted++;
       if (parsed.value_usd) {
+        _dbg.enrich.succeeded++;
+        _dbgLog('enrich', `✅ ${companyName}: ${fmtMoney(parsed.value_usd) || parsed.label}`);
         const label = fmtMoney(parsed.value_usd) || parsed.label;
         localData[companyName].rev = { label, raw: parsed.value_usd, source: 'claude', year: parsed.year, srcNote: parsed.source };
         localStorage.setItem('ibis_local', JSON.stringify(localData));
         return { label, raw: parsed.value_usd };
+      } else {
+        _dbgLog('enrich', `⚠️ ${companyName}: no revenue returned`);
       }
       localStorage.setItem('ibis_local', JSON.stringify(localData));
     }
-  } catch(e) { console.error('Enrichment failed for', companyName, e); }
+  } catch(e) {
+    _dbg.enrich.failed++;
+    if (!_dbg.enrich.failedNames.includes(companyName)) _dbg.enrich.failedNames.push(companyName);
+    _dbgLog('enrich', `❌ ${companyName}: ${e.message}`);
+    console.error('Enrichment failed for', companyName, e);
+  }
   return null;
 }
 
@@ -5166,5 +5199,150 @@ function renderDeadLicenses() {
 <div id="acct-status-portal"></div>
 <div id="acct-priority-portal"></div>
 <div id="sentiment-card"></div>
+
+<!-- ── Debug Panel (Shift+D to open) ──────────────────────────────────────── -->
+<div id="debug-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;overflow-y:auto;padding:32px 16px;" onclick="if(event.target===this)closeDebugPanel()">
+  <div style="max-width:860px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;font-family:'DM Sans',sans-serif;box-shadow:0 24px 60px rgba(0,0,0,0.35);">
+    <!-- Header -->
+    <div style="background:#C8102E;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:18px;">🔧</span>
+        <span style="font-size:15px;font-weight:700;color:#fff;letter-spacing:0.01em;">System Debug Panel</span>
+        <span style="font-size:11px;color:rgba(255,255,255,0.6);font-family:'DM Mono',monospace;" id="dbg-ts"></span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="copyDebugReport()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;">📋 Copy Report</button>
+        <button onclick="closeDebugPanel()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;">✕ Close</button>
+      </div>
+    </div>
+    <div id="debug-content" style="padding:20px;display:grid;gap:16px;"></div>
+  </div>
+</div>
+
+<script>
+// ── Debug Panel ────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => { if (e.shiftKey && e.key === 'D') openDebugPanel(); });
+
+function openDebugPanel() {
+  document.getElementById('dbg-ts').textContent = 'as of ' + new Date().toLocaleTimeString();
+  renderDebugContent();
+  document.getElementById('debug-overlay').style.display = 'block';
+}
+function closeDebugPanel() {
+  document.getElementById('debug-overlay').style.display = 'none';
+}
+
+function dbgSection(title, rows) {
+  const rowsHtml = rows.map(([label, val, ok]) => {
+    const color = ok === true ? '#16a34a' : ok === false ? '#dc2626' : '#374151';
+    return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid #f3f4f6;">
+      <span style="font-size:12px;color:#6b7280;">${label}</span>
+      <span style="font-size:12px;font-family:'DM Mono',monospace;color:${color};font-weight:600;">${val}</span>
+    </div>`;
+  }).join('');
+  return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px;">
+    <div style="font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;">${title}</div>
+    ${rowsHtml}
+  </div>`;
+}
+
+function renderDebugContent() {
+  const el = document.getElementById('debug-content');
+
+  // PA Sync
+  const pa = _dbg.pa;
+  const paOk = pa.status === 'ok';
+  const paRows = [
+    ['Status', pa.status === 'ok' ? `✅ Success` : pa.status === 'error' ? `❌ ${pa.error}` : pa.status === 'fetching' ? '⏳ In progress' : pa.status === 'pending' ? '⏳ Not yet run' : pa.status, paOk],
+    ['Accounts loaded', pa.rows > 0 ? pa.rows + ' accounts' : '—', pa.rows > 0],
+    ['Last run', pa.ts || '—', null],
+    ['URL configured', PA_CONFIG.accountsUrl !== 'PASTE_SHAREPOINT_URL_HERE' ? '✅ Yes' : '❌ Missing', PA_CONFIG.accountsUrl !== 'PASTE_SHAREPOINT_URL_HERE'],
+  ];
+
+  // Enrichment
+  const en = _dbg.enrich;
+  const enrichRows = [
+    ['Worker URL', CLAUDE_PROXY_URL || '—', null],
+    ['Attempted', en.attempted, null],
+    ['Succeeded', en.succeeded, en.succeeded > 0],
+    ['Failed', en.failed, en.failed === 0 ? null : false],
+    ['Failed accounts', en.failedNames.length ? en.failedNames.slice(0,6).join(', ') + (en.failedNames.length > 6 ? ` +${en.failedNames.length - 6} more` : '') : '—', en.failedNames.length === 0 ? null : false],
+  ];
+
+  // Storage
+  const storageKeys = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead','ibis_sort'];
+  let totalKb = 0;
+  const storageRows = storageKeys.map(k => {
+    const v = localStorage.getItem(k);
+    const kb = v ? Math.round(v.length * 2 / 1024) : 0;
+    totalKb += kb;
+    const ok = kb > 2000 ? false : kb > 0 ? null : null;
+    return [k, v ? kb + ' KB' : '—', ok];
+  });
+  storageRows.push(['TOTAL', totalKb + ' KB', totalKb > 4000 ? false : null]);
+
+  // Accounts state
+  const acctRows = [
+    ['In memory', accounts.length + ' accounts', accounts.length > 0],
+    ['Source', _dbg.pa.status === 'ok' ? 'Power Automate (OneDrive)' : accounts.length > 0 ? 'localStorage / CSV' : 'None', null],
+    ['Licenses in memory', (typeof licenses !== 'undefined' ? licenses.length : '?') + ' rows', null],
+    ['Workables in memory', Object.keys(opps || {}).length + ' contacts', null],
+    ['Dead accounts', (typeof deadAccounts !== 'undefined' ? deadAccounts.length : '?'), null],
+  ];
+
+  // Recent log (last 25 entries)
+  const logHtml = _dbg.log.length === 0
+    ? '<div style="color:#9ca3af;font-size:12px;">No events logged yet.</div>'
+    : _dbg.log.slice(0, 25).map(e => {
+        const color = e.msg.startsWith('✅') ? '#16a34a' : e.msg.startsWith('❌') ? '#dc2626' : e.msg.startsWith('⚠️') ? '#d97706' : '#374151';
+        return `<div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:11px;">
+          <span style="color:#9ca3af;font-family:'DM Mono',monospace;white-space:nowrap;">${e.t}</span>
+          <span style="color:#6b7280;font-weight:600;min-width:48px;">[${e.type}]</span>
+          <span style="color:${color};">${e.msg}</span>
+        </div>`;
+      }).join('');
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      ${dbgSection('🔄 Power Automate Sync', paRows)}
+      ${dbgSection('🧠 Claude Enrichment', enrichRows)}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      ${dbgSection('💾 localStorage Sizes', storageRows)}
+      ${dbgSection('📊 Data State', acctRows)}
+    </div>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px;">
+      <div style="font-size:11px;font-weight:700;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;">📋 Event Log (last 25)</div>
+      ${logHtml}
+    </div>
+    <div style="text-align:center;padding:4px 0;">
+      <span style="font-size:11px;color:#9ca3af;">Press <kbd style="background:#e5e7eb;border-radius:3px;padding:1px 5px;font-family:monospace;">Shift+D</kbd> to reopen · Click outside to close</span>
+    </div>
+  `;
+}
+
+function copyDebugReport() {
+  const storageKeys = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead'];
+  const sizes = {};
+  storageKeys.forEach(k => { const v = localStorage.getItem(k); sizes[k] = v ? Math.round(v.length * 2 / 1024) + 'KB' : '—'; });
+  const report = {
+    ts: new Date().toISOString(),
+    pa: _dbg.pa,
+    enrich: _dbg.enrich,
+    storage: sizes,
+    state: {
+      accounts: accounts.length,
+      licenses: typeof licenses !== 'undefined' ? licenses.length : '?',
+      opps: Object.keys(opps || {}).length,
+      deadAccounts: typeof deadAccounts !== 'undefined' ? deadAccounts.length : '?',
+    },
+    log: _dbg.log.slice(0, 50),
+  };
+  navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+    .then(() => alert('✅ Debug report copied to clipboard — paste it to Claude!'))
+    .catch(() => alert('Copy failed — try again'));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+</script>
 </body>
 </html>
