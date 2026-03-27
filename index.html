@@ -971,6 +971,13 @@
   .opp-next-empty { color:var(--text-muted); }
   .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
   .opp-inline-input:focus { border-bottom-color:var(--border); }
+  /* Campaign strip */
+  .campaign-strip { display:flex; gap:0; padding:0 24px; border-bottom:1px solid var(--border); background:var(--surface); margin-bottom:0; }
+  .campaign-pill { display:inline-flex; align-items:center; gap:8px; padding:12px 18px 11px; border:none; border-bottom:2px solid transparent; background:none; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--text-secondary); cursor:pointer; margin-bottom:-1px; transition:color 0.15s, border-color 0.15s; }
+  .campaign-pill:hover { color:var(--text-primary); }
+  .campaign-pill.active { color:var(--ibis-red); border-bottom-color:var(--ibis-red); }
+  .cpill-count { background:#f3f4f6; color:#6b7280; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700; transition:background 0.15s, color 0.15s; }
+  .campaign-pill.active .cpill-count { background:#fee2e2; color:#c8102e; }
   /* Cold section */
   .cold-section { padding:0 24px 24px; }
   .cold-section-hdr { display:flex; align-items:center; gap:10px; padding:12px 0 8px; cursor:pointer; border-top:1px solid var(--border); user-select:none; }
@@ -1240,11 +1247,17 @@
           <span class="upload-menu-dot" id="udot-opps"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearOppsData()" title="Clear">✕</span>
         </button>
+        <button class="upload-menu-row" onclick="document.getElementById('samples-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🧪 Old Samples CSV</span>
+          <span class="upload-menu-dot" id="udot-samples"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearSamplesData()" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
     <input type="file" id="opp-file-input" accept=".csv" onchange="handleOppsCSV(event)">
+    <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)">
   </div>
 </div>
 
@@ -1252,7 +1265,7 @@
   <div class="view-nav-tabs">
     <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
     <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
-    <button class="vnav-btn" id="vnav-opps" onclick="setMainView('opps')">🎯 Workables</button>
+    <button class="vnav-btn" id="vnav-campaigns" onclick="setMainView('campaigns')">📣 Campaigns</button>
     <button class="vnav-btn" id="vnav-dead" onclick="setMainView('dead')">💀 Dead <span id="dead-tab-badge" style="display:none;background:#f97316;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;font-weight:700;"></span></button>
   </div>
 </div>
@@ -1313,7 +1326,7 @@
 </div>
 
 <!-- OPPORTUNITIES STATS BAR -->
-<div class="stats-bar hidden" id="stats-opps">
+<div class="stats-bar hidden" id="stats-campaigns">
   <div class="stat-item">
     <div class="stat-label">In Pipeline</div>
     <div class="stat-value red" id="ostat-total">—</div>
@@ -1424,21 +1437,31 @@
 </div>
 
 <!-- OPPORTUNITIES CONTROLS -->
-<div class="controls hidden" id="controls-opps">
-  <div class="view-toggle">
-    <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Cards</button>
-    <button class="view-btn" onclick="setOppsView('table')" id="btn-opp-table">☰ Table</button>
+<div class="controls hidden" id="controls-campaigns">
+  <!-- Workables controls -->
+  <div id="controls-workables-inner">
+    <div class="view-toggle">
+      <button class="view-btn active" onclick="setOppsView('kanban')" id="btn-kanban">⊞ Cards</button>
+      <button class="view-btn" onclick="setOppsView('table')" id="btn-opp-table">☰ Table</button>
+    </div>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
+    </div>
+    <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
+    <button class="chip" id="opp-filter-dq"           onclick="setOppFilter('dq')" style="color:#6b7280;">⬜ DQ</button>
+    <button class="chip" id="opp-filter-opps"         onclick="setOppFilter('opps')">💰 Active Opportunities</button>
+    <button class="chip" id="opp-filter-lost"         onclick="setOppFilter('lost')">🔴 Lost</button>
+    <button class="chip" id="opp-filter-stalled"      onclick="setOppFilter('stalled')">🟠 Stalled</button>
+    <button class="chip" id="opp-filter-future"       onclick="setOppFilter('future')">🔮 Future Revisit</button>
   </div>
-  <div class="search-wrap">
-    <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
+  <!-- Old Samples controls -->
+  <div id="controls-samples-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search samples..." id="samples-search-input" oninput="renderSamples()">
+    </div>
   </div>
-  <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
-  <button class="chip" id="opp-filter-dq"           onclick="setOppFilter('dq')" style="color:#6b7280;">⬜ DQ</button>
-  <button class="chip" id="opp-filter-opps"         onclick="setOppFilter('opps')">💰 Active Opportunities</button>
-  <button class="chip" id="opp-filter-lost"         onclick="setOppFilter('lost')">🔴 Lost</button>
-  <button class="chip" id="opp-filter-stalled"      onclick="setOppFilter('stalled')">🟠 Stalled</button>
-  <button class="chip" id="opp-filter-future"       onclick="setOppFilter('future')">🔮 Future Revisit</button>
 </div>
 
 <div class="change-banner" id="change-banner">
@@ -1491,6 +1514,7 @@
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
+            <th onclick="setSortCol('samples')" style="cursor:pointer;text-align:center;">Samples <span class="acct-sort-arrow" id="asort-samples"></span></th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
@@ -1565,18 +1589,58 @@
 </div>
 
 <!-- OPPORTUNITIES CONTENT -->
-<div id="content-opps" class="hidden">
-  <div id="opp-empty-state" class="empty-state">
-    <div class="empty-icon">🎯</div>
-    <div class="empty-title">Upload your Workables CSV to get started</div>
-    <div class="empty-desc">Export contacts from Salesforce (First Name, Last Name, Title, Mailing Country, Email, Account Name, Last Activity), then click 🎯 Workables CSV above.</div>
-    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('opp-file-input').click()">🎯 Upload Workables CSV</button>
+<div id="content-campaigns" class="hidden">
+  <!-- Campaign selector strip -->
+  <div class="campaign-strip">
+    <button class="campaign-pill active" id="cpill-workables" onclick="setCampaign('workables')">
+      🎯 Workables <span class="cpill-count" id="cpill-count-workables">0</span>
+    </button>
+    <button class="campaign-pill" id="cpill-samples" onclick="setCampaign('samples')">
+      🧪 Old Samples <span class="cpill-count" id="cpill-count-samples">0</span>
+    </button>
   </div>
-  <div id="opp-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
-  <div id="opp-pipeline" class="hidden">
-    <div id="opp-kanban-view" class="opp-kanban"></div>
-    <div id="opp-table-view" class="opp-tbl-wrap hidden"></div>
-    <div id="opp-cold-section" class="cold-section hidden"></div>
+
+  <!-- Workables campaign view -->
+  <div id="campaign-view-workables">
+    <div id="opp-empty-state" class="empty-state">
+      <div class="empty-icon">🎯</div>
+      <div class="empty-title">Upload your Workables CSV to get started</div>
+      <div class="empty-desc">Export contacts from Salesforce (First Name, Last Name, Title, Mailing Country, Email, Account Name, Last Activity), then click 🎯 Workables CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('opp-file-input').click()">🎯 Upload Workables CSV</button>
+    </div>
+    <div id="opp-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="opp-pipeline" class="hidden">
+      <div id="opp-kanban-view" class="opp-kanban"></div>
+      <div id="opp-table-view" class="opp-tbl-wrap hidden"></div>
+      <div id="opp-cold-section" class="cold-section hidden"></div>
+    </div>
+  </div>
+
+  <!-- Old Samples campaign view -->
+  <div id="campaign-view-samples" class="hidden">
+    <div id="samples-empty-state" class="empty-state">
+      <div class="empty-icon">🧪</div>
+      <div class="empty-title">Upload your Old Samples CSV to get started</div>
+      <div class="empty-desc">Export "Dan's Sample Requests" from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🧪 Old Samples CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('samples-file-input').click()">🧪 Upload Old Samples CSV</button>
+    </div>
+    <div id="samples-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="samples-table-wrap" class="opp-tbl-wrap hidden">
+      <table class="acct-table">
+        <thead>
+          <tr>
+            <th style="width:28px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Country</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="samples-table-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1708,6 +1772,8 @@ function _dbgLog(type, msg, data) {
 // ─────────────────────────────────────────────────────────────────────────────
 let deadAccounts = [], deadLicenses = [], deadView = 'accounts';
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
+let samples = {};
+let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
 // ── Named constants ───────────────────────────────────────────────────────────
@@ -1806,13 +1872,20 @@ function init() {
     applySeedsToLocalData(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
   }
-  // Load Opportunities
+  // Load Opportunities (Workables)
   loadOpps();
   if (Object.keys(opps).length > 0) {
     document.getElementById('opp-empty-state').classList.add('hidden');
     document.getElementById('opp-pipeline').classList.remove('hidden');
     renderOpps();
   }
+  // Load Old Samples
+  loadSamples();
+  if (Object.keys(samples).length > 0) {
+    document.getElementById('samples-empty-state')?.classList.add('hidden');
+    document.getElementById('samples-table-wrap')?.classList.remove('hidden');
+  }
+  updateCampaignPillCounts();
 
   if (savedLic) {
     // Re-decode on restore (dates need re-parsing from strings)
@@ -2113,6 +2186,7 @@ function getFiltered() {
     if (sort==='opps') return d * (parseFloat(getField(a,'# Core Opportunities')||0) - parseFloat(getField(b,'# Core Opportunities')||0));
     if (sort==='licenses') return d * (getLicCount(getField(a,'Account Name','AccountName')) - getLicCount(getField(b,'Account Name','AccountName')));
     if (sort==='workables') return d * (getWorkableCount(getField(a,'Account Name','AccountName')) - getWorkableCount(getField(b,'Account Name','AccountName')));
+    if (sort==='samples') return d * (getSampleCount(getField(a,'Account Name','AccountName')) - getSampleCount(getField(b,'Account Name','AccountName')));
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
@@ -2276,6 +2350,7 @@ function renderTable(list) {
       <td style="white-space:nowrap;">${revCell}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="wkbl-dot" style="background:#059669;">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${opps||'0'}</td>
@@ -3072,7 +3147,7 @@ let frozenSortOrder = null; // locks row order after explicit sort — cleared o
 let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
   ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus','acctPriority'].forEach(c => {
@@ -3953,7 +4028,7 @@ function openAccountPage(name, origin, list, idx) {
   accountPageList = list || [];
   accountPageIdx = (idx !== undefined && idx !== null) ? idx : -1;
   // Hide all tab UI
-  ['accounts','licenses','opps','dead'].forEach(tab => {
+  ['accounts','licenses','campaigns','dead'].forEach(tab => {
     document.getElementById('stats-'    + tab)?.classList.add('hidden');
     document.getElementById('controls-' + tab)?.classList.add('hidden');
     document.getElementById('content-'  + tab)?.classList.add('hidden');
@@ -3976,7 +4051,7 @@ function navAccountPage(dir) {
 }
 
 function apOriginLabel(origin) {
-  const map = { accounts:'📋 Accounts', licenses:'🔑 Licenses', opps:'🎯 Workables', dead:'💀 Dead' };
+  const map = { accounts:'📋 Accounts', licenses:'🔑 Licenses', campaigns:'📣 Campaigns', dead:'💀 Dead' };
   return map[origin] || 'Accounts';
 }
 
@@ -4137,28 +4212,36 @@ function renderAPPriorityOutreach(name) {
 const AP_AVATAR_COLORS = ['#3b82f6','#8b5cf6','#ec4899','#f97316','#10b981','#0ea5e9','#a78bfa','#f43f5e','#14b8a6','#f59e0b'];
 function renderAPCampaigns(name) {
   const n = normName(name);
-  const contacts = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
-  if (!contacts.length) return `
+  const workables = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
+  const sampleContacts = Object.values(samples).filter(o => normName(o.accountName) === n);
+  const allContacts = [
+    ...workables.map(o => ({ ...o, _campaign: 'workables' })),
+    ...sampleContacts.map(o => ({ ...o, _campaign: 'samples' })),
+  ];
+  if (!allContacts.length) return `
     <div class="ap-panel-title">👥 Campaigns</div>
-    <div class="ap-empty">No contacts added yet<br>Upload Workables CSV to populate</div>
+    <div class="ap-empty">No contacts found<br>Upload Workables or Old Samples CSV to populate</div>
     <button class="ap-add-btn" disabled>+ Add contact (coming soon)</button>`;
 
   return `
     <div class="ap-panel-title">👥 Campaigns</div>
-    ${contacts.map(o => {
+    ${allContacts.map(o => {
       const initial  = (o.name || '?')[0].toUpperCase();
       const colorIdx = initial.charCodeAt(0) % AP_AVATAR_COLORS.length;
       const daysAgo  = oppDaysAgo(o.lastActivity);
       const sc       = STAGE_COLORS[o.stage] || {bg:'#f3f4f6',color:'#6b7280'};
+      const campBadge = o._campaign === 'workables'
+        ? `<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:1px 6px;font-weight:600;">🎯 Workable</span>`
+        : `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:5px;padding:1px 6px;font-weight:600;">🧪 Sample</span>`;
       return `<div class="ap-contact-row">
         <div class="ap-avatar" style="background:${AP_AVATAR_COLORS[colorIdx]}">${initial}</div>
         <div class="ap-contact-info">
-          <div class="ap-contact-name">${escHtml(o.name||'')}</div>
+          <div class="ap-contact-name">${escHtml(o.name||'')} ${campBadge}</div>
           <div class="ap-contact-title">${escHtml(o.title||'')}</div>
         </div>
         <div class="ap-contact-right">
           ${daysAgo !== null ? `<span class="ap-days-chip">${daysAgo}d</span>` : ''}
-          <span class="ap-stage-pill" style="background:${sc.bg};color:${sc.color};">${o.stage||'—'}</span>
+          ${o.stage ? `<span class="ap-stage-pill" style="background:${sc.bg};color:${sc.color};">${o.stage}</span>` : ''}
         </div>
       </div>`;
     }).join('')}
@@ -4256,7 +4339,7 @@ function renderAPPlan(acc, local, name) {
 function setMainView(v) {
   document.getElementById('content-account-page')?.classList.add('hidden');
   mainView = v;
-  ['accounts','licenses','opps','dead'].forEach(tab => {
+  ['accounts','licenses','campaigns','dead'].forEach(tab => {
     const active = v === tab;
     document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
     document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
@@ -4264,6 +4347,7 @@ function setMainView(v) {
     document.getElementById('content-' + tab)?.classList.toggle('hidden', !active);
   });
   if (v === 'dead') { renderDead(); markDeadAsSeen(); }
+  if (v === 'campaigns') { setCampaign(currentCampaign); }
 }
 
 
@@ -4294,7 +4378,7 @@ function checkStorageSize() {
   const WARN_TOTAL_KB = 4096; // warn at 4MB total
   let totalKB = 0;
   let triggered = false;
-  ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead'].forEach(key => {
+  ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_dead','ibis_samples'].forEach(key => {
     const val = localStorage.getItem(key);
     if (!val) return;
     const kb = Math.round((val.length * 2) / 1024);
@@ -4839,6 +4923,136 @@ function clearOppsData() {
   if (!confirm('Clear all opportunity data? Flags and notes will also be removed.')) return;
   localStorage.removeItem('ibis_opps');
   location.reload();
+}
+
+// ══════════════════════════════════════════════════════════════
+// OLD SAMPLES CAMPAIGN
+// ══════════════════════════════════════════════════════════════
+
+function loadSamples() {
+  try { const s = localStorage.getItem('ibis_samples'); if (s) samples = JSON.parse(s); } catch(e) { samples = {}; }
+}
+
+function saveSamples() {
+  try { localStorage.setItem('ibis_samples', JSON.stringify(samples)); } catch(e) { console.warn('ibis_samples save failed:', e); }
+}
+
+function handleSamplesCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result); // same schema
+    const result = mergeSamples(newContacts);
+    saveSamples();
+    updateCampaignPillCounts();
+    renderSamples();
+    document.getElementById('samples-empty-state')?.classList.add('hidden');
+    document.getElementById('samples-table-wrap')?.classList.remove('hidden');
+    const dot = document.getElementById('udot-samples');
+    if (dot) { dot.style.background = '#22c55e'; dot.title = 'Uploaded this session'; }
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function mergeSamples(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  let added = 0, updated = 0;
+  newContacts.forEach(c => {
+    if (samples[c.email]) {
+      samples[c.email].name = c.name;
+      samples[c.email].accountName = c.accountName;
+      samples[c.email].title = c.title;
+      samples[c.email].country = c.country;
+      samples[c.email].lastActivity = c.lastActivity;
+      updated++;
+    } else {
+      samples[c.email] = { ...c, notes: '', dateAdded: today };
+      added++;
+    }
+  });
+  return { added, updated };
+}
+
+function renderSamples() {
+  const q = (document.getElementById('samples-search-input')?.value || '').toLowerCase();
+  const all = Object.values(samples);
+  let list = all;
+  if (q) list = list.filter(o =>
+    (o.name||'').toLowerCase().includes(q) ||
+    (o.accountName||'').toLowerCase().includes(q) ||
+    (o.title||'').toLowerCase().includes(q)
+  );
+
+  const countLabel = document.getElementById('samples-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} sample contacts` : '';
+
+  if (!all.length) {
+    document.getElementById('samples-empty-state')?.classList.remove('hidden');
+    document.getElementById('samples-table-wrap')?.classList.add('hidden');
+    return;
+  }
+  document.getElementById('samples-empty-state')?.classList.add('hidden');
+  document.getElementById('samples-table-wrap')?.classList.remove('hidden');
+
+  const tbody = document.getElementById('samples-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName));
+    const days = oppDaysAgo(o.lastActivity);
+    return `<tr>
+      <td style="text-align:center;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${inTerritory ? '#10b981' : '#e5e7eb'};" title="${inTerritory ? 'In territory' : 'Not in territory'}"></span></td>
+      <td><div class="td-company">${oppLogoHTML(o, 24)}<div><span class="td-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></div></td>
+      <td>${escHtml(o.name||'')}</td>
+      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.title||'')}</td>
+      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.country||'')}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days + 'd' : '—'}</td>
+      <td><button class="del-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function deleteSample(email) {
+  const o = samples[email];
+  if (!o) return;
+  if (!confirm(`Remove ${o.name || email} from Old Samples? This cannot be undone.`)) return;
+  delete samples[email];
+  saveSamples();
+  renderSamples();
+  updateCampaignPillCounts();
+}
+
+function clearSamplesData() {
+  if (!confirm('Clear all Old Samples data?')) return;
+  localStorage.removeItem('ibis_samples');
+  location.reload();
+}
+
+function getSampleCount(name) {
+  const n = normName(name);
+  return Object.values(samples).filter(o => normName(o.accountName) === n).length;
+}
+
+function updateCampaignPillCounts() {
+  const workCount = Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ').length;
+  const sampleCount = Object.values(samples).length;
+  const el1 = document.getElementById('cpill-count-workables');
+  const el2 = document.getElementById('cpill-count-samples');
+  if (el1) el1.textContent = workCount;
+  if (el2) el2.textContent = sampleCount;
+}
+
+function setCampaign(name) {
+  currentCampaign = name;
+  ['workables','samples'].forEach(c => {
+    document.getElementById('cpill-' + c)?.classList.toggle('active', c === name);
+    document.getElementById('campaign-view-' + c)?.classList.toggle('hidden', c !== name);
+    document.getElementById('controls-' + c + '-inner')?.classList.toggle('hidden', c !== name);
+  });
+  updateCampaignPillCounts();
+  if (name === 'samples') renderSamples();
 }
 
 function showOppToast(msg) {
