@@ -971,14 +971,16 @@
   .opp-next-empty { color:var(--text-muted); }
   .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
   .opp-inline-input:focus { border-bottom-color:var(--border); }
-  /* Campaign selector dropdown */
-  .campaign-selector-wrap { position:relative; display:inline-flex; align-items:center; margin-right:12px; }
-  .campaign-selector-btn { display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border:1.5px solid var(--border); border-radius:8px; background:var(--surface); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--text-primary); cursor:pointer; white-space:nowrap; transition:border-color 0.15s, box-shadow 0.15s; }
-  .campaign-selector-btn:hover { border-color:#9ca3af; }
-  .campaign-selector-btn.open { border-color:var(--ibis-red); box-shadow:0 0 0 3px rgba(200,16,46,0.08); }
-  .campaign-selector-chevron { font-size:10px; color:var(--text-muted); transition:transform 0.15s; }
-  .campaign-selector-btn.open .campaign-selector-chevron { transform:rotate(180deg); }
-  .campaign-selector-menu { position:absolute; top:calc(100% + 6px); left:0; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,0.11); z-index:9400; padding:5px 0; }
+  /* Campaign selector — stats bar variant */
+  .campaign-stat-item { position:relative; }
+  .campaign-stat-btn { display:inline-flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer; padding:0; font-family:'DM Sans',sans-serif; }
+  .campaign-stat-name { font-size:22px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.15; }
+  .campaign-stat-btn:hover .campaign-stat-name { color:var(--ibis-red); }
+  .campaign-stat-count-badge { font-size:12px; font-weight:700; background:#f3f4f6; color:#6b7280; border-radius:10px; padding:2px 9px; align-self:center; }
+  .campaign-stat-chevron { font-size:11px; color:var(--text-muted); align-self:center; transition:transform 0.15s; }
+  .campaign-stat-btn.open .campaign-stat-chevron { transform:rotate(180deg); }
+  /* Shared dropdown menu */
+  .campaign-selector-menu { position:absolute; top:calc(100% + 8px); left:0; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,0.11); z-index:9400; padding:5px 0; }
   .campaign-selector-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-primary); transition:background 0.1s; }
   .campaign-selector-item:hover { background:#f9fafb; }
   .campaign-selector-item.active { color:var(--ibis-red); font-weight:700; }
@@ -987,6 +989,8 @@
   .campaign-selector-count-badge { margin-left:auto; background:#f3f4f6; color:#6b7280; border-radius:10px; padding:1px 8px; font-size:11px; font-weight:700; }
   .campaign-selector-item.active .campaign-selector-count-badge { background:#fee2e2; color:#c8102e; }
   .campaign-selector-divider { height:1px; background:var(--border); margin:5px 0; }
+  /* Workables/Samples inline stats wrappers */
+  #campaign-workables-stats, #campaign-samples-stats { display:flex; align-items:stretch; gap:0; flex:1; }
   /* Cold section */
   .cold-section { padding:0 24px 24px; }
   .cold-section-hdr { display:flex; align-items:center; gap:10px; padding:12px 0 8px; cursor:pointer; border-top:1px solid var(--border); user-select:none; }
@@ -1334,27 +1338,60 @@
   </div>
 </div>
 
-<!-- OPPORTUNITIES STATS BAR -->
+<!-- CAMPAIGNS STATS BAR -->
 <div class="stats-bar hidden" id="stats-campaigns">
-  <div class="stat-item">
-    <div class="stat-label">In Pipeline</div>
-    <div class="stat-value red" id="ostat-total">—</div>
-  </div>
-  <div class="stat-item" style="border-right:none;padding-right:0;">
-    <div class="stat-label">By Stage</div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;align-items:center;">
-      <span class="opp-stage-pill ops-Introduction">🟡 <span id="ostat-Introduction">—</span></span>
-      <span class="opp-stage-pill ops-Walkthrough">🔵 <span id="ostat-Walkthrough">—</span></span>
-      <span class="opp-stage-pill ops-Proposal">🟢 <span id="ostat-Proposal">—</span></span>
-      <span class="opp-stage-pill ops-Stalled">🟠 <span id="ostat-Stalled">—</span></span>
-      <span class="opp-stage-pill ops-Lost">🔴 <span id="ostat-Lost">—</span></span>
-      <span class="opp-stage-pill ops-FutureRevisit">🔮 <span id="ostat-FutureRevisit">—</span></span>
-      <span class="opp-stage-pill ops-DQ">⬜ <span id="ostat-DQ">—</span></span>
+  <!-- Campaign selector — lives here as the leading "stat" -->
+  <div class="stat-item campaign-stat-item" id="campaign-selector-wrap">
+    <div class="stat-label">Campaign</div>
+    <button class="campaign-stat-btn" id="campaign-selector-btn" onclick="toggleCampaignDropdown(event)">
+      <span class="campaign-stat-name" id="campaign-selector-label">🎯 Workables</span>
+      <span class="campaign-stat-count-badge" id="campaign-selector-count">0</span>
+      <span class="campaign-stat-chevron">▾</span>
+    </button>
+    <div class="campaign-selector-menu hidden" id="campaign-selector-menu">
+      <div class="campaign-selector-item active" id="cmenu-workables" onclick="selectCampaignFromMenu('workables')">
+        <span>🎯 Workables</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-workables">0</span>
+      </div>
+      <div class="campaign-selector-item" id="cmenu-samples" onclick="selectCampaignFromMenu('samples')">
+        <span>🧪 Old Samples</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
+      </div>
+      <div class="campaign-selector-divider"></div>
+      <div class="campaign-selector-item disabled">+ Add campaign (coming soon)</div>
     </div>
   </div>
-  <div class="stat-item" style="margin-left:32px;">
-    <div class="stat-label">Avg Days Inactive</div>
-    <div class="stat-value" id="ostat-avg-days">—</div>
+
+  <!-- Workables stats (shown when currentCampaign=workables) -->
+  <div id="campaign-workables-stats">
+    <div class="stat-item">
+      <div class="stat-label">In Pipeline</div>
+      <div class="stat-value red" id="ostat-total">—</div>
+    </div>
+    <div class="stat-item" style="border-right:none;padding-right:0;">
+      <div class="stat-label">By Stage</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;align-items:center;">
+        <span class="opp-stage-pill ops-Introduction">🟡 <span id="ostat-Introduction">—</span></span>
+        <span class="opp-stage-pill ops-Walkthrough">🔵 <span id="ostat-Walkthrough">—</span></span>
+        <span class="opp-stage-pill ops-Proposal">🟢 <span id="ostat-Proposal">—</span></span>
+        <span class="opp-stage-pill ops-Stalled">🟠 <span id="ostat-Stalled">—</span></span>
+        <span class="opp-stage-pill ops-Lost">🔴 <span id="ostat-Lost">—</span></span>
+        <span class="opp-stage-pill ops-FutureRevisit">🔮 <span id="ostat-FutureRevisit">—</span></span>
+        <span class="opp-stage-pill ops-DQ">⬜ <span id="ostat-DQ">—</span></span>
+      </div>
+    </div>
+    <div class="stat-item" style="margin-left:32px;">
+      <div class="stat-label">Avg Days Inactive</div>
+      <div class="stat-value" id="ostat-avg-days">—</div>
+    </div>
+  </div>
+
+  <!-- Old Samples stats (shown when currentCampaign=samples) -->
+  <div id="campaign-samples-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="sstat-total">—</div>
+    </div>
   </div>
 </div>
 
@@ -1367,6 +1404,10 @@
   <div class="stat-item">
     <div class="stat-label">Dead Licenses</div>
     <div class="stat-value" id="dstat-licenses">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Dead Contacts</div>
+    <div class="stat-value" id="dstat-contacts">—</div>
   </div>
   <div class="stat-item" style="border-right:none;">
     <div class="stat-label">Unexpected Drops ⚠️</div>
@@ -1382,6 +1423,9 @@
     </button>
     <button class="dvt-btn" id="dvt-licenses" onclick="setDeadView('licenses')">
       🗂 Licenses <span class="dvt-count" id="dvt-lic-count">0</span>
+    </button>
+    <button class="dvt-btn" id="dvt-contacts" onclick="setDeadView('contacts')">
+      ☠️ Contacts <span class="dvt-count" id="dvt-contact-count">0</span>
     </button>
   </div>
   <div class="search-wrap">
@@ -1448,26 +1492,6 @@
 
 <!-- OPPORTUNITIES CONTROLS -->
 <div class="controls hidden" id="controls-campaigns">
-  <!-- Campaign selector dropdown -->
-  <div class="campaign-selector-wrap" id="campaign-selector-wrap">
-    <button class="campaign-selector-btn" id="campaign-selector-btn" onclick="toggleCampaignDropdown(event)">
-      <span id="campaign-selector-label">🎯 Workables</span>
-      <span class="campaign-selector-count-badge" id="campaign-selector-count" style="background:#fee2e2;color:#c8102e;">0</span>
-      <span class="campaign-selector-chevron">▾</span>
-    </button>
-    <div class="campaign-selector-menu hidden" id="campaign-selector-menu">
-      <div class="campaign-selector-item active" id="cmenu-workables" onclick="selectCampaignFromMenu('workables')">
-        <span>🎯 Workables</span>
-        <span class="campaign-selector-count-badge" id="cmenu-count-workables">0</span>
-      </div>
-      <div class="campaign-selector-item" id="cmenu-samples" onclick="selectCampaignFromMenu('samples')">
-        <span>🧪 Old Samples</span>
-        <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
-      </div>
-      <div class="campaign-selector-divider"></div>
-      <div class="campaign-selector-item disabled">+ Add campaign (coming soon)</div>
-    </div>
-  </div>
   <!-- Workables controls -->
   <div id="controls-workables-inner">
     <div class="view-toggle">
@@ -1649,11 +1673,9 @@
       <table class="acct-table">
         <thead>
           <tr>
-            <th style="width:28px;"></th>
             <th>Company</th>
             <th>Name</th>
             <th>Title</th>
-            <th>Country</th>
             <th>Days Inactive</th>
             <th style="width:36px;"></th>
           </tr>
@@ -1719,6 +1741,32 @@
             </tr>
           </thead>
           <tbody id="dead-licenses-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dead Contacts Section (Old Samples that fell off re-upload) -->
+  <div class="dead-section-wrap" id="dead-contacts-section" style="display:none;margin-top:32px;">
+    <div class="dead-section-header">
+      <span style="font-size:15px;font-weight:700;color:#374151;">☠️ Dead Contacts</span>
+      <span id="dead-contacts-count" style="background:#f3f4f6;color:#6b7280;border-radius:10px;padding:2px 10px;font-size:12px;font-weight:600;margin-left:8px;">0</span>
+    </div>
+    <div id="dead-contacts-wrap">
+      <div id="dead-contacts-empty" style="text-align:center;color:#9ca3af;padding:40px 0;font-size:14px;">No dead contacts yet. Contacts removed from a re-uploaded CSV will appear here.</div>
+      <div class="table-wrap hidden" id="dead-contacts-table-wrap">
+        <table class="acct-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Name</th>
+              <th>Title</th>
+              <th>Campaign</th>
+              <th>Last Activity</th>
+              <th>Dead Since</th>
+            </tr>
+          </thead>
+          <tbody id="dead-contacts-body"></tbody>
         </table>
       </div>
     </div>
@@ -1790,7 +1838,7 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadView = 'accounts';
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 let samples = {};
 let currentCampaign = 'workables';
@@ -4972,7 +5020,7 @@ function handleSamplesCSV(e) {
     document.getElementById('samples-table-wrap')?.classList.remove('hidden');
     const dot = document.getElementById('udot-samples');
     if (dot) { dot.style.background = '#22c55e'; dot.title = 'Uploaded this session'; }
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new`);
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
   reader.readAsText(file, 'latin1');
@@ -4981,7 +5029,8 @@ function handleSamplesCSV(e) {
 
 function mergeSamples(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
-  let added = 0, updated = 0;
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
   newContacts.forEach(c => {
     if (samples[c.email]) {
       samples[c.email].name = c.name;
@@ -4995,7 +5044,21 @@ function mergeSamples(newContacts) {
       added++;
     }
   });
-  return { added, updated };
+  // Move missing contacts to dead (only on re-upload, i.e. samples already had data)
+  if (Object.keys(samples).length > newContacts.length) {
+    Object.keys(samples).forEach(email => {
+      if (!newEmails.has(email)) {
+        const alreadyDead = deadSampleContacts.some(d => d.email === email);
+        if (!alreadyDead) {
+          deadSampleContacts.push({ ...samples[email], _deadSince: today, _campaign: 'samples', _campaignLabel: '🧪 Old Sample' });
+          deadCount++;
+        }
+        delete samples[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
 }
 
 function renderSamples() {
@@ -5022,14 +5085,11 @@ function renderSamples() {
   const tbody = document.getElementById('samples-table-body');
   if (!tbody) return;
   tbody.innerHTML = list.map(o => {
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName));
     const days = oppDaysAgo(o.lastActivity);
     return `<tr>
-      <td style="text-align:center;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${inTerritory ? '#10b981' : '#e5e7eb'};" title="${inTerritory ? 'In territory' : 'Not in territory'}"></span></td>
       <td><div class="td-company">${oppLogoHTML(o, 24)}<div><span class="td-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></div></td>
       <td>${escHtml(o.name||'')}</td>
       <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.title||'')}</td>
-      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.country||'')}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days + 'd' : '—'}</td>
       <td><button class="opp-delete-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
     </tr>`;
@@ -5075,6 +5135,9 @@ function updateCampaignPillCounts() {
   const activeCount = counts[currentCampaign] ?? 0;
   const btnCount = document.getElementById('campaign-selector-count');
   if (btnCount) btnCount.textContent = activeCount;
+  // Update Old Samples total stat
+  const sstotal = document.getElementById('sstat-total');
+  if (sstotal) sstotal.textContent = sampleCount || '—';
 }
 
 function setCampaign(name) {
@@ -5089,8 +5152,9 @@ function setCampaign(name) {
   // Update the selector button label
   const labelEl = document.getElementById('campaign-selector-label');
   if (labelEl) labelEl.textContent = `${def.emoji} ${def.label}`;
-  // Stats bar only meaningful for Workables
-  document.getElementById('stats-campaigns')?.classList.toggle('hidden', name !== 'workables');
+  // Toggle which inline stats show (stats bar stays visible always)
+  document.getElementById('campaign-workables-stats').style.display = (name === 'workables') ? 'flex' : 'none';
+  document.getElementById('campaign-samples-stats').style.display  = (name === 'samples')   ? 'flex' : 'none';
   updateCampaignPillCounts();
   if (name === 'samples') renderSamples();
 }
@@ -5246,7 +5310,7 @@ document.addEventListener('scroll', function() {
 
 function setDeadView(v) {
   deadView = v;
-  ['accounts','licenses'].forEach(tab => {
+  ['accounts','licenses','contacts'].forEach(tab => {
     document.getElementById('dvt-' + tab)?.classList.toggle('active', v === tab);
   });
   renderDead();
@@ -5258,14 +5322,15 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; }
+    deadSampleContacts = raw.sampleContacts || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -5282,13 +5347,15 @@ function saveDeadSeen() {
 function markDeadAsSeen() {
   deadAccounts.forEach(d => deadSeenKeys.add(deadItemKey(d,'account')));
   deadLicenses.forEach(d => deadSeenKeys.add(deadItemKey(d,'license')));
+  deadSampleContacts.forEach(d => deadSeenKeys.add('sc|' + d.email));
   saveDeadSeen();
   updateDeadTabBadge();
 }
 function updateDeadTabBadge() {
-  const unseenAccts = deadAccounts.filter(d => !deadSeenKeys.has(deadItemKey(d,'account'))).length;
-  const unseenLics  = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
-  const unseen = unseenAccts + unseenLics;
+  const unseenAccts    = deadAccounts.filter(d => !deadSeenKeys.has(deadItemKey(d,'account'))).length;
+  const unseenLics     = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
+  const unseenContacts = deadSampleContacts.filter(d => !deadSeenKeys.has('sc|' + d.email)).length;
+  const unseen = unseenAccts + unseenLics + unseenContacts;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -5298,20 +5365,24 @@ function updateDeadTabBadge() {
 function renderDead() {
   renderDeadAccounts();
   renderDeadLicenses();
+  renderDeadContacts();
   // Update stats bar
-  // Re-derive live so stale stored _unexpectedDrop values don't inflate the count
   const warnings = deadAccounts.filter(d => ((d._statusAtDeath || '') !== 'drop')).length;
   const dsa = document.getElementById('dstat-accounts');
   const dsl = document.getElementById('dstat-licenses');
+  const dsc = document.getElementById('dstat-contacts');
   const dsw = document.getElementById('dstat-warnings');
   if (dsa) dsa.textContent = deadAccounts.length;
   if (dsl) dsl.textContent = deadLicenses.length;
+  if (dsc) dsc.textContent = deadSampleContacts.length || '—';
   if (dsw) dsw.textContent = warnings || '—';
   // Update pill counts
   const pac = document.getElementById('dvt-acct-count');
   const plc = document.getElementById('dvt-lic-count');
+  const pcc = document.getElementById('dvt-contact-count');
   if (pac) pac.textContent = deadAccounts.length;
   if (plc) plc.textContent = deadLicenses.length;
+  if (pcc) pcc.textContent = deadSampleContacts.length;
 }
 
 function renderDeadAccounts() {
@@ -5324,7 +5395,7 @@ function renderDeadAccounts() {
 
   // Show/hide section based on active pill view
   const acctsSectionWrap = document.getElementById('dead-accts-section');
-  if (acctsSectionWrap) acctsSectionWrap.style.display = deadView === 'licenses' ? 'none' : '';
+  if (acctsSectionWrap) acctsSectionWrap.style.display = deadView === 'accounts' ? '' : 'none';
 
   let list = deadAccounts.slice();
 
@@ -5445,7 +5516,7 @@ function renderDeadLicenses() {
 
   // Show/hide section based on active pill view
   const licsSectionWrap = document.getElementById('dead-lics-section');
-  if (licsSectionWrap) licsSectionWrap.style.display = deadView === 'accounts' ? 'none' : '';
+  if (licsSectionWrap) licsSectionWrap.style.display = deadView === 'licenses' ? '' : 'none';
 
   let list = deadLicenses.slice();
 
@@ -5492,6 +5563,59 @@ function renderDeadLicenses() {
       <td style="font-family:'DM Mono',monospace;font-size:12px;">${acvStr}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:#6b7280;">${fmtDate(endDate)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:#f97316;font-weight:600;">${d._deadSince||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDeadContacts() {
+  const section = document.getElementById('dead-contacts-section');
+  if (section) section.style.display = deadView === 'contacts' ? '' : 'none';
+
+  const wrap  = document.getElementById('dead-contacts-table-wrap');
+  const empty = document.getElementById('dead-contacts-empty');
+  const body  = document.getElementById('dead-contacts-body');
+  const countEl = document.getElementById('dead-contacts-count');
+  if (!body) return;
+
+  const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
+  let list = deadSampleContacts.slice();
+  if (search) {
+    list = list.filter(d =>
+      (d.name||'').toLowerCase().includes(search) ||
+      (d.accountName||'').toLowerCase().includes(search) ||
+      (d.title||'').toLowerCase().includes(search)
+    );
+  }
+  list.sort((a, b) => (b._deadSince || '').localeCompare(a._deadSince || ''));
+
+  if (countEl) countEl.textContent = list.length;
+
+  if (!list.length) {
+    wrap?.classList.add('hidden');
+    if (empty) empty.style.display = '';
+    return;
+  }
+  wrap?.classList.remove('hidden');
+  if (empty) empty.style.display = 'none';
+
+  body.innerHTML = list.map(d => {
+    const days = oppDaysAgo(d.lastActivity);
+    const initials = (d.accountName||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const acctMatch = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normName(d.accountName||''));
+    const domain = acctMatch ? getLogoDomain(acctMatch) : (getDomainOverride(d.accountName||'') || guessDomain(d.accountName||''));
+    const res = domain && logoResolved[domain];
+    const logoHtml = !domain ? `<div class="td-logo">${initials}</div>`
+      : res === '__initials__' ? `<div class="td-logo">${initials}</div>`
+      : res ? `<div class="td-logo"><img src="${res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${escHtml(d.accountName||'')}"></div>`
+      : `<div class="td-logo"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(d.accountName||'')}"></div>`;
+    const campBadge = `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:5px;padding:2px 7px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
+    return `<tr>
+      <td><div class="td-company">${logoHtml}<div><span class="td-name">${escHtml(d.accountName||'')}</span></div></div></td>
+      <td>${escHtml(d.name||'')}</td>
+      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(d.title||'')}</td>
+      <td>${campBadge}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days+'d ago' : '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${d._deadSince||'—'}</td>
     </tr>`;
   }).join('');
 }
