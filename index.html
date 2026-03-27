@@ -962,6 +962,7 @@
   .ops-Stalled        { background:#fef3c7; color:#92400e; }
   .ops-Lost           { background:#fce7f3; color:#9d174d; }
   .ops-FutureRevisit  { background:#ede9fe; color:#6d28d9; }
+  .ops-DQ             { background:#f3f4f6; color:#6b7280; }
   /* Opp table */
   .opp-tbl-wrap { padding:0 24px 24px; }
   .opp-next-select { border:1px solid var(--border); border-radius:5px; font-size:11px; font-family:'DM Sans',sans-serif; padding:2px 6px; background:var(--surface); color:var(--text-secondary); cursor:pointer; outline:none; min-width:0; }
@@ -1326,6 +1327,7 @@
       <span class="opp-stage-pill ops-Stalled">🟠 <span id="ostat-Stalled">—</span></span>
       <span class="opp-stage-pill ops-Lost">🔴 <span id="ostat-Lost">—</span></span>
       <span class="opp-stage-pill ops-FutureRevisit">🔮 <span id="ostat-FutureRevisit">—</span></span>
+      <span class="opp-stage-pill ops-DQ">⬜ <span id="ostat-DQ">—</span></span>
     </div>
   </div>
   <div class="stat-item" style="margin-left:32px;">
@@ -1432,6 +1434,7 @@
     <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
   </div>
   <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
+  <button class="chip" id="opp-filter-dq"           onclick="setOppFilter('dq')" style="color:#6b7280;">⬜ DQ</button>
   <button class="chip" id="opp-filter-opps"         onclick="setOppFilter('opps')">💰 Active Opportunities</button>
   <button class="chip" id="opp-filter-lost"         onclick="setOppFilter('lost')">🔴 Lost</button>
   <button class="chip" id="opp-filter-stalled"      onclick="setOppFilter('stalled')">🟠 Stalled</button>
@@ -4336,6 +4339,7 @@ const OPP_STAGES = [
   { key: 'Stalled',        emoji: '🟠' },
   { key: 'Lost',           emoji: '🔴' },
   { key: 'Future Revisit', emoji: '🔮' },
+  { key: 'DQ',             emoji: '⬜' },
 ];
 const OPP_NEXT_ACTIONS = [
   { key: '🌐 Webinar',         val: 'Webinar' },
@@ -4368,7 +4372,7 @@ function handleOppsCSV(e) {
     document.getElementById('opp-empty-state').classList.add('hidden');
     document.getElementById('opp-pipeline').classList.remove('hidden');
     renderOpps();
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new · ${result.archived} archived`);
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.dqd ? ` · ${result.dqd} DQ'd` : ''}`);
     checkStorageSize();
   };
   reader.readAsText(file, 'latin1');
@@ -4407,7 +4411,7 @@ function parseOppsCSV(text) {
 function mergeOpps(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
   const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, archived = 0;
+  let added = 0, updated = 0, dqd = 0;
   newContacts.forEach(c => {
     if (opps[c.email]) {
       opps[c.email].name = c.name;
@@ -4415,14 +4419,23 @@ function mergeOpps(newContacts) {
       opps[c.email].title = c.title;
       opps[c.email].country = c.country;
       opps[c.email].lastActivity = c.lastActivity;
-      if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Working'; }
+      // If they were DQ'd before and are back in the CSV, restore to Introduction
+      if (opps[c.email].stage === 'DQ') { opps[c.email].stage = 'Introduction'; }
+      if (opps[c.email].archived) { opps[c.email].archived = false; opps[c.email].stage = 'Introduction'; }
       updated++;
     } else {
       opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, sfAmt: '', closeDate: '', archived: false, dateAdded: today };
       added++;
     }
   });
-  return { added, updated, archived };
+  // DQ any existing contacts missing from the new CSV (not archived, not already DQ)
+  Object.keys(opps).forEach(email => {
+    if (!newEmails.has(email) && !opps[email].archived && opps[email].stage !== 'DQ') {
+      opps[email].stage = 'DQ';
+      dqd++;
+    }
+  });
+  return { added, updated, dqd };
 }
 
 function toggleSFOpp(email) {
@@ -4465,7 +4478,7 @@ function setOppsView(v) {
 
 function setOppFilter(f) {
   oppFilter = oppFilter === f ? null : f;
-  ['active','opps','lost','stalled','future'].forEach(k => {
+  ['active','opps','lost','stalled','future','dq'].forEach(k => {
     document.getElementById('opp-filter-' + k)?.classList.toggle('active', oppFilter === k);
   });
   renderOpps();
@@ -4487,7 +4500,7 @@ function updateOppSortArrows() {
 }
 
 function sortOppPipeline(arr) {
-  const stageOrder = { 'Introduction':0,'Walkthrough':1,'Proposal':2,'Stalled':3,'Lost':4,'Future Revisit':5 };
+  const stageOrder = { 'Introduction':0,'Walkthrough':1,'Proposal':2,'Stalled':3,'Lost':4,'Future Revisit':5,'DQ':6 };
   return [...arr].sort((a, b) => {
     let av, bv;
     const col = oppSortCol;
@@ -4516,6 +4529,7 @@ const STAGE_COLORS = {
   'Stalled':        { bg:'#fef3c7', color:'#92400e' },
   'Lost':           { bg:'#fce7f3', color:'#9d174d' },
   'Future Revisit': { bg:'#ede9fe', color:'#6d28d9' },
+  'DQ':             { bg:'#f3f4f6', color:'#6b7280' },
 };
 function applyStageColor(sel) {
   const c = STAGE_COLORS[sel.value] || { bg:'var(--surface)', color:'var(--text-secondary)' };
@@ -4556,16 +4570,22 @@ function renderOpps() {
   if (migrated) saveOpps();
 
   const q = (document.getElementById('opp-search-input')?.value || '').toLowerCase();
-  let pipeline = Object.values(opps).filter(o => !o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
-  // Apply quick filter chips
-  if (oppFilter === 'active')       pipeline = pipeline.filter(o => o.stage !== 'Lost' && o.stage !== 'Stalled' && o.stage !== 'Future Revisit');
-  else if (oppFilter === 'opps')    pipeline = pipeline.filter(o => o.sfOpp);
-  else if (oppFilter === 'lost')    pipeline = pipeline.filter(o => o.stage === 'Lost');
-  else if (oppFilter === 'stalled') pipeline = pipeline.filter(o => o.stage === 'Stalled');
-  else if (oppFilter === 'future')  pipeline = pipeline.filter(o => o.stage === 'Future Revisit');
+  // DQ filter shows only DQ'd contacts; all other views exclude DQ
+  let pipeline;
+  if (oppFilter === 'dq') {
+    pipeline = Object.values(opps).filter(o => !o.archived && o.stage === 'DQ' && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
+  } else {
+    pipeline = Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ' && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)));
+    // Apply quick filter chips
+    if (oppFilter === 'active')       pipeline = pipeline.filter(o => o.stage !== 'Lost' && o.stage !== 'Stalled' && o.stage !== 'Future Revisit');
+    else if (oppFilter === 'opps')    pipeline = pipeline.filter(o => o.sfOpp);
+    else if (oppFilter === 'lost')    pipeline = pipeline.filter(o => o.stage === 'Lost');
+    else if (oppFilter === 'stalled') pipeline = pipeline.filter(o => o.stage === 'Stalled');
+    else if (oppFilter === 'future')  pipeline = pipeline.filter(o => o.stage === 'Future Revisit');
+  }
   pipeline = sortOppPipeline(pipeline);
   const cold = Object.values(opps).filter(o => o.archived && (!q || o.name.toLowerCase().includes(q) || o.accountName.toLowerCase().includes(q)));
-  const totalContacts = Object.keys(opps).filter(e => !opps[e].archived).length;
+  const totalContacts = Object.keys(opps).filter(e => !opps[e].archived && opps[e].stage !== 'DQ').length;
   document.getElementById('opp-count-label').textContent = totalContacts ? `${pipeline.length} of ${totalContacts} workables` : '';
   updateOppsStats(pipeline);
   updateOppSortArrows();
@@ -4589,6 +4609,8 @@ function updateOppsStats(pipeline) {
   document.getElementById('ostat-Stalled').textContent         = pipeline.filter(o => o.stage === 'Stalled').length;
   document.getElementById('ostat-Lost').textContent            = pipeline.filter(o => o.stage === 'Lost').length;
   document.getElementById('ostat-FutureRevisit').textContent   = pipeline.filter(o => o.stage === 'Future Revisit').length;
+  // DQ count always reflects total DQ'd contacts, not just current pipeline view
+  document.getElementById('ostat-DQ').textContent              = Object.values(opps).filter(o => !o.archived && o.stage === 'DQ').length;
   const days = pipeline.map(o => oppDaysAgo(o.lastActivity)).filter(d => d !== null && d >= 0);
   document.getElementById('ostat-avg-days').textContent = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
 }
@@ -4630,7 +4652,7 @@ function oppBadgeLogoHTML(opp) {
 }
 
 function oppStageClass(stageKey) {
-  return ({ 'Introduction':'ops-Introduction','Walkthrough':'ops-Walkthrough','Proposal':'ops-Proposal','Stalled':'ops-Stalled','Lost':'ops-Lost','Future Revisit':'ops-FutureRevisit' })[stageKey] || 'ops-Introduction';
+  return ({ 'Introduction':'ops-Introduction','Walkthrough':'ops-Walkthrough','Proposal':'ops-Proposal','Stalled':'ops-Stalled','Lost':'ops-Lost','Future Revisit':'ops-FutureRevisit','DQ':'ops-DQ' })[stageKey] || 'ops-Introduction';
 }
 
 function renderKanban(pipeline) {
