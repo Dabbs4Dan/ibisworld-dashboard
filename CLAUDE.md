@@ -646,7 +646,13 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Account page: prev/next for Licenses+Workables origins | Currently passes empty list when entering from Licenses or Workables tab — arrows disabled. Build unique account list from filtered license/workables view for proper prev/next. |
 | 🗺️ Future | Account page: refresh on CSV re-upload | Account page is a snapshot at open time. If CSV uploads while page is open, data stays stale. Add re-render hook to `handleCSV` / `handleLicenseCSV`. |
 | ✅ Done | Workables → Campaigns tab rename | `📣 Campaigns` tab. Campaign dropdown in stats bar (large bold value). Workables + Old Samples campaigns. Scalable to N campaigns via `CAMPAIGN_DEFS`. |
-| 🔴 Next | Campaigns tab UI/UX polish pass | Full audit needed — controls bar layout, card/table spacing, consistency with Accounts tab. Dan flagged multiple visual issues in v28 session. Focus of next session. |
+| ✅ Done | Campaigns tab UI/UX consistency pass | Spacing, padding, border-radius, shadow, typography violations fixed. opp-card 10px→12px padding, stage pills 9px→8px, kanban header 12px→11px font, controls bar 10px→12px, global td/th padding 10px→12px, td-logo radius 5px→6px. |
+| ✅ Done | Design system foundation | `DESIGN.md` created with full locked token set. `/start-session` reads it. `/end-session` checks it. `/design-pass [tab]` command for scoped per-tab UI audits. |
+| ✅ Done | :root CSS var alignment | `--text-primary`, `--text-secondary`, `--text-muted`, `--border`, `--border-hover` aligned to design system tokens. |
+| ✅ Done | Global badge/pill radius | All badges, pills, chips across all tabs unified to `border-radius:999px`. License type/status badges, stage tags, sentiment badges, dvt-btn, filter chips, status/priority triggers — all standardized. |
+| ✅ Done | PA pipeline removed | `PA_CONFIG`, `SF_VERTICAL_MAP`, `parseAccountsFromPA`, `fetchAccountsFromPA` removed (~55 lines). |
+| ✅ Done | Account page prev/next from Licenses/Campaigns | `goToAccount()` now builds context-appropriate list: `getFilteredLicenseAccountNames()` / `getFilteredCampaignAccountNames()`. Prev/Next arrows work from all tab origins. |
+| ✅ Done | CAMPAIGN_DEFS abstraction | `getCount` + `onActivate` on each def. `setCampaign()` and `updateCampaignPillCounts()` fully driven by `Object.keys(CAMPAIGN_DEFS)`. Adding a 3rd campaign = one entry in CAMPAIGN_DEFS. |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample contact reappears in a future Old Samples CSV re-upload, restore them to `samples` and remove from `deadSampleContacts`. Not yet implemented. |
 | 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
 | 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |

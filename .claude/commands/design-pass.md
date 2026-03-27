@@ -4,14 +4,29 @@ One goal: make every tab feel like it was built by one team, on one day.
 
 ---
 
+## SCOPE
+
+This command accepts an optional tab name argument. Check the user's message for one of these:
+
+- `/design-pass campaigns` → only fix the Campaigns tab
+- `/design-pass accounts` → only fix the Accounts tab
+- `/design-pass licenses` → only fix the Licenses tab
+- `/design-pass dead` → only fix the Dead tab
+- `/design-pass account-page` → only fix the Account Deep-Dive page
+- `/design-pass all` → full pass across all tabs (slow — use in a fresh session)
+- `/design-pass` (no argument) → ask: "Which tab? (campaigns / accounts / licenses / dead / account-page / all)"
+
+When scoped to a single tab: read only the CSS and HTML relevant to that tab. Do not read unrelated sections. This keeps the context window manageable and the pass fast and reliable.
+
+---
+
 ## BEFORE YOU START
 
 1. Read DESIGN.md fully — this is your spec. Every token, every component rule.
 2. Read CLAUDE.md — understand the DO NOT TOUCH list and intentional data encodings.
-3. Read the current index.html in targeted chunks (300–400 lines at a time using offset+limit).
-   Use Grep to locate specific components before reading — never read blind.
-4. Map the full visual landscape before touching anything.
-   Ask yourself for each component: "Does this match DESIGN.md? If not, why not?"
+3. Use Grep to locate the CSS classes and HTML for the scoped tab before reading anything.
+   Read in chunks of 300–400 lines max. Never read 1000+ lines at once.
+4. Map the visual landscape for the scoped tab before touching anything.
 
 ---
 
@@ -31,110 +46,88 @@ If a color isn't in the token set (excluding intentional data palettes), replace
 ## FIX PROTOCOL
 
 **FIX IMMEDIATELY — no discussion:**
-- Spacing violations (odd-number padding: 3px, 7px, 9px, 11px, 15px)
+- Spacing violations (odd-number padding: 3px, 7px, 9px, 11px, 15px → nearest token)
 - Font size / weight outside the allowed scale
 - Missing cursor:pointer on clickable elements
 - Missing hover state on interactive elements
-- Border-radius violations (999px on pills, 6px on buttons/inputs, 10px on cards)
-- Color one-offs not in the design token set (vertical/tier/sentiment palettes are exempt)
+- Border-radius violations (999px pills, 6px buttons/inputs, 10px cards)
+- Color one-offs not in the design token set (vertical/tier/sentiment palettes exempt)
 - Filter chips that look different between tabs
 - Table headers that don't match the column header standard
 - Stat boxes with different padding or font sizes between tabs
-- Buttons that don't match .btn-primary / .btn-secondary / .btn-ghost anatomy
+- Buttons not matching .btn-primary / .btn-secondary / .btn-ghost anatomy
 - Any badge/pill with font-size > 11px or non-999px border-radius
-- Emoji misalignment (missing vertical-align:middle, inconsistent font-size)
+- Emoji misalignment (missing vertical-align:middle)
 
 **FLAG + FIX — make the change, note your reasoning briefly:**
 - Cases where standardizing requires a visual judgment call
 - When a DESIGN.md token is close but not exact and you're choosing the nearest value
-- When an element has a functional reason for being different but you're still normalizing it
 
 **FLAG ONLY — do not change:**
 - The holographic splash screen (id="splash") — untouchable
-- Vertical color palette (data encoding)
-- Tier diamond colors (data encoding)
-- Sentiment score colors .sent-green / .sent-amber / .sent-red (data encoding)
-- Stage colors in STAGE_COLORS (data encoding)
-- Any animation or transition that exists and would need careful rework to change safely
-- Any visual change that could affect data clarity or user workflow
+- Vertical color palette, tier diamond colors, sentiment colors, stage colors — data encodings
+- Any animation that would need careful rework to change safely
 
 ---
 
-## COMPONENT CHECKLIST
+## TAB COMPONENT MAP
 
-Work through each component type across ALL tabs before moving on.
-Do not fix one tab in isolation — fix the component type everywhere at once.
+Use this to know which CSS classes and HTML IDs to grep for each tab:
 
-### Buttons
-- [ ] All buttons are one of: .btn-primary / .btn-secondary / .btn-ghost
-- [ ] Height 34px, font DM Sans 500 13px, radius 6px, cursor pointer, transition 150ms
-- [ ] Primary: #C8102E bg, hover #a50d24, active scale(0.97)
-- [ ] Secondary: white bg, #d1d5db border, hover #f9fafb
-- [ ] Ghost: transparent bg, #6b7280 text, hover #f3f4f6
+**campaigns:**
+CSS: `.opp-card`, `.opp-col`, `.opp-col-header`, `.opp-stage-pill`, `.campaign-stat-*`, `.campaign-selector-*`, `.cold-section`, `.opp-tbl-wrap`, `.opp-next-select`
+HTML: `#stats-campaigns`, `#controls-campaigns`, `#content-campaigns`
 
-### Filter Chips
-- [ ] All chips: height 28px, 999px radius, DM Sans 500 12px, border #e5e7eb
-- [ ] Active chips: bg #fef2f4, border #C8102E, text #C8102E
-- [ ] Same height and font across Accounts, Licenses, Campaigns tabs
+**accounts:**
+CSS: `.acct-status-*`, `.acct-priority-*`, `.wkbl-dot`, `.smpl-dot`, `.tier-badge`, `.vert-bubble`, `.sent-badge`, `.cards-grid`, `.account-card`
+HTML: `#stats-accounts`, `#controls-accounts`, `#content-accounts`
 
-### Stat Boxes
-- [ ] All stat boxes: white bg, 10px radius, low shadow, 12px 20px padding
-- [ ] Number: DM Sans 700 22px #111827
-- [ ] Label: DM Sans 500 11px uppercase letter-spacing:0.5px #9ca3af
-- [ ] Same height across all three tab stat bars
+**licenses:**
+CSS: `.lic-type-badge`, `.lic-status-badge`, `.lic-filter-trigger`, `.lic-dropdown`, `.lic-sort-arrow`, `.alb-*`
+HTML: `#stats-licenses`, `#controls-licenses`, `#content-licenses`
 
-### Badges / Pills
-- [ ] All: 999px radius, 2px 8px padding, DM Sans 500 11px
-- [ ] Consistent across license badges, stage pills, status badges
+**dead:**
+CSS: `.dead-section-wrap`, `.dead-section-header`, `.dvt-btn`, `.dvt-count`
+HTML: `#stats-dead`, `#controls-dead`, `#content-dead`, `#dead-accts-section`, `#dead-lics-section`, `#dead-contacts-section`
 
-### Table Headers
-- [ ] DM Sans 600 11px uppercase letter-spacing:0.5px #6b7280 on all th elements
-- [ ] Active sort column: color #C8102E
-- [ ] Same sort arrow pattern (↑/↓) across all tables
+**account-page:**
+CSS: `.ap-panel`, `.ap-panel-title`, `.ap-stat-*`, `.ap-stage-pill`, `.ap-days-chip`, `.ap-plan-textarea`, `.ap-churn-callout`, `.acct-page-nav`
+HTML: `#account-page`, `#acct-page-nav`
 
-### Table Rows
-- [ ] Min height 44px, hover bg #f8fafc, border-bottom 1px solid #f3f4f6
-- [ ] cursor:default on rows (no modal), cursor:pointer only on name/logo click targets
-
-### Inputs
-- [ ] Height 34px, border 1px solid #d1d5db, radius 6px, padding 0 12px
-- [ ] Font DM Sans 400 13px, placeholder #9ca3af
-- [ ] Focus: border #C8102E + box-shadow 0 0 0 3px rgba(200,16,46,.10)
-
-### Selects / Dropdowns
-- [ ] Height 34px, border 1px solid #d1d5db, radius 6px, padding 0 12px, DM Sans 400 13px
-
-### Cards / Panels
-- [ ] White bg, 10px radius, low shadow, 20px 24px padding
+**all (global):**
+CSS: `:root`, `thead th`, `tbody tr`, `td`, `.chip`, `.view-btn`, `.view-toggle`, `.stat-item`, `.stat-label`, `.stat-value`, `.search-wrap`, `select`, `.controls`, `.btn-primary`, `.btn-secondary`, `.btn-ghost`
+HTML: all tabs
 
 ---
 
-## TAB PASS ORDER
+## COMPONENT CHECKLIST (apply to scoped tab only)
 
-Work through tabs in this order (most inconsistent → most polished):
-1. **Campaigns** — kanban cards, campaign selector, filter chips, table view
-2. **Dead** — visual parity with live tables, badge consistency
-3. **Licenses** — badge/pill alignment, stats bar parity
-4. **Accounts** — already most polished; only fix genuine violations
-5. **Account Deep-Dive page** — panel cards, nav bar, contact labels
+- [ ] Buttons: height 34px, DM Sans 500 13px, radius 6px, cursor pointer, transition 150ms
+- [ ] Filter chips: height 28px, 999px radius, DM Sans 500 12px, border #e5e7eb
+- [ ] Stat boxes: white bg / 10px radius / low shadow / 12px 20px padding / number 22px 700 / label 11px 500 uppercase
+- [ ] Badges/pills: 999px radius, 2px 8px padding, DM Sans 500 11px
+- [ ] Table headers: DM Sans 600 11px uppercase letter-spacing:0.5px #6b7280; active sort: #C8102E
+- [ ] Table rows: min 44px, hover #f8fafc, border-bottom 1px #f3f4f6
+- [ ] Inputs: height 34px, border 1px #d1d5db, radius 6px, focus ring rgba(200,16,46,.10)
+- [ ] Selects: height 34px, border 1px #d1d5db, radius 6px, DM Sans 400 13px
+- [ ] Cards/panels: white bg, 10px radius, low shadow, 20px 24px padding
+- [ ] All clickable elements: cursor:pointer + visible hover state + transition 150ms
 
 ---
 
 ## AFTER ALL FIXES
 
-1. Add a comment block at the very top of the `<style>` section documenting the locked token set
-   (use the exact format from DESIGN.md — Colors, Typography, Spacing, Radius, Shadows, Transitions)
-2. Update the DESIGN.md changelog: add a row for today's session, note what was standardized
-3. Commit: `git add index.html DESIGN.md && git commit -m "design: [tab/component] UI consistency pass"`
-4. Push to GitHub main
-5. Print a report:
+1. Update DESIGN.md changelog with today's date, tab scoped, what was standardized
+2. Commit: `git add index.html DESIGN.md && git commit -m "design: [tab] UI consistency pass"`
+3. Push to GitHub main
+4. Print report:
 
 ```
-🎨 DESIGN SYSTEM — token block added/confirmed at top of <style>
-✅ STANDARDIZED — [list each component type fixed and which tabs]
-🖌️ TAB CHANGES — [tab by tab: what changed]
-⚠️ FLAGGED — [judgment calls made and why]
-🔴 DEFERRED — [things not touched that need designer review]
+🎨 DESIGN SYSTEM — token block confirmed
+✅ STANDARDIZED — [components fixed, tab scoped]
+🖌️ CHANGES — [what changed visually]
+⚠️ FLAGGED — [judgment calls]
+🔴 DEFERRED — [not touched, needs designer review]
 ```
 
 ---
@@ -143,9 +136,7 @@ Work through tabs in this order (most inconsistent → most polished):
 
 - No JS function changes of any kind
 - No localStorage key or data structure changes
-- No normName() or enrichment pipeline changes
-- No HTML restructuring beyond what's needed for visual fixes
+- No HTML restructuring beyond minimal visual fixes
 - No new fonts (DM Sans + DM Mono only)
-- No splitting the single index.html file
-- Do not touch id="splash" or anything inside it
-- Read in chunks of 300–400 lines — never attempt to read 1000+ lines at once
+- Do not touch id="splash"
+- Read in chunks of 300–400 lines max

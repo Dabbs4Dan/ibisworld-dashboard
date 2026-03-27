@@ -245,3 +245,8 @@ No hover = broken. Flag it and fix it.
 | Version | Session | Change |
 |---|---|---|
 | v28 | 2026-03-27 | DESIGN.md created. Token set established. Full UI/UX consistency pass initiated. |
+| v28 | 2026-03-27 | Global badge/pill radius pass: all badges, pills, filter chips, stage tags, status/priority triggers unified to `border-radius:999px` across all tabs. |
+| v28 | 2026-03-27 | Campaigns tab spacing pass: opp-card padding, stage pill padding, kanban header font, controls bar, stats bar gap/margin, opp-next-select radius, opp-amt-input border-width, patch-badge padding all normalized to design token scale. |
+| v28 | 2026-03-27 | Global table pass: `td` + `thead th` padding 10px→12px, `td-logo` radius 5px→6px across all tables. |
+| v28 | 2026-03-27 | `:root` CSS vars aligned to design tokens: `--text-primary` #1a1a2e→#111827, `--text-secondary` #4a5568→#6b7280, `--text-muted` #9aa5b4→#9ca3af, `--border` #e8ecf0→#e5e7eb, `--border-hover` #cbd2d9→#d1d5db. |
+| v28 | 2026-03-27 | `/design-pass` command updated to accept tab scope argument: `campaigns`, `accounts`, `licenses`, `dead`, `account-page`, `all`. Includes component map per tab. |
