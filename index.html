@@ -969,9 +969,9 @@
   .campaign-stat-chevron { font-size:13px; color:var(--text-secondary); align-self:center; transition:transform 0.15s; }
   .campaign-stat-btn.open .campaign-stat-chevron { transform:rotate(180deg); }
   /* Shared dropdown menu */
-  .campaign-selector-menu { position:fixed; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.10); z-index:9400; padding:5px 0; }
-  .campaign-selector-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-primary); transition:background 0.1s; }
-  .campaign-selector-item:hover { background:#f0f2f5; pointer-events:all; }
+  .campaign-selector-menu { position:fixed; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.14); z-index:9800; padding:5px 0; }
+  .campaign-selector-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:500; color:var(--text-primary); transition:background 0.1s; background:#fff; }
+  .campaign-selector-item:hover { background:#f0f2f5; }
   .campaign-selector-item.active { color:var(--ibis-red); font-weight:700; }
   .campaign-selector-item.disabled { color:var(--text-muted); cursor:default; font-size:12px; font-style:italic; }
   .campaign-selector-item.disabled:hover { background:none; }
@@ -1077,7 +1077,22 @@
     background: #fff; border: 1px solid var(--border); border-radius: 12px;
     padding: 18px 22px; margin-bottom: 18px;
     display: flex; align-items: flex-start; gap: 18px; position: relative;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
   }
+  .ap-header.ap-header-opp-active { border-color:#00aef0; box-shadow:0 0 0 3px rgba(0,174,240,0.15), 0 0 16px rgba(0,174,240,0.14); }
+  /* Action block — full-width panel between header and grid */
+  .ap-action-block { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 22px; margin-bottom:18px; }
+  .ap-action-top { display:flex; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+  .ap-action-field { display:flex; flex-direction:column; gap:4px; min-width:180px; }
+  .ap-action-field-label { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600; }
+  .ap-action-input { height:32px; border:1.5px solid var(--border); border-radius:6px; padding:0 10px; font-size:13px; font-weight:500; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; transition:border-color 150ms ease, background 150ms ease; }
+  .ap-action-input:focus { border-color:#22d3ee; background:#fff; }
+  .ap-action-notes { width:100%; min-height:80px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; resize:vertical; box-sizing:border-box; transition:border-color 150ms ease; }
+  .ap-action-notes:focus { border-color:#22d3ee; background:#fff; }
+  /* Action headline input in Action table — distinct from plain opp-inline-input */
+  .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:150px; transition:border-color 0.15s; padding:2px 2px 3px; }
+  .action-headline-input::placeholder { color:#9ca3af; font-style:italic; font-size:11px; }
+  .action-headline-input:focus { border-bottom-color:#22d3ee; background:#f0fdfe; }
   /* Action toggle button on Account page header */
   .ap-actn-btn { position:absolute; top:14px; right:16px; width:32px; height:32px; border-radius:8px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; font-size:14px; }
   .ap-actn-btn:hover { background:#cffafe; }
@@ -2141,7 +2156,7 @@ function pruneStaleLocalData() {
     const hasStatus = !!(entry.acctStatus);
     const hasPriority = !!(entry.acctPriority);
     const hasPlan   = !!(entry.accountPlan && entry.accountPlan.trim());
-    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate);
+    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate || entry.actionNotes || entry.acctOpp);
     if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction) return; // has real user data — keep
     delete localData[name];
     pruned++;
@@ -2370,14 +2385,7 @@ function renderCards(list) {
     const revLabel = revInfo ? revInfo.label.replace('USD ', '$') : null;
     const revSrcText = revInfo ? ({'claude':'· AI enriched','seed':'· verified','sf':'· Salesforce','stale':'· Salesforce ⚠️'}[revInfo.source] || '') : '';
     const revHtml = `<div class="card-revenue"><div class="revenue-meta"><span class="revenue-val">${revLabel || '—'}</span>${revSrcText ? `<span class="rev-source-text">${revSrcText}</span>` : ''}</div></div>`;
-    const cardOppEmail = getAccountOppEmail(name);
-    const cardOpp = cardOppEmail ? opps[cardOppEmail] : null;
-    const cardHasActiveOpp = !!(cardOpp?.sfOpp);
-    const cardOppBtn = cardOpp
-      ? (cardOpp.sfOpp
-          ? `<button class="opp-sf-pill" style="border-radius:6px;padding:3px 9px;font-size:10px;" onclick="event.stopPropagation();toggleActionOpp('${escHtml(cardOppEmail)}');renderAll()" title="Toggle off Opp">Opp</button>`
-          : `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleActionOpp('${escHtml(cardOppEmail)}');renderAll()" title="Mark as Opp"><span class="opp-dot"></span></button>`)
-      : '';
+    const cardHasActiveOpp = !!local.acctOpp;
     return `<div class="account-card${flags.includes('🆕')?' new-account':''}${cardHasActiveOpp?' card-opp-active':''}">
       <button class="card-actn-btn${local.hasAction?' card-actn-active':''}" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button>
       <div class="card-top"><div class="card-identity"><div class="acct-logo-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${logoHTML(acc)}</div><div><div class="company-name acct-name-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${name}</div>${(local.desc||sub)?`<div class="card-sub-vert">${local.desc||sub}</div>`:''}</div></div>
@@ -2397,7 +2405,7 @@ function renderCards(list) {
           <span class="stage-tag ${stageClass(stage)} stage-clickable${activeFlags.has('STAGE_'+stage)?' stage-active':''}" onclick="toggleStageFilter(${JSON.stringify(stage||'')})" title="Click to filter by stage">${stage||'Unknown'}</span>
           ${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;">${ab}</div>`:''})()}
         </div>
-        ${cardOppBtn ? `<div style="display:flex;align-items:center;">${cardOppBtn}</div>` : ''}
+        <div style="display:flex;align-items:center;">${renderAcctOppCell(name, local)}</div>
       </div>
       ${local.notes?`<div style="margin-top:8px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;">${local.notes}</div>`:''}
     </div>`;
@@ -2422,20 +2430,13 @@ function renderTable(list) {
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
     const revInfo = getRevDisplay(acc);
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-    // Opp cell — shared data with Campaigns and Action tabs
-    const oppEmail = getAccountOppEmail(name);
-    const acctOpp = oppEmail ? opps[oppEmail] : null;
-    const acctOppCell = acctOpp ? (acctOpp.sfOpp
-      ? `<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="event.stopPropagation();toggleActionOpp('${escHtml(oppEmail)}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(acctOpp.sfAmt||'')}" onblur="saveOppAmt('${escHtml(oppEmail)}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(acctOpp.closeDate||'')}" onblur="saveOppField('${escHtml(oppEmail)}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`
-      : `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleActionOpp('${escHtml(oppEmail)}')"><span class="opp-dot"></span></button>`)
-      : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     const droppedBadge = isDropped ? `<span style="color:#ea580c;font-size:10px;font-weight:600;background:#fff7ed;border-radius:999px;padding:1px 7px;margin-left:6px;border:1px solid #fed7aa;">dropped from CSV</span>` : '';
     const nameDisplay = `<span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}`;
-    return `<tr class="${flags.includes('🆕')?'new-account':''}${isDropped?' dropped-row':''}">
+    return `<tr class="${flags.includes('🆕')?'new-account':''}${local.acctOpp?' tr-opp-active':''}${isDropped?' dropped-row':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
-      <td style="text-align:center;padding:4px 8px;">${acctOppCell}</td>
+      <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderAcctOppCell(name, local)}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -2466,10 +2467,42 @@ function getAccountOppEmail(name) {
   return (withOpp || contacts[0])[0];
 }
 
-// Returns true if any non-archived contact for this account has sfOpp=true
+// Account-level opp — stored in ibis_local[name].acctOpp/acctOppAmt/acctOppClose
+// (distinct from contact-level opps in ibis_opps used by Campaigns tab)
+function toggleAcctOpp(name) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].acctOpp = !localData[name].acctOpp;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  renderAll();
+}
+
+function saveAcctOppField(name, field, val) {
+  if (!localData[name]) localData[name] = {};
+  localData[name][field] = val;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
+
+// Generate the opp cell widget for Accounts table, Action table, and Account page
+// Always renders a grey dot (no more "—" dash), so every account row is interactive
+function renderAcctOppCell(name, local) {
+  const esc = escHtml(name);
+  if (local.acctOpp) {
+    return `<div class="opp-active-wrap" style="display:inline-flex;">
+      <button class="opp-sf-pill" onclick="event.stopPropagation();toggleAcctOpp('${esc}')">Opp</button>
+      <input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(local.acctOppAmt||'')}"
+        onblur="saveAcctOppField('${esc}','acctOppAmt',this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+      <input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(local.acctOppClose||'')}"
+        onblur="saveAcctOppField('${esc}','acctOppClose',this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+    </div>`;
+  }
+  return `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleAcctOpp('${esc}')"><span class="opp-dot"></span></button>`;
+}
+
+// Returns true if this account has an active account-level opp
 function hasActiveOpp(name) {
-  const n = normName(name);
-  return Object.values(opps).some(o => !o.archived && normName(o.accountName) === n && o.sfOpp);
+  return !!localData[name]?.acctOpp;
 }
 
 // Save a field to ibis_local[name] (used by Action tab inputs)
@@ -4197,6 +4230,7 @@ function renderAccountPage(name) {
     </div>
     <div class="ap-body">
       ${renderAPHeader(acc, local, name)}
+      ${renderAPAction(local, name)}
       <div class="ap-grid">
         <div class="ap-panel">${renderAPPriorityOutreach(name)}</div>
         <div class="ap-panel">${renderAPCampaigns(name)}</div>
@@ -4216,6 +4250,42 @@ function renderAccountPage(name) {
       localStorage.setItem('ibis_local', JSON.stringify(localData));
     });
   }
+  // Wire up action notes textarea auto-save
+  const actionNotes = container.querySelector('#ap-action-notes');
+  if (actionNotes) {
+    actionNotes.addEventListener('input', () => {
+      if (!localData[name]) localData[name] = {};
+      localData[name].actionNotes = actionNotes.value;
+      localStorage.setItem('ibis_local', JSON.stringify(localData));
+    });
+  }
+}
+
+// ── Action Block — full-width strip between header and panels ──
+function renderAPAction(local, name) {
+  const esc = escHtml(name);
+  return `
+    <div class="ap-action-block">
+      <div class="ap-panel-title" style="margin-bottom:14px;">⚡ Action</div>
+      <div class="ap-action-top">
+        <div class="ap-action-field">
+          <div class="ap-action-field-label">Headline</div>
+          <input class="ap-action-input" id="ap-action-headline" type="text"
+            value="${escHtml(local.actionHeadline||'')}" placeholder="Add action headline…"
+            onblur="saveActionField('${esc}','actionHeadline',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()">
+        </div>
+        <div class="ap-action-field">
+          <div class="ap-action-field-label">Next Date</div>
+          <input class="ap-action-input" id="ap-action-date" type="text"
+            value="${escHtml(local.actionNextDate||'')}" placeholder="e.g. Apr 15"
+            onblur="saveActionField('${esc}','actionNextDate',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()">
+        </div>
+      </div>
+      <textarea class="ap-action-notes" id="ap-action-notes"
+        placeholder="Action notes — talking points, next steps, blockers…">${escHtml(local.actionNotes||'')}</textarea>
+    </div>`;
 }
 
 // ── Panel 1: Header ───────────────────────────────────────────
@@ -4261,12 +4331,17 @@ function renderAPHeader(acc, local, name) {
 
   const hasAction = !!localData[name]?.hasAction;
 
+  const hasOpp = !!local.acctOpp;
+
   return `
-    <div class="ap-header">
+    <div class="ap-header${hasOpp?' ap-header-opp-active':''}">
       <button class="ap-actn-btn${hasAction?' active':''}" onclick="toggleActionFromPage('${escHtml(name)}')" title="${hasAction?'Remove from ⚡ Action':'Add to ⚡ Action'}"><span class="actn-bolt">⚡</span></button>
       <div class="ap-header-logo">${logoInner}</div>
       <div class="ap-header-info">
-        <div class="ap-header-name">${escHtml(name)}</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;">
+          <div class="ap-header-name" style="margin-bottom:0;">${escHtml(name)}</div>
+          ${renderAcctOppCell(name, local)}
+        </div>
         <div class="ap-header-meta">
           <span><span class="tier-badge ${tierClass}" style="font-size:11px;"><span>${tier || '—'}</span></span></span>
           <span class="ap-meta-sep">·</span>
@@ -4606,27 +4681,18 @@ function renderActionTable(rows) {
       <div><span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}${local.description?`<div class="td-sub">${escHtml(local.description)}</div>`:''}</div>
     </div>`;
 
-    // Opp cell — shared data system with Campaigns and Accounts tabs
-    const oppEmail = getAccountOppEmail(name);
-    const opp = oppEmail ? opps[oppEmail] : null;
-    let oppCell;
-    if (!opp) {
-      oppCell = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-    } else if (opp.sfOpp) {
-      oppCell = `<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleActionOpp('${escHtml(oppEmail)}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(opp.sfAmt||'')}" onblur="saveOppAmt('${escHtml(oppEmail)}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(opp.closeDate||'')}" onblur="saveOppField('${escHtml(oppEmail)}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`;
-    } else {
-      oppCell = `<button class="opp-dot-btn" onclick="toggleActionOpp('${escHtml(oppEmail)}')"><span class="opp-dot"></span></button>`;
-    }
+    // Opp cell — account-level opp (same system as Accounts table + Account page)
+    const oppCell = renderAcctOppCell(name, local);
 
     // Action Headline — custom text, stored in ibis_local[name].actionHeadline
-    const headlineCell = `<input class="opp-inline-input" style="width:150px;" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+    const headlineCell = `<input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
     // Next Date — custom date, stored in ibis_local[name].actionNextDate
     const nextDateCell = `<input class="opp-inline-input" style="width:90px;" type="text" value="${escHtml(local.actionNextDate||'')}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
-    return `<tr>
-      <td style="padding:6px 12px;">${companyCell}</td>
-      <td style="text-align:center;padding:4px 8px;">${oppCell}</td>
+    return `<tr class="${local.acctOpp?' tr-opp-active':''}">
+      <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
+      <td style="padding:0 4px;vertical-align:middle;">${oppCell}</td>
       <td style="padding:6px 8px;">${headlineCell}</td>
       <td style="padding:6px 8px;">${nextDateCell}</td>
       <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
