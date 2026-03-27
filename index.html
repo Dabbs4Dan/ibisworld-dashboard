@@ -1743,6 +1743,34 @@ function vertBubble(acc) {
   return `<span class="vert-bubble" style="background:${color};">${tv}</span>`;
 }
 
+// ── Power Automate auto-sync ──────────────────────────────────────────────────
+// Paste your OneDrive share link for Data/accounts.json here.
+// Append &download=1 to get raw JSON. This file is committed to GitHub (public).
+// Full security review deferred — link grants read-only access to account metadata.
+const PA_CONFIG = {
+  accountsUrl: 'https://ibisworld-my.sharepoint.com/:u:/p/daniel_starr/IQDpe1v38G-PQrz1DAl_ncxKAQlN9yfglMrDCexsfS0D0TI?e=bheqSV',
+};
+
+// Salesforce Vertical__c picklist number → dashboard vertical label
+const SF_VERTICAL_MAP = {
+  '1':  'Academic',
+  '2':  'Accounting',
+  '4':  'Consulting',
+  '7':  'Legal',
+  '13': 'Manufacturing',
+  '18': 'Commercial Banking',
+  '23': 'Government',
+  '25': 'Health & Community Services',
+  '37': 'Construction, Engineering & Real Estate',
+  '39': 'Finance',
+  '44': 'Retail',
+  '48': 'Retail',
+  '50': 'Transportation, Logistics or Storage',
+  '53': 'Business Support Services',
+  '57': 'Energy & Waste',
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 function init() {
   loadDead();
   loadDeadSeen();
@@ -1792,75 +1820,118 @@ function init() {
     autoQueueLicDescriptions();
   }
   updateUploadDots();
+  // Auto-load from Power Automate OneDrive sync (runs silently in background)
+  fetchAccountsFromPA();
 }
 
 function handleCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => {
-    const text = ev.target.result;
-    const newAccounts = parseCSV(text);
-    if (accounts.length > 0) detectChanges(accounts, newAccounts);
-
-    // ── Dead account detection ─────────────────────────────────────────
-    if (accounts.length > 0) {
-      const newNameSet = new Set(newAccounts.map(a => normName(getField(a,'Account Name','AccountName'))));
-      const alreadyDeadNorms = new Set(deadAccounts.map(d => normName(getField(d,'Account Name','AccountName'))));
-      const alreadyDeadKeys = new Set(deadLicenses.map(l => licKey(l)));
-      const today = new Date().toISOString().slice(0,10);
-      // Move disappeared accounts → dead
-      accounts.forEach(a => {
-        const name = getField(a,'Account Name','AccountName');
-        const norm = normName(name);
-        if (!newNameSet.has(norm) && !alreadyDeadNorms.has(norm)) {
-          const local = localData[name] || {};
-          const status = local.acctStatus || '';
-          deadAccounts.push({ ...a, _deadSince: today, _statusAtDeath: status,
-            _unexpectedDrop: status !== 'drop', _localSnapshot: { ...local } });
-          // Also move this account's licenses to dead
-          if (licenses.length) {
-            const acctLics = licenses.filter(l => normName(l._name) === norm);
-            acctLics.forEach(l => {
-              const k = licKey(l);
-              if (!alreadyDeadKeys.has(k)) {
-                deadLicenses.push({
-                  _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
-                  _type: l._type, _acv: l._acv, _currency: l._currency,
-                  _endDate: l._endDate ? l._endDate.toISOString() : null,
-                  _startDate: l._startDate ? l._startDate.toISOString() : null,
-                  _active: l._active, _churnTier: l._churnTier,
-                  _confirmedProcurement: l._confirmedProcurement || false,
-                  _deadSince: today
-                });
-                alreadyDeadKeys.add(k);
-              }
-            });
-          }
-        }
-      });
-      // Resurrect accounts that reappeared in new CSV
-      deadAccounts = deadAccounts.filter(d => !newNameSet.has(normName(getField(d,'Account Name','AccountName'))));
-      saveDead();
-      updateDeadTabBadge();
-    }
-    // ──────────────────────────────────────────────────────────────────
-
-    accounts = newAccounts;
-    stampLastSeen(accounts);
-    pruneStaleLocalData();
-    localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
-    localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
-    localStorage.setItem('ibis_local', JSON.stringify(localData));
-    updateUploadDots();
-    applySeedsToLocalData();
-    updateStats(); populateVerticals(); renderAll();
-    autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
-    document.getElementById('empty-state').classList.add('hidden');
-    checkStorageSize();
-  };
-  // Try UTF-8 first, latin-1 as fallback for French/special chars
+  reader.onload = ev => processAccountRows(parseCSV(ev.target.result));
   reader.readAsText(file, 'latin1'); e.target.value = '';
 }
+
+function processAccountRows(newAccounts) {
+  if (accounts.length > 0) detectChanges(accounts, newAccounts);
+
+  // ── Dead account detection ─────────────────────────────────────────
+  if (accounts.length > 0) {
+    const newNameSet = new Set(newAccounts.map(a => normName(getField(a,'Account Name','AccountName'))));
+    const alreadyDeadNorms = new Set(deadAccounts.map(d => normName(getField(d,'Account Name','AccountName'))));
+    const alreadyDeadKeys = new Set(deadLicenses.map(l => licKey(l)));
+    const today = new Date().toISOString().slice(0,10);
+    // Move disappeared accounts → dead
+    accounts.forEach(a => {
+      const name = getField(a,'Account Name','AccountName');
+      const norm = normName(name);
+      if (!newNameSet.has(norm) && !alreadyDeadNorms.has(norm)) {
+        const local = localData[name] || {};
+        const status = local.acctStatus || '';
+        deadAccounts.push({ ...a, _deadSince: today, _statusAtDeath: status,
+          _unexpectedDrop: status !== 'drop', _localSnapshot: { ...local } });
+        // Also move this account's licenses to dead
+        if (licenses.length) {
+          const acctLics = licenses.filter(l => normName(l._name) === norm);
+          acctLics.forEach(l => {
+            const k = licKey(l);
+            if (!alreadyDeadKeys.has(k)) {
+              deadLicenses.push({
+                _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
+                _type: l._type, _acv: l._acv, _currency: l._currency,
+                _endDate: l._endDate ? l._endDate.toISOString() : null,
+                _startDate: l._startDate ? l._startDate.toISOString() : null,
+                _active: l._active, _churnTier: l._churnTier,
+                _confirmedProcurement: l._confirmedProcurement || false,
+                _deadSince: today
+              });
+              alreadyDeadKeys.add(k);
+            }
+          });
+        }
+      }
+    });
+    // Resurrect accounts that reappeared
+    deadAccounts = deadAccounts.filter(d => !newNameSet.has(normName(getField(d,'Account Name','AccountName'))));
+    saveDead();
+    updateDeadTabBadge();
+  }
+  // ──────────────────────────────────────────────────────────────────
+
+  accounts = newAccounts;
+  stampLastSeen(accounts);
+  pruneStaleLocalData();
+  localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
+  localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  updateUploadDots();
+  applySeedsToLocalData();
+  updateStats(); populateVerticals(); renderAll();
+  autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
+  document.getElementById('empty-state').classList.add('hidden');
+  checkStorageSize();
+}
+
+// ── Power Automate JSON parsing ───────────────────────────────────────────────
+function parseAccountsFromPA(paData) {
+  // paData = array of {value: [{account fields}]} objects (one per account)
+  return paData
+    .map(r => r.value && r.value[0])
+    .filter(Boolean)
+    .map(a => ({
+      'Account Name':                   a.Name || '',
+      'Website':                        a.Website || '',
+      'Major Markets Tier':             a.Major_Markets_Tier__c ? String(a.Major_Markets_Tier__c) : '',
+      'Vertical':                       SF_VERTICAL_MAP[String(a.Vertical__c)] || '',
+      'Sub-Vertical':                   a.Sub_Vertical__c || '',
+      'Employees':                      a.NumberOfEmployees != null ? String(a.NumberOfEmployees) : '',
+      'Annual Revenue Currency':        a.CurrencyIsoCode || 'USD',
+      'Annual Revenue':                 a.AnnualRevenue != null ? String(a.AnnualRevenue) : '',
+      '# Core Clients':                 a.Core_Clients__c != null ? String(a.Core_Clients__c) : '',
+      '# Core Opportunities':           a.Core_Opportunities__c != null ? String(a.Core_Opportunities__c) : '',
+      'US Days Since Last Activity':    a.US_Days_Since_Last_Activity__c != null ? String(a.US_Days_Since_Last_Activity__c) : '',
+      '6sense Account Intent Score NA': a.X6sense_Account_Intent_Score_IW__c != null ? String(a.X6sense_Account_Intent_Score_IW__c) : '',
+      '6sense Account Buying Stage NA': a.X6sense_Account_Buying_Stage_IW__c || '',
+    }));
+}
+
+async function fetchAccountsFromPA() {
+  const url = PA_CONFIG.accountsUrl;
+  if (!url || url === 'PASTE_SHAREPOINT_URL_HERE') return;
+  try {
+    // Append &download=1 to force raw file download (not SharePoint viewer)
+    const dlUrl = url.includes('?') ? url + '&download=1' : url + '?download=1';
+    const resp = await fetch(dlUrl);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const paData = await resp.json();
+    if (!Array.isArray(paData) || paData.length < 10) throw new Error('Unexpected format or too few rows');
+    const rows = parseAccountsFromPA(paData);
+    console.log('[PA] Auto-loaded', rows.length, 'accounts from OneDrive');
+    processAccountRows(rows);
+  } catch (e) {
+    console.warn('[PA] Could not auto-load accounts:', e.message, '— use CSV upload as fallback');
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function parseCSV(text) {
   text = text.replace(/^\ufeff/, '').normalize('NFC'); // strip BOM (Excel CSV)
