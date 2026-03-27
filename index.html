@@ -371,6 +371,7 @@
   #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
   #controls-licenses { flex-wrap: nowrap; }
   #controls-licenses select { flex-shrink: 0; }
+  #controls-workables-inner, #controls-samples-inner { display: contents; }
 
   .search-wrap { position: relative; flex: 0 0 220px; }
   .search-wrap input {
@@ -938,11 +939,11 @@
   .opp-inline-input:focus { border-bottom-color:var(--border); }
   /* Campaign selector — stats bar variant */
   .campaign-stat-item { position:relative; }
-  .campaign-stat-btn { display:inline-flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer; padding:0; font-family:'DM Sans',sans-serif; }
-  .campaign-stat-name { font-size:22px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.15; }
-  .campaign-stat-btn:hover .campaign-stat-name { color:var(--ibis-red); }
+  .campaign-stat-btn { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border-hover); border-radius:6px; cursor:pointer; padding:5px 12px 5px 10px; font-family:'DM Sans',sans-serif; transition:border-color 150ms ease, box-shadow 150ms ease; margin-top:4px; }
+  .campaign-stat-btn:hover, .campaign-stat-btn.open { border-color:var(--ibis-red); box-shadow:0 0 0 3px rgba(200,16,46,0.08); }
+  .campaign-stat-name { font-size:20px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.15; }
   .campaign-stat-count-badge { font-size:12px; font-weight:700; background:#f3f4f6; color:#6b7280; border-radius:999px; padding:2px 8px; align-self:center; }
-  .campaign-stat-chevron { font-size:11px; color:var(--text-muted); align-self:center; transition:transform 0.15s; }
+  .campaign-stat-chevron { font-size:13px; color:var(--text-secondary); align-self:center; transition:transform 0.15s; }
   .campaign-stat-btn.open .campaign-stat-chevron { transform:rotate(180deg); }
   /* Shared dropdown menu */
   .campaign-selector-menu { position:absolute; top:calc(100% + 8px); left:0; min-width:230px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.10); z-index:9400; padding:5px 0; }
@@ -1474,12 +1475,14 @@
       <span class="search-icon">🔍</span>
       <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
     </div>
-    <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
-    <button class="chip" id="opp-filter-dq"           onclick="setOppFilter('dq')" style="color:#6b7280;">⬜ DQ</button>
-    <button class="chip" id="opp-filter-opps"         onclick="setOppFilter('opps')">💰 Active Opportunities</button>
-    <button class="chip" id="opp-filter-lost"         onclick="setOppFilter('lost')">🔴 Lost</button>
-    <button class="chip" id="opp-filter-stalled"      onclick="setOppFilter('stalled')">🟠 Stalled</button>
-    <button class="chip" id="opp-filter-future"       onclick="setOppFilter('future')">🔮 Future Revisit</button>
+    <div class="filter-chips">
+      <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
+      <button class="chip" id="opp-filter-dq"           onclick="setOppFilter('dq')" style="color:#6b7280;">⬜ DQ</button>
+      <button class="chip" id="opp-filter-opps"         onclick="setOppFilter('opps')">💰 Active Opportunities</button>
+      <button class="chip" id="opp-filter-lost"         onclick="setOppFilter('lost')">🔴 Lost</button>
+      <button class="chip" id="opp-filter-stalled"      onclick="setOppFilter('stalled')">🟠 Stalled</button>
+      <button class="chip" id="opp-filter-future"       onclick="setOppFilter('future')">🔮 Future Revisit</button>
+    </div>
   </div>
   <!-- Old Samples controls -->
   <div id="controls-samples-inner" class="hidden">

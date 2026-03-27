@@ -74,6 +74,52 @@ All interactive elements: `transition: 150ms ease`
 
 ## COMPONENT REFERENCE
 
+---
+
+### Controls Bar — THE canonical tab toolbar
+
+Every tab has exactly one `.controls` bar between the stats bar and the content. All controls bars share the same structure. **Do not reinvent this per tab.**
+
+```
+Structure (all direct flex children of .controls):
+  [View Toggle] · [Search Wrap] · [Sort Select?] · [Filter Select?] · [.filter-chips group]
+
+CSS: display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+     padding:12px 24px; border-bottom:1px solid #e5e7eb;
+```
+
+**Rules:**
+- View toggle (Cards/Table) always comes first, leftmost
+- Search bar is always `flex: 0 0 220px` — never full-width
+- Filter chips always grouped in `.filter-chips` — `display:flex; gap:6px; flex-wrap:wrap`
+- If a tab needs inner wrapper divs (e.g. for campaign switching), set `display:contents` on them so their children participate in the parent flex row directly
+- Never nest a block-level div inside `.controls` unless it has `display:contents` — doing so breaks the single-row layout
+
+**What NOT to do:**
+- Do NOT put a full-width block inside `.controls` (causes stacking)
+- Do NOT use a separate row for chips — they belong in the same flex row
+
+---
+
+### Stats Bar — Campaign/Tab Selector Variant
+
+When a stat item is a *selector* (not a pure KPI), it must look clearly interactive:
+
+```
+button.campaign-stat-btn:
+  bg: #fff · border: 1px solid #d1d5db · border-radius: 6px
+  padding: 5px 12px 5px 10px · margin-top: 4px
+  hover/open: border-color #C8102E + box-shadow 0 0 0 3px rgba(200,16,46,.08)
+
+  Name inside: DM Sans 700, 20px, #111827
+  Chevron: 13px, #6b7280, rotates 180deg when open
+  Count badge: 12px, bg #f3f4f6, color #6b7280, border-radius 999px, padding 2px 8px
+```
+
+**Rule:** A KPI value that is also a dropdown MUST have a visible border. Borderless = looks like static text.
+
+---
+
 ### Buttons — 3 variants only
 
 | Variant | Class | When to use |
@@ -250,3 +296,4 @@ No hover = broken. Flag it and fix it.
 | v28 | 2026-03-27 | Global table pass: `td` + `thead th` padding 10px→12px, `td-logo` radius 5px→6px across all tables. |
 | v28 | 2026-03-27 | `:root` CSS vars aligned to design tokens: `--text-primary` #1a1a2e→#111827, `--text-secondary` #4a5568→#6b7280, `--text-muted` #9aa5b4→#9ca3af, `--border` #e8ecf0→#e5e7eb, `--border-hover` #cbd2d9→#d1d5db. |
 | v28 | 2026-03-27 | `/design-pass` command updated to accept tab scope argument: `campaigns`, `accounts`, `licenses`, `dead`, `account-page`, `all`. Includes component map per tab. |
+| v28 | 2026-03-27 | Controls bar + campaign selector fixes. Added canonical Controls Bar and Stats Bar Selector patterns to COMPONENT REFERENCE. Campaigns controls now single-row (display:contents fix). Campaign dropdown now has visible border/hover affordance. |
