@@ -371,7 +371,8 @@
   #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
   #controls-licenses { flex-wrap: nowrap; }
   #controls-licenses select { flex-shrink: 0; }
-  #controls-workables-inner, #controls-samples-inner { display: contents; }
+  #controls-workables-inner, #controls-samples-inner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+  #controls-action { flex-wrap: nowrap; }
 
   .search-wrap { position: relative; flex: 0 0 220px; }
   .search-wrap input {
@@ -939,7 +940,7 @@
   .opp-inline-input:focus { border-bottom-color:var(--border); }
   /* Campaign selector — stats bar variant */
   .campaign-stat-item { position:relative; }
-  .campaign-stat-btn { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border-hover); border-radius:6px; cursor:pointer; padding:5px 12px 5px 10px; font-family:'DM Sans',sans-serif; transition:border-color 150ms ease, box-shadow 150ms ease; margin-top:4px; }
+  .campaign-stat-btn { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border-hover); border-radius:6px; cursor:pointer; padding:5px 12px 5px 10px; font-family:'DM Sans',sans-serif; transition:border-color 150ms ease, box-shadow 150ms ease; }
   .campaign-stat-btn:hover, .campaign-stat-btn.open { border-color:var(--ibis-red); box-shadow:0 0 0 3px rgba(200,16,46,0.08); }
   .campaign-stat-name { font-size:20px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.15; }
   .campaign-stat-count-badge { font-size:12px; font-weight:700; background:#f3f4f6; color:#6b7280; border-radius:999px; padding:2px 8px; align-self:center; }
@@ -1243,10 +1244,86 @@
 
 <div class="view-nav">
   <div class="view-nav-tabs">
+    <button class="vnav-btn" id="vnav-action" onclick="setMainView('action')">⚡ Action</button>
     <button class="vnav-btn active" id="vnav-accounts" onclick="setMainView('accounts')">📋 Accounts</button>
     <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
     <button class="vnav-btn" id="vnav-campaigns" onclick="setMainView('campaigns')">📣 Campaigns</button>
     <button class="vnav-btn" id="vnav-dead" onclick="setMainView('dead')">💀 Dead <span id="dead-tab-badge" style="display:none;background:#f97316;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;font-weight:700;"></span></button>
+  </div>
+</div>
+
+<!-- ACTION STATS BAR -->
+<div class="stats-bar hidden" id="stats-action">
+  <div class="stat-item">
+    <div class="stat-label">Total Accounts</div>
+    <div class="stat-value" id="action-stat-total">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Active (0–30d)</div>
+    <div class="stat-value" id="action-stat-active">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Cooling (31–90d)</div>
+    <div class="stat-value" id="action-stat-cooling">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Overdue (90d+)</div>
+    <div class="stat-value red" id="action-stat-overdue">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Avg Days Inactive</div>
+    <div class="stat-value" id="action-stat-avg">—</div>
+  </div>
+</div>
+
+<!-- ACTION CONTROLS -->
+<div class="controls hidden" id="controls-action">
+  <div class="view-toggle">
+    <button class="view-btn active" onclick="setActionView('table')" id="btn-action-table">☰ Table</button>
+    <button class="view-btn" onclick="setActionView('cards')" id="btn-action-cards">⊞ Cards</button>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search accounts..." id="action-search-input" oninput="renderAction()">
+  </div>
+  <div class="filter-chips" id="action-filter-chips">
+    <button class="chip" id="action-filter-active" onclick="setActionFilter('active')">🟢 Active (0–30d)</button>
+    <button class="chip" id="action-filter-cooling" onclick="setActionFilter('cooling')">🟡 Cooling (31–90d)</button>
+    <button class="chip" id="action-filter-overdue" onclick="setActionFilter('overdue')">🔴 Overdue (90d+)</button>
+    <button class="chip" id="action-filter-workables" onclick="setActionFilter('workables')">🎯 Has Workables</button>
+  </div>
+</div>
+
+<!-- ACTION CONTENT -->
+<div id="content-action" class="hidden">
+  <div class="content">
+    <div id="action-empty-state" class="empty-state" style="display:none;">
+      <div class="empty-icon">⚡</div>
+      <div class="empty-title">No accounts loaded</div>
+      <div class="empty-desc">Upload your Accounts CSV to populate the Action view.</div>
+    </div>
+    <div id="action-count-label" class="above-table-label"></div>
+    <div id="action-cards-view" class="cards-grid hidden"></div>
+    <div id="action-table-view">
+      <div class="table-wrap">
+        <table id="action-table">
+          <thead>
+            <tr>
+              <th onclick="setActionSortCol('acctStatus')" style="cursor:pointer;min-width:80px;">Status <span class="acct-sort-arrow" id="axsort-acctStatus"></span></th>
+              <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
+              <th>Company</th>
+              <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
+              <th onclick="setActionSortCol('tier')" style="cursor:pointer;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
+              <th onclick="setActionSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
+              <th onclick="setActionSortCol('workables')" style="cursor:pointer;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
+              <th onclick="setActionSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="axsort-revenue"></span></th>
+              <th onclick="setActionSortCol('sentiment')" style="cursor:pointer;">Score <span class="acct-sort-arrow" id="axsort-sentiment"></span></th>
+            </tr>
+          </thead>
+          <tbody id="action-tbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3911,12 +3988,25 @@ function getFilteredCampaignAccountNames() {
   )];
 }
 
+// Build ordered account name list from visible action rows
+function getFilteredActionAccountNames() {
+  const q = (document.getElementById('action-search-input')?.value || '').toLowerCase();
+  let rows = accounts.map(acc => ({ acc, name: getField(acc,'Account Name'), days: parseInt(getField(acc,'US Days Since Last Activity'))||0 }));
+  if (actionFilter === 'active')    rows = rows.filter(r => r.days <= 30);
+  if (actionFilter === 'cooling')   rows = rows.filter(r => r.days > 30 && r.days <= 90);
+  if (actionFilter === 'overdue')   rows = rows.filter(r => r.days > 90);
+  if (actionFilter === 'workables') rows = rows.filter(r => getWorkableCount(r.name) > 0);
+  if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q));
+  return rows.map(r => r.name);
+}
+
 // Entry point from any click on account name/logo
 function goToAccount(name) {
   if (!accounts.length) return;
   let list;
   if (mainView === 'licenses') list = getFilteredLicenseAccountNames();
   else if (mainView === 'campaigns') list = getFilteredCampaignAccountNames();
+  else if (mainView === 'action') list = getFilteredActionAccountNames();
   else list = getFilteredOrderedNames();
   const idx = list.indexOf(name);
   openAccountPage(name, mainView, list, idx);
@@ -3927,7 +4017,7 @@ function openAccountPage(name, origin, list, idx) {
   accountPageList = list || [];
   accountPageIdx = (idx !== undefined && idx !== null) ? idx : -1;
   // Hide all tab UI
-  ['accounts','licenses','campaigns','dead'].forEach(tab => {
+  ['action','accounts','licenses','campaigns','dead'].forEach(tab => {
     document.getElementById('stats-'    + tab)?.classList.add('hidden');
     document.getElementById('controls-' + tab)?.classList.add('hidden');
     document.getElementById('content-'  + tab)?.classList.add('hidden');
@@ -4233,12 +4323,221 @@ function renderAPPlan(acc, local, name) {
     </div>` : ''}`;
 }
 
+// ── Action Tab ──────────────────────────────────────────────
+
+let actionSortCol = 'days';
+let actionSortDir = 'asc';
+let actionFilter = null;
+let actionView = 'table';
+const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc' };
+
+function setActionView(v) {
+  actionView = v;
+  document.getElementById('action-table-view')?.classList.toggle('hidden', v !== 'table');
+  document.getElementById('action-cards-view')?.classList.toggle('hidden', v !== 'cards');
+  document.getElementById('btn-action-table')?.classList.toggle('active', v === 'table');
+  document.getElementById('btn-action-cards')?.classList.toggle('active', v === 'cards');
+  renderAction();
+}
+
+function setActionFilter(f) {
+  actionFilter = actionFilter === f ? null : f;
+  ['active','cooling','overdue','workables'].forEach(k => {
+    document.getElementById('action-filter-' + k)?.classList.toggle('active', actionFilter === k);
+  });
+  renderAction();
+}
+
+function setActionSortCol(col) {
+  if (actionSortCol === col) { actionSortDir = actionSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { actionSortCol = col; actionSortDir = ACTION_SORT_DEFAULT_DIR[col] || 'asc'; }
+  updateActionSortArrows();
+  renderAction();
+}
+
+function updateActionSortArrows() {
+  ['acctStatus','acctPriority','vertical','tier','days','workables','revenue','sentiment'].forEach(col => {
+    const el = document.getElementById('axsort-' + col);
+    if (!el) return;
+    el.textContent = actionSortCol === col ? (actionSortDir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+
+function renderAction() {
+  if (!accounts.length) {
+    document.getElementById('action-empty-state').style.display = '';
+    document.getElementById('action-count-label').textContent = '';
+    return;
+  }
+  document.getElementById('action-empty-state').style.display = 'none';
+
+  const q = (document.getElementById('action-search-input')?.value || '').toLowerCase();
+
+  let rows = accounts.map(acc => {
+    const name = getField(acc, 'Account Name');
+    const days = parseInt(getField(acc, 'US Days Since Last Activity')) || 0;
+    return { acc, name, days };
+  });
+
+  // Apply filter chip
+  if (actionFilter === 'active')   rows = rows.filter(r => r.days <= 30);
+  if (actionFilter === 'cooling')  rows = rows.filter(r => r.days > 30 && r.days <= 90);
+  if (actionFilter === 'overdue')  rows = rows.filter(r => r.days > 90);
+  if (actionFilter === 'workables') rows = rows.filter(r => getWorkableCount(r.name) > 0);
+
+  // Apply search
+  if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q) || (getField(r.acc,'Vertical')||'').toLowerCase().includes(q));
+
+  // Sort
+  rows.sort((a, b) => {
+    let av, bv;
+    const al = localData[normName(a.name)] || {};
+    const bl = localData[normName(b.name)] || {};
+    switch (actionSortCol) {
+      case 'days':        av = a.days; bv = b.days; break;
+      case 'name':        av = a.name.toLowerCase(); bv = b.name.toLowerCase(); break;
+      case 'vertical':    av = (getField(a.acc,'Vertical')||'').toLowerCase(); bv = (getField(b.acc,'Vertical')||'').toLowerCase(); break;
+      case 'tier':        av = parseInt(getField(a.acc,'Major Markets Tier'))||99; bv = parseInt(getField(b.acc,'Major Markets Tier'))||99; break;
+      case 'revenue':     av = getRevDisplay(a.acc)?.raw || 0; bv = getRevDisplay(b.acc)?.raw || 0; break;
+      case 'sentiment':   av = al.sentiment?.score ?? -1; bv = bl.sentiment?.score ?? -1; break;
+      case 'workables':   av = getWorkableCount(a.name); bv = getWorkableCount(b.name); break;
+      case 'acctStatus':  av = ['keep','monitor','drop',''].indexOf(al.acctStatus||''); bv = ['keep','monitor','drop',''].indexOf(bl.acctStatus||''); break;
+      case 'acctPriority':{ const pm = {legendary:0,veryrare:1,rare:2,uncommon:3,common:4}; av = pm[al.acctPriority]??99; bv = pm[bl.acctPriority]??99; break; }
+      default: av = a.days; bv = b.days;
+    }
+    if (av < bv) return actionSortDir === 'asc' ? -1 : 1;
+    if (av > bv) return actionSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Update stats
+  const allDays = accounts.map(acc => parseInt(getField(acc,'US Days Since Last Activity'))||0);
+  const avgDays = allDays.length ? Math.round(allDays.reduce((s,d)=>s+d,0)/allDays.length) : 0;
+  document.getElementById('action-stat-total').textContent    = accounts.length;
+  document.getElementById('action-stat-active').textContent   = allDays.filter(d=>d<=30).length;
+  document.getElementById('action-stat-cooling').textContent  = allDays.filter(d=>d>30&&d<=90).length;
+  document.getElementById('action-stat-overdue').textContent  = allDays.filter(d=>d>90).length;
+  document.getElementById('action-stat-avg').textContent      = avgDays + 'd';
+
+  const label = document.getElementById('action-count-label');
+  if (label) label.textContent = rows.length !== accounts.length ? `Showing ${rows.length} of ${accounts.length} accounts` : '';
+
+  if (actionView === 'table') {
+    renderActionTable(rows);
+  } else {
+    renderActionCards(rows);
+  }
+  updateActionSortArrows();
+}
+
+function renderActionTable(rows) {
+  const tbody = document.getElementById('action-tbody');
+  if (!tbody) return;
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
+
+  const PRIO_LABELS = { legendary:'💎 Legendary', veryrare:'⭐ Very Rare', rare:'🔨 Rare', uncommon:'⛏ Uncommon', common:'🪵 Common' };
+  const PRIO_COLORS = { legendary:{bg:'#fef9c3',c:'#a16207'}, veryrare:{bg:'#f3e8ff',c:'#7e22ce'}, rare:{bg:'#dbeafe',c:'#1d4ed8'}, uncommon:{bg:'#dcfce7',c:'#15803d'}, common:{bg:'#f3f4f6',c:'#6b7280'} };
+  const STATUS_STYLES = { keep:{bg:'#dcfce7',c:'#15803d',label:'✓ Keep'}, monitor:{bg:'#fef9c3',c:'#a16207',label:'👁 Monitor'}, drop:{bg:'#fee2e2',c:'#b91c1c',label:'✗ Drop'} };
+
+  tbody.innerHTML = rows.map(({acc, name, days}) => {
+    const local = localData[normName(name)] || {};
+    const tier = getField(acc,'Major Markets Tier') || '—';
+    const vertical = getField(acc,'Vertical') || '—';
+    const rev = local.revCache || '—';
+    const sent = local.sentiment;
+    const wCount = getWorkableCount(name);
+
+    // Days badge color
+    const daysBg = days <= 30 ? '#dcfce7' : days <= 90 ? '#fef9c3' : '#fee2e2';
+    const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
+    const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
+
+    const ss = STATUS_STYLES[local.acctStatus] || null;
+    const statusCell = ss ? `<span style="background:${ss.bg};color:${ss.c};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;">${ss.label}</span>` : '<span style="color:var(--text-muted);">—</span>';
+
+    const pp = PRIO_COLORS[local.acctPriority];
+    const prioCell = pp ? `<span style="background:${pp.bg};color:${pp.c};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;">${PRIO_LABELS[local.acctPriority]}</span>` : '<span style="color:var(--text-muted);">—</span>';
+
+    const sentBadge = sent ? `<span class="sent-badge sent-${sent.score>=8?'green':sent.score>=5?'amber':'red'}" style="cursor:pointer;" onclick="openSentimentCard('${escHtml(name)}')">${sent.score}</span>` : '<span style="color:var(--text-muted);">—</span>';
+
+    const wBadge = wCount > 0 ? `<span class="wkbl-dot">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
+
+    const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}">${tier}</span>` : '<span style="color:var(--text-muted);">—</span>';
+
+    const logoHtml = logoHTML(acc, 28);
+
+    return `<tr>
+      <td>${statusCell}</td>
+      <td>${prioCell}</td>
+      <td class="td-logo">
+        ${logoHtml}
+        <div>
+          <div class="company-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</div>
+          <div class="company-desc">${escHtml(local.description||'')}</div>
+        </div>
+      </td>
+      <td><span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span></td>
+      <td>${tierBadge}</td>
+      <td>${daysBadge}</td>
+      <td>${wBadge}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;">${escHtml(rev)}</td>
+      <td>${sentBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderActionCards(rows) {
+  const grid = document.getElementById('action-cards-view');
+  if (!grid) return;
+  if (!rows.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:48px;">No accounts match this filter.</div>'; return; }
+
+  const STATUS_STYLES = { keep:{bg:'#dcfce7',c:'#15803d',label:'✓ Keep'}, monitor:{bg:'#fef9c3',c:'#a16207',label:'👁 Monitor'}, drop:{bg:'#fee2e2',c:'#b91c1c',label:'✗ Drop'} };
+
+  grid.innerHTML = rows.map(({acc, name, days}) => {
+    const local = localData[normName(name)] || {};
+    const tier = getField(acc,'Major Markets Tier') || '—';
+    const vertical = getField(acc,'Vertical') || '—';
+    const wCount = getWorkableCount(name);
+    const ss = STATUS_STYLES[local.acctStatus] || null;
+    const daysBg = days <= 30 ? '#dcfce7' : days <= 90 ? '#fef9c3' : '#fee2e2';
+    const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
+
+    return `<div class="account-card">
+      <div class="card-top">
+        ${logoHTML(acc, 36)}
+        <div class="card-title-wrap">
+          <div class="card-company" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</div>
+          <div class="card-desc">${escHtml(local.description||vertical)}</div>
+        </div>
+      </div>
+      <div class="card-stats">
+        <div class="card-stat-cell">
+          <div class="card-stat-label">Days Inactive</div>
+          <div class="card-stat-value" style="color:${daysC};font-weight:700;">${days}d</div>
+        </div>
+        <div class="card-stat-cell">
+          <div class="card-stat-label">Tier</div>
+          <div class="card-stat-value">${tier !== '—' ? `<span class="tier-badge tier-${tier}">${tier}</span>` : '—'}</div>
+        </div>
+        <div class="card-stat-cell">
+          <div class="card-stat-label">Workables</div>
+          <div class="card-stat-value">${wCount > 0 ? wCount : '—'}</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'};font-size:11px;">${escHtml(vertical)}</span>
+        ${ss ? `<span style="background:${ss.bg};color:${ss.c};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;">${ss.label}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // --- Main View Switcher ---
 
 function setMainView(v) {
   document.getElementById('content-account-page')?.classList.add('hidden');
   mainView = v;
-  ['accounts','licenses','campaigns','dead'].forEach(tab => {
+  ['action','accounts','licenses','campaigns','dead'].forEach(tab => {
     const active = v === tab;
     document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
     document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
@@ -4247,6 +4546,7 @@ function setMainView(v) {
   });
   if (v === 'dead') { renderDead(); markDeadAsSeen(); }
   if (v === 'campaigns') { setCampaign(currentCampaign); }
+  if (v === 'action') { renderAction(); }
 }
 
 
