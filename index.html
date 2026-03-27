@@ -1257,7 +1257,7 @@
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
     <input type="file" id="opp-file-input" accept=".csv" onchange="handleOppsCSV(event)">
-    <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)">
+    <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)" style="display:none;">
   </div>
 </div>
 
@@ -1438,6 +1438,15 @@
 
 <!-- OPPORTUNITIES CONTROLS -->
 <div class="controls hidden" id="controls-campaigns">
+  <!-- Campaign selector strip -->
+  <div class="campaign-strip">
+    <button class="campaign-pill active" id="cpill-workables" onclick="setCampaign('workables')">
+      🎯 Workables <span class="cpill-count" id="cpill-count-workables">0</span>
+    </button>
+    <button class="campaign-pill" id="cpill-samples" onclick="setCampaign('samples')">
+      🧪 Old Samples <span class="cpill-count" id="cpill-count-samples">0</span>
+    </button>
+  </div>
   <!-- Workables controls -->
   <div id="controls-workables-inner">
     <div class="view-toggle">
@@ -1590,16 +1599,6 @@
 
 <!-- OPPORTUNITIES CONTENT -->
 <div id="content-campaigns" class="hidden">
-  <!-- Campaign selector strip -->
-  <div class="campaign-strip">
-    <button class="campaign-pill active" id="cpill-workables" onclick="setCampaign('workables')">
-      🎯 Workables <span class="cpill-count" id="cpill-count-workables">0</span>
-    </button>
-    <button class="campaign-pill" id="cpill-samples" onclick="setCampaign('samples')">
-      🧪 Old Samples <span class="cpill-count" id="cpill-count-samples">0</span>
-    </button>
-  </div>
-
   <!-- Workables campaign view -->
   <div id="campaign-view-workables">
     <div id="opp-empty-state" class="empty-state">
@@ -4147,7 +4146,7 @@ function renderAPHeader(acc, local, name) {
       <div class="ap-header-info">
         <div class="ap-header-name">${escHtml(name)}</div>
         <div class="ap-header-meta">
-          <span><span class="tier-badge ${tierClass}" style="font-size:11px;"><span>${tier ? 'T'+tier : '—'}</span></span></span>
+          <span><span class="tier-badge ${tierClass}" style="font-size:11px;"><span>${tier || '—'}</span></span></span>
           <span class="ap-meta-sep">·</span>
           <span>${revLabel}</span>
           <span class="ap-meta-sep">·</span>
@@ -5051,6 +5050,8 @@ function setCampaign(name) {
     document.getElementById('campaign-view-' + c)?.classList.toggle('hidden', c !== name);
     document.getElementById('controls-' + c + '-inner')?.classList.toggle('hidden', c !== name);
   });
+  // Stats bar only meaningful for Workables
+  document.getElementById('stats-campaigns')?.classList.toggle('hidden', name !== 'workables');
   updateCampaignPillCounts();
   if (name === 'samples') renderSamples();
 }
