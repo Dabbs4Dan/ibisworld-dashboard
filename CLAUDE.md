@@ -429,7 +429,7 @@ Final flow structure (all saved in "Dashboard Sync"):
 - Step 5: Dashboard code — fetch from OneDrive on load, fall back to localStorage CSV if fetch fails
 
 ### Security note
-OneDrive share link must NOT be committed to GitHub. Store in a `CONFIG` object in `index.html` — clearly labeled. Full security pass deferred (low risk for now).
+OneDrive share link is currently committed to GitHub (public repo). Low risk — "Anyone" read-only access to account metadata only. **Future work: move URL out of committed code** — options include a separate untracked config file, a GitHub Actions secret, or a Cloudflare Worker that proxies the fetch so the raw URL is never in the repo.
 
 ---
 
@@ -627,7 +627,7 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
 | ✅ Done | PA Flow: Step 2 — Accounts sync | Flow rebuilt with Apply to each loop. Writes all 150 accounts to `accounts.json` in OneDrive. Vertical__c = numbers (needs lookup table). See PA PIPELINE section for full flow structure. |
 | ✅ Done | Dead tab badge clears on first visit | `deadSeenKeys` Set (persisted to `ibis_dead_seen` localStorage). Badge shows only NEW unseen dead items. Clears when user opens Dead tab. `markDeadAsSeen()` called in `setMainView('dead')`. |
-| 🔴 Next | Wire accounts.json → dashboard (eliminate CSV upload) | Get OneDrive share link for `accounts.json` → add fetch code to `index.html` → parse PA JSON format → map Vertical__c numbers to text labels. Store link in `CONFIG` object (not committed). ~20 lines of code. |
+| ✅ Done | Wire accounts.json → dashboard (eliminate CSV upload) | SharePoint URL in `PA_CONFIG.accountsUrl`. `fetchAccountsFromPA()` runs silently on init. All 150 accounts, all vertical numbers covered. CSV upload still works as fallback. Security cleanup deferred (see PA security note). |
 | 🔴 Next | Account page: PA live data sync | Power Automate flow reads SF + Outlook → writes JSON to OneDrive → dashboard fetches on load. Removes CSV upload friction. Account page gets fresher data automatically. |
 | 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
 | 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |
