@@ -383,18 +383,23 @@ Replace manual CSV uploads with an automated PA flow that runs every 4 hours, wr
 - Returns: 150 records, each with `AccountId` field — Dan's exact territory
 - Confirmed working: status 200, correct TeamMemberRole: "BDM"
 
-### Step 2 🟡 IN PROGRESS — Get Full Account Data
+### Step 2 ✅ DONE — Get Full Account Data
 
-**Flow built and saved in PA. Steps 1–5 all exist. Stuck on filter syntax.**
+**Flow fully working. Rebuilt using Apply to each loop instead of OR-chained filter (which timed out).**
 
-Current flow structure (all saved in "Dashboard Sync"):
-1. ✅ **Select** (Data Operations) — From: `body/value` (Get records), Map key: empty, value: `item()['AccountId']`
-2. ✅ **Join** (Data Operations) — From: Output (Select), Join with: `','`
-3. ✅ **Compose** (Data Operations) — Inputs (fx expression): `replace(replace(concat('Id in (''', body('Join'), ''')'), '{"":"', ''), '"}', '')`
-4. 🔴 **Get records 1** (Salesforce) — Object Type: Accounts, Filter Query: Outputs (Compose). **FAILING** — "Syntax error at position 5" even though Compose output looks correct: `Id in ('0013j00003EjGh6AAF','0013j00003Ej5eUAAR',...)`. Salesforce PA connector may not support `IN` operator — may need `or` chain instead: `Id eq 'id1' or Id eq 'id2' or ...`
-5. ✅ **Create file** (OneDrive for Business) — Folder: `/Desktop/ibisworld-dashboard/Data`, File Name: `accounts.json`, File Content: Get records 1 (body)
+Final flow structure (all saved in "Dashboard Sync"):
+1. ✅ **Initialize variable** — Name: `AccountResults`, Type: Array, Value: empty
+2. ✅ **Get records** (Salesforce) — Object Type: Account Teams, Filter: `UserId eq '005U100000534tpIAA'` — returns 150 account IDs
+3. ✅ **Apply to each** (concurrency not yet set — runs sequentially, ~2 min) — loops over Account Teams `value` array
+   - Inside: **Get records 1** (Salesforce) — Object Type: Accounts, Filter: `Id eq '[AccountId chip]'`, Select Query: `Name,Website,Major_Markets_Tier__c,Vertical__c,Sub_Vertical__c,NumberOfEmployees,AnnualRevenue,CurrencyIsoCode,Core_Clients__c,Core_Opportunities__c,US_Days_Since_Last_Activity__c,X6sense_Account_Intent_Score_IW__c,X6sense_Account_Buying_Stage_IW__c`, Connection: **Unique Dashboard Connection**
+   - Inside: **Append to array variable** — Name: `AccountResults`, Value: body of Get records 1
+4. ✅ **Create file** (OneDrive for Business) — Folder: `/Desktop/ibisworld-dashboard/Data`, File Name: `accounts.json`, File Content: `variables('AccountResults')`
 
-**Next session action:** Fix step 4 filter. Use PA Copilot to generate correct filter syntax. Try prompting Copilot: *"The Filter Query on my Get records (Accounts) step needs to filter by a list of 150 Account IDs. The IDs come from the output of my Compose step. Generate the correct filter expression."* If `IN` doesn't work, rewrite Compose to output an `or`-chained filter instead.
+**Confirmed working:** `accounts.json` written to OneDrive at `Desktop/ibisworld-dashboard/Data/accounts.json` — contains all 150 accounts with correct field data. Vertical__c comes as numbers (13, 44, 25 etc.) — needs lookup table in dashboard JS.
+
+**Optional perf improvement:** Set Apply to each concurrency to 20 (currently sequential ~2 min — fine for 4hr sync).
+
+**Next session action:** Wire dashboard to fetch `accounts.json` from OneDrive on load instead of requiring CSV upload. Need OneDrive share link + ~20 lines of fetch code in `index.html`.
 
 ### SF Field Mappings (confirmed from test run)
 | Dashboard CSV column | SF API field name |
@@ -620,7 +625,9 @@ When a new session begins, Claude Code should:
 | ⚠️ Monitor | Description quality | DESC_VERSION=6. ~85% high quality. A few accounts may show vertical-tag fallback until Claude revenue enrichment runs. |
 | ⚠️ Monitor | Sentiment score tuning | Score weights and thresholds may need adjustment after real-world use. Headline auto-generation covers ~10 scenarios. |
 | 🗺️ Future | Cloudflare Worker proxy | `cloudflare-worker.js` ready in repo. Would unlock Claude API enrichment for higher-quality revenue, descriptions, and AI-powered sentiment from live site. |
-| 🟡 In Progress | PA Flow: Step 2 — Fix Accounts filter | All 6 PA steps built and saved. Compose outputs `Id in ('id1','id2',...)` correctly but SF connector rejects it with "Syntax error at position 5". Next: use PA Copilot to fix filter syntax — likely need `or`-chained expression instead of `IN`. See PA PIPELINE section for exact stopping point + Copilot prompt. |
+| ✅ Done | PA Flow: Step 2 — Accounts sync | Flow rebuilt with Apply to each loop. Writes all 150 accounts to `accounts.json` in OneDrive. Vertical__c = numbers (needs lookup table). See PA PIPELINE section for full flow structure. |
+| ✅ Done | Dead tab badge clears on first visit | `deadSeenKeys` Set (persisted to `ibis_dead_seen` localStorage). Badge shows only NEW unseen dead items. Clears when user opens Dead tab. `markDeadAsSeen()` called in `setMainView('dead')`. |
+| 🔴 Next | Wire accounts.json → dashboard (eliminate CSV upload) | Get OneDrive share link for `accounts.json` → add fetch code to `index.html` → parse PA JSON format → map Vertical__c numbers to text labels. Store link in `CONFIG` object (not committed). ~20 lines of code. |
 | 🔴 Next | Account page: PA live data sync | Power Automate flow reads SF + Outlook → writes JSON to OneDrive → dashboard fetches on load. Removes CSV upload friction. Account page gets fresher data automatically. |
 | 🔴 Next | Account page: AI briefing panel | 7th panel powered by PA + AI Builder GPT prompt. Pre-call summary: relationship history, last email, sentiment, deal stage in 3 bullets. Drops into existing grid naturally. |
 | 🗺️ Future | Account page: campaigns layer | Workables tab evolves into multi-campaign support (Workables / Winbacks / Samples). Account page campaigns panel shows segmented by campaign type. `opp.campaign` field added. |
