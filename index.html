@@ -1093,6 +1093,25 @@
   .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:150px; transition:border-color 0.15s; padding:2px 2px 3px; }
   .action-headline-input::placeholder { color:#9ca3af; font-style:italic; font-size:11px; }
   .action-headline-input:focus { border-bottom-color:#22d3ee; background:#f0fdfe; }
+  /* Action stage select dropdown */
+  .action-stage-select { border:none; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:600; font-family:'DM Sans',sans-serif; cursor:pointer; outline:none; appearance:none; -webkit-appearance:none; min-width:130px; }
+  .action-stage-select:hover { opacity:0.85; }
+
+  /* Action Kanban */
+  #action-cards-view { display:flex; gap:14px; align-items:flex-start; overflow-x:auto; padding:4px 0 16px; }
+  .action-kanban-col { flex:0 0 200px; min-width:200px; background:#f9fafb; border-radius:10px; overflow:hidden; border:1px solid var(--border); transition:box-shadow 0.15s; }
+  .action-kanban-col.drag-over { box-shadow:0 0 0 2px #00aef0; background:#f0f9ff; }
+  .action-kanban-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; font-size:11px; font-weight:700; }
+  .action-kanban-count { background:rgba(0,0,0,0.08); border-radius:999px; padding:1px 7px; font-size:10px; }
+  .action-kanban-card { background:#fff; margin:6px; border-radius:8px; padding:10px; border:1px solid var(--border); cursor:grab; transition:box-shadow 0.15s; }
+  .action-kanban-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.10); }
+  .action-kanban-card:active { cursor:grabbing; }
+  .action-kanban-card-top { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .action-kanban-name { font-size:12px; font-weight:600; color:var(--text-primary); cursor:pointer; }
+  .action-kanban-name:hover { color:var(--ibis-red); }
+  .action-kanban-sub { font-size:10px; color:var(--text-muted); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .action-kanban-card-meta { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
+
   /* Action toggle button on Account page header */
   .ap-actn-btn { position:absolute; top:14px; right:16px; width:32px; height:32px; border-radius:8px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; font-size:14px; }
   .ap-actn-btn:hover { background:#cffafe; }
@@ -1334,6 +1353,13 @@
     <button class="chip" id="action-filter-cooling" onclick="setActionFilter('cooling')">🟡 Cooling (31–90d)</button>
     <button class="chip" id="action-filter-overdue" onclick="setActionFilter('overdue')">🔴 Overdue (90d+)</button>
     <button class="chip" id="action-filter-workables" onclick="setActionFilter('workables')">🎯 Has Workables</button>
+    <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
+    <button class="chip" id="action-stage-chip-new_sequence"     onclick="toggleActionStageFilter('new_sequence')"    >🟢 New Sequence</button>
+    <button class="chip" id="action-stage-chip-multithreading"   onclick="toggleActionStageFilter('multithreading')"  >🔵 Multi-threading</button>
+    <button class="chip" id="action-stage-chip-active_opp"       onclick="toggleActionStageFilter('active_opp')"      >💰 Active Opp</button>
+    <button class="chip" id="action-stage-chip-active_proposal"  onclick="toggleActionStageFilter('active_proposal')" >📋 Active Proposal</button>
+    <button class="chip" id="action-stage-chip-future_reconnect" onclick="toggleActionStageFilter('future_reconnect')">🔮 Future Reconnect</button>
+    <button class="chip" id="action-stage-chip-internal_support" onclick="toggleActionStageFilter('internal_support')">🤝 Internal Support</button>
   </div>
 </div>
 
@@ -1346,7 +1372,7 @@
       <div class="empty-desc">Upload your Accounts CSV to populate the Action view.</div>
     </div>
     <div id="action-count-label" class="above-table-label"></div>
-    <div id="action-cards-view" class="cards-grid hidden"></div>
+    <div id="action-cards-view" class="hidden"></div>
     <div id="action-table-view">
       <div class="table-wrap">
         <table id="action-table">
@@ -1354,14 +1380,13 @@
             <tr>
               <th style="min-width:200px;">Company</th>
               <th style="text-align:center;min-width:110px;">Opp</th>
+              <th style="min-width:140px;">Stage</th>
               <th style="min-width:160px;">Action Headline</th>
               <th style="min-width:90px;">Next Date</th>
-              <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th onclick="setActionSortCol('tier')" style="cursor:pointer;text-align:center;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
+              <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
               <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
-              <th onclick="setActionSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="axsort-revenue"></span></th>
-              <th onclick="setActionSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="axsort-sentiment"></span></th>
               <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
           </thead>
@@ -2156,7 +2181,7 @@ function pruneStaleLocalData() {
     const hasStatus = !!(entry.acctStatus);
     const hasPriority = !!(entry.acctPriority);
     const hasPlan   = !!(entry.accountPlan && entry.accountPlan.trim());
-    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate || entry.actionNotes || entry.acctOpp);
+    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate || entry.actionNotes || entry.acctOpp || entry.acctActionStage);
     if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction) return; // has real user data — keep
     delete localData[name];
     pruned++;
@@ -2482,10 +2507,18 @@ function saveAcctOppField(name, field, val) {
   localStorage.setItem('ibis_local', JSON.stringify(localData));
 }
 
+// Returns true if any non-archived contact in ibis_opps for this account has sfOpp=true
+function hasAnyContactOpp(name) {
+  const n = normName(name);
+  return Object.values(opps).some(o => !o.archived && normName(o.accountName||'') === n && o.sfOpp);
+}
+
 // Generate the opp cell widget for Accounts table, Action table, and Account page
-// Always renders a grey dot (no more "—" dash), so every account row is interactive
+// Shows blue pill if EITHER account-level acctOpp OR any contact-level sfOpp is active
+// Amount/close date inputs only shown when account-level acctOpp is explicitly true
 function renderAcctOppCell(name, local) {
   const esc = escHtml(name);
+  const hasContactOpp = hasAnyContactOpp(name);
   if (local.acctOpp) {
     return `<div class="opp-active-wrap" style="display:inline-flex;">
       <button class="opp-sf-pill" onclick="event.stopPropagation();toggleAcctOpp('${esc}')">Opp</button>
@@ -2497,12 +2530,18 @@ function renderAcctOppCell(name, local) {
         onkeydown="if(event.key==='Enter')this.blur()">
     </div>`;
   }
+  if (hasContactOpp) {
+    // Contact-level opp only — show pill but no amount/date inputs; clicking enables account-level
+    return `<div class="opp-active-wrap" style="display:inline-flex;">
+      <button class="opp-sf-pill" title="Contact opp — click to add account-level opp" onclick="event.stopPropagation();toggleAcctOpp('${esc}')">Opp</button>
+    </div>`;
+  }
   return `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleAcctOpp('${esc}')"><span class="opp-dot"></span></button>`;
 }
 
-// Returns true if this account has an active account-level opp
+// Returns true if this account has an active account-level opp OR any contact-level opp
 function hasActiveOpp(name) {
-  return !!localData[name]?.acctOpp;
+  return !!localData[name]?.acctOpp || hasAnyContactOpp(name);
 }
 
 // Save a field to ibis_local[name] (used by Action tab inputs + Account page)
@@ -4280,10 +4319,22 @@ function renderAccountPage(name) {
 // ── Action Block — full-width strip between header and panels ──
 function renderAPAction(local, name) {
   const esc = escHtml(name);
+  const currentStage = local.acctActionStage || '';
+  const stageObj = ACTION_STAGES.find(s => s.val === currentStage) || null;
+  const stageOpts = ACTION_STAGES.map(s => `<option value="${s.val}"${currentStage===s.val?' selected':''}>${s.emoji} ${s.label}</option>`).join('');
   return `
     <div class="ap-action-block">
       <div class="ap-panel-title" style="margin-bottom:14px;">⚡ Action</div>
       <div class="ap-action-top">
+        <div class="ap-action-field">
+          <div class="ap-action-field-label">Stage</div>
+          <select class="action-stage-select" id="ap-action-stage-select"
+            style="background:${stageObj?stageObj.bg:'#f9fafb'};color:${stageObj?stageObj.color:'#9ca3af'};"
+            onchange="setActionStage('${esc}',this.value);const s=ACTION_STAGES.find(x=>x.val===this.value);this.style.background=s?s.bg:'#f9fafb';this.style.color=s?s.color:'#9ca3af'">
+            <option value=""${!currentStage?' selected':''}>— Unset</option>
+            ${stageOpts}
+          </select>
+        </div>
         <div class="ap-action-field">
           <div class="ap-action-field-label">Headline</div>
           <input class="ap-action-input" id="ap-action-headline" type="text"
@@ -4552,7 +4603,17 @@ let actionSortCol = 'days';
 let actionSortDir = 'asc';
 let actionFilter = null;
 let actionView = 'cards';
+let actionStageFilters = new Set(); // stages currently filtered in Action tab
 const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc' };
+
+const ACTION_STAGES = [
+  { val:'new_sequence',     label:'New Sequence',     emoji:'🟢', color:'#15803d', bg:'#dcfce7' },
+  { val:'multithreading',   label:'Multi-threading',  emoji:'🔵', color:'#1d4ed8', bg:'#dbeafe' },
+  { val:'active_opp',       label:'Active Opp',       emoji:'💰', color:'#b45309', bg:'#fef3c7' },
+  { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#7c3aed', bg:'#ede9fe' },
+  { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#6b7280', bg:'#f3f4f6' },
+  { val:'internal_support', label:'Internal Support', emoji:'🤝', color:'#0e7490', bg:'#cffafe' },
+];
 
 function setActionView(v) {
   actionView = v;
@@ -4582,6 +4643,41 @@ function updateActionSortArrows() {
     if (!el) return;
     el.textContent = actionSortCol === col ? (actionSortDir === 'asc' ? '▲' : '▼') : '';
   });
+}
+
+function renderActionStageSelect(name) {
+  const local = localData[name] || {};
+  const current = local.acctActionStage || '';
+  const stage = ACTION_STAGES.find(s => s.val === current);
+  const opts = ACTION_STAGES.map(s => `<option value="${s.val}"${current===s.val?' selected':''}>${s.emoji} ${s.label}</option>`).join('');
+  const emptyOpt = `<option value=""${!current?' selected':''}>— Unset</option>`;
+  const bg = stage ? stage.bg : '#f9fafb';
+  const color = stage ? stage.color : '#9ca3af';
+  return `<select class="action-stage-select" style="background:${bg};color:${color};" onchange="setActionStage('${escHtml(name)}',this.value)">${emptyOpt}${opts}</select>`;
+}
+
+function setActionStage(name, val) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].acctActionStage = val;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  renderAction();
+  // Sync account page if open on this account
+  if (currentAccountPageName === name) {
+    const el = document.getElementById('ap-action-stage-select');
+    if (el) {
+      el.value = val;
+      const s = ACTION_STAGES.find(x => x.val === val);
+      el.style.background = s ? s.bg : '#f9fafb';
+      el.style.color = s ? s.color : '#9ca3af';
+    }
+  }
+}
+
+function toggleActionStageFilter(val) {
+  if (actionStageFilters.has(val)) actionStageFilters.delete(val);
+  else actionStageFilters.add(val);
+  document.getElementById('action-stage-chip-' + val)?.classList.toggle('active', actionStageFilters.has(val));
+  renderAction();
 }
 
 function renderAction() {
@@ -4624,6 +4720,9 @@ function renderAction() {
   if (actionFilter === 'cooling')   filtered = filtered.filter(r => r.days > 30 && r.days <= 90);
   if (actionFilter === 'overdue')   filtered = filtered.filter(r => r.days > 90);
   if (actionFilter === 'workables') filtered = filtered.filter(r => getWorkableCount(r.name) > 0);
+  if (actionStageFilters.size > 0) {
+    filtered = filtered.filter(r => actionStageFilters.has(localData[r.name]?.acctActionStage || ''));
+  }
   if (q) filtered = filtered.filter(r => r.name.toLowerCase().includes(q) || (getField(r.acc,'Vertical')||'').toLowerCase().includes(q));
 
   // Sort
@@ -4669,14 +4768,12 @@ function updateActionStats(rows) {
 function renderActionTable(rows) {
   const tbody = document.getElementById('action-tbody');
   if (!tbody) return;
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
 
   tbody.innerHTML = rows.map(({acc, name, days}) => {
     const local = localData[name] || {};
     const tier = getField(acc,'Major Markets Tier') || '—';
     const vertical = getField(acc,'Vertical') || '—';
-    const rev = local.revCache || '—';
-    const sent = local.sentiment;
     const wCount = getWorkableCount(name);
     const isDropped = !!acc._droppedFromCSV;
 
@@ -4685,7 +4782,6 @@ function renderActionTable(rows) {
     const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
     const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
 
-    const sentBadge = sent ? `<span class="sent-badge sent-${sent.score>=8?'green':sent.score>=5?'amber':'red'}" style="cursor:pointer;" onclick="openSentimentCard('${escHtml(name)}')">${sent.score}</span>` : '<span style="color:var(--text-muted);">—</span>';
     const wBadge = wCount > 0 ? `<span class="wkbl-dot">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
     const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
 
@@ -4700,6 +4796,9 @@ function renderActionTable(rows) {
     // Opp cell — account-level opp (same system as Accounts table + Account page)
     const oppCell = renderAcctOppCell(name, local);
 
+    // Action Stage select
+    const stageSelect = renderActionStageSelect(name);
+
     // Action Headline — custom text, stored in ibis_local[name].actionHeadline
     const headlineCell = `<input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
@@ -4709,61 +4808,96 @@ function renderActionTable(rows) {
     return `<tr class="${local.acctOpp?' tr-opp-active':''}">
       <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
       <td style="padding:0 4px;vertical-align:middle;text-align:center;">${oppCell}</td>
+      <td style="padding:4px 8px;">${stageSelect}</td>
       <td style="padding:6px 8px;">${headlineCell}</td>
       <td style="padding:6px 8px;">${nextDateCell}</td>
-      <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td style="text-align:center;">${tierBadge}</td>
+      <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td style="text-align:center;">${daysBadge}</td>
       <td style="text-align:center;">${wBadge}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px;white-space:nowrap;">${escHtml(rev)}</td>
-      <td style="text-align:center;">${sentBadge}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
     </tr>`;
   }).join('');
 }
 
+let _actionDragName = null;
+
+function handleActionKanbanDragStart(event, name) {
+  _actionDragName = name;
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function handleActionKanbanDrop(event, stageVal) {
+  event.preventDefault();
+  document.querySelectorAll('.action-kanban-col').forEach(c => c.classList.remove('drag-over'));
+  if (!_actionDragName) return;
+  setActionStage(_actionDragName, stageVal);
+  _actionDragName = null;
+}
+
 function renderActionCards(rows) {
   const grid = document.getElementById('action-cards-view');
   if (!grid) return;
-  if (!rows.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:48px;">No accounts match this filter.</div>'; return; }
+  if (!rows.length) {
+    grid.style.display = '';
+    grid.innerHTML = '<div style="padding:48px;text-align:center;color:var(--text-muted);">No accounts in Action yet. Toggle ⚡ on any account to add it.</div>';
+    return;
+  }
 
-  const STATUS_STYLES = { keep:{bg:'#dcfce7',c:'#15803d',label:'✓ Keep'}, monitor:{bg:'#fef9c3',c:'#a16207',label:'👁 Monitor'}, drop:{bg:'#fee2e2',c:'#b91c1c',label:'✗ Drop'} };
+  // Group rows by stage
+  const grouped = {};
+  ACTION_STAGES.forEach(s => grouped[s.val] = []);
+  grouped[''] = []; // unset
+  rows.forEach(r => {
+    const stage = localData[r.name]?.acctActionStage || '';
+    if (!grouped[stage]) grouped[stage] = [];
+    grouped[stage].push(r);
+  });
 
-  grid.innerHTML = rows.map(({acc, name, days}) => {
-    const local = localData[name] || {};
-    const tier = getField(acc,'Major Markets Tier') || '—';
-    const vertical = getField(acc,'Vertical') || '—';
-    const wCount = getWorkableCount(name);
-    const ss = STATUS_STYLES[local.acctStatus] || null;
-    const daysBg = days <= 30 ? '#dcfce7' : days <= 90 ? '#fef9c3' : '#fee2e2';
-    const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
+  // Build kanban columns — one for unset + one per stage
+  const allCols = [{ val:'', label:'Unset', emoji:'—', color:'#9ca3af', bg:'#f9fafb' }, ...ACTION_STAGES];
 
-    return `<div class="account-card">
-      <div class="card-top">
-        ${logoHTML(acc, 36)}
-        <div class="card-title-wrap">
-          <div class="card-company" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</div>
-          <div class="card-desc">${escHtml(local.description||vertical)}</div>
-        </div>
+  grid.style.display = 'flex';
+  grid.style.gap = '14px';
+  grid.style.alignItems = 'flex-start';
+  grid.style.overflowX = 'auto';
+  grid.style.padding = '4px 0 16px';
+
+  grid.innerHTML = allCols.map(col => {
+    const cards = grouped[col.val] || [];
+    return `<div class="action-kanban-col" data-stage="${escHtml(col.val)}"
+              ondragover="event.preventDefault();this.classList.add('drag-over')"
+              ondragleave="this.classList.remove('drag-over')"
+              ondrop="handleActionKanbanDrop(event,'${escHtml(col.val)}')">
+      <div class="action-kanban-header" style="background:${col.bg};color:${col.color};">
+        <span>${col.emoji} ${col.label}</span>
+        <span class="action-kanban-count">${cards.length}</span>
       </div>
-      <div class="card-stats">
-        <div class="card-stat-cell">
-          <div class="card-stat-label">Days Inactive</div>
-          <div class="card-stat-value" style="color:${daysC};font-weight:700;">${days}d</div>
-        </div>
-        <div class="card-stat-cell">
-          <div class="card-stat-label">Tier</div>
-          <div class="card-stat-value">${tier !== '—' ? `<span class="tier-badge tier-${tier}">${tier}</span>` : '—'}</div>
-        </div>
-        <div class="card-stat-cell">
-          <div class="card-stat-label">Workables</div>
-          <div class="card-stat-value">${wCount > 0 ? wCount : '—'}</div>
-        </div>
-      </div>
-      <div class="card-footer">
-        <span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'};font-size:11px;">${escHtml(vertical)}</span>
-        ${ss ? `<span style="background:${ss.bg};color:${ss.c};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:500;">${ss.label}</span>` : ''}
-      </div>
+      ${cards.map(({acc, name, days}) => {
+        const local = localData[name] || {};
+        const tier = getField(acc,'Major Markets Tier') || '—';
+        const vertical = getField(acc,'Vertical') || '—';
+        const wCount = getWorkableCount(name);
+        const daysBg = days<=30?'#dcfce7':days<=90?'#fef9c3':'#fee2e2';
+        const daysC  = days<=30?'#15803d':days<=90?'#a16207':'#b91c1c';
+        return `<div class="action-kanban-card" draggable="true"
+                  ondragstart="handleActionKanbanDragStart(event,'${escHtml(name)}')"
+                  ondragend="document.querySelectorAll('.action-kanban-col').forEach(c=>c.classList.remove('drag-over'))">
+          <div class="action-kanban-card-top">
+            ${logoHTML(acc, 28)}
+            <div>
+              <div class="action-kanban-name acct-name-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</div>
+              <div class="action-kanban-sub">${escHtml(local.description||vertical)}</div>
+            </div>
+          </div>
+          <div class="action-kanban-card-meta">
+            <span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 7px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>
+            ${tier !== '—' ? `<span class="tier-badge tier-${tier}" style="font-size:10px;"><span>${tier}</span></span>` : ''}
+            ${wCount > 0 ? `<span class="wkbl-dot" style="font-size:10px;">${wCount}</span>` : ''}
+            ${local.actionHeadline ? `<span style="font-size:10px;color:var(--text-muted);font-style:italic;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(local.actionHeadline)}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
     </div>`;
   }).join('');
 }
