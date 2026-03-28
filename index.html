@@ -1357,9 +1357,6 @@
     <input type="text" placeholder="Search accounts..." id="action-search-input" oninput="renderAction()">
   </div>
   <div class="filter-chips" id="action-filter-chips">
-    <button class="chip" id="action-filter-active" onclick="setActionFilter('active')">🟢 Active (0–30d)</button>
-    <button class="chip" id="action-filter-cooling" onclick="setActionFilter('cooling')">🟡 Cooling (31–90d)</button>
-    <button class="chip" id="action-filter-overdue" onclick="setActionFilter('overdue')">🔴 Overdue (90d+)</button>
     <button class="chip" id="action-filter-workables" onclick="setActionFilter('workables')">🎯 Has Workables</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip" id="action-stage-chip-new_sequence"     onclick="toggleActionStageFilter('new_sequence')"    >🟢 New Sequence</button>
@@ -1682,7 +1679,7 @@
             <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
-            <th style="text-align:center;min-width:120px;">Opp</th>
+            <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:center;min-width:120px;">Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -2305,6 +2302,7 @@ function getFiltered() {
     if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
     if (sort==='acctPriority') { const ord={legendary:0,veryrare:1,rare:2,uncommon:3,common:4,'':5}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??5)-(ord[bp]??5)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
+    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*((hasActiveOpp(an)?1:0)-(hasActiveOpp(bn)?1:0)); }
     return 0;
   });
   return list;
@@ -2507,6 +2505,7 @@ function toggleAcctOpp(name) {
   localData[name].acctOpp = !localData[name].acctOpp;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
   renderAll();
+  renderAction();
 }
 
 function saveAcctOppField(name, field, val) {
@@ -3324,10 +3323,10 @@ let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
 let currentAccountPageName = null;  // name of account currently shown on the deep-dive page (null if closed)
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', usClient:'desc', activeClient:'desc', opp:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','usClient','activeClient','acctStatus','acctPriority'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','usClient','activeClient','opp','acctStatus','acctPriority'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -4615,12 +4614,12 @@ let actionStageFilters = new Set(); // stages currently filtered in Action tab
 const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 const ACTION_STAGES = [
-  { val:'new_sequence',     label:'New Sequence',     emoji:'🟢', color:'#15803d', bg:'#dcfce7' },
-  { val:'multithreading',   label:'Multi-threading',  emoji:'🔵', color:'#1d4ed8', bg:'#dbeafe' },
-  { val:'active_opp',       label:'Active Opp',       emoji:'💰', color:'#b45309', bg:'#fef3c7' },
-  { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#7c3aed', bg:'#ede9fe' },
-  { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#6b7280', bg:'#f3f4f6' },
-  { val:'internal_support', label:'Internal Support', emoji:'🤝', color:'#0e7490', bg:'#cffafe' },
+  { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#ffffff', bg:'#16a34a' },
+  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#ffffff', bg:'#2563eb' },
+  { val:'active_opp',       label:'Active Opp',       emoji:'💼', color:'#ffffff', bg:'#d97706' },
+  { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#ffffff', bg:'#7c3aed' },
+  { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#ffffff', bg:'#64748b' },
+  { val:'internal_support', label:'Internal Support', emoji:'🛟', color:'#ffffff', bg:'#0891b2' },
 ];
 
 function setActionView(v) {
@@ -4632,7 +4631,7 @@ function setActionView(v) {
 
 function setActionFilter(f) {
   actionFilter = actionFilter === f ? null : f;
-  ['active','cooling','overdue','workables'].forEach(k => {
+  ['workables'].forEach(k => {
     document.getElementById('action-filter-' + k)?.classList.toggle('active', actionFilter === k);
   });
   renderAction();
@@ -4813,9 +4812,9 @@ function renderActionTable(rows) {
     // Next Date — custom date, stored in ibis_local[name].actionNextDate
     const nextDateCell = `<input class="opp-inline-input" style="width:90px;" type="text" value="${escHtml(local.actionNextDate||'')}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
-    return `<tr class="${local.acctOpp?' tr-opp-active':''}">
+    return `<tr class="${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}">
       <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
-      <td style="padding:0 4px;vertical-align:middle;text-align:center;">${oppCell}</td>
+      <td style="padding:0 8px;vertical-align:middle;text-align:center;">${oppCell}</td>
       <td style="padding:4px 8px;">${stageSelect}</td>
       <td style="padding:6px 8px;">${headlineCell}</td>
       <td style="padding:6px 8px;">${nextDateCell}</td>
@@ -4833,6 +4832,7 @@ let _actionDragName = null;
 function handleActionKanbanDragStart(event, name) {
   _actionDragName = name;
   event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', name); // required by browsers to activate drop
 }
 
 function handleActionKanbanDrop(event, stageVal) {
