@@ -1096,22 +1096,24 @@
   /* Action stage select dropdown */
   .action-stage-select {
     border: 1.5px solid rgba(0,0,0,0.13); border-radius:999px;
-    padding: 4px 28px 4px 12px; font-size:11px; font-weight:600;
+    padding: 3px 24px 3px 10px; font-size:11px; font-weight:600;
     font-family:'DM Sans',sans-serif; cursor:pointer; outline:none;
-    appearance:none; -webkit-appearance:none; min-width:130px;
+    appearance:none; -webkit-appearance:none; min-width:110px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 10px center;
+    background-repeat: no-repeat; background-position: right 8px center;
     transition: border-color 150ms ease, opacity 150ms ease;
   }
   .action-stage-select:hover { opacity:0.88; border-color:rgba(0,0,0,0.25); }
+  /* Prevent selected stage color from bleeding into dropdown option list */
+  .action-stage-select option { background:#fff !important; color:#111827 !important; }
 
   /* Action Kanban */
   #action-cards-view { display:flex; gap:14px; align-items:flex-start; overflow-x:auto; padding:4px 0 16px; }
-  .action-kanban-col { flex:0 0 200px; min-width:200px; background:#f9fafb; border-radius:10px; overflow:hidden; border:1px solid var(--border); transition:box-shadow 0.15s; }
+  .action-kanban-col { flex:0 0 240px; min-width:240px; background:#f9fafb; border-radius:10px; overflow:hidden; border:1px solid var(--border); transition:box-shadow 0.15s; }
   .action-kanban-col.drag-over { box-shadow:0 0 0 2px #00aef0; background:#f0f9ff; }
   .action-kanban-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; font-size:11px; font-weight:700; }
   .action-kanban-count { background:rgba(0,0,0,0.08); border-radius:999px; padding:2px 8px; font-size:10px; }
-  .action-kanban-card { background:#fff; margin:6px; border-radius:8px; padding:10px; border:1px solid var(--border); cursor:grab; transition:box-shadow 0.15s; }
+  .action-kanban-card { background:#fff; margin:6px; border-radius:8px; padding:12px; border:1px solid var(--border); cursor:grab; transition:box-shadow 0.15s; }
   .action-kanban-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.10); }
   .action-kanban-card:active { cursor:grabbing; }
   .action-kanban-card-top { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
@@ -1390,8 +1392,8 @@
               <th style="min-width:90px;">Next Date</th>
               <th onclick="setActionSortCol('tier')" style="cursor:pointer;text-align:center;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
-              <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
               <th>Active Client</th>
+              <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
               <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
               <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
@@ -1681,6 +1683,7 @@
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:center;min-width:120px;">Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
+            <th onclick="setSortCol('workables')" style="cursor:pointer;min-width:160px;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -1698,7 +1701,6 @@
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
-            <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('samples')" style="cursor:pointer;text-align:center;">Samples <span class="acct-sort-arrow" id="asort-samples"></span></th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
@@ -2469,11 +2471,11 @@ function renderTable(list) {
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
       <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderAcctOppCell(name, local)}</td>
+      <td style="padding:4px 10px;vertical-align:middle;min-width:160px;">${(()=>{const w=getKeyWorkable(name);if(!w)return '<span style="color:var(--text-muted);font-size:12px;">—</span>';const wc=getWorkableCount(name);const more=wc>1?`<span style="color:var(--text-muted);font-size:10px;margin-left:3px;">+${wc-1}</span>`:'';return `<div style="display:flex;align-items:flex-start;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;margin-top:4px;"></span><div style="min-width:0;line-height:1.3;"><div style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">${escHtml(w.name||'')}${more}</div>${w.title?`<div style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">${escHtml(w.title)}</div>`:''}</div></div>`;})()}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
-      <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
@@ -3593,6 +3595,14 @@ function hasUSLicense(accountName) {
 function getWorkableCount(accountName) {
   const n = normName(accountName);
   return Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n).length;
+}
+
+// Return the primary workable contact for an account (sfOpp first, else first non-archived)
+function getKeyWorkable(accountName) {
+  const n = normName(accountName);
+  const all = Object.values(opps).filter(o => !o.archived && normName(o.accountName||'') === n);
+  if (!all.length) return null;
+  return all.find(o => o.sfOpp) || all[0];
 }
 
 // --- Sentiment Score helpers ---
@@ -4843,8 +4853,8 @@ function renderActionTable(rows) {
       <td style="padding:6px 8px;">${nextDateCell}</td>
       <td style="text-align:center;">${tierBadge}</td>
       <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
-      <td style="text-align:center;">${daysBadge}</td>
       <td style="text-align:center;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td style="text-align:center;">${daysBadge}</td>
       <td style="text-align:center;">${wBadge}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
     </tr>`;
@@ -4912,22 +4922,23 @@ function renderActionCards(rows) {
         const wCount = getWorkableCount(name);
         const daysBg = days<=30?'#dcfce7':days<=90?'#fef9c3':'#fee2e2';
         const daysC  = days<=30?'#15803d':days<=90?'#a16207':'#b91c1c';
+        const keyW = getKeyWorkable(name);
         return `<div class="action-kanban-card" draggable="true"
                   ondragstart="handleActionKanbanDragStart(event,'${escHtml(name)}')"
                   ondragend="document.querySelectorAll('.action-kanban-col').forEach(c=>c.classList.remove('drag-over'))">
           <div class="action-kanban-card-top">
-            ${logoHTML(acc, 28)}
-            <div>
+            ${logoHTML(acc, 30)}
+            <div style="min-width:0;flex:1;">
               <div class="action-kanban-name acct-name-link" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</div>
-              <div class="action-kanban-sub">${escHtml(local.description||vertical)}</div>
+              ${local.actionNextDate ? `<div style="font-size:10px;color:#6b7280;margin-top:2px;font-family:'DM Mono',monospace;">${escHtml(local.actionNextDate)}</div>` : ''}
+              ${local.actionHeadline ? `<div style="font-size:11px;font-weight:500;color:var(--text-primary);margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(local.actionHeadline)}</div>` : ''}
             </div>
           </div>
           <div class="action-kanban-card-meta">
             <span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 7px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>
             ${tier !== '—' ? `<span class="tier-badge tier-${tier}" style="font-size:10px;"><span>${tier}</span></span>` : ''}
-            ${wCount > 0 ? `<span class="wkbl-dot" style="font-size:10px;">${wCount}</span>` : ''}
-            ${local.actionHeadline ? `<span style="font-size:10px;color:var(--text-muted);font-style:italic;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(local.actionHeadline)}</span>` : ''}
           </div>
+          ${keyW ? `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;margin-top:3px;"></span><div style="min-width:0;line-height:1.3;"><div style="font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;">${escHtml(keyW.name||'')}</div>${keyW.title?`<div style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;">${escHtml(keyW.title)}</div>`:''}</div></div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
