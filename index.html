@@ -870,8 +870,8 @@
   .opp-dot-btn { background:none; border:none; cursor:pointer; padding:4px 8px; display:inline-flex; align-items:center; justify-content:center; }
   .opp-dot { width:9px; height:9px; border-radius:50%; background:#d1d5db; display:block; transition:background 0.15s; }
   .opp-dot-btn:hover .opp-dot { background:#9ca3af; }
-  .opp-active-wrap { display:inline-flex; align-items:center; border-radius:6px; overflow:hidden; box-shadow:0 0 8px rgba(0,174,240,0.30); white-space:nowrap; }
-  .opp-sf-pill { background:#00aef0; color:white; border:none; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:4px 12px; cursor:pointer; white-space:nowrap; transition:opacity 0.15s; }
+  .opp-active-wrap { display:inline-flex; align-items:stretch; border-radius:6px; overflow:hidden; box-shadow:0 0 8px rgba(0,174,240,0.30); white-space:nowrap; }
+  .opp-sf-pill { background:#00aef0; color:white; border:none; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:4px 12px; cursor:pointer; white-space:nowrap; transition:opacity 0.15s; display:flex; align-items:center; }
   .opp-sf-pill:hover { opacity:0.85; }
   .opp-amt-input { width:58px; font-size:11px; font-family:'DM Mono',monospace; border:1px solid #bae6fd; border-left:1px solid #e0f2fe; border-radius:0; padding:4px 6px; color:var(--text-primary); outline:none; background:#f0f9ff; }
   .opp-amt-input:focus { border-color:#00aef0; background:white; }
@@ -961,7 +961,7 @@
   .opp-inline-input { border:none; border-bottom:1px solid transparent; background:transparent; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--text-secondary); outline:none; width:150px; transition:border-color 0.15s; }
   .opp-inline-input:focus { border-bottom-color:var(--border); }
   /* Campaign selector — stats bar variant */
-  .campaign-stat-item { position:relative; }
+  .campaign-stat-item { position:relative; opacity:1 !important; }
   .campaign-stat-btn { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--border-hover); border-radius:6px; cursor:pointer; padding:3px 10px 3px 8px; font-family:'DM Sans',sans-serif; transition:border-color 150ms ease, box-shadow 150ms ease; }
   .campaign-stat-btn:hover, .campaign-stat-btn.open { border-color:var(--ibis-red); box-shadow:0 0 0 3px rgba(200,16,46,0.08); }
   .campaign-stat-name { font-size:16px; font-weight:700; color:var(--text-primary); transition:color 0.15s; line-height:1.2; }
@@ -2505,11 +2505,24 @@ function hasActiveOpp(name) {
   return !!localData[name]?.acctOpp;
 }
 
-// Save a field to ibis_local[name] (used by Action tab inputs)
+// Save a field to ibis_local[name] (used by Action tab inputs + Account page)
+// Syncs both directions: Action table ↔ Account page headline/date fields
 function saveActionField(name, field, value) {
   if (!localData[name]) localData[name] = {};
   localData[name][field] = value;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
+  // Re-render Action table so it reflects the latest value
+  renderAction();
+  // If the Account page is open on this account, update its inputs directly (no full re-render)
+  if (currentAccountPageName === name) {
+    if (field === 'actionHeadline') {
+      const el = document.getElementById('ap-action-headline');
+      if (el && document.activeElement !== el) el.value = value;
+    } else if (field === 'actionNextDate') {
+      const el = document.getElementById('ap-action-date');
+      if (el && document.activeElement !== el) el.value = value;
+    }
+  }
 }
 
 // Toggle opp from Action table — syncs with Campaigns (shared ibis_opps data)
@@ -3263,6 +3276,7 @@ let frozenSortOrder = null; // locks row order after explicit sort — cleared o
 let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
+let currentAccountPageName = null;  // name of account currently shown on the deep-dive page (null if closed)
 const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', usClient:'desc', activeClient:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
@@ -4178,6 +4192,7 @@ function openAccountPage(name, origin, list, idx) {
   accountPageOrigin = origin || 'accounts';
   accountPageList = list || [];
   accountPageIdx = (idx !== undefined && idx !== null) ? idx : -1;
+  currentAccountPageName = name;
   // Hide all tab UI
   ['action','accounts','licenses','campaigns','dead'].forEach(tab => {
     document.getElementById('stats-'    + tab)?.classList.add('hidden');
@@ -4191,6 +4206,7 @@ function openAccountPage(name, origin, list, idx) {
 }
 
 function closeAccountPage() {
+  currentAccountPageName = null;
   document.getElementById('content-account-page').classList.add('hidden');
   setMainView(accountPageOrigin);
 }
@@ -4692,7 +4708,7 @@ function renderActionTable(rows) {
 
     return `<tr class="${local.acctOpp?' tr-opp-active':''}">
       <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
-      <td style="padding:0 4px;vertical-align:middle;">${oppCell}</td>
+      <td style="padding:0 4px;vertical-align:middle;text-align:center;">${oppCell}</td>
       <td style="padding:6px 8px;">${headlineCell}</td>
       <td style="padding:6px 8px;">${nextDateCell}</td>
       <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
