@@ -1391,6 +1391,7 @@
               <th onclick="setActionSortCol('tier')" style="cursor:pointer;text-align:center;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
+              <th>Active Client</th>
               <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
               <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
@@ -2463,7 +2464,7 @@ function renderTable(list) {
     const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
     const droppedBadge = isDropped ? `<span style="color:#ea580c;font-size:10px;font-weight:600;background:#fff7ed;border-radius:999px;padding:1px 7px;margin-left:6px;border:1px solid #fed7aa;">dropped from CSV</span>` : '';
     const nameDisplay = `<span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}`;
-    return `<tr class="${flags.includes('🆕')?'new-account':''}${local.acctOpp?' tr-opp-active':''}${isDropped?' dropped-row':''}">
+    return `<tr class="${flags.includes('🆕')?'new-account':''}${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}${isDropped?' dropped-row':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
@@ -2498,19 +2499,43 @@ function getAccountOppEmail(name) {
   return (withOpp || contacts[0])[0];
 }
 
-// Account-level opp — stored in ibis_local[name].acctOpp/acctOppAmt/acctOppClose
-// (distinct from contact-level opps in ibis_opps used by Campaigns tab)
+// Toggle account-level opp — syncs 1:1 with the primary contact's sfOpp in ibis_opps
 function toggleAcctOpp(name) {
   if (!localData[name]) localData[name] = {};
-  localData[name].acctOpp = !localData[name].acctOpp;
+  const currentlyOn = !!(localData[name].acctOpp || hasAnyContactOpp(name));
+  const turningOn = !currentlyOn;
+  localData[name].acctOpp = turningOn;
+  // Sync to/from the primary contact for this account
+  const primaryEmail = getAccountOppEmail(name);
+  if (primaryEmail && opps[primaryEmail]) {
+    opps[primaryEmail].sfOpp = turningOn;
+    // If turning on and contact has amount/date, pull them in
+    if (turningOn) {
+      if (opps[primaryEmail].sfAmt && !localData[name].acctOppAmt) localData[name].acctOppAmt = opps[primaryEmail].sfAmt;
+      if (opps[primaryEmail].closeDate && !localData[name].acctOppClose) localData[name].acctOppClose = opps[primaryEmail].closeDate;
+    }
+    saveOpps();
+  } else if (!turningOn) {
+    // No primary contact — also clear all contacts' sfOpp for this account
+    const n = normName(name);
+    Object.values(opps).forEach(o => { if (normName(o.accountName||'') === n) o.sfOpp = false; });
+    saveOpps();
+  }
   localStorage.setItem('ibis_local', JSON.stringify(localData));
   renderAll();
   renderAction();
+  renderOpps();
 }
 
 function saveAcctOppField(name, field, val) {
   if (!localData[name]) localData[name] = {};
   localData[name][field] = val;
+  // Sync amount/close back to primary contact so Workables stays in sync
+  const contactField = field === 'acctOppAmt' ? 'sfAmt' : field === 'acctOppClose' ? 'closeDate' : null;
+  if (contactField) {
+    const primaryEmail = getAccountOppEmail(name);
+    if (primaryEmail && opps[primaryEmail]) { opps[primaryEmail][contactField] = val; saveOpps(); }
+  }
   localStorage.setItem('ibis_local', JSON.stringify(localData));
 }
 
@@ -2521,26 +2546,24 @@ function hasAnyContactOpp(name) {
 }
 
 // Generate the opp cell widget for Accounts table, Action table, and Account page
-// Shows blue pill if EITHER account-level acctOpp OR any contact-level sfOpp is active
-// Amount/close date inputs only shown when account-level acctOpp is explicitly true
+// Unified system: contact-level sfOpp and account-level acctOpp are kept in sync (1:1)
 function renderAcctOppCell(name, local) {
   const esc = escHtml(name);
   const hasContactOpp = hasAnyContactOpp(name);
-  if (local.acctOpp) {
+  const isActive = local.acctOpp || hasContactOpp;
+  if (isActive) {
+    // Amount: prefer account-level, fall back to primary contact's sfAmt
+    const contactOpp = Object.values(opps).find(o => !o.archived && normName(o.accountName||'') === normName(name) && o.sfOpp);
+    const amt = local.acctOppAmt || contactOpp?.sfAmt || '';
+    const closeD = local.acctOppClose || contactOpp?.closeDate || '';
     return `<div class="opp-active-wrap" style="display:inline-flex;">
       <button class="opp-sf-pill" onclick="event.stopPropagation();toggleAcctOpp('${esc}')">Opp</button>
-      <input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(local.acctOppAmt||'')}"
+      <input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(amt)}"
         onblur="saveAcctOppField('${esc}','acctOppAmt',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()">
-      <input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(local.acctOppClose||'')}"
+      <input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(closeD)}"
         onblur="saveAcctOppField('${esc}','acctOppClose',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()">
-    </div>`;
-  }
-  if (hasContactOpp) {
-    // Contact-level opp only — show pill but no amount/date inputs; clicking enables account-level
-    return `<div class="opp-active-wrap" style="display:inline-flex;">
-      <button class="opp-sf-pill" title="Contact opp — click to add account-level opp" onclick="event.stopPropagation();toggleAcctOpp('${esc}')">Opp</button>
     </div>`;
   }
   return `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleAcctOpp('${esc}')"><span class="opp-dot"></span></button>`;
@@ -4775,7 +4798,7 @@ function updateActionStats(rows) {
 function renderActionTable(rows) {
   const tbody = document.getElementById('action-tbody');
   if (!tbody) return;
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
 
   tbody.innerHTML = rows.map(({acc, name, days}) => {
     const local = localData[name] || {};
@@ -4821,6 +4844,7 @@ function renderActionTable(rows) {
       <td style="text-align:center;">${tierBadge}</td>
       <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td style="text-align:center;">${daysBadge}</td>
+      <td style="text-align:center;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="text-align:center;">${wBadge}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
     </tr>`;
@@ -5106,6 +5130,23 @@ function toggleSFOpp(email) {
   if (!opps[email]) return;
   opps[email].sfOpp = !opps[email].sfOpp;
   saveOpps();
+  // Sync 1:1 to account level
+  const acctName = opps[email].accountName;
+  if (acctName) {
+    if (!localData[acctName]) localData[acctName] = {};
+    if (opps[email].sfOpp) {
+      // Turning ON — set account opp and sync amount if available
+      localData[acctName].acctOpp = true;
+      if (opps[email].sfAmt) localData[acctName].acctOppAmt = opps[email].sfAmt;
+      if (opps[email].closeDate) localData[acctName].acctOppClose = opps[email].closeDate;
+    } else {
+      // Turning OFF — clear account opp only if no other contact for this account is still on
+      if (!hasAnyContactOpp(acctName)) localData[acctName].acctOpp = false;
+    }
+    localStorage.setItem('ibis_local', JSON.stringify(localData));
+    renderAll();
+    renderAction();
+  }
   renderOpps();
 }
 
