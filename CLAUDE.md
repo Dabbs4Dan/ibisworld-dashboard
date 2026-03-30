@@ -41,13 +41,14 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 
 ---
 
-## CURRENT STATE — v28 (stable)
+## CURRENT STATE — v29 (stable)
 
-### Four tabs live:
-1. **📋 Accounts tab** — main territory view
-2. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
-3. **📣 Campaigns tab** — multi-campaign contact hub (was Workables); campaign dropdown lives in stats bar
-4. **💀 Dead tab** — accounts/licenses/contacts that have disappeared from CSV uploads
+### Five tabs live:
+1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
+2. **📋 Accounts tab** — main territory view
+3. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
+4. **📣 Campaigns tab** — multi-campaign contact hub (was Workables); campaign dropdown lives in stats bar
+5. **💀 Dead tab** — accounts/licenses/contacts that have disappeared from CSV uploads
 
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
@@ -62,7 +63,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - **Row click modal removed** — clicking a row no longer opens the flags/notes/revenue modal (removed `onclick="openModal(...)"` from `<tr>` and `.account-card`)
 
 #### Accounts Table Columns (left → right)
-Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
+Status | Priority | Company | Opp | Workables | Vertical | Tier | Revenue | Score | Samples | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
 
 #### Status Column (new in v23)
 - Per-account dropdown: **✓ Keep** (green), **👁 Monitor** (yellow), **✗ Drop** (red), **— ** (grey dash)
@@ -80,9 +81,12 @@ Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | A
 - Filter chips: 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon in the top filter bar
 - Sortable column; `acctPriority` added to `ACCT_SORT_DEFAULT_DIR`
 
-#### Workables Column (new in v23)
-- Purple circle `<span class="wkbl-dot">` with count of non-archived entries in `ibis_opps` matching the account name
-- `getWorkableCount(name)` uses `normName()` matching — grey dash if 0
+#### Workables Column (redesigned in v29)
+- Shows **contact name + title** of the primary workable (not a count bubble any more)
+- `getKeyWorkable(name)` — returns the key workable contact: prefers `sfOpp=true` contact, falls back to first non-archived. Returns `null` if none.
+- `getWorkableCount(name)` still used for sort and for the "+N" overflow indicator (e.g. "John Smith +2")
+- Layout: small purple dot · Name (bold 12px, truncated) · Title below (muted 10px, truncated) · "+N" count if multiple
+- Grey dash if no workables
 
 #### US Client Column (new in v23)
 - Green ✓ checkmark if account has ANY US Industry license in `ibis_licenses` (regardless of active/churn status)
@@ -136,6 +140,73 @@ Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | A
 - Lock clears ONLY when user clicks a column header again (`setSortCol` / `onAcctSortSelectChange` set `frozenSortOrder = null`)
 - New accounts not in the frozen list appear at the bottom
 
+### Action Tab Features (new in v28/v29)
+- **Purpose:** Dan's live working list — accounts he's actively pursuing. Separate from the full Accounts tab territory view.
+- **Entry point:** ⚡ bolt button on any account row in the Accounts table. Toggling ⚡ sets `ibis_local[name].hasAction = true`. Toggle again to remove.
+- **Tabs nav:** `⚡ Action` is the first tab in the nav bar.
+- **Protection rule:** Accounts with `hasAction=true` are NEVER moved to the Dead tab on CSV re-upload. They re-enter `accounts[]` with `_droppedFromCSV:true` flag and show an orange "dropped from CSV" badge. They stay visible in Action forever unless Dan manually removes ⚡.
+
+#### Action Table Columns (left → right)
+Company | Opp | Stage | Action Headline | Next Date | Tier | Vertical | Active Client | Days Inactive | Workables | Priority
+
+#### Action Stage System
+- `ACTION_STAGES` constant (6 stages):
+  - 🚀 New Sequence (#16a34a green)
+  - 👥 Multi-threading (#2563eb blue)
+  - 💼 Active Opp (#d97706 amber)
+  - 📋 Active Proposal (#7c3aed purple)
+  - 🔮 Future Reconnect (#64748b slate)
+  - 🤝 Internal Support (#0891b2 cyan)
+- Stage stored in `ibis_local[name].acctActionStage`
+- In the table: `.action-stage-select` — styled native `<select>`, pill shape, background color matches the stage, white text. Uses chevron SVG background-image. **Option elements always white bg + dark text (CSS rule) to prevent color bleed into dropdown list.**
+- In the account page action block: same `<select>` with id `ap-action-stage-select`, synced via `setActionStage()`
+
+#### Action Stage Filter
+- **Filter chips** in the controls bar (6 chips + separator): `toggleActionStageFilter(val)` adds/removes from `actionStageFilters` Set
+- **Column header dropdown**: `▾` button on Stage `<th>` opens a `.lic-dropdown` with checkboxes for all 6 stages + Unset (`id="action-dropdown-stage"`). Chips and dropdown **stay in sync bidirectionally**:
+  - Chip click → `toggleActionStageFilter()` syncs checkbox
+  - Checkbox change → `applyActionStageFromDropdown()` syncs chips
+  - `clearActionStageFilters()` resets both
+- State: `actionStageFilters` (Set, global)
+
+#### Active Client Column Filter
+- Clicking the "Active Client" `<th>` toggles `actionActiveClientFilter` boolean
+- When active: only shows accounts with `getActiveLicBadges(name)` returning non-empty
+- Visual indicator: red dot `●` appears inline in the header. Header gets `.lic-filter-active` class.
+- `toggleActionActiveLicFilter()` function
+
+#### Territory Dot (new in v29)
+- Small dot shown in the top-left of each kanban card (next to logo)
+- 🟢 **Green** (`.action-terr-dot.in-csv`): `!acc._droppedFromCSV` — account is still in the accounts CSV
+- ⚪ **Grey** (`.action-terr-dot.dropped`): `acc._droppedFromCSV === true` — account was dropped from the CSV but protected by Action rule
+
+#### Action Kanban Cards (redesigned v29)
+- Width: 240px per column (was 200px)
+- Card padding: 12px, `border-radius:10px`, `position:relative`
+- **Layout (top to bottom):**
+  1. Card top row: territory dot · logo · account name (bold, links to account page) · optional next date (monospace muted) · optional action headline
+  2. Card meta row: days badge (color-coded) · tier badge
+  3. Key workable section (if workable exists): purple dot · contact name + title, separated by a divider border-top
+- **Opp badge**: `<span class="action-opp-badge">` — absolute positioned top-right, blue pill, shows "Opp" when `acctOpp || hasAnyContactOpp(name)` is true. Read-only indicator, no click functionality.
+- Account name click: `event.stopPropagation()` added to prevent drag interference → opens account deep-dive page
+
+#### Action Tab State Variables
+```javascript
+let actionView = 'cards';           // 'cards' | 'table'
+let actionStageFilters = new Set(); // stages to filter by (empty = show all)
+let actionActiveClientFilter = false; // when true, only show accounts with active license
+let actionSortCol, actionSortDir;   // current sort
+const ACTION_STAGES = [...];        // 6 stage objects with val, label, emoji, color, bg
+```
+
+#### ibis_local fields used by Action tab
+- `hasAction` (bool) — whether account is in the Action list
+- `acctActionStage` (string) — one of the 6 stage vals or ''
+- `actionHeadline` (string) — short action note shown in table + cards
+- `actionNextDate` (string) — free-text date, shown in table + cards
+- `actionNotes` (string) — longer notes in account page action block
+- `actionKeyContact` (string) — write-in key contact, shown in account page action block (new v29)
+
 ### Account Deep-Dive Page (new in v27)
 - Full-page view — clicking any account name or logo transitions the entire dashboard to the account page (not a modal or drawer)
 - **Entry points:** account name text + logo in Accounts table, Accounts cards, Licenses tab, Workables cards, Workables table (active + cold rows). Click targets are constrained — name text and logo only, not whole row.
@@ -143,8 +214,14 @@ Status | Company | Vertical | Tier | Revenue | Score | Workables | US Client | A
 - **Navigation:** sticky nav bar at `top:90px` (below 52px site header + 38px tab nav), `z-index:98`. Left: ← Back button + breadcrumb (`origin tab · Account Name`). Right: `‹ N / total ›` prev/next arrows.
 - **Prev/next logic:** `goToAccount(name)` snapshots `getFilteredOrderedNames()` at click time (respects frozen sort + active filters). `accountPageOrigin`, `accountPageList`, `accountPageIdx` are global state vars.
 - **Back navigation:** `closeAccountPage()` calls `setMainView(accountPageOrigin)` — returns to whichever tab opened the page. `setMainView()` also hides the account page whenever any tab is clicked directly.
+- **Header now shows company description** (v29) — `local.desc` (from Wikipedia/Claude enrichment) displayed below the account name in small muted text. Hidden if no description loaded yet.
+- **Key Contact field** (v29) — in the action block, between Next Date and Notes:
+  - If a workable exists: write-in input on the LEFT ("Add another contact…") + auto-populated workable chip on the RIGHT (purple pill with name+title from `getKeyWorkable()`)
+  - If no workable: single write-in input ("Write in a key contact…")
+  - Stored in `ibis_local[name].actionKeyContact`, saved via `saveActionField(name,'actionKeyContact',value)`
+  - CSS: `.ap-key-contact-row`, `.ap-key-contact-label`, `.ap-key-contact-input`, `.ap-key-contact-auto`
 - **Six panels in a CSS grid (3 cols, 2 rows):**
-  - Row 1, full width: **Header** — logo (same cascade), name, meta strip (Tier · Revenue · Vertical · Sentiment badge · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · Workables · Priority)
+  - Row 1, full width: **Header** — logo (same cascade), name, description (new v29), meta strip (Tier · Revenue · Vertical · Sentiment badge · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · Workables · Priority)
   - Row 2 col 1: **🎯 Priority Outreach** — contacts sorted by urgency, action labels (Email today / Follow up / Re-engage / On ice)
   - Row 2 col 2: **👥 Campaigns** — all non-archived contacts with avatar, stage pill, days chip; "+ Add contact" placeholder
   - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout, type badges use existing `.lic-type-badge` classes
@@ -569,13 +646,14 @@ Power Automate is available because Dan is employed at IBISWorld. **If Dan leave
 ---
 
 ## SLASH COMMANDS
-Three commands live in `.claude/commands/` — type them anytime in Claude Code:
+Four commands live in `.claude/commands/` — type them anytime in Claude Code:
 
 | Command | What it does |
 |---|---|
-| `/start-session` | Reads CLAUDE.md, prints version + last build + open items, asks what to tackle |
+| `/start-session` | Reads CLAUDE.md + DESIGN.md via Read tool, prints version + last build + open items, asks what to tackle |
 | `/check-session` | Health check — exchange count, uncommitted changes, unfinished tasks, recommendation |
-| `/end-session` | Commits anything loose, confirms CLAUDE.md is current, prints safe-to-close summary |
+| `/end-session` | Updates CLAUDE.md + memory files, commits, confirms DESIGN.md if UI work done, prints safe-to-close summary |
+| `/design-pass [tab]` | Scoped visual/UX audit against DESIGN.md token set. Args: `campaigns` · `accounts` · `licenses` · `dead` · `account-page` · `all` |
 
 ---
 
@@ -583,9 +661,10 @@ Three commands live in `.claude/commands/` — type them anytime in Claude Code:
 
 ### Starting fresh — do this first
 When a new session begins, Claude Code should:
-1. Read CLAUDE.md fully
-2. Confirm in one line: current version, last thing built, next open item
-3. Ask Dan: "What do you want to tackle?"
+1. **Use the Read tool** to read CLAUDE.md in 3 chunks (offset:0/250/500) — never rely on auto-injected context alone
+2. **Use the Read tool** to read DESIGN.md fully
+3. Confirm in one line: current version, last thing built, next open item
+4. Ask Dan: "What do you want to tackle?"
 - Never assume Dan remembers where things left off — he shouldn't have to
 
 ### Context window health
@@ -661,6 +740,13 @@ When a new session begins, Claude Code should:
 | ✅ Done | Action protection rule | Accounts with `hasAction=true` are skipped in dead detection during CSV re-upload. They re-enter the accounts array with `_droppedFromCSV:true` flag and show an orange "dropped from CSV" badge in the Action table. They never move to the Dead tab. |
 | ✅ Done | Action tab: Opp column | Opp widget shown near Company column in Action table using `renderAcctOppCell()`. |
 | ✅ Done | Campaign dropdown click-outside fix | Click-outside handler now checks both `wrap.contains(e.target)` AND `menu.contains(e.target)` before closing — prevents menu items being eaten before their onclick fires. Items get explicit `background:#fff`. Z-index raised to 9800. |
+| ✅ Done | Unified Opp system 1:1 sync | `toggleSFOpp()` now syncs to `ibis_local` (account-level). `toggleAcctOpp()` now syncs primary contact's `sfOpp` in `ibis_opps`. Amounts + close dates shared. Opp active rows turn light blue in both Accounts + Action tables. |
+| ✅ Done | Workables column redesign v29 | Moved to right of Opp in Accounts table. Shows contact name + title instead of count bubble. `getKeyWorkable(name)` helper — prefers sfOpp contact, falls back to first non-archived. "+N" overflow if multiple. |
+| ✅ Done | Action table Active Client + column filters v29 | Active Client moved to right of Vertical. Stage column has ▾ dropdown filter (checkboxes, synced with chips). Active Client column header is a toggle filter. State: `actionStageFilters` Set + `actionActiveClientFilter` bool. |
+| ✅ Done | Action cards design pass v29 | 240px width, 10px radius, align-items:flex-start. Blue Opp badge (absolute top-right). Territory dot (green/grey). Account name click stopPropagation → opens account page. Date + headline in card header. Key workable name+title in card footer with divider. |
+| ✅ Done | Action stage dropdown color fix | `.action-stage-select option { background:#fff !important; color:#111827 !important; }` — prevents selected stage bg color bleeding into dropdown option list. |
+| ✅ Done | Account page: description below name | `local.desc` shown below account name in AP header — soft grey, hidden if empty. |
+| ✅ Done | Account page: Key Contact field | In action block between Next Date and Notes. Auto-populates workable chip (right) + write-in input (left) when workable exists. Write-in only when no workable. Stored in `ibis_local[name].actionKeyContact`. |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample contact reappears in a future Old Samples CSV re-upload, restore them to `samples` and remove from `deadSampleContacts`. Not yet implemented. |
 | 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
 | 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |
