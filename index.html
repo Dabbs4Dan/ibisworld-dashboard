@@ -584,9 +584,19 @@
   .chip-action.active { background:#ecfeff; border-color:#22d3ee; color:#0891b2; }
 
   /* Workables count bubble */
-  .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
+  .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .wkbl-dot:hover { opacity:0.82; }
   /* Samples count bubble */
-  .smpl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#059669; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; }
+  .smpl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#059669; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .smpl-dot:hover { opacity:0.82; }
+  /* Contact preview portal */
+  #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
+  .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cprev-row { display:flex; align-items:center; gap:8px; padding:7px 14px; border-bottom:1px solid #f3f4f6; }
+  .cprev-row:last-child { border-bottom:none; }
+  .cprev-name { font-size:12px; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cprev-title { font-size:11px; color:#6b7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cprev-empty { padding:16px 14px; color:#9ca3af; font-size:12px; text-align:center; }
   /* US Client check pill */
   .us-check { display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#16a34a; background:#dcfce7; border-radius:999px; padding:2px 8px; font-family:'DM Sans',sans-serif; }
   /* Sentiment score badge */
@@ -1102,15 +1112,15 @@
   .action-headline-input:focus { border-bottom-color:#22d3ee; background:#f0fdfe; }
   /* Action stage select dropdown */
   .action-stage-select {
-    border: 1.5px solid rgba(0,0,0,0.13); border-radius:999px;
+    border: 1px solid #d1d5db; border-radius:999px;
     padding: 3px 24px 3px 10px; font-size:11px; font-weight:600;
     font-family:'DM Sans',sans-serif; cursor:pointer; outline:none;
     appearance:none; -webkit-appearance:none; min-width:110px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23374151'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 8px center;
-    transition: border-color 150ms ease, opacity 150ms ease;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
   }
-  .action-stage-select:hover { opacity:0.88; border-color:rgba(0,0,0,0.25); }
+  .action-stage-select:hover { border-color:#9ca3af; box-shadow:0 1px 3px rgba(0,0,0,.08); }
   /* Prevent selected stage color from bleeding into dropdown option list */
   .action-stage-select option { background:#fff !important; color:#111827 !important; }
 
@@ -1711,7 +1721,6 @@
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:center;min-width:120px;">Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
-            <th onclick="setSortCol('workables')" style="cursor:pointer;min-width:160px;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -1729,6 +1738,7 @@
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
+            <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('samples')" style="cursor:pointer;text-align:center;">Samples <span class="acct-sort-arrow" id="asort-samples"></span></th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
@@ -2499,12 +2509,12 @@ function renderTable(list) {
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
       <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderAcctOppCell(name, local)}</td>
-      <td style="padding:4px 10px;vertical-align:middle;min-width:160px;">${(()=>{const w=getKeyWorkable(name);if(!w)return '<span style="color:var(--text-muted);font-size:12px;">—</span>';const wc=getWorkableCount(name);const more=wc>1?`<span style="color:var(--text-muted);font-size:10px;margin-left:3px;">+${wc-1}</span>`:'';return `<div style="display:flex;align-items:flex-start;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;margin-top:4px;"></span><div style="min-width:0;line-height:1.3;"><div style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">${escHtml(w.name||'')}${more}</div>${w.title?`<div style="font-size:10px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;">${escHtml(w.title)}</div>`:''}</div></div>`;})()}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
-      <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
@@ -4704,12 +4714,12 @@ let actionActiveClientFilter = false; // filter to only accounts with active lic
 const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 const ACTION_STAGES = [
-  { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#ffffff', bg:'#16a34a' },
-  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#ffffff', bg:'#2563eb' },
-  { val:'active_opp',       label:'Active Opp',       emoji:'💼', color:'#ffffff', bg:'#d97706' },
-  { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#ffffff', bg:'#7c3aed' },
-  { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#ffffff', bg:'#64748b' },
-  { val:'internal_support', label:'Internal Support', emoji:'🛟', color:'#ffffff', bg:'#0891b2' },
+  { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#15803d', bg:'#dcfce7' },
+  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#1d4ed8', bg:'#dbeafe' },
+  { val:'active_opp',       label:'Active Opp',       emoji:'💼', color:'#92400e', bg:'#fef3c7' },
+  { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#6d28d9', bg:'#ede9fe' },
+  { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#475569', bg:'#f1f5f9' },
+  { val:'internal_support', label:'Internal Support', emoji:'🛟', color:'#0369a1', bg:'#e0f2fe' },
 ];
 
 function setActionView(v) {
@@ -4921,7 +4931,7 @@ function renderActionTable(rows) {
     const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
     const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
 
-    const wBadge = wCount > 0 ? `<span class="wkbl-dot">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
+    const wBadge = wCount > 0 ? `<span class="wkbl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
     const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
 
     // Company cell + dropped badge
@@ -6301,11 +6311,58 @@ function renderDeadContacts() {
     </tr>`;
   }).join('');
 }
+
+// ── Contact Preview Portal ────────────────────────────────────────────────
+function openContactPreview(event, accountName, type) {
+  const portal = document.getElementById('contact-preview-portal');
+  if (!portal) return;
+  const n = normName(accountName);
+  let contacts = [];
+  if (type === 'workables') {
+    contacts = Object.values(opps)
+      .filter(o => normName(o.accountName) === n && !o.archived)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: o.stage || '' }));
+  } else {
+    contacts = Object.values(samples)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
+  }
+  const label = type === 'workables' ? '🎯 Workables' : '🧪 Old Samples';
+  let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
+  if (!contacts.length) {
+    html += `<div class="cprev-empty">No contacts</div>`;
+  } else {
+    html += contacts.map(c => {
+      const sc = type === 'workables' && c.stage ? (STAGE_COLORS[c.stage] || { bg:'#f3f4f6', color:'#6b7280' }) : null;
+      const stagePill = sc ? `<span style="flex-shrink:0;font-size:10px;font-weight:600;color:${sc.color};background:${sc.bg};border-radius:999px;padding:1px 7px;">${escHtml(c.stage)}</span>` : '';
+      return `<div class="cprev-row"><div style="flex:1;min-width:0;"><div class="cprev-name">${escHtml(c.name)}</div>${c.title ? `<div class="cprev-title">${escHtml(c.title)}</div>` : ''}</div>${stagePill}</div>`;
+    }).join('');
+  }
+  portal.innerHTML = html;
+  portal.style.display = 'block';
+  const rect = event.target.getBoundingClientRect();
+  const pw = portal.offsetWidth || 260;
+  let top = rect.bottom + 6;
+  let left = rect.left;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (left < 8) left = 8;
+  portal.style.top = top + 'px';
+  portal.style.left = left + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', closeContactPreview, { once: true });
+    document.addEventListener('scroll', closeContactPreview, { once: true, capture: true });
+  }, 0);
+}
+function closeContactPreview() {
+  const p = document.getElementById('contact-preview-portal');
+  if (p) p.style.display = 'none';
+}
 </script>
 <!-- Global portals for account dropdowns — live outside table to avoid stacking context issues -->
 <div id="acct-status-portal"></div>
 <div id="acct-priority-portal"></div>
 <div id="sentiment-card"></div>
+<div id="contact-preview-portal"></div>
 
 <!-- ── Debug Panel (Shift+D to open) ──────────────────────────────────────── -->
 <div id="debug-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;overflow-y:auto;padding:32px 16px;" onclick="if(event.target===this)closeDebugPanel()">
