@@ -63,6 +63,22 @@ If no UI changes happened, skip this step entirely.
 
 ---
 
+## STEP 4b — Worktree cleanup (ALWAYS run, takes 10 seconds)
+
+Run: `git worktree list`
+
+If any worktrees appear (paths containing `.claude/worktrees/`):
+1. Merge any unmerged commits to main first: `git merge [branch] --no-ff -m "..."` then `git push origin main`
+2. Remove the worktree folder: `git worktree remove .claude/worktrees/[name] --force`
+3. Delete the branch: `git branch -d claude/[name]`
+4. Confirm: `git worktree list` should now show only the main repo path
+
+If no worktrees exist, skip this step.
+
+**Why this matters:** If a worktree folder is left behind, the next Claude Code session may accidentally open inside it (a dead side branch instead of main). Cleaning up here prevents that entirely.
+
+---
+
 ## STEP 5 — Print summary
 
 ✅ Pushed: [commit hash] — live in ~30 seconds

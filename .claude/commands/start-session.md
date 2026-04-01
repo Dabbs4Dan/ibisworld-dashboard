@@ -1,5 +1,20 @@
 Run the start-of-session orientation:
 
+0. **WORKTREE CHECK — run this FIRST, before anything else**
+
+   Run: `git worktree list`
+
+   - If the current session path contains `.claude/worktrees/` → 🚨 **STOP. Tell Dan immediately:**
+     > "⚠️ This session opened inside a worktree (a side branch), not the main project folder. Changes won't go live until manually merged to main. For future sessions, please open Claude Code from: `Desktop\ibisworld-dashboard` (the top-level folder, not any subfolder inside it). I'll handle merging for you this session — just letting you know."
+     Then continue, but ensure ALL git commits are followed by a merge+push to main before confirming anything is "live".
+   - If path does NOT contain `.claude/worktrees/` → ✅ correct location, continue below.
+
+   Also run: `git worktree list | grep worktrees` — if any stale worktrees exist from previous sessions, clean them up now:
+   ```
+   git worktree remove .claude/worktrees/[name] --force
+   git branch -d claude/[name]
+   ```
+
 1. **Read CLAUDE.md explicitly using the Read tool** — do NOT rely on auto-injected context.
    CLAUDE.md is ~700 lines. Read it in three clean chunks:
    - `Read offset:0 limit:250` → Project Overview, Architecture, Current State, Accounts tab features
