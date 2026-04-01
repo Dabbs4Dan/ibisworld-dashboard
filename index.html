@@ -589,6 +589,11 @@
   /* Samples count bubble */
   .smpl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#059669; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
   .smpl-dot:hover { opacity:0.82; }
+  .sixqa-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#0891b2; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .sixqa-dot:hover { opacity:0.82; }
+  .sixqa-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
+  .sixqa-terr-dot.in-csv { background:#16a34a; }
+  .sixqa-terr-dot.dropped { background:#d1d5db; }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1328,12 +1333,18 @@
           <span class="upload-menu-dot" id="udot-samples"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearSamplesData()" title="Clear">✕</span>
         </button>
+        <button class="upload-menu-row" onclick="document.getElementById('sixqa-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">📊 6QA CSV</span>
+          <span class="upload-menu-dot" id="udot-sixqa"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearSixqaData()" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
     <input type="file" id="opp-file-input" accept=".csv" onchange="handleOppsCSV(event)">
     <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)" style="display:none;">
+    <input type="file" id="sixqa-file-input" accept=".csv" onchange="handleSixqaCSV(event)" style="display:none;">
   </div>
 </div>
 
@@ -1517,6 +1528,10 @@
         <span>🧪 Old Samples</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
       </div>
+      <div class="campaign-selector-item" id="cmenu-sixqa" onclick="selectCampaignFromMenu('sixqa')">
+        <span>📊 6QA</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-sixqa">0</span>
+      </div>
       <div class="campaign-selector-divider"></div>
       <div class="campaign-selector-item disabled">+ Add campaign (coming soon)</div>
     </div>
@@ -1551,6 +1566,14 @@
     <div class="stat-item">
       <div class="stat-label">Total Contacts</div>
       <div class="stat-value red" id="sstat-total">—</div>
+    </div>
+  </div>
+
+  <!-- 6QA stats (shown when currentCampaign=sixqa) -->
+  <div id="campaign-sixqa-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="sqstat-total">—</div>
     </div>
   </div>
 </div>
@@ -1686,6 +1709,13 @@
       <input type="text" placeholder="Search samples..." id="samples-search-input" oninput="renderSamples()">
     </div>
   </div>
+  <!-- 6QA controls -->
+  <div id="controls-sixqa-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search 6QA contacts..." id="sixqa-search-input" oninput="renderSixqa()">
+    </div>
+  </div>
 </div>
 
 <div class="change-banner" id="change-banner">
@@ -1740,6 +1770,7 @@
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
             <th onclick="setSortCol('samples')" style="cursor:pointer;text-align:center;">Samples <span class="acct-sort-arrow" id="asort-samples"></span></th>
+            <th onclick="setSortCol('sixqa')" style="cursor:pointer;text-align:center;">6QA <span class="acct-sort-arrow" id="asort-sixqa"></span></th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
@@ -1852,6 +1883,32 @@
           </tr>
         </thead>
         <tbody id="samples-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 6QA campaign view -->
+  <div id="campaign-view-sixqa" class="hidden">
+    <div id="sixqa-empty-state" class="empty-state">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">Upload your 6QA CSV to get started</div>
+      <div class="empty-desc">Export your 6QA contact list from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 📊 6QA CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('sixqa-file-input').click()">📊 Upload 6QA CSV</button>
+    </div>
+    <div id="sixqa-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="sixqa-table-wrap" class="opp-tbl-wrap hidden">
+      <table class="acct-table">
+        <thead>
+          <tr>
+            <th style="width:24px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="sixqa-table-body"></tbody>
       </table>
     </div>
   </div>
@@ -1979,9 +2036,9 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadView = 'accounts';
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
-let samples = {};
+let samples = {}, sixqa = {};
 let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
@@ -2070,6 +2127,12 @@ function init() {
   if (Object.keys(samples).length > 0) {
     document.getElementById('samples-empty-state')?.classList.add('hidden');
     document.getElementById('samples-table-wrap')?.classList.remove('hidden');
+  }
+  // Load 6QA
+  loadSixqa();
+  if (Object.keys(sixqa).length > 0) {
+    document.getElementById('sixqa-empty-state')?.classList.add('hidden');
+    document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
   }
   updateCampaignPillCounts();
 
@@ -2338,6 +2401,7 @@ function getFiltered() {
     if (sort==='licenses') return d * (getLicCount(getField(a,'Account Name','AccountName')) - getLicCount(getField(b,'Account Name','AccountName')));
     if (sort==='workables') return d * (getWorkableCount(getField(a,'Account Name','AccountName')) - getWorkableCount(getField(b,'Account Name','AccountName')));
     if (sort==='samples') return d * (getSampleCount(getField(a,'Account Name','AccountName')) - getSampleCount(getField(b,'Account Name','AccountName')));
+    if (sort==='sixqa') return d * (getSixqaCount(getField(a,'Account Name','AccountName')) - getSixqaCount(getField(b,'Account Name','AccountName')));
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
@@ -2515,6 +2579,7 @@ function renderTable(list) {
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;">${(()=>{const qc=getSixqaCount(name);return qc>0?`<span class="sixqa-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'sixqa')">${qc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
@@ -3386,10 +3451,10 @@ let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
 let currentAccountPageName = null;  // name of account currently shown on the deep-dive page (null if closed)
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', usClient:'desc', activeClient:'desc', opp:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', usClient:'desc', activeClient:'desc', opp:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','usClient','activeClient','opp','acctStatus','acctPriority'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','usClient','activeClient','opp','acctStatus','acctPriority'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -4583,13 +4648,15 @@ function renderAPCampaigns(name) {
   const n = normName(name);
   const workables = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
   const sampleContacts = Object.values(samples).filter(o => normName(o.accountName) === n);
+  const sixqaContacts = Object.values(sixqa).filter(o => normName(o.accountName) === n);
   const allContacts = [
     ...workables.map(o => ({ ...o, _campaign: 'workables' })),
     ...sampleContacts.map(o => ({ ...o, _campaign: 'samples' })),
+    ...sixqaContacts.map(o => ({ ...o, _campaign: 'sixqa' })),
   ];
   if (!allContacts.length) return `
     <div class="ap-panel-title">👥 Campaigns</div>
-    <div class="ap-empty">No contacts found<br>Upload Workables or Old Samples CSV to populate</div>
+    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, or 6QA CSV to populate</div>
     <button class="ap-add-btn" disabled>+ Add contact (coming soon)</button>`;
 
   return `
@@ -4601,6 +4668,8 @@ function renderAPCampaigns(name) {
       const sc       = STAGE_COLORS[o.stage] || {bg:'#f3f4f6',color:'#6b7280'};
       const campBadge = o._campaign === 'workables'
         ? `<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:1px 6px;font-weight:600;">🎯 Workable</span>`
+        : o._campaign === 'sixqa'
+        ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:5px;padding:1px 6px;font-weight:600;">📊 6QA</span>`
         : `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:5px;padding:1px 6px;font-weight:600;">🧪 Sample</span>`;
       return `<div class="ap-contact-row">
         <div class="ap-avatar" style="background:${AP_AVATAR_COLORS[colorIdx]}">${initial}</div>
@@ -5099,7 +5168,7 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen'];
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -5792,6 +5861,127 @@ function getSampleCount(name) {
   return Object.values(samples).filter(o => normName(o.accountName) === n).length;
 }
 
+// ── 6QA Campaign ─────────────────────────────────────────────────────────────
+function loadSixqa() {
+  try { const s = localStorage.getItem('ibis_6qa'); if (s) sixqa = JSON.parse(s); } catch(e) { sixqa = {}; }
+}
+function saveSixqa() {
+  try { localStorage.setItem('ibis_6qa', JSON.stringify(sixqa)); } catch(e) { console.warn('ibis_6qa save failed:', e); }
+}
+
+function handleSixqaCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result); // same schema
+    const result = mergeSixqa(newContacts);
+    saveSixqa();
+    updateCampaignPillCounts();
+    renderSixqa();
+    document.getElementById('sixqa-empty-state')?.classList.add('hidden');
+    document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
+    const dot = document.getElementById('udot-sixqa');
+    if (dot) { dot.style.background = '#22c55e'; dot.title = 'Uploaded this session'; }
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function mergeSixqa(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
+  newContacts.forEach(c => {
+    if (sixqa[c.email]) {
+      sixqa[c.email].name = c.name;
+      sixqa[c.email].accountName = c.accountName;
+      sixqa[c.email].title = c.title;
+      sixqa[c.email].country = c.country;
+      sixqa[c.email].lastActivity = c.lastActivity;
+      updated++;
+    } else {
+      sixqa[c.email] = { ...c, notes: '', dateAdded: today };
+      added++;
+    }
+  });
+  // Move missing contacts to dead (only on re-upload, i.e. sixqa already had data)
+  if (Object.keys(sixqa).length > newContacts.length) {
+    Object.keys(sixqa).forEach(email => {
+      if (!newEmails.has(email)) {
+        const alreadyDead = deadSixqaContacts.some(d => d.email === email);
+        if (!alreadyDead) {
+          deadSixqaContacts.push({ ...sixqa[email], _deadSince: today, _campaign: 'sixqa', _campaignLabel: '📊 6QA' });
+          deadCount++;
+        }
+        delete sixqa[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
+}
+
+function renderSixqa() {
+  const q = (document.getElementById('sixqa-search-input')?.value || '').toLowerCase();
+  const all = Object.values(sixqa);
+  let list = all;
+  if (q) list = list.filter(o =>
+    (o.name||'').toLowerCase().includes(q) ||
+    (o.accountName||'').toLowerCase().includes(q) ||
+    (o.title||'').toLowerCase().includes(q)
+  );
+
+  const countLabel = document.getElementById('sixqa-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} 6QA contacts` : '';
+
+  if (!all.length) {
+    document.getElementById('sixqa-empty-state')?.classList.remove('hidden');
+    document.getElementById('sixqa-table-wrap')?.classList.add('hidden');
+    return;
+  }
+  document.getElementById('sixqa-empty-state')?.classList.add('hidden');
+  document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
+
+  const tbody = document.getElementById('sixqa-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
+    return `<tr>
+      <td style="text-align:center;">${terrDot}</td>
+      <td><div class="td-company">${oppLogoHTML(o, 24)}<div><span class="td-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></div></td>
+      <td>${escHtml(o.name||'')}</td>
+      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.title||'')}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days + 'd' : '—'}</td>
+      <td><button class="opp-delete-btn" onclick="deleteSixqa('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function deleteSixqa(email) {
+  const o = sixqa[email];
+  if (!o) return;
+  if (!confirm(`Remove ${o.name || email} from 6QA? This cannot be undone.`)) return;
+  delete sixqa[email];
+  saveSixqa();
+  renderSixqa();
+  updateCampaignPillCounts();
+}
+
+function clearSixqaData() {
+  if (!confirm('Clear all 6QA data?')) return;
+  localStorage.removeItem('ibis_6qa');
+  location.reload();
+}
+
+function getSixqaCount(name) {
+  const n = normName(name);
+  return Object.values(sixqa).filter(o => normName(o.accountName) === n).length;
+}
+
 const CAMPAIGN_DEFS = {
   workables: {
     emoji: '🎯',
@@ -5804,6 +5994,12 @@ const CAMPAIGN_DEFS = {
     label: 'Old Samples',
     getCount: () => Object.values(samples).length,
     onActivate: () => renderSamples(),
+  },
+  sixqa: {
+    emoji: '📊',
+    label: '6QA',
+    getCount: () => Object.values(sixqa).length,
+    onActivate: () => renderSixqa(),
   },
 };
 
@@ -5821,6 +6017,9 @@ function updateCampaignPillCounts() {
   // Update Old Samples total stat element
   const sstotal = document.getElementById('sstat-total');
   if (sstotal) sstotal.textContent = CAMPAIGN_DEFS.samples.getCount() || '—';
+  // Update 6QA total stat element
+  const sqtotal = document.getElementById('sqstat-total');
+  if (sqtotal) sqtotal.textContent = CAMPAIGN_DEFS.sixqa.getCount() || '—';
 }
 
 function setCampaign(name) {
@@ -6011,15 +6210,16 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
     deadSampleContacts = raw.sampleContacts || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; }
+    deadSixqaContacts = raw.sixqaContacts || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -6037,6 +6237,7 @@ function markDeadAsSeen() {
   deadAccounts.forEach(d => deadSeenKeys.add(deadItemKey(d,'account')));
   deadLicenses.forEach(d => deadSeenKeys.add(deadItemKey(d,'license')));
   deadSampleContacts.forEach(d => deadSeenKeys.add('sc|' + d.email));
+  deadSixqaContacts.forEach(d => deadSeenKeys.add('6q|' + d.email));
   saveDeadSeen();
   updateDeadTabBadge();
 }
@@ -6044,7 +6245,8 @@ function updateDeadTabBadge() {
   const unseenAccts    = deadAccounts.filter(d => !deadSeenKeys.has(deadItemKey(d,'account'))).length;
   const unseenLics     = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
   const unseenContacts = deadSampleContacts.filter(d => !deadSeenKeys.has('sc|' + d.email)).length;
-  const unseen = unseenAccts + unseenLics + unseenContacts;
+  const unseenSixqa    = deadSixqaContacts.filter(d => !deadSeenKeys.has('6q|' + d.email)).length;
+  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -6063,7 +6265,8 @@ function renderDead() {
   const dsw = document.getElementById('dstat-warnings');
   if (dsa) dsa.textContent = deadAccounts.length;
   if (dsl) dsl.textContent = deadLicenses.length;
-  if (dsc) dsc.textContent = deadSampleContacts.length || '—';
+  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length;
+  if (dsc) dsc.textContent = totalDeadContacts || '—';
   if (dsw) dsw.textContent = warnings || '—';
   // Update pill counts
   const pac = document.getElementById('dvt-acct-count');
@@ -6071,7 +6274,7 @@ function renderDead() {
   const pcc = document.getElementById('dvt-contact-count');
   if (pac) pac.textContent = deadAccounts.length;
   if (plc) plc.textContent = deadLicenses.length;
-  if (pcc) pcc.textContent = deadSampleContacts.length;
+  if (pcc) pcc.textContent = totalDeadContacts;
 }
 
 function renderDeadAccounts() {
@@ -6270,7 +6473,7 @@ function renderDeadContacts() {
   if (!body) return;
 
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  let list = deadSampleContacts.slice();
+  let list = [...deadSampleContacts, ...deadSixqaContacts];
   if (search) {
     list = list.filter(d =>
       (d.name||'').toLowerCase().includes(search) ||
@@ -6322,12 +6525,16 @@ function openContactPreview(event, accountName, type) {
     contacts = Object.values(opps)
       .filter(o => normName(o.accountName) === n && !o.archived)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: o.stage || '' }));
+  } else if (type === 'sixqa') {
+    contacts = Object.values(sixqa)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   } else {
     contacts = Object.values(samples)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   }
-  const label = type === 'workables' ? '🎯 Workables' : '🧪 Old Samples';
+  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '📊 6QA' : '🧪 Old Samples';
   let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
   if (!contacts.length) {
     html += `<div class="cprev-empty">No contacts</div>`;
