@@ -1115,9 +1115,10 @@
   .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:240px; transition:border-color 0.15s; padding:2px 2px 3px; }
   .action-headline-input::placeholder { color:#9ca3af; font-style:italic; font-size:11px; }
   .action-headline-input:focus { border-bottom-color:#22d3ee; background:#f0fdfe; }
-  .action-date-input { font-family:'DM Mono',monospace; font-size:11px; font-weight:600; color:#0369a1; background:#e0f2fe; border:1px solid #7dd3fc; border-radius:6px; padding:3px 8px; outline:none; width:88px; transition:border-color 150ms ease, background 150ms ease; }
-  .action-date-input::placeholder { color:#7dd3fc; font-style:normal; font-weight:400; }
-  .action-date-input:focus { background:#fff; border-color:#0369a1; color:#0369a1; }
+  .action-date-input { font-family:'DM Mono',monospace; font-size:11px; font-weight:500; color:#374151; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:3px 8px; outline:none; width:88px; transition:border-color 150ms ease, background 150ms ease, color 150ms ease; }
+  .action-date-input::placeholder { color:#cbd5e1; font-style:normal; font-weight:400; }
+  .action-date-input:focus { background:#fff; border-color:#94a3b8; color:#111827; }
+  .action-date-input.past-due { color:#ea580c; background:#fff7ed; border-color:#fdba74; font-weight:700; }
   /* Action stage select dropdown */
   .action-stage-select {
     border: 1.5px solid; border-radius:999px;
@@ -1214,24 +1215,30 @@
   .ap-action-ice     { color: #9ca3af; }
 
   /* Contacts / campaigns */
-  /* Campaigns multi-column contact grid */
-  .ap-campaigns-grid {
-    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;
+  /* Campaigns panel — grouped mini-table, one column per campaign */
+  .ap-campaigns-table { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+  .ap-camp-col {
+    flex: 1 1 140px; min-width: 130px; max-width: 220px;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
   }
-  .ap-cc-col {
-    flex: 0 0 130px; min-width: 0;
-    background: #f9fafb; border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 10px 8px;
-    display: flex; flex-direction: column; gap: 4px;
+  .ap-camp-header {
+    padding: 6px 10px; font-size: 10px; font-weight: 700;
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 5px;
   }
-  .ap-cc-avatar {
-    width: 28px; height: 28px; border-radius: 50%;
+  .ap-camp-row {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 10px; border-bottom: 1px solid #f3f4f6;
+  }
+  .ap-camp-row:last-child { border-bottom: none; }
+  .ap-camp-avatar {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px;
+    font-size: 10px; font-weight: 700; color: #fff;
   }
-  .ap-cc-name { font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.3; word-break: break-word; }
-  .ap-cc-title { font-size: 10px; color: var(--text-muted); line-height: 1.3; word-break: break-word; }
-  .ap-cc-meta { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; align-items: center; }
+  .ap-camp-info { min-width: 0; flex: 1; }
+  .ap-camp-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ap-camp-title { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ap-camp-days { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-muted); flex-shrink: 0; }
   /* Legacy single-column contact row (used in Priority Outreach) */
   .ap-contact-row {
     display: flex; align-items: center; gap: 8px;
@@ -1467,7 +1474,7 @@
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th id="axh-active-client" onclick="toggleActionActiveLicFilter()" style="cursor:pointer;" title="Click to filter: has active license">Active Client <span id="axh-active-client-dot" style="display:none;color:var(--ibis-red);font-size:9px;">●</span></th>
               <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
-              <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="axsort-workables"></span></th>
+              <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Campaigns <span class="acct-sort-arrow" id="axsort-workables"></span></th>
               <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
           </thead>
@@ -1899,9 +1906,11 @@
     </div>
     <div id="samples-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
     <div id="samples-table-wrap" class="opp-tbl-wrap hidden">
-      <table class="acct-table">
+      <div class="table-wrap">
+      <table>
         <thead>
           <tr>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
             <th>Company</th>
             <th>Name</th>
             <th>Title</th>
@@ -1911,23 +1920,25 @@
         </thead>
         <tbody id="samples-table-body"></tbody>
       </table>
+      </div>
     </div>
   </div>
 
   <!-- 6QA campaign view -->
   <div id="campaign-view-sixqa" class="hidden">
     <div id="sixqa-empty-state" class="empty-state">
-      <div class="empty-icon">📊</div>
+      <div class="empty-icon">🔥</div>
       <div class="empty-title">Upload your 6QA CSV to get started</div>
       <div class="empty-desc">Export your 6QA contact list from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🔥 6QA CSV above.</div>
-      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('sixqa-file-input').click()">📊 Upload 6QA CSV</button>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('sixqa-file-input').click()">🔥 Upload 6QA CSV</button>
     </div>
     <div id="sixqa-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
     <div id="sixqa-table-wrap" class="opp-tbl-wrap hidden">
-      <table class="acct-table">
+      <div class="table-wrap">
+      <table>
         <thead>
           <tr>
-            <th style="width:24px;"></th>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
             <th>Company</th>
             <th>Name</th>
             <th>Title</th>
@@ -1937,6 +1948,7 @@
         </thead>
         <tbody id="sixqa-table-body"></tbody>
       </table>
+      </div>
     </div>
   </div>
 </div>
@@ -4667,38 +4679,60 @@ function renderAPCampaigns(name) {
   const workables = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
   const sampleContacts = Object.values(samples).filter(o => normName(o.accountName) === n);
   const sixqaContacts = Object.values(sixqa).filter(o => normName(o.accountName) === n);
-  const allContacts = [
-    ...workables.map(o => ({ ...o, _campaign: 'workables' })),
-    ...sampleContacts.map(o => ({ ...o, _campaign: 'samples' })),
-    ...sixqaContacts.map(o => ({ ...o, _campaign: 'sixqa' })),
-  ];
-  if (!allContacts.length) return `
+
+  if (!workables.length && !sampleContacts.length && !sixqaContacts.length) return `
     <div class="ap-panel-title">👥 Campaigns</div>
     <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, or 🔥 6QA CSV to populate</div>`;
 
-  return `
-    <div class="ap-panel-title">👥 Campaigns</div>
-    <div class="ap-campaigns-grid">
-    ${allContacts.map(o => {
+  function renderCampRows(contacts, type) {
+    return contacts.map(o => {
       const initial  = (o.name || '?')[0].toUpperCase();
       const colorIdx = initial.charCodeAt(0) % AP_AVATAR_COLORS.length;
       const daysAgo  = oppDaysAgo(o.lastActivity);
       const sc       = STAGE_COLORS[o.stage] || {bg:'#f3f4f6',color:'#6b7280'};
-      const campBadge = o._campaign === 'workables'
-        ? `<span style="font-size:9px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:1px 6px;font-weight:600;white-space:nowrap;">🎯 Workable</span>`
-        : o._campaign === 'sixqa'
-        ? `<span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:999px;padding:1px 6px;font-weight:600;white-space:nowrap;">🔥 6QA</span>`
-        : `<span style="font-size:9px;background:#d1fae5;color:#065f46;border-radius:999px;padding:1px 6px;font-weight:600;white-space:nowrap;">🧪 Sample</span>`;
-      const stagePill = o.stage ? `<span style="font-size:9px;font-weight:600;color:${sc.color};background:${sc.bg};border-radius:999px;padding:1px 6px;white-space:nowrap;">${escHtml(o.stage)}</span>` : '';
-      const daysPill  = daysAgo !== null ? `<span style="font-size:9px;color:var(--text-muted);font-family:'DM Mono',monospace;background:#f3f4f6;border-radius:999px;padding:1px 6px;">${daysAgo}d</span>` : '';
-      return `<div class="ap-cc-col">
-        <div class="ap-cc-avatar" style="background:${AP_AVATAR_COLORS[colorIdx]}">${initial}</div>
-        <div class="ap-cc-name">${escHtml(o.name||'—')}</div>
-        ${o.title ? `<div class="ap-cc-title">${escHtml(o.title)}</div>` : ''}
-        <div class="ap-cc-meta">${campBadge}${stagePill}${daysPill}</div>
+      const stagePill = (type === 'workables' && o.stage)
+        ? `<span style="font-size:9px;font-weight:600;color:${sc.color};background:${sc.bg};border-radius:999px;padding:1px 5px;white-space:nowrap;">${escHtml(o.stage)}</span>`
+        : '';
+      const daysPill = daysAgo !== null
+        ? `<span class="ap-camp-days">${daysAgo}d</span>`
+        : '';
+      return `<div class="ap-camp-row">
+        <div class="ap-camp-avatar" style="background:${AP_AVATAR_COLORS[colorIdx]}">${initial}</div>
+        <div class="ap-camp-info">
+          <div class="ap-camp-name">${escHtml(o.name||'—')}</div>
+          ${o.title ? `<div class="ap-camp-title">${escHtml(o.title)}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">${stagePill}${daysPill}</div>
       </div>`;
-    }).join('')}
-    </div>`;
+    }).join('');
+  }
+
+  const cols = [];
+  if (workables.length) cols.push(`
+    <div class="ap-camp-col">
+      <div class="ap-camp-header" style="background:#faf5ff;color:#6d28d9;">
+        <span>🎯</span><span>Workables</span><span style="margin-left:auto;font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:1px 7px;">${workables.length}</span>
+      </div>
+      ${renderCampRows(workables, 'workables')}
+    </div>`);
+  if (sampleContacts.length) cols.push(`
+    <div class="ap-camp-col">
+      <div class="ap-camp-header" style="background:#f0fdf4;color:#065f46;">
+        <span>🧪</span><span>Old Samples</span><span style="margin-left:auto;font-size:10px;background:#d1fae5;color:#065f46;border-radius:999px;padding:1px 7px;">${sampleContacts.length}</span>
+      </div>
+      ${renderCampRows(sampleContacts, 'samples')}
+    </div>`);
+  if (sixqaContacts.length) cols.push(`
+    <div class="ap-camp-col">
+      <div class="ap-camp-header" style="background:#f0f9ff;color:#0369a1;">
+        <span>🔥</span><span>6QA</span><span style="margin-left:auto;font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:999px;padding:1px 7px;">${sixqaContacts.length}</span>
+      </div>
+      ${renderCampRows(sixqaContacts, 'sixqa')}
+    </div>`);
+
+  return `
+    <div class="ap-panel-title">👥 Campaigns</div>
+    <div class="ap-campaigns-table">${cols.join('')}</div>`;
 }
 
 // ── Panel 4: License history ───────────────────────────────────
@@ -4799,7 +4833,7 @@ const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'d
 
 const ACTION_STAGES = [
   { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#15803d', bg:'#dcfce7' },
-  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#1d4ed8', bg:'#dbeafe' },
+  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#0f766e', bg:'#ccfbf1' },
   { val:'active_opp',       label:'Active Opp',       emoji:'💼', color:'#92400e', bg:'#fef3c7' },
   { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#6d28d9', bg:'#ede9fe' },
   { val:'stalled',          label:'Stalled',           emoji:'⏸', color:'#9a3412', bg:'#fff7ed' },
@@ -5017,7 +5051,15 @@ function renderActionTable(rows) {
     const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
     const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
 
-    const wBadge = wCount > 0 ? `<span class="wkbl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wCount}</span>` : '<span style="color:var(--text-muted);">—</span>';
+    // Campaigns cell — shows colored bubble per campaign that has contacts for this account
+    const sCount = getSampleCount(name);
+    const qCount = getSixqaCount(name);
+    const campaignBubbles = [
+      wCount > 0 ? `<span class="wkbl-dot" title="🎯 Workables" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wCount}</span>` : '',
+      sCount > 0 ? `<span class="smpl-dot" title="🧪 Old Samples" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sCount}</span>` : '',
+      qCount > 0 ? `<span class="sixqa-dot" title="🔥 6QA" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'sixqa')">${qCount}</span>` : '',
+    ].filter(Boolean).join('');
+    const campaignCell = campaignBubbles ? `<div style="display:flex;gap:4px;justify-content:center;align-items:center;">${campaignBubbles}</div>` : '<span style="color:var(--text-muted);">—</span>';
     const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
 
     // Company cell + dropped badge
@@ -5037,8 +5079,19 @@ function renderActionTable(rows) {
     // Action Headline — custom text, stored in ibis_local[name].actionHeadline
     const headlineCell = `<input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
-    // Next Date — custom date, stored in ibis_local[name].actionNextDate
-    const nextDateCell = `<input class="action-date-input" type="text" value="${escHtml(local.actionNextDate||'')}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+    // Next Date — custom date, turns orange if past due
+    const nextDateCell = (()=>{
+      const dateStr = local.actionNextDate || '';
+      let isPastDue = false;
+      if (dateStr) {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          parsed.setHours(23,59,59,999);
+          isPastDue = parsed < new Date();
+        }
+      }
+      return `<input class="action-date-input${isPastDue?' past-due':''}" type="text" value="${escHtml(dateStr)}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value);this.classList.toggle('past-due',!!this.value&&!isNaN(new Date(this.value))&&new Date(this.value)<new Date())" onkeydown="if(event.key==='Enter')this.blur()">`;
+    })();
 
     return `<tr class="${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}">
       <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
@@ -5050,7 +5103,7 @@ function renderActionTable(rows) {
       <td>${vertical !== '—' ? `<span class="vertical-tag" style="background:${VERT_COLORS[vertical]||'#f3f4f6'}">${escHtml(vertical)}</span>` : '<span style="color:var(--text-muted);">—</span>'}</td>
       <td style="text-align:center;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="text-align:center;">${daysBadge}</td>
-      <td style="text-align:center;">${wBadge}</td>
+      <td style="text-align:center;">${campaignCell}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
     </tr>`;
   }).join('');
@@ -5309,28 +5362,32 @@ function parseOppsCSV(text) {
 function autoAddToAction(accountName) {
   if (!accountName) return;
   const normN = normName(accountName);
-  // Already in Action — nothing to do
-  if (localData[accountName]?.hasAction) return;
-  // Check if account exists in live accounts[]
-  const existing = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normN);
-  if (existing) {
-    // In territory — just flag it
-    if (!localData[accountName]) localData[accountName] = {};
-    localData[accountName].hasAction = true;
+  // Find canonical name from live accounts[] (handles case/whitespace differences)
+  const existingAcct = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normN);
+  const canonicalName = existingAcct ? getField(existingAcct,'Account Name','AccountName') : null;
+  // Already in Action — nothing to do (check both possible keys)
+  if (localData[canonicalName || accountName]?.hasAction) return;
+  if (existingAcct && canonicalName) {
+    // In territory — flag using canonical name so Action tab finds it
+    if (!localData[canonicalName]) localData[canonicalName] = {};
+    localData[canonicalName].hasAction = true;
   } else {
     // Not in live accounts — check dead
     const deadIdx = deadAccounts.findIndex(a => normName(getField(a,'Account Name','AccountName')) === normN);
     if (deadIdx >= 0) {
       // Resurrect from dead — strip dead metadata, add back to accounts[]
       const revived = { ...deadAccounts[deadIdx] };
+      const revivedName = getField(revived,'Account Name','AccountName');
       delete revived._deadSince; delete revived._statusAtDeath;
       delete revived._unexpectedDrop; delete revived._localSnapshot;
       accounts.push(revived);
       deadAccounts.splice(deadIdx, 1);
       saveDead();
       localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
+      if (!localData[revivedName]) localData[revivedName] = {};
+      localData[revivedName].hasAction = true;
     } else {
-      // No history — create a skeleton account from workable data
+      // No history — create a skeleton account so it shows up in Action
       accounts.push({
         'Account Name': accountName, 'Website': '', 'Major Markets Tier': '',
         'Vertical': '', 'Sub-Vertical': '', 'Employees': '',
@@ -5340,9 +5397,9 @@ function autoAddToAction(accountName) {
         '6sense Account Buying Stage NA': '', _isSkeletonAccount: true,
       });
       localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
+      if (!localData[accountName]) localData[accountName] = {};
+      localData[accountName].hasAction = true;
     }
-    if (!localData[accountName]) localData[accountName] = {};
-    localData[accountName].hasAction = true;
   }
   localStorage.setItem('ibis_local', JSON.stringify(localData));
 }
@@ -5890,12 +5947,15 @@ function renderSamples() {
   if (!tbody) return;
   tbody.innerHTML = list.map(o => {
     const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
     return `<tr>
-      <td><div class="td-company">${oppLogoHTML(o, 24)}<div><span class="td-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></div></td>
-      <td>${escHtml(o.name||'')}</td>
-      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.title||'')}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days + 'd' : '—'}</td>
-      <td><button class="opp-delete-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
+      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
     </tr>`;
   }).join('');
 }
@@ -6018,12 +6078,12 @@ function renderSixqa() {
     const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
     const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
     return `<tr>
-      <td style="text-align:center;">${terrDot}</td>
-      <td><div class="td-company">${oppLogoHTML(o, 24)}<div><span class="td-name" style="cursor:pointer;" onclick="goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></div></td>
-      <td>${escHtml(o.name||'')}</td>
-      <td style="color:var(--text-secondary);font-size:12px;">${escHtml(o.title||'')}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days + 'd' : '—'}</td>
-      <td><button class="opp-delete-btn" onclick="deleteSixqa('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
+      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteSixqa('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
     </tr>`;
   }).join('');
 }
