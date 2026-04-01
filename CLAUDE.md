@@ -63,7 +63,7 @@ GitHub Pages auto-deploys in ~30 seconds. That's it.
 - **Row click modal removed** — clicking a row no longer opens the flags/notes/revenue modal (removed `onclick="openModal(...)"` from `<tr>` and `.account-card`)
 
 #### Accounts Table Columns (left → right)
-Status | Priority | Company | Opp | Workables | Vertical | Tier | Revenue | Score | Samples | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
+Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Workables | Samples | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
 
 #### Status Column (new in v23)
 - Per-account dropdown: **✓ Keep** (green), **👁 Monitor** (yellow), **✗ Drop** (red), **— ** (grey dash)
@@ -81,12 +81,12 @@ Status | Priority | Company | Opp | Workables | Vertical | Tier | Revenue | Scor
 - Filter chips: 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon in the top filter bar
 - Sortable column; `acctPriority` added to `ACCT_SORT_DEFAULT_DIR`
 
-#### Workables Column (redesigned in v29)
-- Shows **contact name + title** of the primary workable (not a count bubble any more)
-- `getKeyWorkable(name)` — returns the key workable contact: prefers `sfOpp=true` contact, falls back to first non-archived. Returns `null` if none.
-- `getWorkableCount(name)` still used for sort and for the "+N" overflow indicator (e.g. "John Smith +2")
-- Layout: small purple dot · Name (bold 12px, truncated) · Title below (muted 10px, truncated) · "+N" count if multiple
-- Grey dash if no workables
+#### Workables Column (reverted to count bubble in v29+)
+- Shows **purple count bubble** (`.wkbl-dot`) — reverted from name+title display back to compact bubble
+- Positioned between Score and Samples columns
+- **Clickable** — click bubble opens `#contact-preview-portal` showing a popover list of all non-archived workable contacts for that account, each with name, title, and stage pill
+- `getWorkableCount(name)` used for the count; grey dash if zero
+- `getKeyWorkable(name)` still used by Action tab cards and Account page Key Contact field
 
 #### US Client Column (new in v23)
 - Green ✓ checkmark if account has ANY US Industry license in `ibis_licenses` (regardless of active/churn status)
