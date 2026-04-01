@@ -1424,13 +1424,15 @@
   <div class="filter-chips" id="action-filter-chips">
     <button class="chip" id="action-filter-workables" onclick="setActionFilter('workables')">🎯 Has Workables</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
-    <button class="chip" id="action-stage-chip-new_sequence"     onclick="toggleActionStageFilter('new_sequence')"    >🟢 New Sequence</button>
-    <button class="chip" id="action-stage-chip-multithreading"   onclick="toggleActionStageFilter('multithreading')"  >🔵 Multi-threading</button>
-    <button class="chip" id="action-stage-chip-active_opp"       onclick="toggleActionStageFilter('active_opp')"      >💰 Active Opp</button>
+    <button class="chip" id="action-stage-chip-new_sequence"     onclick="toggleActionStageFilter('new_sequence')"    >🚀 New Sequence</button>
+    <button class="chip" id="action-stage-chip-multithreading"   onclick="toggleActionStageFilter('multithreading')"  >👥 Multi-threading</button>
+    <button class="chip" id="action-stage-chip-active_opp"       onclick="toggleActionStageFilter('active_opp')"      >💼 Active Opp</button>
     <button class="chip" id="action-stage-chip-active_proposal"  onclick="toggleActionStageFilter('active_proposal')" >📋 Active Proposal</button>
     <button class="chip" id="action-stage-chip-stalled"          onclick="toggleActionStageFilter('stalled')"         >⏸ Stalled</button>
     <button class="chip" id="action-stage-chip-future_reconnect" onclick="toggleActionStageFilter('future_reconnect')">🔮 Future Reconnect</button>
-    <button class="chip" id="action-stage-chip-internal_support" onclick="toggleActionStageFilter('internal_support')">🤝 Internal Support</button>
+    <button class="chip" id="action-stage-chip-internal_support" onclick="toggleActionStageFilter('internal_support')">🛟 Internal Support</button>
+    <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
+    <button class="chip" id="action-stage-chip-tabled"           onclick="toggleActionStageFilter('tabled')"          >🗄 Tabled</button>
   </div>
 </div>
 
@@ -1450,6 +1452,7 @@
           <thead>
             <tr>
               <th style="min-width:200px;">Company</th>
+              <th style="width:20px;padding:0 4px;"></th>
               <th style="text-align:center;min-width:110px;">Opp</th>
               <th style="min-width:140px;position:relative;" id="ath-action-stage">
                 <div class="lic-th-inner">
@@ -1464,7 +1467,8 @@
                   <label><input type="checkbox" value="active_proposal" onchange="applyActionStageFromDropdown()"> 📋 Active Proposal</label>
                   <label><input type="checkbox" value="stalled" onchange="applyActionStageFromDropdown()"> ⏸ Stalled</label>
                   <label><input type="checkbox" value="future_reconnect" onchange="applyActionStageFromDropdown()"> 🔮 Future Reconnect</label>
-                  <label><input type="checkbox" value="internal_support" onchange="applyActionStageFromDropdown()"> 🤝 Internal Support</label>
+                  <label><input type="checkbox" value="internal_support" onchange="applyActionStageFromDropdown()"> 🛟 Internal Support</label>
+                  <label><input type="checkbox" value="tabled" onchange="applyActionStageFromDropdown()"> 🗄 Tabled</label>
                   <div class="lic-dropdown-actions"><button onclick="clearActionStageFilters()">Clear</button></div>
                 </div>
               </th>
@@ -2175,6 +2179,8 @@ function init() {
     document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
   }
   updateCampaignPillCounts();
+  // Auto-add all existing workable contacts' accounts to Action (backfill)
+  syncAllWorkablesToAction();
 
   if (savedLic) {
     // Re-decode on restore (dates need re-parsing from strings)
@@ -4833,12 +4839,13 @@ const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'d
 
 const ACTION_STAGES = [
   { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#15803d', bg:'#dcfce7' },
-  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#0f766e', bg:'#ccfbf1' },
+  { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#4338ca', bg:'#eef2ff' },
   { val:'active_opp',       label:'Active Opp',       emoji:'💼', color:'#92400e', bg:'#fef3c7' },
   { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#6d28d9', bg:'#ede9fe' },
   { val:'stalled',          label:'Stalled',           emoji:'⏸', color:'#9a3412', bg:'#fff7ed' },
   { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#475569', bg:'#f1f5f9' },
   { val:'internal_support', label:'Internal Support', emoji:'🛟', color:'#0369a1', bg:'#e0f2fe' },
+  { val:'tabled',           label:'Tabled',            emoji:'🗄', color:'#6b7280', bg:'#f3f4f6' },
 ];
 
 function setActionView(v) {
@@ -4900,11 +4907,22 @@ function setActionStage(name, val) {
   }
 }
 
+function _applyActionChipColor(val, active) {
+  const chip = document.getElementById('action-stage-chip-' + val);
+  if (!chip) return;
+  chip.classList.toggle('active', active);
+  const stg = ACTION_STAGES.find(s => s.val === val);
+  if (stg && active) {
+    chip.style.background = stg.bg; chip.style.color = stg.color; chip.style.borderColor = stg.color;
+  } else {
+    chip.style.background = ''; chip.style.color = ''; chip.style.borderColor = '';
+  }
+}
+
 function toggleActionStageFilter(val) {
   if (actionStageFilters.has(val)) actionStageFilters.delete(val);
   else actionStageFilters.add(val);
-  document.getElementById('action-stage-chip-' + val)?.classList.toggle('active', actionStageFilters.has(val));
-  // sync dropdown checkbox
+  _applyActionChipColor(val, actionStageFilters.has(val));
   const cb = document.querySelector(`#action-dropdown-stage input[value="${val}"]`);
   if (cb) cb.checked = actionStageFilters.has(val);
   document.getElementById('atfbtn-stage')?.classList.toggle('lic-filter-active', actionStageFilters.size > 0);
@@ -4926,7 +4944,7 @@ function toggleActionStageDropdown(event) {
 function applyActionStageFromDropdown() {
   actionStageFilters.clear();
   document.querySelectorAll('#action-dropdown-stage input:checked').forEach(cb => actionStageFilters.add(cb.value));
-  ACTION_STAGES.forEach(s => document.getElementById('action-stage-chip-'+s.val)?.classList.toggle('active', actionStageFilters.has(s.val)));
+  ACTION_STAGES.forEach(s => _applyActionChipColor(s.val, actionStageFilters.has(s.val)));
   document.getElementById('atfbtn-stage')?.classList.toggle('lic-filter-active', actionStageFilters.size > 0);
   renderAction();
 }
@@ -4934,7 +4952,7 @@ function applyActionStageFromDropdown() {
 function clearActionStageFilters() {
   actionStageFilters.clear();
   document.querySelectorAll('#action-dropdown-stage input').forEach(cb => cb.checked = false);
-  ACTION_STAGES.forEach(s => document.getElementById('action-stage-chip-'+s.val)?.classList.remove('active'));
+  ACTION_STAGES.forEach(s => _applyActionChipColor(s.val, false));
   document.getElementById('atfbtn-stage')?.classList.remove('lic-filter-active');
   renderAction();
 }
@@ -4986,6 +5004,11 @@ function renderAction() {
   if (actionFilter === 'cooling')   filtered = filtered.filter(r => r.days > 30 && r.days <= 90);
   if (actionFilter === 'overdue')   filtered = filtered.filter(r => r.days > 90);
   if (actionFilter === 'workables') filtered = filtered.filter(r => getWorkableCount(r.name) > 0);
+  // Always hide Tabled unless the Tabled filter chip is explicitly active
+  if (!actionStageFilters.has('tabled')) {
+    filtered = filtered.filter(r => (localData[r.name]?.acctActionStage || '') !== 'tabled');
+  }
+  // Apply stage filters (if any active, show only those stages)
   if (actionStageFilters.size > 0) {
     filtered = filtered.filter(r => actionStageFilters.has(localData[r.name]?.acctActionStage || ''));
   }
@@ -5037,7 +5060,7 @@ function updateActionStats(rows) {
 function renderActionTable(rows) {
   const tbody = document.getElementById('action-tbody');
   if (!tbody) return;
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:32px;">No accounts match this filter.</td></tr>'; return; }
 
   tbody.innerHTML = rows.map(({acc, name, days}) => {
     const local = localData[name] || {};
@@ -5045,6 +5068,9 @@ function renderActionTable(rows) {
     const vertical = getField(acc,'Vertical') || '—';
     const wCount = getWorkableCount(name);
     const isDropped = !!acc._droppedFromCSV;
+    const isSkeleton = !!acc._isSkeletonAccount;
+    const inTerritory = !isSkeleton && !isDropped;
+    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In territory CSV' : isSkeleton ? 'Added via workable — not in CSV' : 'Dropped from CSV'}"></span>`;
 
     // Days badge color
     const daysBg = days <= 30 ? '#dcfce7' : days <= 90 ? '#fef9c3' : '#fee2e2';
@@ -5095,6 +5121,7 @@ function renderActionTable(rows) {
 
     return `<tr class="${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}">
       <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
+      <td style="text-align:center;padding:0 4px;">${terrDot}</td>
       <td style="padding:0 8px;vertical-align:middle;text-align:center;">${oppCell}</td>
       <td style="padding:4px 8px;">${stageSelect}</td>
       <td style="padding:6px 8px;">${headlineCell}</td>
@@ -5144,8 +5171,11 @@ function renderActionCards(rows) {
     grouped[stage].push(r);
   });
 
-  // Build kanban columns — one for unset + one per stage
-  const allCols = [{ val:'', label:'Unset', emoji:'—', color:'#9ca3af', bg:'#f9fafb' }, ...ACTION_STAGES];
+  // Build kanban columns — one for unset + one per stage (Tabled hidden unless its filter is active)
+  const allCols = [
+    { val:'', label:'Unset', emoji:'—', color:'#9ca3af', bg:'#f9fafb' },
+    ...ACTION_STAGES.filter(s => s.val !== 'tabled' || actionStageFilters.has('tabled'))
+  ];
 
   grid.style.display = 'flex';
   grid.style.gap = '14px';
@@ -5402,6 +5432,26 @@ function autoAddToAction(accountName) {
     }
   }
   localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
+
+// Run on init — ensures any existing workable contacts already auto-add their accounts to Action
+function syncAllWorkablesToAction() {
+  let changed = false;
+  Object.values(opps).forEach(o => {
+    if (!o.archived && o.stage !== 'DQ' && o.accountName) {
+      const normN = normName(o.accountName);
+      const existingAcct = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normN);
+      const key = existingAcct ? getField(existingAcct,'Account Name','AccountName') : o.accountName;
+      if (!localData[key]?.hasAction) {
+        autoAddToAction(o.accountName);
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    localStorage.setItem('ibis_local', JSON.stringify(localData));
+    localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
+  }
 }
 
 function mergeOpps(newContacts) {
