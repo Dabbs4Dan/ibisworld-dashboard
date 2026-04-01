@@ -9,11 +9,19 @@ Run the start-of-session orientation:
      Then continue, but ensure ALL git commits are followed by a merge+push to main before confirming anything is "live".
    - If path does NOT contain `.claude/worktrees/` → ✅ correct location, continue below.
 
-   Also run: `git worktree list | grep worktrees` — if any stale worktrees exist from previous sessions, clean them up now:
+   Also run: `git worktree list` — if any OTHER worktrees appear (paths containing `.claude/worktrees/`) AND the current session is on the main folder (not in a worktree itself), clean them up automatically now:
    ```
    git worktree remove .claude/worktrees/[name] --force
    git branch -d claude/[name]
+   rm -rf "/c/Users/Daniel.starr/.claude/projects/C--Users-Daniel-starr-OneDrive---IBISWORLD-PTY-LTD-Desktop-ibisworld-dashboard--claude-worktrees-[name]"
    ```
+   Run all three commands for every stale worktree found. Confirm with `git worktree list` — only the main path should remain.
+
+   If the current session IS inside a worktree (path contains `.claude/worktrees/`): delete this worktree's project history entry immediately before doing anything else:
+   ```
+   rm -rf "/c/Users/Daniel.starr/.claude/projects/C--Users-Daniel-starr-OneDrive---IBISWORLD-PTY-LTD-Desktop-ibisworld-dashboard--claude-worktrees-[current-worktree-name]"
+   ```
+   This ensures it won't reappear in Claude Code's project list next time. Then tell Dan to open from `Desktop\ibisworld-dashboard` next session.
 
 1. **Read CLAUDE.md explicitly using the Read tool** — do NOT rely on auto-injected context.
    CLAUDE.md is ~700 lines. Read it in three clean chunks:

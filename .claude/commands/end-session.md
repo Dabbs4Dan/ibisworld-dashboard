@@ -68,20 +68,23 @@ If no UI changes happened, skip this step entirely.
 Run: `git worktree list`
 
 If any worktrees appear (paths containing `.claude/worktrees/`):
-1. Merge any unmerged commits to main first: `git merge [branch] --no-ff -m "..."` then `git push origin main`
-2. Remove the worktree folder: `git worktree remove .claude/worktrees/[name] --force`
-3. Delete the branch: `git branch -d claude/[name]`
-4. Confirm: `git worktree list` should now show only the main repo path
+
+**Do these steps IN ORDER — the history delete must happen first:**
+
+1. **Delete the project history entry immediately** (do this FIRST, before anything else — even if git worktree remove later fails, the entry is gone):
+   ```
+   rm -rf "/c/Users/Daniel.starr/.claude/projects/C--Users-Daniel-starr-OneDrive---IBISWORLD-PTY-LTD-Desktop-ibisworld-dashboard--claude-worktrees-[name]"
+   ```
+2. Merge any unmerged commits to main first: `git merge [branch] --no-ff -m "..."` then `git push origin main`
+3. Remove the worktree folder: `git worktree remove .claude/worktrees/[name] --force`
+4. Delete the branch: `git branch -d claude/[name]`
+5. Confirm: `git worktree list` should now show only the main repo path
+
+If the session is currently INSIDE the worktree (step 3 will fail with "cannot remove current worktree"), that's OK — the project history entry (step 1) is already deleted so it won't reappear. The worktree folder itself is harmless and will be cleaned up automatically next session when `/start-session` runs from the main folder.
 
 If no worktrees exist, skip this step.
 
-**Why this matters:** If a worktree folder is left behind, the next Claude Code session may accidentally open inside it (a dead side branch instead of main). Cleaning up here prevents that entirely.
-
-After removing each worktree, also delete its Claude Code project history entry:
-```
-rm -rf "/c/Users/Daniel.starr/.claude/projects/C--Users-Daniel-starr-OneDrive---IBISWORLD-PTY-LTD-Desktop-ibisworld-dashboard--claude-worktrees-[name]"
-```
-This removes the worktree from Claude Code's project list so it can never be accidentally reopened. The main project entry (`...ibisworld-dashboard` without a suffix) must be preserved.
+**Why this matters:** If a worktree project history entry is left behind, Claude Code will list it as a recent project and Dan may accidentally open it next session. Deleting the history entry first guarantees it's gone regardless of whether the folder cleanup succeeds. The main project entry (`...ibisworld-dashboard` without a suffix) must always be preserved.
 
 ---
 

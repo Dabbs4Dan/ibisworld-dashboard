@@ -774,3 +774,4 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Outreach Extension: Add Campaign modal | UI + storage for custom campaigns |
 | 🗺️ Future | Outreach Extension: email compose integration | Pre-fill Outlook compose with contact name + template on click |
 | 🗺️ Future | Outreach Extension: activity logging | Log sent emails back to dashboard (surface in Workables tab) |
+| ✅ Done | Slash command worktree fix | `/end-session` Step 4b now deletes project history entry FIRST (before git worktree remove) so it's always gone even when session is inside the worktree. `/start-session` now auto-runs full cleanup (remove + branch delete + history delete) when stale worktrees are detected from the main folder. |
