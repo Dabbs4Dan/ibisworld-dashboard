@@ -1112,20 +1112,23 @@
   .ap-key-contact-input::placeholder { color:#9ca3af; font-style:italic; }
   .ap-key-contact-auto { display:flex; align-items:center; gap:7px; background:#f5f3ff; border:1px solid #ede9fe; border-radius:999px; padding:4px 12px 4px 8px; flex-shrink:0; }
   /* Action headline input in Action table — distinct from plain opp-inline-input */
-  .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:150px; transition:border-color 0.15s; padding:2px 2px 3px; }
+  .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:240px; transition:border-color 0.15s; padding:2px 2px 3px; }
   .action-headline-input::placeholder { color:#9ca3af; font-style:italic; font-size:11px; }
   .action-headline-input:focus { border-bottom-color:#22d3ee; background:#f0fdfe; }
+  .action-date-input { font-family:'DM Mono',monospace; font-size:11px; font-weight:600; color:#0369a1; background:#e0f2fe; border:1px solid #7dd3fc; border-radius:6px; padding:3px 8px; outline:none; width:88px; transition:border-color 150ms ease, background 150ms ease; }
+  .action-date-input::placeholder { color:#7dd3fc; font-style:normal; font-weight:400; }
+  .action-date-input:focus { background:#fff; border-color:#0369a1; color:#0369a1; }
   /* Action stage select dropdown */
   .action-stage-select {
-    border: 1px solid #d1d5db; border-radius:999px;
-    padding: 3px 24px 3px 10px; font-size:11px; font-weight:600;
+    border: 1.5px solid; border-radius:999px;
+    padding: 4px 26px 4px 11px; font-size:11px; font-weight:600;
     font-family:'DM Sans',sans-serif; cursor:pointer; outline:none;
-    appearance:none; -webkit-appearance:none; min-width:110px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23374151'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 8px center;
-    transition: border-color 150ms ease, box-shadow 150ms ease;
+    appearance:none; -webkit-appearance:none; min-width:120px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center;
+    transition: box-shadow 150ms ease, opacity 150ms ease;
   }
-  .action-stage-select:hover { border-color:#9ca3af; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .action-stage-select:hover { box-shadow:0 1px 4px rgba(0,0,0,.12); opacity:0.9; }
   /* Prevent selected stage color from bleeding into dropdown option list */
   .action-stage-select option { background:#fff !important; color:#111827 !important; }
 
@@ -1211,6 +1214,25 @@
   .ap-action-ice     { color: #9ca3af; }
 
   /* Contacts / campaigns */
+  /* Campaigns multi-column contact grid */
+  .ap-campaigns-grid {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;
+  }
+  .ap-cc-col {
+    flex: 0 0 130px; min-width: 0;
+    background: #f9fafb; border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 10px 8px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .ap-cc-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; margin-bottom: 4px;
+  }
+  .ap-cc-name { font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.3; word-break: break-word; }
+  .ap-cc-title { font-size: 10px; color: var(--text-muted); line-height: 1.3; word-break: break-word; }
+  .ap-cc-meta { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; align-items: center; }
+  /* Legacy single-column contact row (used in Priority Outreach) */
   .ap-contact-row {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 0; border-bottom: 1px solid #f3f4f6;
@@ -1334,7 +1356,7 @@
           <span class="upload-menu-x" onclick="event.stopPropagation();clearSamplesData()" title="Clear">✕</span>
         </button>
         <button class="upload-menu-row" onclick="document.getElementById('sixqa-file-input').click();closeUploadMenu()">
-          <span class="upload-menu-label">📊 6QA CSV</span>
+          <span class="upload-menu-label">🔥 6QA CSV</span>
           <span class="upload-menu-dot" id="udot-sixqa"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearSixqaData()" title="Clear">✕</span>
         </button>
@@ -1399,6 +1421,7 @@
     <button class="chip" id="action-stage-chip-multithreading"   onclick="toggleActionStageFilter('multithreading')"  >🔵 Multi-threading</button>
     <button class="chip" id="action-stage-chip-active_opp"       onclick="toggleActionStageFilter('active_opp')"      >💰 Active Opp</button>
     <button class="chip" id="action-stage-chip-active_proposal"  onclick="toggleActionStageFilter('active_proposal')" >📋 Active Proposal</button>
+    <button class="chip" id="action-stage-chip-stalled"          onclick="toggleActionStageFilter('stalled')"         >⏸ Stalled</button>
     <button class="chip" id="action-stage-chip-future_reconnect" onclick="toggleActionStageFilter('future_reconnect')">🔮 Future Reconnect</button>
     <button class="chip" id="action-stage-chip-internal_support" onclick="toggleActionStageFilter('internal_support')">🤝 Internal Support</button>
   </div>
@@ -1432,6 +1455,7 @@
                   <label><input type="checkbox" value="multithreading" onchange="applyActionStageFromDropdown()"> 👥 Multi-threading</label>
                   <label><input type="checkbox" value="active_opp" onchange="applyActionStageFromDropdown()"> 💼 Active Opp</label>
                   <label><input type="checkbox" value="active_proposal" onchange="applyActionStageFromDropdown()"> 📋 Active Proposal</label>
+                  <label><input type="checkbox" value="stalled" onchange="applyActionStageFromDropdown()"> ⏸ Stalled</label>
                   <label><input type="checkbox" value="future_reconnect" onchange="applyActionStageFromDropdown()"> 🔮 Future Reconnect</label>
                   <label><input type="checkbox" value="internal_support" onchange="applyActionStageFromDropdown()"> 🤝 Internal Support</label>
                   <div class="lic-dropdown-actions"><button onclick="clearActionStageFilters()">Clear</button></div>
@@ -1529,7 +1553,7 @@
         <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
       </div>
       <div class="campaign-selector-item" id="cmenu-sixqa" onclick="selectCampaignFromMenu('sixqa')">
-        <span>📊 6QA</span>
+        <span>🔥 6QA</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-sixqa">0</span>
       </div>
       <div class="campaign-selector-divider"></div>
@@ -1715,6 +1739,9 @@
       <span class="search-icon">🔍</span>
       <input type="text" placeholder="Search 6QA contacts..." id="sixqa-search-input" oninput="renderSixqa()">
     </div>
+    <div class="filter-chips">
+      <button class="chip" id="sixqa-filter-active-accts" onclick="toggleSixqaActiveFilter()">🟢 Active Accounts Only</button>
+    </div>
   </div>
 </div>
 
@@ -1892,7 +1919,7 @@
     <div id="sixqa-empty-state" class="empty-state">
       <div class="empty-icon">📊</div>
       <div class="empty-title">Upload your 6QA CSV to get started</div>
-      <div class="empty-desc">Export your 6QA contact list from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 📊 6QA CSV above.</div>
+      <div class="empty-desc">Export your 6QA contact list from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🔥 6QA CSV above.</div>
       <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('sixqa-file-input').click()">📊 Upload 6QA CSV</button>
     </div>
     <div id="sixqa-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
@@ -2039,6 +2066,7 @@ function _dbgLog(type, msg, data) {
 let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadView = 'accounts';
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 let samples = {}, sixqa = {};
+let sixqaActiveFilter = false;
 let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
@@ -4430,24 +4458,14 @@ function renderAccountPage(name) {
       ${renderAPHeader(acc, local, name)}
       ${renderAPAction(local, name)}
       <div class="ap-grid">
-        <div class="ap-panel">${renderAPPriorityOutreach(name)}</div>
-        <div class="ap-panel">${renderAPCampaigns(name)}</div>
         <div class="ap-panel">${renderAPLicenses(name)}</div>
+        <div class="ap-panel ap-panel-wide">${renderAPCampaigns(name)}</div>
         <div class="ap-panel">${renderAPOpportunities(name)}</div>
-        <div class="ap-panel ap-panel-wide">${renderAPPlan(acc, local, name)}</div>
+        <div class="ap-panel">${renderAPPriorityOutreach(name)}</div>
       </div>
     </div>
   `;
 
-  // Wire up account plan textarea auto-save
-  const textarea = container.querySelector('#ap-plan-textarea');
-  if (textarea) {
-    textarea.addEventListener('input', () => {
-      if (!localData[name]) localData[name] = {};
-      localData[name].accountPlan = textarea.value;
-      localStorage.setItem('ibis_local', JSON.stringify(localData));
-    });
-  }
   // Wire up action notes textarea auto-save
   const actionNotes = container.querySelector('#ap-action-notes');
   if (actionNotes) {
@@ -4472,8 +4490,8 @@ function renderAPAction(local, name) {
         <div class="ap-action-field">
           <div class="ap-action-field-label">Stage</div>
           <select class="action-stage-select" id="ap-action-stage-select"
-            style="background:${stageObj?stageObj.bg:'#f9fafb'};color:${stageObj?stageObj.color:'#9ca3af'};"
-            onchange="setActionStage('${esc}',this.value);const s=ACTION_STAGES.find(x=>x.val===this.value);this.style.background=s?s.bg:'#f9fafb';this.style.color=s?s.color:'#9ca3af'">
+            style="background:${stageObj?stageObj.bg:'#f9fafb'};color:${stageObj?stageObj.color:'#9ca3af'};border-color:${stageObj?stageObj.color:'#d1d5db'};"
+            onchange="setActionStage('${esc}',this.value);const s=ACTION_STAGES.find(x=>x.val===this.value);this.style.background=s?s.bg:'#f9fafb';this.style.color=s?s.color:'#9ca3af';this.style.borderColor=s?s.color:'#d1d5db';">
             <option value=""${!currentStage?' selected':''}>— Unset</option>
             ${stageOpts}
           </select>
@@ -4499,10 +4517,6 @@ function renderAPAction(local, name) {
         if (kw) {
           return `<div class="ap-key-contact-row">
             <span class="ap-key-contact-label">Key Contact</span>
-            <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
-              placeholder="Add another contact…"
-              onblur="saveActionField('${esc}','actionKeyContact',this.value)"
-              onkeydown="if(event.key==='Enter')this.blur()">
             <div class="ap-key-contact-auto">
               <span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;display:inline-block;"></span>
               <div style="line-height:1.3;">
@@ -4510,6 +4524,10 @@ function renderAPAction(local, name) {
                 ${kw.title ? `<div style="font-size:10px;color:#7c3aed;">${escHtml(kw.title)}</div>` : ''}
               </div>
             </div>
+            <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
+              placeholder="Add another contact…"
+              onblur="saveActionField('${esc}','actionKeyContact',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()">
           </div>`;
         }
         return `<div class="ap-key-contact-row">
@@ -4656,34 +4674,31 @@ function renderAPCampaigns(name) {
   ];
   if (!allContacts.length) return `
     <div class="ap-panel-title">👥 Campaigns</div>
-    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, or 6QA CSV to populate</div>
-    <button class="ap-add-btn" disabled>+ Add contact (coming soon)</button>`;
+    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, or 🔥 6QA CSV to populate</div>`;
 
   return `
     <div class="ap-panel-title">👥 Campaigns</div>
+    <div class="ap-campaigns-grid">
     ${allContacts.map(o => {
       const initial  = (o.name || '?')[0].toUpperCase();
       const colorIdx = initial.charCodeAt(0) % AP_AVATAR_COLORS.length;
       const daysAgo  = oppDaysAgo(o.lastActivity);
       const sc       = STAGE_COLORS[o.stage] || {bg:'#f3f4f6',color:'#6b7280'};
       const campBadge = o._campaign === 'workables'
-        ? `<span style="font-size:10px;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:1px 6px;font-weight:600;">🎯 Workable</span>`
+        ? `<span style="font-size:9px;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:1px 6px;font-weight:600;white-space:nowrap;">🎯 Workable</span>`
         : o._campaign === 'sixqa'
-        ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:5px;padding:1px 6px;font-weight:600;">📊 6QA</span>`
-        : `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:5px;padding:1px 6px;font-weight:600;">🧪 Sample</span>`;
-      return `<div class="ap-contact-row">
-        <div class="ap-avatar" style="background:${AP_AVATAR_COLORS[colorIdx]}">${initial}</div>
-        <div class="ap-contact-info">
-          <div class="ap-contact-name">${escHtml(o.name||'')} ${campBadge}</div>
-          <div class="ap-contact-title">${escHtml(o.title||'')}</div>
-        </div>
-        <div class="ap-contact-right">
-          ${daysAgo !== null ? `<span class="ap-days-chip">${daysAgo}d</span>` : ''}
-          ${o.stage ? `<span class="ap-stage-pill" style="background:${sc.bg};color:${sc.color};">${o.stage}</span>` : ''}
-        </div>
+        ? `<span style="font-size:9px;background:#e0f2fe;color:#0369a1;border-radius:999px;padding:1px 6px;font-weight:600;white-space:nowrap;">🔥 6QA</span>`
+        : `<span style="font-size:9px;background:#d1fae5;color:#065f46;border-radius:999px;padding:1px 6px;font-weight:600;white-space:nowrap;">🧪 Sample</span>`;
+      const stagePill = o.stage ? `<span style="font-size:9px;font-weight:600;color:${sc.color};background:${sc.bg};border-radius:999px;padding:1px 6px;white-space:nowrap;">${escHtml(o.stage)}</span>` : '';
+      const daysPill  = daysAgo !== null ? `<span style="font-size:9px;color:var(--text-muted);font-family:'DM Mono',monospace;background:#f3f4f6;border-radius:999px;padding:1px 6px;">${daysAgo}d</span>` : '';
+      return `<div class="ap-cc-col">
+        <div class="ap-cc-avatar" style="background:${AP_AVATAR_COLORS[colorIdx]}">${initial}</div>
+        <div class="ap-cc-name">${escHtml(o.name||'—')}</div>
+        ${o.title ? `<div class="ap-cc-title">${escHtml(o.title)}</div>` : ''}
+        <div class="ap-cc-meta">${campBadge}${stagePill}${daysPill}</div>
       </div>`;
     }).join('')}
-    <button class="ap-add-btn" disabled>+ Add contact (coming soon)</button>`;
+    </div>`;
 }
 
 // ── Panel 4: License history ───────────────────────────────────
@@ -4787,6 +4802,7 @@ const ACTION_STAGES = [
   { val:'multithreading',   label:'Multi-threading',  emoji:'👥', color:'#1d4ed8', bg:'#dbeafe' },
   { val:'active_opp',       label:'Active Opp',       emoji:'💼', color:'#92400e', bg:'#fef3c7' },
   { val:'active_proposal',  label:'Active Proposal',  emoji:'📋', color:'#6d28d9', bg:'#ede9fe' },
+  { val:'stalled',          label:'Stalled',           emoji:'⏸', color:'#9a3412', bg:'#fff7ed' },
   { val:'future_reconnect', label:'Future Reconnect', emoji:'🔮', color:'#475569', bg:'#f1f5f9' },
   { val:'internal_support', label:'Internal Support', emoji:'🛟', color:'#0369a1', bg:'#e0f2fe' },
 ];
@@ -4829,7 +4845,8 @@ function renderActionStageSelect(name) {
   const emptyOpt = `<option value=""${!current?' selected':''}>— Unset</option>`;
   const bg = stage ? stage.bg : '#f9fafb';
   const color = stage ? stage.color : '#9ca3af';
-  return `<select class="action-stage-select" style="background:${bg};color:${color};" onchange="setActionStage('${escHtml(name)}',this.value)">${emptyOpt}${opts}</select>`;
+  const border = stage ? stage.color : '#d1d5db';
+  return `<select class="action-stage-select" style="background:${bg};color:${color};border-color:${border};" onchange="setActionStage('${escHtml(name)}',this.value)">${emptyOpt}${opts}</select>`;
 }
 
 function setActionStage(name, val) {
@@ -5021,7 +5038,7 @@ function renderActionTable(rows) {
     const headlineCell = `<input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
     // Next Date — custom date, stored in ibis_local[name].actionNextDate
-    const nextDateCell = `<input class="opp-inline-input" style="width:90px;" type="text" value="${escHtml(local.actionNextDate||'')}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+    const nextDateCell = `<input class="action-date-input" type="text" value="${escHtml(local.actionNextDate||'')}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
     return `<tr class="${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}">
       <td style="padding:6px 8px 6px 12px;">${companyCell}</td>
@@ -5289,6 +5306,47 @@ function parseOppsCSV(text) {
   return rows;
 }
 
+function autoAddToAction(accountName) {
+  if (!accountName) return;
+  const normN = normName(accountName);
+  // Already in Action — nothing to do
+  if (localData[accountName]?.hasAction) return;
+  // Check if account exists in live accounts[]
+  const existing = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normN);
+  if (existing) {
+    // In territory — just flag it
+    if (!localData[accountName]) localData[accountName] = {};
+    localData[accountName].hasAction = true;
+  } else {
+    // Not in live accounts — check dead
+    const deadIdx = deadAccounts.findIndex(a => normName(getField(a,'Account Name','AccountName')) === normN);
+    if (deadIdx >= 0) {
+      // Resurrect from dead — strip dead metadata, add back to accounts[]
+      const revived = { ...deadAccounts[deadIdx] };
+      delete revived._deadSince; delete revived._statusAtDeath;
+      delete revived._unexpectedDrop; delete revived._localSnapshot;
+      accounts.push(revived);
+      deadAccounts.splice(deadIdx, 1);
+      saveDead();
+      localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
+    } else {
+      // No history — create a skeleton account from workable data
+      accounts.push({
+        'Account Name': accountName, 'Website': '', 'Major Markets Tier': '',
+        'Vertical': '', 'Sub-Vertical': '', 'Employees': '',
+        'Annual Revenue Currency': '', 'Annual Revenue': '',
+        '# Core Clients': '0', '# Core Opportunities': '0',
+        'US Days Since Last Activity': '', '6sense Account Intent Score NA': '',
+        '6sense Account Buying Stage NA': '', _isSkeletonAccount: true,
+      });
+      localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
+    }
+    if (!localData[accountName]) localData[accountName] = {};
+    localData[accountName].hasAction = true;
+  }
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
+
 function mergeOpps(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
   const newEmails = new Set(newContacts.map(c => c.email));
@@ -5307,6 +5365,8 @@ function mergeOpps(newContacts) {
     } else {
       opps[c.email] = { ...c, stage: 'Introduction', notes: '', nextAction: '', nextDate: '', sfOpp: false, sfAmt: '', closeDate: '', archived: false, dateAdded: today };
       added++;
+      // Auto-add the account to Action tab when a new workable is created
+      autoAddToAction(c.accountName);
     }
   });
   // DQ any existing contacts missing from the new CSV (not archived, not already DQ)
@@ -5912,7 +5972,7 @@ function mergeSixqa(newContacts) {
       if (!newEmails.has(email)) {
         const alreadyDead = deadSixqaContacts.some(d => d.email === email);
         if (!alreadyDead) {
-          deadSixqaContacts.push({ ...sixqa[email], _deadSince: today, _campaign: 'sixqa', _campaignLabel: '📊 6QA' });
+          deadSixqaContacts.push({ ...sixqa[email], _deadSince: today, _campaign: 'sixqa', _campaignLabel: '🔥 6QA' });
           deadCount++;
         }
         delete sixqa[email];
@@ -5923,10 +5983,17 @@ function mergeSixqa(newContacts) {
   return { added, updated, deadCount };
 }
 
+function toggleSixqaActiveFilter() {
+  sixqaActiveFilter = !sixqaActiveFilter;
+  document.getElementById('sixqa-filter-active-accts')?.classList.toggle('active', sixqaActiveFilter);
+  renderSixqa();
+}
+
 function renderSixqa() {
   const q = (document.getElementById('sixqa-search-input')?.value || '').toLowerCase();
   const all = Object.values(sixqa);
   let list = all;
+  if (sixqaActiveFilter) list = list.filter(o => accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||'')));
   if (q) list = list.filter(o =>
     (o.name||'').toLowerCase().includes(q) ||
     (o.accountName||'').toLowerCase().includes(q) ||
@@ -5996,7 +6063,7 @@ const CAMPAIGN_DEFS = {
     onActivate: () => renderSamples(),
   },
   sixqa: {
-    emoji: '📊',
+    emoji: '🔥',
     label: '6QA',
     getCount: () => Object.values(sixqa).length,
     onActivate: () => renderSixqa(),
@@ -6534,7 +6601,7 @@ function openContactPreview(event, accountName, type) {
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   }
-  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '📊 6QA' : '🧪 Old Samples';
+  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : '🧪 Old Samples';
   let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
   if (!contacts.length) {
     html += `<div class="cprev-empty">No contacts</div>`;
