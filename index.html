@@ -548,7 +548,10 @@
   .val.cool { color: #059669; }
   .val.cold { color: var(--text-muted); }
 
-  .card-footer { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .card-footer { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+  .card-footer .opp-active-wrap { max-width: 100%; }
+  .card-footer .opp-amt-input { width: 50px; }
+  .card-footer .opp-close-input { width: 66px; }
 
   .stage-tag {
     font-size: 11px; font-weight: 600;
@@ -1394,20 +1397,20 @@
     <div class="stat-value" id="action-stat-total">—</div>
   </div>
   <div class="stat-item">
-    <div class="stat-label">Active (0–30d)</div>
+    <div class="stat-label">Active Accounts</div>
     <div class="stat-value" id="action-stat-active">—</div>
   </div>
   <div class="stat-item">
-    <div class="stat-label">Cooling (31–90d)</div>
-    <div class="stat-value" id="action-stat-cooling">—</div>
+    <div class="stat-label">Open Opps</div>
+    <div class="stat-value" id="action-stat-opps">—</div>
   </div>
   <div class="stat-item">
-    <div class="stat-label">Overdue (90d+)</div>
-    <div class="stat-value red" id="action-stat-overdue">—</div>
+    <div class="stat-label">No Stage Set</div>
+    <div class="stat-value" id="action-stat-nostage">—</div>
   </div>
   <div class="stat-item">
-    <div class="stat-label">Avg Days Inactive</div>
-    <div class="stat-value" id="action-stat-avg">—</div>
+    <div class="stat-label">Tabled</div>
+    <div class="stat-value" id="action-stat-tabled">—</div>
   </div>
 </div>
 
@@ -2205,6 +2208,7 @@ function init() {
     autoQueueLicDescriptions();
   }
   updateUploadDots();
+  initActionChipColors();
 }
 
 function handleCSV(e) {
@@ -4509,7 +4513,7 @@ function renderAPAction(local, name) {
           <div class="ap-action-field-label">Stage</div>
           <select class="action-stage-select" id="ap-action-stage-select"
             style="background:${stageObj?stageObj.bg:'#f9fafb'};color:${stageObj?stageObj.color:'#9ca3af'};border-color:${stageObj?stageObj.color:'#d1d5db'};"
-            onchange="setActionStage('${esc}',this.value);const s=ACTION_STAGES.find(x=>x.val===this.value);this.style.background=s?s.bg:'#f9fafb';this.style.color=s?s.color:'#9ca3af';this.style.borderColor=s?s.color:'#d1d5db';">
+            data-acctname="${esc}" onchange="setActionStage(this.dataset.acctname,this.value);const s=ACTION_STAGES.find(x=>x.val===this.value);this.style.background=s?s.bg:'#f9fafb';this.style.color=s?s.color:'#9ca3af';this.style.borderColor=s?s.color:'#d1d5db';">
             <option value=""${!currentStage?' selected':''}>— Unset</option>
             ${stageOpts}
           </select>
@@ -4887,7 +4891,7 @@ function renderActionStageSelect(name) {
   const bg = stage ? stage.bg : '#f9fafb';
   const color = stage ? stage.color : '#9ca3af';
   const border = stage ? stage.color : '#d1d5db';
-  return `<select class="action-stage-select" style="background:${bg};color:${color};border-color:${border};" onchange="setActionStage('${escHtml(name)}',this.value)">${emptyOpt}${opts}</select>`;
+  return `<select class="action-stage-select" style="background:${bg};color:${color};border-color:${border};" data-acctname="${escHtml(name)}" onchange="setActionStage(this.dataset.acctname,this.value)">${emptyOpt}${opts}</select>`;
 }
 
 function setActionStage(name, val) {
@@ -4912,11 +4916,25 @@ function _applyActionChipColor(val, active) {
   if (!chip) return;
   chip.classList.toggle('active', active);
   const stg = ACTION_STAGES.find(s => s.val === val);
-  if (stg && active) {
-    chip.style.background = stg.bg; chip.style.color = stg.color; chip.style.borderColor = stg.color;
+  if (!stg) return;
+  if (active) {
+    chip.style.background = stg.bg;
+    chip.style.color = stg.color;
+    chip.style.borderColor = stg.color;
+    chip.style.fontWeight = '600';
+    chip.style.opacity = '1';
   } else {
-    chip.style.background = ''; chip.style.color = ''; chip.style.borderColor = '';
+    // Subtle tint when inactive — very light bg, muted color
+    chip.style.background = stg.bg;
+    chip.style.color = stg.color;
+    chip.style.borderColor = stg.color + '66'; // 40% opacity border
+    chip.style.fontWeight = '';
+    chip.style.opacity = '0.55';
   }
+}
+
+function initActionChipColors() {
+  ACTION_STAGES.forEach(s => _applyActionChipColor(s.val, actionStageFilters.has(s.val)));
 }
 
 function toggleActionStageFilter(val) {
@@ -5048,13 +5066,15 @@ function renderAction() {
 }
 
 function updateActionStats(rows) {
-  const days = rows.map(r => r.days);
-  const avg  = days.length ? Math.round(days.reduce((s,d)=>s+d,0)/days.length) : 0;
-  document.getElementById('action-stat-total').textContent    = rows.length || '—';
-  document.getElementById('action-stat-active').textContent   = days.filter(d=>d<=30).length || '—';
-  document.getElementById('action-stat-cooling').textContent  = days.filter(d=>d>30&&d<=90).length || '—';
-  document.getElementById('action-stat-overdue').textContent  = days.filter(d=>d>90).length || '—';
-  document.getElementById('action-stat-avg').textContent      = rows.length ? avg + 'd' : '—';
+  const activeRows  = rows.filter(r => (localData[r.name]?.acctActionStage || '') !== 'tabled');
+  const tabledRows  = rows.filter(r => (localData[r.name]?.acctActionStage || '') === 'tabled');
+  const oppsRows    = rows.filter(r => hasActiveOpp(r.name));
+  const noStageRows = activeRows.filter(r => !(localData[r.name]?.acctActionStage));
+  document.getElementById('action-stat-total').textContent   = rows.length    || '—';
+  document.getElementById('action-stat-active').textContent  = activeRows.length || '—';
+  document.getElementById('action-stat-opps').textContent    = oppsRows.length   || '—';
+  document.getElementById('action-stat-nostage').textContent = noStageRows.length || '—';
+  document.getElementById('action-stat-tabled').textContent  = tabledRows.length  || '—';
 }
 
 function renderActionTable(rows) {
