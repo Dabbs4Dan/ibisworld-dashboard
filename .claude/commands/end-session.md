@@ -77,6 +77,12 @@ If no worktrees exist, skip this step.
 
 **Why this matters:** If a worktree folder is left behind, the next Claude Code session may accidentally open inside it (a dead side branch instead of main). Cleaning up here prevents that entirely.
 
+After removing each worktree, also delete its Claude Code project history entry:
+```
+rm -rf "/c/Users/Daniel.starr/.claude/projects/C--Users-Daniel-starr-OneDrive---IBISWORLD-PTY-LTD-Desktop-ibisworld-dashboard--claude-worktrees-[name]"
+```
+This removes the worktree from Claude Code's project list so it can never be accidentally reopened. The main project entry (`...ibisworld-dashboard` without a suffix) must be preserved.
+
 ---
 
 ## STEP 5 — Print summary
