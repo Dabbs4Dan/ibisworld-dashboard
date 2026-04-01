@@ -14,13 +14,15 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 ---
 
 ## DEPLOY WORKFLOW
-Claude Code edits `index.html` locally → Dan runs:
+Claude Code edits `index.html` locally, then **Claude Code commits and pushes automatically** — Dan does not need to run any git commands.
+
+After every completed task, Claude Code runs:
 ```
 git add index.html
-git commit -m "description of change"
+git commit -m "plain English description"
 git push
 ```
-GitHub Pages auto-deploys in ~30 seconds. That's it.
+GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 
 ---
 
@@ -634,7 +636,7 @@ Power Automate is available because Dan is employed at IBISWorld. **If Dan leave
 - If you're unsure what Dan wants: ask ONE specific question before proceeding
 
 ### Git workflow
-- Always commit and push after every completed task
+- **Claude Code handles all git** — `git add index.html` → commit → push after every completed task. Dan never needs to run git manually.
 - Commit messages should be short and plain English (not technical)
 - Always confirm: commit hash + "live in ~30 seconds"
 
