@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~7,500+ lines
+**File:** `index.html` — single self-contained file, ~8,000+ lines
 
 ---
 
@@ -40,13 +40,14 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
   - `ibis_samples` → Old Samples campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_6qa` → 6QA campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_churn` → Churn campaign contacts, keyed by email (same schema as ibis_opps)
-  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - `ibis_netnew` → Net New campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v31 (stable)
+## CURRENT STATE — v32 (stable)
 
 ### Five tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -292,26 +293,29 @@ const ACTION_STAGES = [...];        // 8 stage objects with val, label, emoji, c
 - **Prev/next logic:** `goToAccount(name)` snapshots `getFilteredOrderedNames()` at click time (respects frozen sort + active filters). `accountPageOrigin`, `accountPageList`, `accountPageIdx` are global state vars.
 - **Back navigation:** `closeAccountPage()` calls `setMainView(accountPageOrigin)` — returns to whichever tab opened the page. `setMainView()` also hides the account page whenever any tab is clicked directly.
 - **Header now shows company description** (v29) — `local.desc` (from Wikipedia/Claude enrichment) displayed below the account name in small muted text. Hidden if no description loaded yet.
-- **Key Contact field** (v31) — in the action block, between Next Date and Notes:
-  - Always shows: [workable chip (purple)] [churn chip (amber)] [write-in input] — whichever chips exist auto-populate
-  - Write-in input uses CSS `:not(:focus):not(:placeholder-shown)` to render as a light-blue chip when filled (no JS toggle needed)
-  - Workable chip: `.ap-key-contact-auto` (purple `#f5f3ff` / `#ede9fe` border, `border-radius:999px`)
-  - Churn chip: `.ap-key-contact-auto` with overridden `background:#fff7ed; border-color:#fed7aa` (amber)
-  - All chips uniform height/shape — `.ap-key-contact-auto { ... border-radius:999px; padding:4px 12px 4px 8px; }`
-  - Stored in `ibis_local[name].actionKeyContact`, saved via `saveActionField(name,'actionKeyContact',value)`
-- **Notes field** (v31) — contenteditable `<div>`, not textarea:
-  - Label "Notes" + B/• toolbar buttons always visible on same row above the box
-  - **Enter** = blur (done editing); **Shift+Enter** = `execCommand('insertUnorderedList')` (bullet list); **Ctrl+B** = bold
-  - Min-height 140px, `resize:vertical; overflow:auto` — drag to make taller
+- **Key Contact field** (v32) — in the action block, between Next Date and Notes:
+  - Shows ALL contacts for each campaign as individual chips — not just the first one
+  - Auto-populated chips: workable contacts (purple `.ap-key-contact-auto`) + churn contacts (amber override) — each contact gets its own chip with name + title
+  - Write-in input: type a name + press Enter → creates a saved blue chip (`.ap-kc-write-chip`) with an × delete button. Multiple write-ins supported.
+  - Write-in chips stored as JSON array in `ibis_local[name].actionKeyContact` — `parseKCArray()` / `saveKCArray()` / `renderWriteInChips()` handle read/write/render
+  - Container: `.ap-kc-all` (flex-wrap) holds all auto chips + write-in chips + the input field inline
+  - CSS: `.ap-kc-write-chip` (blue `#eff6ff`/`#bfdbfe` border), `.ap-kc-chip-x` (delete button)
+- **Notes field** (v32) — contenteditable `<div>` with full rich text editor UI:
+  - **Unified toolbar frame**: `.ap-notes-editor` wraps toolbar + content area. Border-radius 8px, cyan focus ring (`#22d3ee`). Toolbar: `.ap-notes-toolbar` (grey `#fafafa` bg, `border-bottom`).
+  - **Toolbar buttons**: B (bold), I (italic), separator, 🔗 (link), separator, • (bullet), Tx (clear format) — all use `.ap-notes-tool`; active state = `.nt-active` (indigo tint)
+  - **Keyboard shortcuts**: Ctrl+B = bold, Ctrl+I = italic, Ctrl+K = insert link, Enter = blur/save, Shift+Enter = manual bullet (`<br>• ` via Range API — NOT `insertUnorderedList`)
+  - **Link insert** (`insertNoteLink()`): prompts for URL; if text selected → `createLink`; if no selection → inserts `<a>` as linked text. Blocks `javascript:`, `data:`, `vbscript:` schemes. Ctrl+click on a link opens it in new tab.
+  - **Active state tracking**: `updateNoteToolbarState()` checks `queryCommandState('bold'/'italic')` on keyup/mouseup/focus
   - Saves `innerHTML` to `ibis_local[name].actionNotes` on blur (HTML preserved for rich text)
-  - CSS: `.ap-action-notes[contenteditable]`, `.ap-notes-tool`
+  - CSS: `.ap-notes-editor`, `.ap-notes-toolbar`, `.ap-notes-tool`, `.ap-notes-sep`, `.ap-action-notes`, `.nt-active`
 - **Six panels in a CSS grid (3 cols, 2 rows):**
   - Row 1, full width: **Header** — logo, name, description (v29), meta strip (Tier · Revenue · Vertical · Sentiment · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · **Campaigns** · **Priority**)
     - **Grey dot removed** (v31): opp widget only shown when `local.acctOpp || hasAnyContactOpp(name)` is true — no more mysterious grey dot
-    - **Campaigns stat** (v31): shows colored count bubbles (purple `.wkbl-dot` / green `.smpl-dot` / cyan `.sixqa-dot` / orange `.churn-dot`) — each clickable to open contact preview via `openContactPreview()`
+    - **Campaigns stat** (v32): shows colored count bubbles (purple `.wkbl-dot` / green `.smpl-dot` / cyan `.sixqa-dot` / orange `.churn-dot` / blue `.netnew-dot`) — each clickable to open contact preview via `openContactPreview()`
     - **Priority stat** (v31): shows colored pill badge matching `PRIO_COLORS` map (`legendary:#fef3c7/#92400e`, etc.) — not plain text
+    - **Contacts count** (v32): sums across all 5 campaign stores (opps + samples + sixqa + churn + netnew) via `normName()` match — was previously Workables-only
   - Row 2 col 1: **🎯 Priority Outreach** — contacts sorted by urgency, action labels
-  - Row 2 col 2: **👥 Campaigns** — one column per campaign (🎯 Workables / 🧪 Old Samples / 🔥 6QA / 🐣 Churn). Only columns with contacts are rendered.
+  - Row 2 col 2: **👥 Campaigns** — one column per campaign (🎯 Workables / 🧪 Old Samples / 🔥 6QA / 🐣 Churn / 🌱 Net New). Only columns with contacts are rendered.
   - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout
   - Row 3 col 1: **📈 Opportunities** — contacts with `sfOpp=true`
   - Row 3 cols 2–3: **📝 Account Plan** — inline editable textarea
@@ -374,6 +378,19 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - **Account page Key Contact:** `getKeyChurnContact(name)` auto-populates amber chip to the right of workable chip. Uses same `.ap-key-contact-auto` class with `background:#fff7ed; border-color:#fed7aa` override.
 - **`openContactPreview()`** handles `type === 'churn'` — reads from `churn` object, label `'🐣 Churn'`
 - **CAMPAIGN_DEFS entry:** `{ emoji:'🐣', label:'Churn', getCount: () => Object.values(churn).length, onActivate: () => renderChurn() }`
+
+### Net New Campaign (v32)
+- **🌱 Net New** — fifth campaign under Campaigns tab. Same CSV schema as Old Samples/6QA/Churn (Account Name, First/Last Name, Title, Mailing Country, Email, Last Activity).
+- **Colors:** blue — bg `#eff6ff`, text `#1e40af`, count badge bg `#bfdbfe`
+- **`ibis_netnew`** localStorage key (same keyed-by-email pattern as all other campaigns)
+- **Key functions:** `loadNetnew()`, `saveNetnew()`, `handleNetnewCSV()`, `mergeNetnew()`, `renderNetnew()`, `deleteNetnew()`, `clearNetnewData()`, `getNetnewCount(name)`
+- **Dead contacts:** `deadNetnewContacts[]` — contacts missing from re-upload move here. `ibis_dead.netnewContacts` array. Revivable via ↩ Revive button. Badge color: `background:#dbeafe;color:#1e40af`.
+- **Accounts table:** `.netnew-dot` bubble (blue `#2563eb`) shown in Campaigns column alongside workables/samples/sixqa/churn dots
+- **Account page Campaigns panel:** Net New column added (blue header `#eff6ff`/`#1e40af`). `renderAPCampaigns()` includes netnew contacts.
+- **`openContactPreview()`** handles `type === 'netnew'` — reads from `netnew` object, label `'🌱 Net New'`
+- **Action tab campaigns column:** `.netnew-dot` bubble added alongside other four campaign bubbles
+- **CAMPAIGN_DEFS entry:** `{ emoji:'🌱', label:'Net New', getCount: () => Object.values(netnew).length, onActivate: () => renderNetnew() }`
+- **Upload menu:** 🌱 Net New CSV row + `udot-netnew` dot + `netnew-file-input` file input + clear button
 
 ### Dead Tab Features (v25, updated v31)
 - **Purpose:** Accounts/licenses/contacts that disappear from a re-upload CSV move here instead of silently vanishing
@@ -871,6 +888,12 @@ When a new session begins, Claude Code should:
 | ✅ Done | Action Stage column sort | Stage `<th>` clickable (span only, not the filter button). Sorts in kanban order: Unset→New Sequence→…→Tabled. `axsort-stage`. |
 | ✅ Done | Action notes rich text | Textarea replaced with `contenteditable` div. Enter=blur, Shift+Enter=bullet list, Ctrl+B=bold. Always-visible label+toolbar row (B / •). Min-height 140px, drag-to-resize. Saves HTML to `ibis_local[name].actionNotes`. |
 | ✅ Done | Account page design polish v31 | Grey dot removed from header (opp widget only when active). Priority stat shows colored bubble. Workables stat renamed Campaigns with colored count bubbles (all 4 campaigns). Key contact chips uniform pill shape. Write-in input becomes light-blue chip when filled (CSS only). |
+| ✅ Done | 🌱 Net New campaign (v32) | Fifth campaign — same CSV schema as Old Samples/6QA/Churn. Blue colors. `ibis_netnew` key. Full function stack. Dead contacts wiring (`deadNetnewContacts`). `.netnew-dot` bubble in accounts/action tables. Net New column in AP Campaigns panel. |
+| ✅ Done | Key contact chips — all contacts shown (v32) | Key Contact row now shows ALL workable + churn contacts as individual chips, not just the first. Write-in input creates saved chip with × delete on Enter. Stored as JSON array in `ibis_local[name].actionKeyContact`. |
+| ✅ Done | Notes editor upgrade (v32) | Unified toolbar frame (`.ap-notes-editor` wrapper). Bold/italic/link/bullet/clear-format buttons with active state. Ctrl+B/I/K shortcuts. Link insert blocks unsafe URL schemes. Ctrl+click to follow links. Shift+Enter = plain bullet (Range API, not insertUnorderedList). |
+| ✅ Done | Contacts count fix (v32) | `renderAPHeader` Contacts stat now sums across all 5 campaign stores (opps + samples + sixqa + churn + netnew). Was previously Workables-only. |
+| ✅ Done | Security hardening (v32) | `.gitignore` added (protects `Data/` from accidental commit). `ALL_STORAGE_KEYS` now includes all 13 keys. Notes link blocks `javascript:`/`data:`/`vbscript:` schemes. CSP meta tag added to `index.html`. Email removed from `outreach-extension/config.js`. |
+| 🔴 Next | Make GitHub repo private | CLAUDE.md + SF User ID + internal architecture is public. 2-minute fix on GitHub settings. ⚠️ GitHub Pages requires GitHub Pro for private repos — confirm before switching. |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented. |
 | 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
 | 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |
