@@ -743,11 +743,43 @@
   .upload-menu-row:hover { background: var(--surface); }
   .upload-menu-label { flex: 1; font-size: 13px; color: var(--text-secondary); font-family: 'DM Sans', sans-serif; }
   .upload-menu-dot {
-    width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
-    border: 1.5px solid #d1d5db; background: transparent;
-    transition: background 0.15s, border-color 0.15s;
+    font: 500 11px 'DM Mono', monospace;
+    color: #9ca3af;
+    min-width: 48px;
+    text-align: right;
+    flex-shrink: 0;
+    letter-spacing: -0.2px;
+    transition: color 0.15s;
   }
-  .upload-menu-dot.loaded { background: #059669; border-color: #059669; }
+  .upload-menu-dot.has-date { color: #16a34a; }
+  /* CSV Stats Panel — far-right of stats bars */
+  .csv-upload-stat {
+    margin-left: auto !important;
+    border-left: 1px solid var(--border);
+    border-right: none !important;
+    padding-left: 32px !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+    min-width: 160px;
+  }
+  .csv-upload-stat:hover { opacity: 1 !important; }
+  .csv-stat-date {
+    font: 700 22px 'DM Mono', monospace;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-top: 2px;
+  }
+  .csv-stat-date.empty { color: var(--text-muted); font-size: 16px; font-weight: 500; }
+  .csv-stat-chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+  .csv-chip {
+    font: 500 11px 'DM Sans', sans-serif;
+    border-radius: 999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+  .csv-chip-added  { background: #f0fdf4; color: #16a34a; }
+  .csv-chip-removed { background: #fef2f2; color: #dc2626; }
+  .csv-chip-zero   { background: #f3f4f6; color: #9ca3af; }
   .upload-menu-x {
     background: none; border: none; cursor: pointer;
     font-size: 13px; color: var(--text-muted); padding: 0 2px;
@@ -1513,9 +1545,13 @@
     <div class="stat-label">Avg Intent Score</div>
     <div class="stat-value" id="stat-intent">—</div>
   </div>
-  <div class="stat-item">
-    <div class="stat-label">Last Updated</div>
-    <div class="stat-value" id="stat-updated" style="font-size:13px;padding-top:5px;">—</div>
+  <div class="stat-item csv-upload-stat" id="csv-stat-accounts">
+    <div class="stat-label">Last Import</div>
+    <div class="csv-stat-date empty" id="csv-stat-accounts-date">—</div>
+    <div class="csv-stat-chips">
+      <span class="csv-chip csv-chip-added" id="csv-stat-accounts-added" style="display:none"></span>
+      <span class="csv-chip csv-chip-removed" id="csv-stat-accounts-removed" style="display:none"></span>
+    </div>
   </div>
 </div>
 
@@ -1544,6 +1580,14 @@
   <div class="stat-item">
     <div class="stat-label">Active ACV</div>
     <div class="stat-value" id="lstat-acv">—</div>
+  </div>
+  <div class="stat-item csv-upload-stat" id="csv-stat-licenses">
+    <div class="stat-label">Last Import</div>
+    <div class="csv-stat-date empty" id="csv-stat-licenses-date">—</div>
+    <div class="csv-stat-chips">
+      <span class="csv-chip csv-chip-added" id="csv-stat-licenses-added" style="display:none"></span>
+      <span class="csv-chip csv-chip-removed" id="csv-stat-licenses-removed" style="display:none"></span>
+    </div>
   </div>
 </div>
 
@@ -1612,6 +1656,14 @@
     <div class="stat-item">
       <div class="stat-label">Total Contacts</div>
       <div class="stat-value red" id="sqstat-total">—</div>
+    </div>
+  </div>
+  <div class="stat-item csv-upload-stat" id="csv-stat-campaigns">
+    <div class="stat-label">Last Import</div>
+    <div class="csv-stat-date empty" id="csv-stat-campaigns-date">—</div>
+    <div class="csv-stat-chips">
+      <span class="csv-chip csv-chip-added" id="csv-stat-campaigns-added" style="display:none"></span>
+      <span class="csv-chip csv-chip-removed" id="csv-stat-campaigns-removed" style="display:none"></span>
     </div>
   </div>
 </div>
@@ -2083,6 +2135,7 @@ function _dbgLog(type, msg, data) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadView = 'accounts';
+let csvStats = {};
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 let samples = {}, sixqa = {};
 let sixqaActiveFilter = false;
@@ -2150,6 +2203,7 @@ function vertBubble(acc) {
 
 
 function init() {
+  loadCsvStats();
   loadDead();
   loadDeadSeen();
   updateDeadTabBadge();
@@ -2219,7 +2273,12 @@ function handleCSV(e) {
 }
 
 function processAccountRows(newAccounts) {
-  if (accounts.length > 0) detectChanges(accounts, newAccounts);
+  let acctAdded = newAccounts.length, acctRemoved = 0;
+  if (accounts.length > 0) {
+    const changes = detectChanges(accounts, newAccounts);
+    acctAdded = changes.added;
+    acctRemoved = changes.removed;
+  }
 
   // ── Dead account detection ─────────────────────────────────────────
   if (accounts.length > 0) {
@@ -2280,6 +2339,7 @@ function processAccountRows(newAccounts) {
   localStorage.setItem('ibis_accounts', JSON.stringify(accounts));
   localStorage.setItem('ibis_updated', new Date().toLocaleDateString());
   localStorage.setItem('ibis_local', JSON.stringify(localData));
+  saveCsvStat('accounts', acctAdded, acctRemoved);
   updateUploadDots();
   applySeedsToLocalData();
   updateStats(); populateVerticals(); renderAll();
@@ -2362,17 +2422,17 @@ function detectChanges(old, newArr) {
     document.getElementById('change-banner').style.display = 'flex';
     localStorage.setItem('ibis_local', JSON.stringify(localData));
   }
+  return { added: added.length, removed: removed.length };
 }
 
 function updateStats() {
-  const updated = localStorage.getItem('ibis_updated') || '—';
   document.getElementById('stat-total').textContent = accounts.length;
   document.getElementById('stat-tier1').textContent = accounts.filter(a => getField(a,'Major Markets Tier') == '1').length;
   document.getElementById('stat-opps').textContent = accounts.filter(a => parseFloat(getField(a,'# Core Opportunities')||0) > 0).length;
   document.getElementById('stat-clients').textContent = accounts.filter(a => parseFloat(getField(a,'# Core Clients')||0) > 0).length;
   const scores = accounts.map(a => parseFloat(getField(a,'6sense Account Intent Score NA')||0)).filter(v => v > 0);
   document.getElementById('stat-intent').textContent = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
-  document.getElementById('stat-updated').textContent = updated;
+  renderCsvStatPanel('accounts', 'accounts');
 }
 
 function populateVerticals() {
@@ -3590,10 +3650,14 @@ function handleLicenseCSV(e) {
   reader.onload = ev => {
     const oldLicenses = licenses.slice(); // snapshot before replace
     const newLicenses = parseLicenseCSV(ev.target.result);
+    let licAdded = 0, licRemoved = 0;
 
     // ── Dead license detection ─────────────────────────────────────────
     if (oldLicenses.length > 0) {
       const newKeySet = new Set(newLicenses.map(l => licKey(l)));
+      const oldKeySet = new Set(oldLicenses.map(l => licKey(l)));
+      licAdded   = newLicenses.filter(l => !oldKeySet.has(licKey(l))).length;
+      licRemoved = oldLicenses.filter(l => !newKeySet.has(licKey(l))).length;
       const alreadyDeadKeys = new Set(deadLicenses.map(l => licKey(l)));
       const today = new Date().toISOString().slice(0,10);
       // Move disappeared licenses → dead
@@ -3629,6 +3693,8 @@ function handleLicenseCSV(e) {
       _confirmedProcurement: l._confirmedProcurement || false
     }));
     try { localStorage.setItem('ibis_licenses', JSON.stringify(slim)); } catch(e) { console.warn('License localStorage save failed:', e); }
+    if (licAdded === 0 && licRemoved === 0) licAdded = licenses.length; // first upload
+    saveCsvStat('licenses', licAdded, licRemoved);
     updateUploadDots();
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
@@ -4114,6 +4180,7 @@ function updateLicenseStats(list) {
   document.getElementById('lstat-intl').textContent = all.filter(l => l._type === 'INTL').length;
   const activeACV = all.filter(l => l._active).reduce((s, l) => s + l._acv, 0);
   document.getElementById('lstat-acv').textContent = activeACV > 0 ? formatACV(activeACV) : '—';
+  renderCsvStatPanel('licenses', 'licenses');
 }
 
 function formatACV(n) {
@@ -5369,6 +5436,7 @@ function handleOppsCSV(e) {
     const newContacts = parseOppsCSV(ev.target.result);
     const result = mergeOpps(newContacts);
     saveOpps();
+    saveCsvStat('workables', result.added, result.dqd);
     updateUploadDots();
     document.getElementById('opp-empty-state').classList.add('hidden');
     document.getElementById('opp-pipeline').classList.remove('hidden');
@@ -5945,12 +6013,12 @@ function handleSamplesCSV(e) {
     const newContacts = parseOppsCSV(ev.target.result); // same schema
     const result = mergeSamples(newContacts);
     saveSamples();
+    saveCsvStat('samples', result.added, result.deadCount);
     updateCampaignPillCounts();
+    updateUploadDots();
     renderSamples();
     document.getElementById('samples-empty-state')?.classList.add('hidden');
     document.getElementById('samples-table-wrap')?.classList.remove('hidden');
-    const dot = document.getElementById('udot-samples');
-    if (dot) { dot.style.background = '#22c55e'; dot.title = 'Uploaded this session'; }
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
@@ -6066,12 +6134,12 @@ function handleSixqaCSV(e) {
     const newContacts = parseOppsCSV(ev.target.result); // same schema
     const result = mergeSixqa(newContacts);
     saveSixqa();
+    saveCsvStat('sixqa', result.added, result.deadCount);
     updateCampaignPillCounts();
+    updateUploadDots();
     renderSixqa();
     document.getElementById('sixqa-empty-state')?.classList.add('hidden');
     document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
-    const dot = document.getElementById('udot-sixqa');
-    if (dot) { dot.style.background = '#22c55e'; dot.title = 'Uploaded this session'; }
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
@@ -6235,6 +6303,7 @@ function setCampaign(name) {
   if (labelEl) labelEl.textContent = `${def.emoji} ${def.label}`;
   updateCampaignPillCounts();
   if (def.onActivate) def.onActivate();
+  renderCsvStatPanel('campaigns', name);
 }
 
 function toggleCampaignDropdown(e) {
@@ -6292,13 +6361,72 @@ function toggleUploadMenu(e) {
 function closeUploadMenu() {
   document.getElementById('upload-menu')?.classList.add('hidden');
 }
+function loadCsvStats() {
+  try { csvStats = JSON.parse(localStorage.getItem('ibis_csv_stats') || '{}'); } catch(e) { csvStats = {}; }
+}
+function saveCsvStat(key, added, removed) {
+  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  csvStats[key] = { date, added, removed };
+  localStorage.setItem('ibis_csv_stats', JSON.stringify(csvStats));
+}
+function renderCsvStatPanel(suffix, csvKey) {
+  const dateEl    = document.getElementById('csv-stat-' + suffix + '-date');
+  const addedEl   = document.getElementById('csv-stat-' + suffix + '-added');
+  const removedEl = document.getElementById('csv-stat-' + suffix + '-removed');
+  if (!dateEl) return;
+  const stat = csvStats[csvKey];
+  if (!stat) {
+    dateEl.textContent = '—';
+    dateEl.className = 'csv-stat-date empty';
+    if (addedEl)   addedEl.style.display = 'none';
+    if (removedEl) removedEl.style.display = 'none';
+    return;
+  }
+  dateEl.textContent = stat.date || '—';
+  dateEl.className = 'csv-stat-date';
+  if (addedEl) {
+    if (stat.added > 0) {
+      addedEl.textContent = '+' + stat.added + ' added';
+      addedEl.className = 'csv-chip csv-chip-added';
+      addedEl.style.display = '';
+    } else {
+      addedEl.style.display = 'none';
+    }
+  }
+  if (removedEl) {
+    if (stat.removed > 0) {
+      removedEl.textContent = '\u2212' + stat.removed + ' removed';
+      removedEl.className = 'csv-chip csv-chip-removed';
+      removedEl.style.display = '';
+    } else {
+      removedEl.style.display = 'none';
+    }
+  }
+}
 function updateUploadDots() {
-  const acctLoaded = !!localStorage.getItem('ibis_accounts');
-  const licLoaded  = !!localStorage.getItem('ibis_licenses');
-  const oppsLoaded = !!localStorage.getItem('ibis_opps');
-  document.getElementById('udot-accounts')?.classList.toggle('loaded', acctLoaded);
-  document.getElementById('udot-licenses')?.classList.toggle('loaded', licLoaded);
-  document.getElementById('udot-opps')?.classList.toggle('loaded', oppsLoaded);
+  const MAP = {
+    accounts: { storageKey: 'ibis_accounts', dotId: 'udot-accounts' },
+    licenses: { storageKey: 'ibis_licenses', dotId: 'udot-licenses' },
+    workables: { storageKey: 'ibis_opps',    dotId: 'udot-opps'      },
+    samples:  { storageKey: 'ibis_samples',  dotId: 'udot-samples'   },
+    sixqa:    { storageKey: 'ibis_6qa',      dotId: 'udot-sixqa'     },
+  };
+  Object.entries(MAP).forEach(([csvKey, { storageKey, dotId }]) => {
+    const el = document.getElementById(dotId);
+    if (!el) return;
+    const stat   = csvStats[csvKey];
+    const loaded = !!localStorage.getItem(storageKey);
+    if (stat?.date && loaded) {
+      el.textContent = stat.date;
+      el.classList.add('has-date');
+    } else if (loaded) {
+      el.textContent = '✓';
+      el.classList.add('has-date');
+    } else {
+      el.textContent = '—';
+      el.classList.remove('has-date');
+    }
+  });
 }
 
 init();
