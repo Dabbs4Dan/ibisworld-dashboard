@@ -594,6 +594,8 @@
   .smpl-dot:hover { opacity:0.82; }
   .sixqa-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#0891b2; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
   .sixqa-dot:hover { opacity:0.82; }
+  .churn-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#c2410c; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .churn-dot:hover { opacity:0.82; }
   .sixqa-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
   .sixqa-terr-dot.in-csv { background:#16a34a; }
   .sixqa-terr-dot.dropped { background:#d1d5db; }
@@ -1142,16 +1144,17 @@
   .ap-notes-focused .ap-notes-toolbar { visibility:visible; opacity:1; pointer-events:auto; }
   .ap-notes-tool { background:none; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:13px; color:var(--text-secondary); font-family:'DM Sans',sans-serif; transition:background 120ms; line-height:1; }
   .ap-notes-tool:hover { background:#f3f4f6; color:var(--text-primary); }
-  .ap-action-notes { width:100%; min-height:80px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; box-sizing:border-box; transition:border-color 150ms ease; }
-  .ap-action-notes:focus, .ap-action-notes:focus-within { border-color:#22d3ee; background:#fff; }
-  .ap-action-notes[contenteditable]:empty:before { content:attr(data-placeholder); color:var(--text-muted); pointer-events:none; }
-  .ap-action-notes[contenteditable] { cursor:text; white-space:pre-wrap; }
+  .ap-action-notes { width:100%; min-height:140px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; box-sizing:border-box; transition:border-color 150ms ease; resize:vertical; overflow:auto; }
+  .ap-action-notes:focus { border-color:#22d3ee; background:#fff; }
+  .ap-action-notes[contenteditable]:empty:before { content:attr(data-placeholder); color:var(--text-muted); pointer-events:none; display:block; }
+  .ap-action-notes[contenteditable] { cursor:text; }
   /* Key Contact row in action block */
   .ap-key-contact-row { display:flex; align-items:center; gap:10px; margin:10px 0 12px; }
   .ap-key-contact-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
-  .ap-key-contact-input { flex:1; border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:13px; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; padding:3px 2px; min-width:0; transition:border-bottom-color 150ms ease; }
-  .ap-key-contact-input:focus { border-bottom-color:#22d3ee; }
+  .ap-key-contact-input { flex:1; border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:13px; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; padding:3px 6px; min-width:80px; transition:all 150ms ease; border-radius:999px; }
+  .ap-key-contact-input:focus { border-bottom-color:#22d3ee; background:transparent; border-radius:0; }
   .ap-key-contact-input::placeholder { color:#9ca3af; font-style:italic; }
+  .ap-key-contact-input:not(:focus):not(:placeholder-shown) { border-bottom-color:transparent; background:#eff6ff; color:#1d4ed8; font-weight:600; padding:4px 12px; }
   .ap-key-contact-auto { display:flex; align-items:center; gap:7px; background:#f5f3ff; border:1px solid #ede9fe; border-radius:999px; padding:4px 12px 4px 8px; flex-shrink:0; }
   /* Action headline input in Action table — distinct from plain opp-inline-input */
   .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:240px; transition:border-color 0.15s; padding:2px 2px 3px; }
@@ -4620,17 +4623,15 @@ function renderAccountPage(name) {
 
   // Wire up action notes contenteditable auto-save + rich text
   const notesEl = container.querySelector('#ap-action-notes');
-  const notesWrap = container.querySelector('#ap-notes-wrap');
   if (notesEl) {
-    // Set existing content (may be HTML or plain text — both work as innerHTML)
+    // Set existing content (HTML or plain text — both work as innerHTML)
     notesEl.innerHTML = localData[name]?.actionNotes || '';
     notesEl.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); notesEl.blur(); }
+      if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertUnorderedList'); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
     });
-    notesEl.addEventListener('focus', () => { notesWrap?.classList.add('ap-notes-focused'); });
     notesEl.addEventListener('blur', () => {
-      notesWrap?.classList.remove('ap-notes-focused');
       if (!localData[name]) localData[name] = {};
       localData[name].actionNotes = notesEl.innerHTML;
       localStorage.setItem('ibis_local', JSON.stringify(localData));
@@ -4676,56 +4677,39 @@ function renderAPAction(local, name) {
         const kw = getKeyWorkable(name);
         const kc = getKeyChurnContact(name);
         const kcVal = escHtml(local.actionKeyContact||'');
-        const churnChip = kc ? `<div class="ap-key-contact-auto" style="background:#fff7ed;border-radius:8px;padding:4px 8px;">
+        const workableChip = kw ? `<div class="ap-key-contact-auto">
+              <span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;display:inline-block;"></span>
+              <div style="line-height:1.3;">
+                <div style="font-size:12px;font-weight:600;color:#5b21b6;">${escHtml(kw.name||'')}</div>
+                ${kw.title ? `<div style="font-size:10px;color:#7c3aed;">${escHtml(kw.title)}</div>` : ''}
+              </div>
+            </div>` : '';
+        const churnChip = kc ? `<div class="ap-key-contact-auto" style="background:#fff7ed;border-color:#fed7aa;">
               <span style="width:7px;height:7px;border-radius:50%;background:#c2410c;flex-shrink:0;display:inline-block;"></span>
               <div style="line-height:1.3;">
                 <div style="font-size:12px;font-weight:600;color:#c2410c;">${escHtml(kc.name||'')}</div>
                 ${kc.title ? `<div style="font-size:10px;color:#ea580c;">${escHtml(kc.title)}</div>` : ''}
               </div>
             </div>` : '';
-        if (kw) {
-          return `<div class="ap-key-contact-row">
-            <span class="ap-key-contact-label">Key Contact</span>
-            <div class="ap-key-contact-auto">
-              <span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;display:inline-block;"></span>
-              <div style="line-height:1.3;">
-                <div style="font-size:12px;font-weight:600;color:#5b21b6;">${escHtml(kw.name||'')}</div>
-                ${kw.title ? `<div style="font-size:10px;color:#7c3aed;">${escHtml(kw.title)}</div>` : ''}
-              </div>
-            </div>
-            ${churnChip}
-            <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
-              placeholder="Add another contact…"
-              onblur="saveActionField('${esc}','actionKeyContact',this.value)"
-              onkeydown="if(event.key==='Enter')this.blur()">
-          </div>`;
-        }
-        if (kc) {
-          return `<div class="ap-key-contact-row">
-            <span class="ap-key-contact-label">Key Contact</span>
-            ${churnChip}
-            <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
-              placeholder="Add another contact…"
-              onblur="saveActionField('${esc}','actionKeyContact',this.value)"
-              onkeydown="if(event.key==='Enter')this.blur()">
-          </div>`;
-        }
+        const hasAnyChip = kw || kc;
         return `<div class="ap-key-contact-row">
           <span class="ap-key-contact-label">Key Contact</span>
+          ${workableChip}${churnChip}
           <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
-            placeholder="Write in a key contact…"
+            placeholder="${hasAnyChip ? 'Add another contact…' : 'Write in a key contact…'}"
             onblur="saveActionField('${esc}','actionKeyContact',this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </div>`;
       })()}
-      <div class="ap-notes-wrap" id="ap-notes-wrap">
-        <div class="ap-notes-toolbar" id="ap-notes-toolbar">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:6px;">
+        <span class="ap-action-field-label">Notes</span>
+        <div style="display:flex;gap:2px;">
           <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
-          <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">•</button>
+          <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullets (Shift+Enter)">•</button>
         </div>
-        <div contenteditable="true" class="ap-action-notes" id="ap-action-notes" data-acctname="${esc}"
-          data-placeholder="Action notes — talking points, next steps, blockers…"></div>
       </div>
+      <div contenteditable="true" class="ap-action-notes" id="ap-action-notes" data-acctname="${esc}"
+        data-placeholder="Action notes — talking points, next steps, blockers…"></div>
     </div>`;
 }
 
@@ -4759,10 +4743,27 @@ function renderAPHeader(acc, local, name) {
   // Stats
   const licCount      = getLicCount(name);
   const workableCount = getWorkableCount(name);
+  const sampleCount   = getSampleCount(name);
+  const sixqaCount    = getSixqaCount(name);
+  const churnCount    = getChurnCount(name);
   const contactCount  = Object.values(opps).filter(o => normName(o.accountName) === normName(name)).length;
   const activeOppCount= Object.values(opps).filter(o => normName(o.accountName) === normName(name) && o.sfOpp).length;
   const prioOpt       = ACCT_PRIORITY_OPTS.find(o => o.key === (local.acctPriority || ''));
-  const prioBadge     = prioOpt ? prioOpt.label : '—';
+
+  // Priority badge with color bubble
+  const PRIO_COLORS = { legendary:'background:#fef3c7;color:#92400e;', veryrare:'background:#ede9fe;color:#5b21b6;', rare:'background:#dbeafe;color:#1e40af;', uncommon:'background:#d1fae5;color:#065f46;', common:'background:#f3f4f6;color:#4b5563;' };
+  const prioBadgeEl = (prioOpt && prioOpt.key)
+    ? `<span style="display:inline-flex;align-items:center;${PRIO_COLORS[prioOpt.key]||''}border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">${prioOpt.label}</span>`
+    : '<span style="color:var(--text-muted);">—</span>';
+
+  // Campaign bubbles
+  const escN = escHtml(name);
+  const campBubbles = [
+    workableCount > 0 ? `<span class="wkbl-dot" onclick="openContactPreview(event,'${escN}','workables')">${workableCount}</span>` : '',
+    sampleCount   > 0 ? `<span class="smpl-dot" onclick="openContactPreview(event,'${escN}','samples')">${sampleCount}</span>` : '',
+    sixqaCount    > 0 ? `<span class="sixqa-dot" onclick="openContactPreview(event,'${escN}','sixqa')">${sixqaCount}</span>` : '',
+    churnCount    > 0 ? `<span class="churn-dot" onclick="openContactPreview(event,'${escN}','churn')">${churnCount}</span>` : '',
+  ].filter(Boolean).join('');
 
   // Stage + sentiment inline
   const stageMeta = stage ? `<span class="ap-meta-sep">·</span><span class="stage-tag ${stageClass(stage)}" style="font-size:11px;">${stage}</span>` : '';
@@ -4781,7 +4782,7 @@ function renderAPHeader(acc, local, name) {
       <div class="ap-header-info">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
           <div class="ap-header-name" style="margin-bottom:0;">${escHtml(name)}</div>
-          ${renderAcctOppCell(name, local)}
+          ${(local.acctOpp || hasAnyContactOpp(name)) ? renderAcctOppCell(name, local) : ''}
         </div>
         ${local.desc ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:7px;line-height:1.4;max-width:560px;">${escHtml(local.desc)}</div>` : ''}
         <div class="ap-header-meta">
@@ -4797,8 +4798,8 @@ function renderAPHeader(acc, local, name) {
           <div class="ap-stat-item"><div class="ap-stat-label">Active Opps</div><div class="ap-stat-val">${activeOppCount||'0'}</div></div>
           <div class="ap-stat-item"><div class="ap-stat-label">Contacts</div><div class="ap-stat-val">${contactCount||'0'}</div></div>
           <div class="ap-stat-item"><div class="ap-stat-label">Intent</div><div class="ap-stat-val">${intent||'—'}</div></div>
-          <div class="ap-stat-item"><div class="ap-stat-label">Workables</div><div class="ap-stat-val">${workableCount||'0'}</div></div>
-          <div class="ap-stat-item"><div class="ap-stat-label">Priority</div><div class="ap-stat-val" style="font-size:13px;">${prioBadge}</div></div>
+          <div class="ap-stat-item"><div class="ap-stat-label">Campaigns</div><div class="ap-stat-val" style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:1px;">${campBubbles||'<span style="color:var(--text-muted);">—</span>'}</div></div>
+          <div class="ap-stat-item"><div class="ap-stat-label">Priority</div><div class="ap-stat-val" style="margin-top:1px;">${prioBadgeEl}</div></div>
         </div>
       </div>
     </div>`;
@@ -7275,12 +7276,16 @@ function openContactPreview(event, accountName, type) {
     contacts = Object.values(sixqa)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
+  } else if (type === 'churn') {
+    contacts = Object.values(churn)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   } else {
     contacts = Object.values(samples)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   }
-  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : '🧪 Old Samples';
+  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : '🧪 Old Samples';
   let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
   if (!contacts.length) {
     html += `<div class="cprev-empty">No contacts</div>`;
