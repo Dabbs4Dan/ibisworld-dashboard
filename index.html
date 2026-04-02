@@ -1137,8 +1137,15 @@
   .ap-action-field-label { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600; }
   .ap-action-input { height:32px; border:1.5px solid var(--border); border-radius:6px; padding:0 10px; font-size:13px; font-weight:500; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; transition:border-color 150ms ease, background 150ms ease; }
   .ap-action-input:focus { border-color:#22d3ee; background:#fff; }
-  .ap-action-notes { width:100%; min-height:80px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; resize:vertical; box-sizing:border-box; transition:border-color 150ms ease; }
-  .ap-action-notes:focus { border-color:#22d3ee; background:#fff; }
+  .ap-notes-wrap { position:relative; margin-top:4px; }
+  .ap-notes-toolbar { display:flex; visibility:hidden; opacity:0; position:absolute; top:-34px; left:0; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 4px; gap:2px; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.08); z-index:10; transition:opacity 120ms ease; pointer-events:none; }
+  .ap-notes-focused .ap-notes-toolbar { visibility:visible; opacity:1; pointer-events:auto; }
+  .ap-notes-tool { background:none; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:13px; color:var(--text-secondary); font-family:'DM Sans',sans-serif; transition:background 120ms; line-height:1; }
+  .ap-notes-tool:hover { background:#f3f4f6; color:var(--text-primary); }
+  .ap-action-notes { width:100%; min-height:80px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; box-sizing:border-box; transition:border-color 150ms ease; }
+  .ap-action-notes:focus, .ap-action-notes:focus-within { border-color:#22d3ee; background:#fff; }
+  .ap-action-notes[contenteditable]:empty:before { content:attr(data-placeholder); color:var(--text-muted); pointer-events:none; }
+  .ap-action-notes[contenteditable] { cursor:text; white-space:pre-wrap; }
   /* Key Contact row in action block */
   .ap-key-contact-row { display:flex; align-items:center; gap:10px; margin:10px 0 12px; }
   .ap-key-contact-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
@@ -1404,6 +1411,11 @@
           <span class="upload-menu-dot" id="udot-sixqa"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearSixqaData()" title="Clear">✕</span>
         </button>
+        <button class="upload-menu-row" onclick="document.getElementById('churn-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🐣 Churn CSV</span>
+          <span class="upload-menu-dot" id="udot-churn"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearChurnData()" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
@@ -1411,6 +1423,7 @@
     <input type="file" id="opp-file-input" accept=".csv" onchange="handleOppsCSV(event)">
     <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)" style="display:none;">
     <input type="file" id="sixqa-file-input" accept=".csv" onchange="handleSixqaCSV(event)" style="display:none;">
+    <input type="file" id="churn-file-input" accept=".csv" onchange="handleChurnCSV(event)" style="display:none;">
   </div>
 </div>
 
@@ -1493,7 +1506,7 @@
               <th style="text-align:center;min-width:110px;">Opp</th>
               <th style="min-width:140px;position:relative;" id="ath-action-stage">
                 <div class="lic-th-inner">
-                  <span>Stage</span>
+                  <span style="cursor:pointer;" onclick="setActionSortCol('stage')">Stage <span class="acct-sort-arrow" id="axsort-stage"></span></span>
                   <button class="lic-filter-trigger" id="atfbtn-stage" onclick="toggleActionStageDropdown(event)" title="Filter by stage">▾</button>
                 </div>
                 <div class="lic-dropdown hidden" id="action-dropdown-stage">
@@ -1616,6 +1629,10 @@
         <span>🔥 6QA</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-sixqa">0</span>
       </div>
+      <div class="campaign-selector-item" id="cmenu-churn" onclick="selectCampaignFromMenu('churn')">
+        <span>🐣 Churn</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-churn">0</span>
+      </div>
       <div class="campaign-selector-divider"></div>
       <div class="campaign-selector-item disabled">+ Add campaign (coming soon)</div>
     </div>
@@ -1658,6 +1675,14 @@
     <div class="stat-item">
       <div class="stat-label">Total Contacts</div>
       <div class="stat-value red" id="sqstat-total">—</div>
+    </div>
+  </div>
+
+  <!-- Churn stats (shown when currentCampaign=churn) -->
+  <div id="campaign-churn-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="chstat-total">—</div>
     </div>
   </div>
   <div class="stat-item csv-upload-stat" id="csv-stat-campaigns">
@@ -2012,6 +2037,32 @@
       </div>
     </div>
   </div>
+  <div id="campaign-view-churn" class="hidden">
+    <div id="churn-empty-state" class="empty-state">
+      <div class="empty-icon">🐣</div>
+      <div class="empty-title">Upload your Churn CSV to get started</div>
+      <div class="empty-desc">Export your churned account contacts from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🐣 Churn CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('churn-file-input').click()">🐣 Upload Churn CSV</button>
+    </div>
+    <div id="churn-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="churn-table-wrap" class="opp-tbl-wrap hidden">
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="churn-table-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- DEAD TAB CONTENT -->
@@ -2137,11 +2188,11 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadView = 'accounts';
 let csvStats = {};
 let _deadActionPending = null;
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
-let samples = {}, sixqa = {};
+let samples = {}, sixqa = {}, churn = {};
 let sixqaActiveFilter = false;
 let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
@@ -2238,6 +2289,11 @@ function init() {
   if (Object.keys(sixqa).length > 0) {
     document.getElementById('sixqa-empty-state')?.classList.add('hidden');
     document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
+  }
+  loadChurn();
+  if (Object.keys(churn).length > 0) {
+    document.getElementById('churn-empty-state')?.classList.add('hidden');
+    document.getElementById('churn-table-wrap')?.classList.remove('hidden');
   }
   updateCampaignPillCounts();
   // Auto-add all existing workable contacts' accounts to Action (backfill)
@@ -4562,12 +4618,21 @@ function renderAccountPage(name) {
     </div>
   `;
 
-  // Wire up action notes textarea auto-save
-  const actionNotes = container.querySelector('#ap-action-notes');
-  if (actionNotes) {
-    actionNotes.addEventListener('input', () => {
+  // Wire up action notes contenteditable auto-save + rich text
+  const notesEl = container.querySelector('#ap-action-notes');
+  const notesWrap = container.querySelector('#ap-notes-wrap');
+  if (notesEl) {
+    // Set existing content (may be HTML or plain text — both work as innerHTML)
+    notesEl.innerHTML = localData[name]?.actionNotes || '';
+    notesEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); notesEl.blur(); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
+    });
+    notesEl.addEventListener('focus', () => { notesWrap?.classList.add('ap-notes-focused'); });
+    notesEl.addEventListener('blur', () => {
+      notesWrap?.classList.remove('ap-notes-focused');
       if (!localData[name]) localData[name] = {};
-      localData[name].actionNotes = actionNotes.value;
+      localData[name].actionNotes = notesEl.innerHTML;
       localStorage.setItem('ibis_local', JSON.stringify(localData));
     });
   }
@@ -4609,7 +4674,15 @@ function renderAPAction(local, name) {
       </div>
       ${(()=>{
         const kw = getKeyWorkable(name);
+        const kc = getKeyChurnContact(name);
         const kcVal = escHtml(local.actionKeyContact||'');
+        const churnChip = kc ? `<div class="ap-key-contact-auto" style="background:#fff7ed;border-radius:8px;padding:4px 8px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:#c2410c;flex-shrink:0;display:inline-block;"></span>
+              <div style="line-height:1.3;">
+                <div style="font-size:12px;font-weight:600;color:#c2410c;">${escHtml(kc.name||'')}</div>
+                ${kc.title ? `<div style="font-size:10px;color:#ea580c;">${escHtml(kc.title)}</div>` : ''}
+              </div>
+            </div>` : '';
         if (kw) {
           return `<div class="ap-key-contact-row">
             <span class="ap-key-contact-label">Key Contact</span>
@@ -4620,6 +4693,17 @@ function renderAPAction(local, name) {
                 ${kw.title ? `<div style="font-size:10px;color:#7c3aed;">${escHtml(kw.title)}</div>` : ''}
               </div>
             </div>
+            ${churnChip}
+            <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
+              placeholder="Add another contact…"
+              onblur="saveActionField('${esc}','actionKeyContact',this.value)"
+              onkeydown="if(event.key==='Enter')this.blur()">
+          </div>`;
+        }
+        if (kc) {
+          return `<div class="ap-key-contact-row">
+            <span class="ap-key-contact-label">Key Contact</span>
+            ${churnChip}
             <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
               placeholder="Add another contact…"
               onblur="saveActionField('${esc}','actionKeyContact',this.value)"
@@ -4634,8 +4718,14 @@ function renderAPAction(local, name) {
             onkeydown="if(event.key==='Enter')this.blur()">
         </div>`;
       })()}
-      <textarea class="ap-action-notes" id="ap-action-notes"
-        placeholder="Action notes — talking points, next steps, blockers…">${escHtml(local.actionNotes||'')}</textarea>
+      <div class="ap-notes-wrap" id="ap-notes-wrap">
+        <div class="ap-notes-toolbar" id="ap-notes-toolbar">
+          <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">•</button>
+        </div>
+        <div contenteditable="true" class="ap-action-notes" id="ap-action-notes" data-acctname="${esc}"
+          data-placeholder="Action notes — talking points, next steps, blockers…"></div>
+      </div>
     </div>`;
 }
 
@@ -4763,10 +4853,11 @@ function renderAPCampaigns(name) {
   const workables = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
   const sampleContacts = Object.values(samples).filter(o => normName(o.accountName) === n);
   const sixqaContacts = Object.values(sixqa).filter(o => normName(o.accountName) === n);
+  const churnContacts = Object.values(churn).filter(o => normName(o.accountName) === n);
 
-  if (!workables.length && !sampleContacts.length && !sixqaContacts.length) return `
+  if (!workables.length && !sampleContacts.length && !sixqaContacts.length && !churnContacts.length) return `
     <div class="ap-panel-title">👥 Campaigns</div>
-    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, or 🔥 6QA CSV to populate</div>`;
+    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, 🔥 6QA, or 🐣 Churn CSV to populate</div>`;
 
   function renderCampRows(contacts, type) {
     return contacts.map(o => {
@@ -4812,6 +4903,13 @@ function renderAPCampaigns(name) {
         <span>🔥</span><span>6QA</span><span style="margin-left:auto;font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:999px;padding:1px 7px;">${sixqaContacts.length}</span>
       </div>
       ${renderCampRows(sixqaContacts, 'sixqa')}
+    </div>`);
+  if (churnContacts.length) cols.push(`
+    <div class="ap-camp-col">
+      <div class="ap-camp-header" style="background:#fff7ed;color:#c2410c;">
+        <span>🐣</span><span>Churn</span><span style="margin-left:auto;font-size:10px;background:#fed7aa;color:#c2410c;border-radius:999px;padding:1px 7px;">${churnContacts.length}</span>
+      </div>
+      ${renderCampRows(churnContacts, 'churn')}
     </div>`);
 
   return `
@@ -4913,7 +5011,7 @@ let actionFilter = null;
 let actionView = 'cards';
 let actionStageFilters = new Set(); // stages currently filtered in Action tab
 let actionActiveClientFilter = false; // filter to only accounts with active licenses
-const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc', nextdate:'asc' };
+const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc', nextdate:'asc', stage:'asc' };
 
 const ACTION_STAGES = [
   { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#15803d', bg:'#dcfce7' },
@@ -4949,7 +5047,7 @@ function setActionSortCol(col) {
 }
 
 function updateActionSortArrows() {
-  ['acctPriority','vertical','tier','days','workables','revenue','sentiment','nextdate'].forEach(col => {
+  ['acctPriority','vertical','tier','days','workables','revenue','sentiment','nextdate','stage'].forEach(col => {
     const el = document.getElementById('axsort-' + col);
     if (!el) return;
     el.textContent = actionSortCol === col ? (actionSortDir === 'asc' ? '▲' : '▼') : '';
@@ -5057,6 +5155,14 @@ function reviveDeadContact(email, campaign) {
     delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
     sixqa[email] = contact;
     saveSixqa();
+  } else if (campaign === 'churn') {
+    const idx = deadChurnContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadChurnContacts[idx] };
+    deadChurnContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    churn[email] = contact;
+    saveChurn();
   }
   saveDead();
   updateDeadTabBadge();
@@ -5253,6 +5359,12 @@ function renderAction() {
         const db = bl.actionNextDate ? new Date(bl.actionNextDate).getTime() : null;
         av = da ?? (actionSortDir==='asc' ? Infinity : -Infinity);
         bv = db ?? (actionSortDir==='asc' ? Infinity : -Infinity);
+        break;
+      }
+      case 'stage': {
+        const STAGE_ORDER = { new_sequence:1, multithreading:2, active_opp:3, active_proposal:4, stalled:5, future_reconnect:6, internal_support:7, tabled:8 };
+        av = STAGE_ORDER[al.acctActionStage||''] ?? 0;
+        bv = STAGE_ORDER[bl.acctActionStage||''] ?? 0;
         break;
       }
       default: av = a.days; bv = b.days;
@@ -6400,6 +6512,133 @@ function getSixqaCount(name) {
   return Object.values(sixqa).filter(o => normName(o.accountName) === n).length;
 }
 
+// ── Churn Campaign ─────────────────────────────────────────────────────────────
+function loadChurn() {
+  try { const s = localStorage.getItem('ibis_churn'); if (s) churn = JSON.parse(s); } catch(e) { churn = {}; }
+}
+function saveChurn() {
+  try { localStorage.setItem('ibis_churn', JSON.stringify(churn)); } catch(e) { console.warn('ibis_churn save failed:', e); }
+}
+
+function handleChurnCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result); // same schema
+    const result = mergeChurn(newContacts);
+    saveChurn();
+    saveCsvStat('churn', result.added, result.deadCount);
+    updateCampaignPillCounts();
+    updateUploadDots();
+    renderChurn();
+    document.getElementById('churn-empty-state')?.classList.add('hidden');
+    document.getElementById('churn-table-wrap')?.classList.remove('hidden');
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function mergeChurn(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
+  newContacts.forEach(c => {
+    if (churn[c.email]) {
+      churn[c.email].name = c.name;
+      churn[c.email].accountName = c.accountName;
+      churn[c.email].title = c.title;
+      churn[c.email].country = c.country;
+      churn[c.email].lastActivity = c.lastActivity;
+      updated++;
+    } else {
+      churn[c.email] = { ...c, notes: '', dateAdded: today };
+      added++;
+    }
+  });
+  // Move missing contacts to dead (only on re-upload, i.e. churn already had data)
+  if (Object.keys(churn).length > newContacts.length) {
+    Object.keys(churn).forEach(email => {
+      if (!newEmails.has(email)) {
+        const alreadyDead = deadChurnContacts.some(d => d.email === email);
+        if (!alreadyDead) {
+          deadChurnContacts.push({ ...churn[email], _deadSince: today, _campaign: 'churn', _campaignLabel: '🐣 Churn' });
+          deadCount++;
+        }
+        delete churn[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
+}
+
+function renderChurn() {
+  const q = (document.getElementById('churn-search-input')?.value || '').toLowerCase();
+  const all = Object.values(churn);
+  let list = all;
+  if (q) list = list.filter(o =>
+    (o.name||'').toLowerCase().includes(q) ||
+    (o.accountName||'').toLowerCase().includes(q) ||
+    (o.title||'').toLowerCase().includes(q)
+  );
+
+  const countLabel = document.getElementById('churn-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} churn contacts` : '';
+
+  if (!all.length) {
+    document.getElementById('churn-empty-state')?.classList.remove('hidden');
+    document.getElementById('churn-table-wrap')?.classList.add('hidden');
+    return;
+  }
+  document.getElementById('churn-empty-state')?.classList.add('hidden');
+  document.getElementById('churn-table-wrap')?.classList.remove('hidden');
+
+  const tbody = document.getElementById('churn-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
+    return `<tr>
+      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteChurn('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function deleteChurn(email) {
+  const o = churn[email];
+  if (!o) return;
+  if (!confirm(`Remove ${o.name || email} from Churn? This cannot be undone.`)) return;
+  delete churn[email];
+  saveChurn();
+  renderChurn();
+  updateCampaignPillCounts();
+}
+
+function clearChurnData() {
+  if (!confirm('Clear all Churn data?')) return;
+  localStorage.removeItem('ibis_churn');
+  location.reload();
+}
+
+function getChurnCount(name) {
+  const n = normName(name);
+  return Object.values(churn).filter(o => normName(o.accountName) === n).length;
+}
+
+function getKeyChurnContact(name) {
+  const n = normName(name);
+  const contacts = Object.values(churn).filter(o => normName(o.accountName) === n);
+  return contacts[0] || null;
+}
+
 const CAMPAIGN_DEFS = {
   workables: {
     emoji: '🎯',
@@ -6418,6 +6657,12 @@ const CAMPAIGN_DEFS = {
     label: '6QA',
     getCount: () => Object.values(sixqa).length,
     onActivate: () => renderSixqa(),
+  },
+  churn: {
+    emoji: '🐣',
+    label: 'Churn',
+    getCount: () => Object.values(churn).length,
+    onActivate: () => renderChurn(),
   },
 };
 
@@ -6438,6 +6683,9 @@ function updateCampaignPillCounts() {
   // Update 6QA total stat element
   const sqtotal = document.getElementById('sqstat-total');
   if (sqtotal) sqtotal.textContent = CAMPAIGN_DEFS.sixqa.getCount() || '—';
+  // Update Churn total stat element
+  const chtotal = document.getElementById('chstat-total');
+  if (chtotal) chtotal.textContent = CAMPAIGN_DEFS.churn.getCount() || '—';
 }
 
 function setCampaign(name) {
@@ -6574,6 +6822,7 @@ function updateUploadDots() {
     workables: { storageKey: 'ibis_opps',    dotId: 'udot-opps'      },
     samples:  { storageKey: 'ibis_samples',  dotId: 'udot-samples'   },
     sixqa:    { storageKey: 'ibis_6qa',      dotId: 'udot-sixqa'     },
+    churn:    { storageKey: 'ibis_churn',    dotId: 'udot-churn'     },
   };
   Object.entries(MAP).forEach(([csvKey, { storageKey, dotId }]) => {
     const el = document.getElementById(dotId);
@@ -6699,17 +6948,18 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
     deadSampleContacts = raw.sampleContacts || [];
     deadSixqaContacts = raw.sixqaContacts || [];
     deadWorkableContacts = raw.workableContacts || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; }
+    deadChurnContacts = raw.churnContacts || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -6728,6 +6978,7 @@ function markDeadAsSeen() {
   deadLicenses.forEach(d => deadSeenKeys.add(deadItemKey(d,'license')));
   deadSampleContacts.forEach(d => deadSeenKeys.add('sc|' + d.email));
   deadSixqaContacts.forEach(d => deadSeenKeys.add('6q|' + d.email));
+  deadChurnContacts.forEach(d => deadSeenKeys.add('ch|' + d.email));
   saveDeadSeen();
   updateDeadTabBadge();
 }
@@ -6737,7 +6988,8 @@ function updateDeadTabBadge() {
   const unseenContacts = deadSampleContacts.filter(d => !deadSeenKeys.has('sc|' + d.email)).length;
   const unseenSixqa    = deadSixqaContacts.filter(d => !deadSeenKeys.has('6q|' + d.email)).length;
   const unseenWkbl     = deadWorkableContacts.filter(d => !deadSeenKeys.has('wk|' + d.email)).length;
-  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl;
+  const unseenChurn    = deadChurnContacts.filter(d => !deadSeenKeys.has('ch|' + d.email)).length;
+  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -6756,7 +7008,7 @@ function renderDead() {
   const dsw = document.getElementById('dstat-warnings');
   if (dsa) dsa.textContent = deadAccounts.length;
   if (dsl) dsl.textContent = deadLicenses.length;
-  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length;
+  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length + deadWorkableContacts.length + deadChurnContacts.length;
   if (dsc) dsc.textContent = totalDeadContacts || '—';
   if (dsw) dsw.textContent = warnings || '—';
   // Update pill counts
@@ -6964,7 +7216,7 @@ function renderDeadContacts() {
   if (!body) return;
 
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts];
+  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts];
   if (search) {
     list = list.filter(d =>
       (d.name||'').toLowerCase().includes(search) ||
@@ -6995,7 +7247,7 @@ function renderDeadContacts() {
       : res ? `<div class="td-logo"><img src="${res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${escHtml(d.accountName||'')}"></div>`
       : `<div class="td-logo"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(d.accountName||'')}"></div>`;
     const camp = d._campaign || 'samples';
-    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;' };
+    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;' };
     const campBadge = `<span style="font-size:10px;${campColors[camp]||campColors.samples}border-radius:999px;padding:2px 8px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
     return `<tr>
       <td><div class="td-company">${logoHtml}<div><span class="td-name">${escHtml(d.accountName||'')}</span></div></div></td>
