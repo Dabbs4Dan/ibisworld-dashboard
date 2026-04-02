@@ -1141,15 +1141,21 @@
   .ap-action-field-label { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600; }
   .ap-action-input { height:32px; border:1.5px solid var(--border); border-radius:6px; padding:0 10px; font-size:13px; font-weight:500; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; transition:border-color 150ms ease, background 150ms ease; }
   .ap-action-input:focus { border-color:#22d3ee; background:#fff; }
-  .ap-notes-wrap { position:relative; margin-top:4px; }
-  .ap-notes-toolbar { display:flex; visibility:hidden; opacity:0; position:absolute; top:-34px; left:0; background:#fff; border:1px solid var(--border); border-radius:6px; padding:2px 4px; gap:2px; align-items:center; box-shadow:0 2px 8px rgba(0,0,0,0.08); z-index:10; transition:opacity 120ms ease; pointer-events:none; }
-  .ap-notes-focused .ap-notes-toolbar { visibility:visible; opacity:1; pointer-events:auto; }
-  .ap-notes-tool { background:none; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:13px; color:var(--text-secondary); font-family:'DM Sans',sans-serif; transition:background 120ms; line-height:1; }
-  .ap-notes-tool:hover { background:#f3f4f6; color:var(--text-primary); }
-  .ap-action-notes { width:100%; min-height:140px; border:1.5px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:#fafafa; outline:none; box-sizing:border-box; transition:border-color 150ms ease; resize:vertical; overflow:auto; }
-  .ap-action-notes:focus { border-color:#22d3ee; background:#fff; }
+  /* Notes editor — unified frame with toolbar */
+  .ap-notes-editor { border:1.5px solid var(--border); border-radius:8px; background:#fff; overflow:hidden; transition:border-color 150ms ease; margin-top:4px; }
+  .ap-notes-editor:focus-within { border-color:#22d3ee; }
+  .ap-notes-toolbar { display:flex; align-items:center; gap:1px; padding:5px 8px; border-bottom:1px solid #f0f2f5; background:#fafafa; }
+  .ap-notes-tool { background:none; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600; color:#6b7280; font-family:'DM Sans',sans-serif; transition:background 100ms, color 100ms; line-height:1; min-width:28px; text-align:center; }
+  .ap-notes-tool:hover { background:#e5e7eb; color:#111827; }
+  .ap-notes-tool.nt-active { background:#e0e7ff; color:#4338ca; }
+  .ap-notes-sep { width:1px; height:14px; background:#e5e7eb; margin:0 4px; flex-shrink:0; }
+  .ap-action-notes { width:100%; min-height:130px; padding:10px 12px; font-size:13px; color:var(--text-primary); font-family:'DM Sans',sans-serif; background:transparent; outline:none; box-sizing:border-box; resize:vertical; overflow:auto; }
   .ap-action-notes[contenteditable]:empty:before { content:attr(data-placeholder); color:var(--text-muted); pointer-events:none; display:block; }
   .ap-action-notes[contenteditable] { cursor:text; }
+  .ap-action-notes a { color:#2563eb; text-decoration:underline; cursor:pointer; }
+  .ap-action-notes a:hover { color:#1d4ed8; }
+  /* Key contact row — wraps when many contacts */
+  .ap-kc-all { display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex:1; min-width:0; }
   /* Key Contact row in action block */
   .ap-key-contact-row { display:flex; align-items:center; gap:10px; margin:10px 0 12px; }
   .ap-key-contact-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
@@ -4688,6 +4694,34 @@ function renderAccountPage(name) {
   if (notesEl) {
     // Set existing content (HTML or plain text — both work as innerHTML)
     notesEl.innerHTML = localData[name]?.actionNotes || '';
+    // Helper: insert a link on selected text
+    function insertNoteLink() {
+      const sel = window.getSelection();
+      const selectedText = sel && !sel.isCollapsed ? sel.toString().trim() : '';
+      const label = selectedText
+        ? `URL for "${selectedText.slice(0,50)}${selectedText.length > 50 ? '…' : ''}":`
+        : 'Enter URL:';
+      const raw = prompt(label);
+      if (!raw || !raw.trim()) return;
+      const url = raw.trim().startsWith('http') ? raw.trim() : 'https://' + raw.trim();
+      notesEl.focus();
+      if (selectedText) {
+        document.execCommand('createLink', false, url);
+      } else {
+        // No selection — insert the URL as linked text
+        document.execCommand('insertHTML', false,
+          `<a href="${url}" target="_blank" rel="noopener">${escHtml(url)}</a>`);
+      }
+      // Ensure all links open in new tab
+      notesEl.querySelectorAll('a').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
+    }
+
+    // Link button (mousedown already prevents blur — do insert on mousedown)
+    const linkBtn = container.querySelector('#ap-nt-link');
+    if (linkBtn) {
+      linkBtn.addEventListener('mousedown', e => { e.preventDefault(); insertNoteLink(); });
+    }
+
     notesEl.addEventListener('keydown', e => {
       // Ctrl/Cmd+Enter = done editing (blur & save)
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); notesEl.blur(); return; }
@@ -4708,11 +4742,36 @@ function renderAccountPage(name) {
         sel.addRange(range);
         return;
       }
-      // Regular Enter = natural line break (no override — browser handles it)
       // Ctrl/Cmd+B = bold
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
+      // Ctrl/Cmd+I = italic
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') { e.preventDefault(); document.execCommand('italic'); }
+      // Ctrl/Cmd+K = link
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); insertNoteLink(); }
     });
+
+    // Toolbar active state — update bold/italic buttons to reflect cursor position
+    function updateNoteToolbarState() {
+      const boldBtn   = container.querySelector('#ap-nt-bold');
+      const italicBtn = container.querySelector('#ap-nt-italic');
+      if (boldBtn)   boldBtn.classList.toggle('nt-active',   document.queryCommandState('bold'));
+      if (italicBtn) italicBtn.classList.toggle('nt-active', document.queryCommandState('italic'));
+    }
+    notesEl.addEventListener('keyup',  updateNoteToolbarState);
+    notesEl.addEventListener('mouseup', updateNoteToolbarState);
+    notesEl.addEventListener('focus',   updateNoteToolbarState);
+
+    // Ctrl+click to follow links inside the contenteditable
+    notesEl.addEventListener('click', e => {
+      if (e.ctrlKey || e.metaKey) {
+        const a = e.target.closest('a');
+        if (a?.href) { e.preventDefault(); window.open(a.href, '_blank', 'noopener'); }
+      }
+    });
+
     notesEl.addEventListener('blur', () => {
+      // Ensure all links get target=_blank before saving
+      notesEl.querySelectorAll('a').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
       if (!localData[name]) localData[name] = {};
       localData[name].actionNotes = notesEl.innerHTML;
       localStorage.setItem('ibis_local', JSON.stringify(localData));
@@ -4799,39 +4858,54 @@ function renderAPAction(local, name) {
         </div>
       </div>
       ${(()=>{
-        const kw = getKeyWorkable(name);
-        const kc = getKeyChurnContact(name);
-        const workableChip = kw ? `<div class="ap-key-contact-auto">
+        const n = normName(name);
+        const allWorkables = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
+        const allChurns    = Object.values(churn).filter(o => normName(o.accountName) === n);
+        const wChips = allWorkables.map(kw => `<div class="ap-key-contact-auto">
               <span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;display:inline-block;"></span>
               <div style="line-height:1.3;">
                 <div style="font-size:12px;font-weight:600;color:#5b21b6;">${escHtml(kw.name||'')}</div>
                 ${kw.title ? `<div style="font-size:10px;color:#7c3aed;">${escHtml(kw.title)}</div>` : ''}
               </div>
-            </div>` : '';
-        const churnChip = kc ? `<div class="ap-key-contact-auto" style="background:#fff7ed;border-color:#fed7aa;">
+            </div>`).join('');
+        const cChips = allChurns.map(kc => `<div class="ap-key-contact-auto" style="background:#fff7ed;border-color:#fed7aa;">
               <span style="width:7px;height:7px;border-radius:50%;background:#c2410c;flex-shrink:0;display:inline-block;"></span>
               <div style="line-height:1.3;">
                 <div style="font-size:12px;font-weight:600;color:#c2410c;">${escHtml(kc.name||'')}</div>
                 ${kc.title ? `<div style="font-size:10px;color:#ea580c;">${escHtml(kc.title)}</div>` : ''}
               </div>
-            </div>` : '';
-        return `<div class="ap-key-contact-row">
-          <span class="ap-key-contact-label">Key Contact</span>
-          ${workableChip}${churnChip}
-          <div id="ap-kc-write-ins" style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;"></div>
-          <input class="ap-key-contact-input" type="text" id="ap-action-keycontact"
-            placeholder="Add name, press Enter…">
+            </div>`).join('');
+        return `<div class="ap-key-contact-row" style="flex-wrap:wrap;align-items:flex-start;">
+          <span class="ap-key-contact-label" style="padding-top:6px;">Key Contact</span>
+          <div class="ap-kc-all">
+            ${wChips}${cChips}
+            <div id="ap-kc-write-ins" style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;"></div>
+            <input class="ap-key-contact-input" type="text" id="ap-action-keycontact"
+              placeholder="Add name, press Enter…" style="min-width:160px;flex:0 0 auto;">
+          </div>
         </div>`;
       })()}
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:6px;">
+      <div style="margin-top:14px;margin-bottom:6px;">
         <span class="ap-action-field-label">Notes</span>
-        <div style="display:flex;gap:2px;">
-          <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
-          <button type="button" class="ap-notes-tool" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullets (Shift+Enter)">•</button>
-        </div>
       </div>
-      <div contenteditable="true" class="ap-action-notes" id="ap-action-notes" data-acctname="${esc}"
-        data-placeholder="Action notes — talking points, next steps, blockers…"></div>
+      <div class="ap-notes-editor">
+        <div class="ap-notes-toolbar">
+          <button type="button" class="ap-notes-tool" id="ap-nt-bold"
+            onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" class="ap-notes-tool" id="ap-nt-italic"
+            onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
+          <div class="ap-notes-sep"></div>
+          <button type="button" class="ap-notes-tool" id="ap-nt-link"
+            title="Insert link — highlight text first, then click (Ctrl+K)">🔗</button>
+          <div class="ap-notes-sep"></div>
+          <button type="button" class="ap-notes-tool" id="ap-nt-bullet"
+            onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">•</button>
+          <button type="button" class="ap-notes-tool" id="ap-nt-clearfmt"
+            onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting" style="font-size:11px;color:#9ca3af;">Tx</button>
+        </div>
+        <div contenteditable="true" class="ap-action-notes" id="ap-action-notes" data-acctname="${esc}"
+          data-placeholder="Action notes — talking points, next steps, blockers… (Ctrl+Enter to save)"></div>
+      </div>
     </div>`;
 }
 
