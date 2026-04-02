@@ -1174,9 +1174,11 @@
   .action-kanban-col.drag-over { box-shadow:0 0 0 2px #00aef0; background:#f0f9ff; }
   .action-kanban-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; font-size:11px; font-weight:700; }
   .action-kanban-count { background:rgba(0,0,0,0.08); border-radius:999px; padding:2px 8px; font-size:10px; }
-  .action-kanban-card { background:#fff; margin:6px; border-radius:10px; padding:12px; border:1px solid var(--border); cursor:grab; transition:box-shadow 0.15s; position:relative; }
+  .action-kanban-card { background:#fff; margin:6px; border-radius:10px; padding:12px; border:1px solid var(--border); cursor:grab; transition:box-shadow 0.15s,border-color 0.15s,background 0.15s; position:relative; }
   .action-kanban-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.10); }
   .action-kanban-card:active { cursor:grabbing; }
+  .action-kanban-card.action-card-overdue { border-color:#fed7aa; background:#fffbf5; }
+  .action-kanban-card.action-card-overdue:hover { box-shadow:0 2px 8px rgba(251,146,60,0.18); }
   .action-kanban-card-top { display:flex; gap:8px; align-items:flex-start; margin-bottom:8px; }
   /* Opp badge — absolute top-right corner of card */
   .action-opp-badge { position:absolute; top:10px; right:10px; background:#2563eb; color:#fff; font-size:9px; font-weight:700; padding:2px 7px; border-radius:999px; font-family:'DM Sans',sans-serif; letter-spacing:0.3px; pointer-events:none; }
@@ -1508,7 +1510,7 @@
                 </div>
               </th>
               <th style="min-width:160px;">Action Headline</th>
-              <th style="min-width:90px;">Next Date</th>
+              <th onclick="setActionSortCol('nextdate')" style="cursor:pointer;min-width:90px;">Next Date <span class="acct-sort-arrow" id="axsort-nextdate"></span></th>
               <th onclick="setActionSortCol('tier')" style="cursor:pointer;text-align:center;">Tier <span class="acct-sort-arrow" id="axsort-tier"></span></th>
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th id="axh-active-client" onclick="toggleActionActiveLicFilter()" style="cursor:pointer;" title="Click to filter: has active license">Active Client <span id="axh-active-client-dot" style="display:none;color:var(--ibis-red);font-size:9px;">●</span></th>
@@ -2090,6 +2092,7 @@
               <th>Campaign</th>
               <th>Last Activity</th>
               <th>Dead Since</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="dead-contacts-body"></tbody>
@@ -2134,8 +2137,9 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadView = 'accounts';
 let csvStats = {};
+let _deadActionPending = null;
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
 let samples = {}, sixqa = {};
 let sixqaActiveFilter = false;
@@ -2426,11 +2430,12 @@ function detectChanges(old, newArr) {
 }
 
 function updateStats() {
-  document.getElementById('stat-total').textContent = accounts.length;
-  document.getElementById('stat-tier1').textContent = accounts.filter(a => getField(a,'Major Markets Tier') == '1').length;
-  document.getElementById('stat-opps').textContent = accounts.filter(a => parseFloat(getField(a,'# Core Opportunities')||0) > 0).length;
-  document.getElementById('stat-clients').textContent = accounts.filter(a => parseFloat(getField(a,'# Core Clients')||0) > 0).length;
-  const scores = accounts.map(a => parseFloat(getField(a,'6sense Account Intent Score NA')||0)).filter(v => v > 0);
+  const ra = accounts.filter(a => !a._isSkeletonAccount); // real accounts only (no skeletons)
+  document.getElementById('stat-total').textContent = ra.length;
+  document.getElementById('stat-tier1').textContent = ra.filter(a => getField(a,'Major Markets Tier') == '1').length;
+  document.getElementById('stat-opps').textContent = ra.filter(a => parseFloat(getField(a,'# Core Opportunities')||0) > 0).length;
+  document.getElementById('stat-clients').textContent = ra.filter(a => parseFloat(getField(a,'# Core Clients')||0) > 0).length;
+  const scores = ra.map(a => parseFloat(getField(a,'6sense Account Intent Score NA')||0)).filter(v => v > 0);
   document.getElementById('stat-intent').textContent = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
   renderCsvStatPanel('accounts', 'accounts');
 }
@@ -2451,6 +2456,7 @@ function getFiltered() {
   const vert = document.getElementById('vertical-filter').value;
   const sort = acctSortCol;
   let list = accounts.filter(a => {
+    if (a._isSkeletonAccount) return false; // skeleton accounts only visible in Action tab
     const aName = getField(a,'Account Name','AccountName');
     const name = aName.toLowerCase();
     if (q && !name.includes(q) && !getField(a,'Vertical').toLowerCase().includes(q)) return false;
@@ -2539,7 +2545,8 @@ function renderAll() {
     list.forEach(a => { if (!frozenSet.has(getField(a,'Account Name','AccountName'))) frozen.push(a); });
     list = frozen;
   }
-  document.getElementById('acct-count-label').textContent = accounts.length ? `${list.length} of ${accounts.length} accounts` : '';
+  const realAccounts = accounts.filter(a => !a._isSkeletonAccount);
+  document.getElementById('acct-count-label').textContent = realAccounts.length ? `${list.length} of ${realAccounts.length} accounts` : '';
   updateAcctSortArrows();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
 }
@@ -4906,7 +4913,7 @@ let actionFilter = null;
 let actionView = 'cards';
 let actionStageFilters = new Set(); // stages currently filtered in Action tab
 let actionActiveClientFilter = false; // filter to only accounts with active licenses
-const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc', nextdate:'asc' };
 
 const ACTION_STAGES = [
   { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#15803d', bg:'#dcfce7' },
@@ -4942,11 +4949,118 @@ function setActionSortCol(col) {
 }
 
 function updateActionSortArrows() {
-  ['acctPriority','vertical','tier','days','workables','revenue','sentiment'].forEach(col => {
+  ['acctPriority','vertical','tier','days','workables','revenue','sentiment','nextdate'].forEach(col => {
     const el = document.getElementById('axsort-' + col);
     if (!el) return;
     el.textContent = actionSortCol === col ? (actionSortDir === 'asc' ? '▲' : '▼') : '';
   });
+}
+
+function showDeadActionConfirm(name) {
+  _deadActionPending = name;
+  const contacts = Object.values(opps).filter(o =>
+    normName(o.accountName) === normName(name) && !o.archived && o.stage !== 'DQ'
+  );
+  const acc = accounts.find(a => normName(getField(a,'Account Name')) === normName(name));
+  const isSkeleton = !!acc?._isSkeletonAccount;
+
+  document.getElementById('dam-account-name').textContent = name;
+
+  let contactsHtml = '';
+  if (contacts.length) {
+    contactsHtml = `<div style="margin-top:14px;">
+      <div style="font:500 11px 'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:0.5px;color:#9ca3af;margin-bottom:8px;">Workable contacts moving to dead:</div>
+      <div style="border:1px solid #fee2e2;border-radius:8px;overflow:hidden;">
+        ${contacts.map((c,i) => `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;${i>0?'border-top:1px solid #fef2f2;':''}">
+          <div style="width:30px;height:30px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;font:600 12px 'DM Sans',sans-serif;color:#dc2626;flex-shrink:0;">${(c.name||'?')[0].toUpperCase()}</div>
+          <div style="min-width:0;">
+            <div style="font:500 13px 'DM Sans',sans-serif;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(c.name||'')}</div>
+            <div style="font:400 11px 'DM Sans',sans-serif;color:#6b7280;">${escHtml(c.title||'—')}</div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  } else {
+    contactsHtml = `<div style="margin-top:10px;font:400 13px 'DM Sans',sans-serif;color:#6b7280;">No active workable contacts associated.</div>`;
+  }
+  document.getElementById('dam-contacts').innerHTML = contactsHtml;
+
+  const noteHtml = isSkeleton
+    ? `<div style="margin-top:12px;padding:8px 12px;background:#fef9c3;border-radius:6px;font:400 12px 'DM Sans',sans-serif;color:#92400e;">⚠️ This account exists only in Action (not in your territory CSV). It will be fully removed.</div>`
+    : `<div style="margin-top:12px;padding:8px 12px;background:#eff6ff;border-radius:6px;font:400 12px 'DM Sans',sans-serif;color:#1e40af;">ℹ️ The account stays in your territory CSV — only removed from Action.</div>`;
+  document.getElementById('dam-note').innerHTML = noteHtml;
+
+  document.getElementById('dead-action-modal').style.display = 'flex';
+}
+function closeDeadActionModal() {
+  document.getElementById('dead-action-modal').style.display = 'none';
+  _deadActionPending = null;
+}
+function confirmDeadAction() {
+  if (!_deadActionPending) return;
+  const name = _deadActionPending;
+  closeDeadActionModal();
+  killActionAccount(name);
+}
+function killActionAccount(name) {
+  const today = new Date().toISOString().slice(0, 10);
+  // Move all workable contacts for this account to deadWorkableContacts
+  Object.keys(opps).forEach(email => {
+    const o = opps[email];
+    if (normName(o.accountName) === normName(name)) {
+      deadWorkableContacts.push({ ...o, _deadSince: today, _campaign: 'workables', _campaignLabel: '🎯 Workable' });
+      delete opps[email];
+    }
+  });
+  // Remove from Action
+  if (!localData[name]) localData[name] = {};
+  localData[name].hasAction = false;
+  localData[name].acctActionStage = '';
+  // If skeleton account: remove from accounts[] entirely (never was in CSV)
+  const acc = accounts.find(a => normName(getField(a,'Account Name')) === normName(name));
+  if (acc?._isSkeletonAccount) {
+    accounts = accounts.filter(a => normName(getField(a,'Account Name')) !== normName(name));
+    try { localStorage.setItem('ibis_accounts', JSON.stringify(accounts)); } catch(e) {}
+  }
+  saveOpps();
+  saveDead();
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  updateDeadTabBadge();
+  renderAction();
+  renderAll();
+}
+function reviveDeadContact(email, campaign) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (campaign === 'workables') {
+    const idx = deadWorkableContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadWorkableContacts[idx] };
+    deadWorkableContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    contact.stage = 'Introduction'; contact.archived = false;
+    opps[email] = contact;
+    autoAddToAction(contact.accountName);
+    saveOpps();
+  } else if (campaign === 'samples') {
+    const idx = deadSampleContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadSampleContacts[idx] };
+    deadSampleContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    samples[email] = contact;
+    saveSamples();
+  } else if (campaign === 'sixqa') {
+    const idx = deadSixqaContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadSixqaContacts[idx] };
+    deadSixqaContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    sixqa[email] = contact;
+    saveSixqa();
+  }
+  saveDead();
+  updateDeadTabBadge();
+  renderDead();
 }
 
 function renderActionStageSelect(name) {
@@ -4958,10 +5072,27 @@ function renderActionStageSelect(name) {
   const bg = stage ? stage.bg : '#f9fafb';
   const color = stage ? stage.color : '#9ca3af';
   const border = stage ? stage.color : '#d1d5db';
-  return `<select class="action-stage-select" style="background:${bg};color:${color};border-color:${border};" data-acctname="${escHtml(name)}" onchange="setActionStage(this.dataset.acctname,this.value)">${emptyOpt}${opts}</select>`;
+  const deadSep = `<option disabled style="color:#e5e7eb;font-size:9px;letter-spacing:1px;">──────────────</option>`;
+  const deadOpt = `<option value="dead_action" style="color:#dc2626;">💀 Remove from Action</option>`;
+  return `<select class="action-stage-select" style="background:${bg};color:${color};border-color:${border};" data-acctname="${escHtml(name)}" onchange="setActionStage(this.dataset.acctname,this.value)">${emptyOpt}${opts}${deadSep}${deadOpt}</select>`;
 }
 
 function setActionStage(name, val) {
+  if (val === 'dead_action') {
+    // Reset the select back to the current stage before showing confirm dialog
+    document.querySelectorAll('.action-stage-select').forEach(sel => {
+      if (sel.dataset.acctname === name) {
+        const cur = localData[name]?.acctActionStage || '';
+        sel.value = cur;
+        const s = ACTION_STAGES.find(x => x.val === cur);
+        sel.style.background = s ? s.bg : '#f9fafb';
+        sel.style.color     = s ? s.color : '#9ca3af';
+        sel.style.borderColor = s ? s.color : '#d1d5db';
+      }
+    });
+    showDeadActionConfirm(name);
+    return;
+  }
   if (!localData[name]) localData[name] = {};
   localData[name].acctActionStage = val;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
@@ -5117,6 +5248,13 @@ function renderAction() {
       case 'workables':   av = getWorkableCount(a.name); bv = getWorkableCount(b.name); break;
       case 'acctStatus':  av = ['keep','monitor','drop',''].indexOf(al.acctStatus||''); bv = ['keep','monitor','drop',''].indexOf(bl.acctStatus||''); break;
       case 'acctPriority':{ const pm={legendary:0,veryrare:1,rare:2,uncommon:3,common:4}; av=pm[al.acctPriority]??99; bv=pm[bl.acctPriority]??99; break; }
+      case 'nextdate': {
+        const da = al.actionNextDate ? new Date(al.actionNextDate).getTime() : null;
+        const db = bl.actionNextDate ? new Date(bl.actionNextDate).getTime() : null;
+        av = da ?? (actionSortDir==='asc' ? Infinity : -Infinity);
+        bv = db ?? (actionSortDir==='asc' ? Infinity : -Infinity);
+        break;
+      }
       default: av = a.days; bv = b.days;
     }
     if (av < bv) return actionSortDir === 'asc' ? -1 : 1;
@@ -5270,8 +5408,18 @@ function renderActionCards(rows) {
   grid.style.overflowX = 'auto';
   grid.style.padding = '4px 0 16px';
 
+  const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+
   grid.innerHTML = allCols.map(col => {
-    const cards = grouped[col.val] || [];
+    // Sort cards within column: accounts with next date first (soonest first), no date last
+    const cards = (grouped[col.val] || []).slice().sort((a, b) => {
+      const da = localData[a.name]?.actionNextDate ? new Date(localData[a.name].actionNextDate) : null;
+      const db = localData[b.name]?.actionNextDate ? new Date(localData[b.name].actionNextDate) : null;
+      if (da && db) return da - db;
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
     return `<div class="action-kanban-col" data-stage="${escHtml(col.val)}"
               ondragover="event.preventDefault();this.classList.add('drag-over')"
               ondragleave="this.classList.remove('drag-over')"
@@ -5290,7 +5438,9 @@ function renderActionCards(rows) {
         const keyW = getKeyWorkable(name);
         const hasOpp = !!(local.acctOpp || hasAnyContactOpp(name));
         const inCsv = !acc._droppedFromCSV;
-        return `<div class="action-kanban-card" draggable="true"
+        const nextDateParsed = local.actionNextDate ? new Date(local.actionNextDate) : null;
+        const isOverdue = nextDateParsed && nextDateParsed < todayMidnight;
+        return `<div class="action-kanban-card${isOverdue?' action-card-overdue':''}" draggable="true"
                   ondragstart="handleActionKanbanDragStart(event,'${escHtml(name)}')"
                   ondragend="document.querySelectorAll('.action-kanban-col').forEach(c=>c.classList.remove('drag-over'))">
           ${hasOpp ? `<span class="action-opp-badge">Opp</span>` : ''}
@@ -5545,8 +5695,11 @@ function syncAllWorkablesToAction() {
 function mergeOpps(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
   const newEmails = new Set(newContacts.map(c => c.email));
+  // Contacts killed via Dead Action stay dead — do NOT auto-revive on re-upload
+  const deadWorkableEmails = new Set(deadWorkableContacts.map(c => c.email));
   let added = 0, updated = 0, dqd = 0;
   newContacts.forEach(c => {
+    if (deadWorkableEmails.has(c.email)) return; // stays dead until manually revived
     if (opps[c.email]) {
       opps[c.email].name = c.name;
       opps[c.email].accountName = c.accountName;
@@ -6363,6 +6516,17 @@ function closeUploadMenu() {
 }
 function loadCsvStats() {
   try { csvStats = JSON.parse(localStorage.getItem('ibis_csv_stats') || '{}'); } catch(e) { csvStats = {}; }
+  // Backfill accounts date from ibis_updated if we have account data but no stat yet
+  if (!csvStats.accounts) {
+    const legacy = localStorage.getItem('ibis_updated');
+    if (legacy && localStorage.getItem('ibis_accounts')) {
+      try {
+        const d = new Date(legacy);
+        const label = isNaN(d) ? legacy : d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+        csvStats.accounts = { date: label, added: 0, removed: 0 };
+      } catch(e) {}
+    }
+  }
 }
 function saveCsvStat(key, added, removed) {
   const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -6535,16 +6699,17 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
     deadSampleContacts = raw.sampleContacts || [];
     deadSixqaContacts = raw.sixqaContacts || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; }
+    deadWorkableContacts = raw.workableContacts || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -6571,7 +6736,8 @@ function updateDeadTabBadge() {
   const unseenLics     = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
   const unseenContacts = deadSampleContacts.filter(d => !deadSeenKeys.has('sc|' + d.email)).length;
   const unseenSixqa    = deadSixqaContacts.filter(d => !deadSeenKeys.has('6q|' + d.email)).length;
-  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa;
+  const unseenWkbl     = deadWorkableContacts.filter(d => !deadSeenKeys.has('wk|' + d.email)).length;
+  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -6798,7 +6964,7 @@ function renderDeadContacts() {
   if (!body) return;
 
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  let list = [...deadSampleContacts, ...deadSixqaContacts];
+  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts];
   if (search) {
     list = list.filter(d =>
       (d.name||'').toLowerCase().includes(search) ||
@@ -6828,14 +6994,17 @@ function renderDeadContacts() {
       : res === '__initials__' ? `<div class="td-logo">${initials}</div>`
       : res ? `<div class="td-logo"><img src="${res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${escHtml(d.accountName||'')}"></div>`
       : `<div class="td-logo"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(d.accountName||'')}"></div>`;
-    const campBadge = `<span style="font-size:10px;background:#d1fae5;color:#065f46;border-radius:5px;padding:2px 7px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
+    const camp = d._campaign || 'samples';
+    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;' };
+    const campBadge = `<span style="font-size:10px;${campColors[camp]||campColors.samples}border-radius:999px;padding:2px 8px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
     return `<tr>
       <td><div class="td-company">${logoHtml}<div><span class="td-name">${escHtml(d.accountName||'')}</span></div></div></td>
-      <td>${escHtml(d.name||'')}</td>
+      <td style="font-weight:500;">${escHtml(d.name||'')}</td>
       <td style="color:var(--text-secondary);font-size:12px;">${escHtml(d.title||'')}</td>
       <td>${campBadge}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days+'d ago' : '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${d._deadSince||'—'}</td>
+      <td><button onclick="reviveDeadContact(${JSON.stringify(d.email)},${JSON.stringify(camp)})" style="height:26px;padding:0 10px;font:500 11px 'DM Sans',sans-serif;border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;cursor:pointer;white-space:nowrap;transition:150ms ease;" onmouseover="this.style.background='#f0fdf4';this.style.borderColor='#16a34a';this.style.color='#16a34a'" onmouseout="this.style.background='#fff';this.style.borderColor='#d1d5db';this.style.color='#374151'">↩ Revive</button></td>
     </tr>`;
   }).join('');
 }
@@ -6895,6 +7064,24 @@ function closeContactPreview() {
 <div id="acct-priority-portal"></div>
 <div id="sentiment-card"></div>
 <div id="contact-preview-portal"></div>
+
+<!-- ── Dead Action Confirm Modal ─────────────────────────────────────────── -->
+<div id="dead-action-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.35);align-items:center;justify-content:center;" onclick="if(event.target===this)closeDeadActionModal()">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);width:460px;max-width:92vw;overflow:hidden;">
+    <div style="padding:20px 24px;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:10px;">
+      <div style="font:600 16px 'DM Sans',sans-serif;color:#111827;">💀 Remove from Action</div>
+    </div>
+    <div style="padding:20px 24px;">
+      <div style="font:400 14px 'DM Sans';color:#374151;">Remove <strong id="dam-account-name" style="color:#111827;"></strong> from your Action list?</div>
+      <div id="dam-contacts"></div>
+      <div id="dam-note"></div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;display:flex;justify-content:flex-end;gap:8px;">
+      <button onclick="closeDeadActionModal()" style="height:34px;padding:0 14px;font:500 13px 'DM Sans',sans-serif;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#374151;cursor:pointer;transition:150ms ease;">Cancel</button>
+      <button onclick="confirmDeadAction()" style="height:34px;padding:0 14px;font:500 13px 'DM Sans',sans-serif;border:none;border-radius:6px;background:#dc2626;color:#fff;cursor:pointer;transition:150ms ease;">💀 Confirm Dead</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Debug Panel (Shift+D to open) ──────────────────────────────────────── -->
 <div id="debug-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:99999;overflow-y:auto;padding:32px 16px;" onclick="if(event.target===this)closeDebugPanel()">
