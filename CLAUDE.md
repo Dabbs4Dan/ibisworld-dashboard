@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~6,900+ lines
+**File:** `index.html` — single self-contained file, ~7,500+ lines
 
 ---
 
@@ -39,13 +39,14 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
   - `ibis_opps` → contact pipeline rows, keyed by email (lowercase trimmed)
   - `ibis_samples` → Old Samples campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_6qa` → 6QA campaign contacts, keyed by email (same schema as ibis_opps)
-  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - `ibis_churn` → Churn campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v30 (stable)
+## CURRENT STATE — v31 (stable)
 
 ### Five tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -54,6 +55,18 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 4. **📣 Campaigns tab** — multi-campaign contact hub (was Workables); campaign dropdown lives in stats bar
 5. **💀 Dead tab** — accounts/licenses/contacts that have disappeared from CSV uploads
 
+### CSV Upload Date Display + Last Import Stats (v31)
+- **Upload menu dots** — each CSV row in the Upload menu now shows the last upload date (e.g. "Apr 2") in green monospace instead of a green/grey square dot. Grey dash when not yet loaded.
+  - `updateUploadDots()` reads `csvStats[key].date` for each campaign key mapped to its storage key + dot element ID
+  - `MAP` inside `updateUploadDots()`: `{ accounts, licenses, workables, samples, sixqa, churn }` → `{ storageKey, dotId }`
+- **Last Import stats panel** — far-right `stat-item` on Accounts, Licenses, and Campaigns stats bars
+  - Shows: date in large monospace (`csv-stat-date`), green "+N added" pill (`csv-chip csv-chip-added`), red "−N removed" pill (`csv-chip csv-chip-removed`)
+  - Campaigns panel is **context-aware**: switches to show stats for the selected campaign when `setCampaign(name)` is called → `renderCsvStatPanel('campaigns', name)`
+  - Hidden on Action and Dead tabs (no CSV context)
+- **`ibis_csv_stats`** localStorage key — JSON object keyed by campaign name: `{ accounts:{date,added,removed}, licenses:{...}, workables:{...}, samples:{...}, sixqa:{...}, churn:{...} }`
+- **Key functions:** `loadCsvStats()`, `saveCsvStat(key, added, removed)`, `updateUploadDots()`, `renderCsvStatPanel(suffix, csvKey)`
+- **Backfill:** on load, if `ibis_csv_stats.accounts` is missing but `ibis_updated` exists, synthesizes a date entry for accounts (preserving legacy data)
+
 ### Accounts Tab Features
 - SF CSV upload → instant dashboard population
 - Change detection → 🆕 flags new accounts
@@ -61,7 +74,7 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 - Custom colored vertical dropdown
 - Revenue column with auto-enrichment + progress indicator (bottom-right spinner)
 - Logo cascade: UpLead → DuckDuckGo → Google Favicon → Initials
-- Accounts CSV button turns ✅ green when freshly uploaded this session
+- Accounts CSV button now shows last upload date in the dropdown instead of green dot
 - 6sense buying stage badges
 - 🗑️ clear buttons next to each CSV upload — accounts clears `ibis_accounts`+`ibis_updated` only (preserves `ibis_local`); licenses clears `ibis_licenses` only
 - **Row click modal removed** — clicking a row no longer opens the flags/notes/revenue modal (removed `onclick="openModal(...)"` from `<tr>` and `.account-card`)
@@ -230,6 +243,30 @@ Company | Territory Dot | Opp | Stage | Action Headline | Next Date | Tier | Ver
 - **Opp badge**: `<span class="action-opp-badge">` — absolute positioned top-right, blue pill, shows "Opp" when `acctOpp || hasAnyContactOpp(name)` is true. Read-only indicator, no click functionality.
 - Account name click: `event.stopPropagation()` added to prevent drag interference → opens account deep-dive page
 
+#### Action Stage Sort (v31)
+- Stage `<th>` has a clickable `<span>Stage</span>` that calls `setActionSortCol('stage')`
+- Sort arrow `id="axsort-stage"` updates with ▲/▼
+- Kanban sort order: Unset(0) → new_sequence(1) → multithreading(2) → active_opp(3) → active_proposal(4) → stalled(5) → future_reconnect(6) → internal_support(7) → tabled(8)
+- `STAGE_ORDER` map defined inline in sort switch case `'stage'`
+- Filter ▾ button still works independently (stopPropagation on the button)
+
+#### Dead Action Stage (v31)
+- Selecting `💀 Remove from Action` from the stage dropdown triggers a confirm modal showing all associated workable contacts
+- On confirm: `killActionAccount(name)` — moves all workable contacts for account to `deadWorkableContacts` with `_campaign:'workables'`, `_campaignLabel:'🎯 Workable'`; clears `hasAction` and `acctActionStage`; if skeleton account, removes from `accounts[]` entirely
+- Stage select is reset to prior value BEFORE showing modal (no stale value in dropdown)
+- `dead_action` is NOT in `ACTION_STAGES` — added only in `renderActionStageSelect()` as a separate `<option>` with a `<hr>` separator
+- **Re-upload protection**: `mergeOpps()` checks `deadWorkableEmails` Set — killed contacts stay dead even if they reappear in a future Workables CSV upload. Only revivable via ↩ Revive button.
+- **Revive button** on dead contacts panel: `reviveDeadContact(email, campaign)` — restores to correct campaign store (opps/samples/sixqa/churn), removes from dead array, calls `autoAddToAction` for workables
+
+#### Kanban Overdue + Next Date Sort (v31)
+- Kanban cards sorted within each column by `actionNextDate` (soonest first, nulls last)
+- Cards with `actionNextDate < today` get `.action-card-overdue` class: `border-color:#fed7aa; background:#fffbf5`
+- Next Date column in Action table is sortable: `setActionSortCol('nextdate')`, `id="axsort-nextdate"`, nulls sort to bottom
+
+#### Skeleton Account Filter (v31)
+- Skeleton accounts (`_isSkeletonAccount: true`) are completely hidden from Accounts tab: filtered in `getFiltered()`, excluded from `updateStats()` counts
+- Only visible in Action tab (where they serve as anchors for workable contacts not in CSV)
+
 #### Action Tab State Variables
 ```javascript
 let actionView = 'cards';           // 'cards' | 'table'
@@ -244,7 +281,7 @@ const ACTION_STAGES = [...];        // 8 stage objects with val, label, emoji, c
 - `acctActionStage` (string) — one of the 8 stage vals or '' ('' = unset; 'tabled' = hidden by default)
 - `actionHeadline` (string) — short action note shown in table + cards
 - `actionNextDate` (string) — free-text date, shown in table + cards
-- `actionNotes` (string) — longer notes in account page action block
+- `actionNotes` (string) — longer notes in account page action block (stored as HTML from contenteditable)
 - `actionKeyContact` (string) — write-in key contact, shown in account page action block (new v29)
 
 ### Account Deep-Dive Page (new in v27)
@@ -255,18 +292,29 @@ const ACTION_STAGES = [...];        // 8 stage objects with val, label, emoji, c
 - **Prev/next logic:** `goToAccount(name)` snapshots `getFilteredOrderedNames()` at click time (respects frozen sort + active filters). `accountPageOrigin`, `accountPageList`, `accountPageIdx` are global state vars.
 - **Back navigation:** `closeAccountPage()` calls `setMainView(accountPageOrigin)` — returns to whichever tab opened the page. `setMainView()` also hides the account page whenever any tab is clicked directly.
 - **Header now shows company description** (v29) — `local.desc` (from Wikipedia/Claude enrichment) displayed below the account name in small muted text. Hidden if no description loaded yet.
-- **Key Contact field** (v29) — in the action block, between Next Date and Notes:
-  - If a workable exists: write-in input on the LEFT ("Add another contact…") + auto-populated workable chip on the RIGHT (purple pill with name+title from `getKeyWorkable()`)
-  - If no workable: single write-in input ("Write in a key contact…")
+- **Key Contact field** (v31) — in the action block, between Next Date and Notes:
+  - Always shows: [workable chip (purple)] [churn chip (amber)] [write-in input] — whichever chips exist auto-populate
+  - Write-in input uses CSS `:not(:focus):not(:placeholder-shown)` to render as a light-blue chip when filled (no JS toggle needed)
+  - Workable chip: `.ap-key-contact-auto` (purple `#f5f3ff` / `#ede9fe` border, `border-radius:999px`)
+  - Churn chip: `.ap-key-contact-auto` with overridden `background:#fff7ed; border-color:#fed7aa` (amber)
+  - All chips uniform height/shape — `.ap-key-contact-auto { ... border-radius:999px; padding:4px 12px 4px 8px; }`
   - Stored in `ibis_local[name].actionKeyContact`, saved via `saveActionField(name,'actionKeyContact',value)`
-  - CSS: `.ap-key-contact-row`, `.ap-key-contact-label`, `.ap-key-contact-input`, `.ap-key-contact-auto`
+- **Notes field** (v31) — contenteditable `<div>`, not textarea:
+  - Label "Notes" + B/• toolbar buttons always visible on same row above the box
+  - **Enter** = blur (done editing); **Shift+Enter** = `execCommand('insertUnorderedList')` (bullet list); **Ctrl+B** = bold
+  - Min-height 140px, `resize:vertical; overflow:auto` — drag to make taller
+  - Saves `innerHTML` to `ibis_local[name].actionNotes` on blur (HTML preserved for rich text)
+  - CSS: `.ap-action-notes[contenteditable]`, `.ap-notes-tool`
 - **Six panels in a CSS grid (3 cols, 2 rows):**
-  - Row 1, full width: **Header** — logo (same cascade), name, description (new v29), meta strip (Tier · Revenue · Vertical · Sentiment badge · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · Workables · Priority)
-  - Row 2 col 1: **🎯 Priority Outreach** — contacts sorted by urgency, action labels (Email today / Follow up / Re-engage / On ice)
-  - Row 2 col 2: **👥 Campaigns** — grouped mini-table by campaign (v30): one column per campaign (🎯 Workables / 🧪 Old Samples / 🔥 6QA), each with a colour-coded header badge showing campaign name + count. Contacts stacked list-style per column: avatar + name + title + stage pill (Workables only) + days. CSS: `.ap-campaigns-table`, `.ap-camp-col`, `.ap-camp-header`, `.ap-camp-row`, `.ap-camp-avatar`, `.ap-camp-info`, `.ap-camp-name`, `.ap-camp-title`, `.ap-camp-days`. Only campaigns with contacts for that account are rendered.
-  - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout, type badges use existing `.lic-type-badge` classes
-  - Row 3 col 1: **📈 Opportunities** — contacts with `sfOpp=true`, stage pill, amount, close date; placeholder button
-  - Row 3 cols 2–3: **📝 Account Plan** — inline editable textarea, auto-saves to `ibis_local[name].accountPlan` on every keystroke
+  - Row 1, full width: **Header** — logo, name, description (v29), meta strip (Tier · Revenue · Vertical · Sentiment · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · **Campaigns** · **Priority**)
+    - **Grey dot removed** (v31): opp widget only shown when `local.acctOpp || hasAnyContactOpp(name)` is true — no more mysterious grey dot
+    - **Campaigns stat** (v31): shows colored count bubbles (purple `.wkbl-dot` / green `.smpl-dot` / cyan `.sixqa-dot` / orange `.churn-dot`) — each clickable to open contact preview via `openContactPreview()`
+    - **Priority stat** (v31): shows colored pill badge matching `PRIO_COLORS` map (`legendary:#fef3c7/#92400e`, etc.) — not plain text
+  - Row 2 col 1: **🎯 Priority Outreach** — contacts sorted by urgency, action labels
+  - Row 2 col 2: **👥 Campaigns** — one column per campaign (🎯 Workables / 🧪 Old Samples / 🔥 6QA / 🐣 Churn). Only columns with contacts are rendered.
+  - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout
+  - Row 3 col 1: **📈 Opportunities** — contacts with `sfOpp=true`
+  - Row 3 cols 2–3: **📝 Account Plan** — inline editable textarea
 - **Account plan persistence:** `accountPlan` stored in `ibis_local` — survives CSV re-uploads. `pruneStaleLocalData` treats it as user data (won't prune).
 - **State vars:** `accountPageOrigin`, `accountPageList`, `accountPageIdx` declared at global scope near `frozenSortOrder`
 - **Key functions:** `goToAccount(name)`, `openAccountPage(name, origin, list, idx)`, `closeAccountPage()`, `navAccountPage(dir)`, `renderAccountPage(name)`, `renderAPHeader`, `renderAPPriorityOutreach`, `renderAPCampaigns`, `renderAPLicenses`, `renderAPOpportunities`, `renderAPPlan`
@@ -315,19 +363,32 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - `guessDomain()` improved: detects non-profit/gov keywords → uses `.org` TLD; strips more noise words
 - `LOGO_DOMAIN_OVERRIDES` extended with `Women's Business Development Center of Aurora → wbdc.org`, `New York SBDC Network → nysbdc.org`
 
-### Dead Tab Features (v25)
-- **Purpose:** Accounts/licenses that disappear from a re-upload CSV move here instead of silently vanishing
-- **Pill view switcher** — `⚰️ Accounts` / `🗂 Licenses` buttons (not a dropdown), with live count badges
+### Churn Campaign (v31)
+- **🐣 Churn** — fourth campaign under Campaigns tab. Same CSV schema as Old Samples/6QA (Account Name, First/Last Name, Title, Mailing Country, Email, Last Activity).
+- **Colors:** orange/amber — bg `#fff7ed`, text `#c2410c`, count badge bg `#fed7aa`
+- **`ibis_churn`** localStorage key (same keyed-by-email pattern as `ibis_opps`, `ibis_samples`, `ibis_6qa`)
+- **Key functions:** `loadChurn()`, `saveChurn()`, `handleChurnCSV()`, `mergeChurn()`, `renderChurn()`, `deleteChurn()`, `clearChurnData()`, `getChurnCount(name)`, `getKeyChurnContact(name)`
+- **Dead contacts:** `deadChurnContacts[]` — contacts missing from re-upload move here. `ibis_dead.churnContacts` array. Revivable via ↩ Revive button. Badge color: `background:#fed7aa;color:#c2410c`.
+- **Accounts table:** `.churn-dot` bubble (orange) shown in Campaigns column next to workables/samples/sixqa dots
+- **Account page Campaigns panel:** Churn column added (amber header `#fff7ed`/`#c2410c`). `renderAPCampaigns()` includes churn contacts.
+- **Account page Key Contact:** `getKeyChurnContact(name)` auto-populates amber chip to the right of workable chip. Uses same `.ap-key-contact-auto` class with `background:#fff7ed; border-color:#fed7aa` override.
+- **`openContactPreview()`** handles `type === 'churn'` — reads from `churn` object, label `'🐣 Churn'`
+- **CAMPAIGN_DEFS entry:** `{ emoji:'🐣', label:'Churn', getCount: () => Object.values(churn).length, onActivate: () => renderChurn() }`
+
+### Dead Tab Features (v25, updated v31)
+- **Purpose:** Accounts/licenses/contacts that disappear from a re-upload CSV move here instead of silently vanishing
+- **Pill view switcher** — `⚰️ Accounts` / `🗂 Licenses` / `☠️ Contacts` buttons (not a dropdown), with live count badges
 - **Resurrection:** if an account/license reappears in a future CSV upload, it's removed from dead and returns to the live tab
 - **Dead accounts detection:** fires in `handleCSV()` when accounts already loaded — compares incoming names against current `accounts[]`; anything absent → pushed to `deadAccounts[]`
 - **Dead licenses detection:** fires in `handleLicenseCSV()` similarly — missing license rows (matched by account name + license name) → pushed to `deadLicenses[]`
 - **⚠️ Unexpected drop warning:** accounts that died WITHOUT being marked as `drop` status get an orange ⚠️ flag and sort to top of the table — these are accounts that left your territory unexpectedly
 - **Status key note:** `_unexpectedDrop` is re-derived live in render as `statusKey !== 'drop'` — fixing any historical records that stored the wrong value
 - **Dead accounts columns:** ⚠️ | Status | Company | Vertical | Tier | Revenue | Score | Intent | Stage | Days Inactive | Dead Since (mirrors live Accounts table)
-- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
-- **State vars** (declared at global scope alongside other state, line ~1469): `let deadAccounts = [], deadLicenses = [], deadView = 'accounts'`
-- **Key functions:** `saveDead()`, `loadDead()`, `updateDeadTabBadge()`, `renderDead()`, `renderDeadAccounts()`, `renderDeadLicenses()`, `setDeadView(v)`
-- **Section IDs:** `dead-accts-section` and `dead-lics-section` — explicit IDs used for show/hide (NOT fragile querySelectorAll indexing)
+- **Dead contacts (v31):** unified view showing `deadWorkableContacts + deadSampleContacts + deadSixqaContacts + deadChurnContacts`. Color-coded campaign badge per row. **↩ Revive** button restores contact to correct campaign store via `reviveDeadContact(email, campaign)`.
+- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
+- **State vars:** `let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadView = 'accounts'`
+- **Key functions:** `saveDead()`, `loadDead()`, `updateDeadTabBadge()`, `renderDead()`, `renderDeadAccounts()`, `renderDeadLicenses()`, `renderDeadContacts()`, `reviveDeadContact(email, campaign)`, `setDeadView(v)`
+- **Section IDs:** `dead-accts-section`, `dead-lics-section`, `dead-contacts-section` — explicit IDs used for show/hide
 
 ### License Intelligence Tab Features
 - Parses SF "Account with Licenses & Products" CSV (~1,082 rows)
@@ -801,10 +862,19 @@ When a new session begins, Claude Code should:
 | ✅ Done | Territory dot in Action table v30 | New column after Company: green if in CSV, grey if skeleton or dropped. Reuses `.sixqa-terr-dot` CSS class. |
 | ✅ Done | Action stage select apostrophe bug fix | `onchange` now uses `data-acctname="${escHtml(name)}"` + `this.dataset.acctname` instead of embedding name in JS string. Fixes accounts with apostrophes (e.g. Women's Business Development Center). Applied to both table select and account page select. |
 | ✅ Done | Card footer opp overflow fix | `.card-footer` now has `flex-wrap:wrap; gap:6px`. Opp inputs slightly narrower in card context (50px/66px). Active opp widget wraps below stage badge cleanly. |
-| 🔴 Next | Dead Contacts resurrection logic | If a dead sample contact reappears in a future Old Samples CSV re-upload, restore them to `samples` and remove from `deadSampleContacts`. Not yet implemented. |
+| ✅ Done | CSV upload date display + Last Import stats panel | Upload menu dots now show last upload date (e.g. "Apr 2") in green monospace. Stats bar far-right panel shows date + "+N added" / "−N removed" chips. Context-aware for Campaigns tab. `ibis_csv_stats` key. `loadCsvStats()`, `saveCsvStat()`, `updateUploadDots()`, `renderCsvStatPanel()`. |
+| ✅ Done | Dead Action stage | Selecting `💀 Remove from Action` from action stage dropdown triggers confirm modal showing workable contacts. `killActionAccount(name)` moves workables to dead, clears hasAction/stage, removes skeleton accounts. Re-upload protection in `mergeOpps()`. |
+| ✅ Done | Kanban overdue sort + Next Date sort | Kanban cards sorted by nextDate within each column (soonest first). Overdue cards (nextDate < today) get `.action-card-overdue` orange border. Next Date column sortable in Action table (`axsort-nextdate`). |
+| ✅ Done | Skeleton account filter from Accounts tab | `_isSkeletonAccount:true` accounts hidden from `getFiltered()` and `updateStats()` — invisible in Accounts tab, still visible in Action tab. |
+| ✅ Done | Dead contacts Revive button | ↩ Revive button on each dead contact row. `reviveDeadContact(email, campaign)` restores to correct store (opps/samples/sixqa/churn), calls `autoAddToAction` for workables. |
+| ✅ Done | 🐣 Churn campaign | Fourth campaign — same CSV schema as Old Samples/6QA. Orange/amber colors. `ibis_churn` key. Full function stack. Dead contacts wiring (`deadChurnContacts`). Churn chip on account page Key Contact row. Churn column in AP Campaigns panel. `.churn-dot` bubble. |
+| ✅ Done | Action Stage column sort | Stage `<th>` clickable (span only, not the filter button). Sorts in kanban order: Unset→New Sequence→…→Tabled. `axsort-stage`. |
+| ✅ Done | Action notes rich text | Textarea replaced with `contenteditable` div. Enter=blur, Shift+Enter=bullet list, Ctrl+B=bold. Always-visible label+toolbar row (B / •). Min-height 140px, drag-to-resize. Saves HTML to `ibis_local[name].actionNotes`. |
+| ✅ Done | Account page design polish v31 | Grey dot removed from header (opp widget only when active). Priority stat shows colored bubble. Workables stat renamed Campaigns with colored count bubbles (all 4 campaigns). Key contact chips uniform pill shape. Write-in input becomes light-blue chip when filled (CSS only). |
+| 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented. |
 | 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
 | 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |
-| 🗺️ Future | Campaigns: Winbacks campaign | Third campaign type — churned license accounts + lost contacts. |
+| 🗺️ Future | Campaigns: Winbacks campaign | Fifth campaign type — churned license accounts + lost contacts. |
 | 🗺️ Future | Workables sort persistence | Sort state for Workables table not yet saved to `ibis_sort`. |
 | 🗺️ Future | Opp dollar auto-format | Format sfAmt as currency on blur ($ prefix, comma separation). |
 | 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs position:fixed dropdown. |
