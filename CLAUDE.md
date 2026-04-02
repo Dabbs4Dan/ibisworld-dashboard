@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~5,200+ lines
+**File:** `index.html` — single self-contained file, ~6,900+ lines
 
 ---
 
@@ -37,13 +37,15 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
   - `ibis_updated` → date string of last accounts CSV upload
   - ⚠️ There is **no separate `ibis_revenue` key** — revenue lives inside `ibis_local`
   - `ibis_opps` → contact pipeline rows, keyed by email (lowercase trimmed)
-  - `ibis_dead` → dead accounts array + dead licenses array (`{ accounts: [...], licenses: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - `ibis_samples` → Old Samples campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_6qa` → 6QA campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v29 (stable)
+## CURRENT STATE — v30 (stable)
 
 ### Five tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -149,27 +151,62 @@ Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Workable
 - **Protection rule:** Accounts with `hasAction=true` are NEVER moved to the Dead tab on CSV re-upload. They re-enter `accounts[]` with `_droppedFromCSV:true` flag and show an orange "dropped from CSV" badge. They stay visible in Action forever unless Dan manually removes ⚡.
 
 #### Action Table Columns (left → right)
-Company | Opp | Stage | Action Headline | Next Date | Tier | Vertical | Active Client | Days Inactive | Workables | Priority
+Company | Territory Dot | Opp | Stage | Action Headline | Next Date | Tier | Vertical | Active Client | Days Inactive | Campaigns | Priority
 
-#### Action Stage System
-- `ACTION_STAGES` constant (6 stages):
-  - 🚀 New Sequence (#16a34a green)
-  - 👥 Multi-threading (#2563eb blue)
-  - 💼 Active Opp (#d97706 amber)
-  - 📋 Active Proposal (#7c3aed purple)
-  - 🔮 Future Reconnect (#64748b slate)
-  - 🤝 Internal Support (#0891b2 cyan)
+#### Territory Dot in Action Table (v30)
+- Tiny column to the right of Company showing a green or grey dot
+- 🟢 Green: account is in the master CSV (not skeleton, not dropped from CSV)
+- ⚪ Grey: skeleton account (workable-anchored, never in CSV) OR dropped from CSV
+- Logic: `const inTerritory = !isSkeleton && !isDropped` where `isSkeleton = !!acc._isSkeletonAccount`
+- Reuses `.sixqa-terr-dot` CSS class (same as Old Samples / 6QA territory dots)
+
+#### Campaigns Column in Action Table (v30)
+- Shows all three campaign count bubbles side-by-side: `.wkbl-dot` (purple) + `.smpl-dot` (green) + `.sixqa-dot` (cyan)
+- Each bubble clickable → opens `#contact-preview-portal` showing that account's contacts for that campaign
+- Grey dash if no campaign contacts at all
+
+#### Action Stage System (updated v30)
+- `ACTION_STAGES` constant (8 stages — Tabled added, Multi-threading recolored):
+  - 🚀 New Sequence (#15803d green / #dcfce7)
+  - 👥 Multi-threading (#4338ca indigo / #eef2ff) — **was teal, changed to indigo to distinguish from New Sequence**
+  - 💼 Active Opp (#92400e amber / #fef3c7)
+  - 📋 Active Proposal (#6d28d9 purple / #ede9fe)
+  - ⏸ Stalled (#9a3412 orange-red / #fff7ed)
+  - 🔮 Future Reconnect (#475569 slate / #f1f5f9)
+  - 🛟 Internal Support (#0369a1 cyan / #e0f2fe)
+  - 🗄 Tabled (#6b7280 grey / #f3f4f6) — **NEW: hidden from main list by default**
 - Stage stored in `ibis_local[name].acctActionStage`
-- In the table: `.action-stage-select` — styled native `<select>`, pill shape, background color matches the stage, white text. Uses chevron SVG background-image. **Option elements always white bg + dark text (CSS rule) to prevent color bleed into dropdown list.**
-- In the account page action block: same `<select>` with id `ap-action-stage-select`, synced via `setActionStage()`
+- In the table: `.action-stage-select` — styled native `<select>`, pill shape, background+color+border matches stage. Uses `data-acctname="${escHtml(name)}"` + `onchange="setActionStage(this.dataset.acctname,this.value)"` — **never embed account name in JS string directly** (apostrophe bug).
+- In the account page action block: same `<select>` with id `ap-action-stage-select`, same data-acctname pattern.
 
-#### Action Stage Filter
-- **Filter chips** in the controls bar (6 chips + separator): `toggleActionStageFilter(val)` adds/removes from `actionStageFilters` Set
-- **Column header dropdown**: `▾` button on Stage `<th>` opens a `.lic-dropdown` with checkboxes for all 6 stages + Unset (`id="action-dropdown-stage"`). Chips and dropdown **stay in sync bidirectionally**:
-  - Chip click → `toggleActionStageFilter()` syncs checkbox
-  - Checkbox change → `applyActionStageFromDropdown()` syncs chips
-  - `clearActionStageFilters()` resets both
+#### Tabled Stage (v30)
+- Accounts set to 🗄 Tabled are **hidden from the main Action list and kanban by default**
+- Only shown when the **🗄 Tabled** filter chip is active
+- `renderAction()` always filters out tabled unless `actionStageFilters.has('tabled')`
+- Kanban column for Tabled only renders when that filter is active
+- Kanban column appears to the right of Internal Support
+
+#### Action Stage Filter (updated v30)
+- **Filter chips** (8 stage chips + 2 separators): `toggleActionStageFilter(val)` adds/removes from `actionStageFilters` Set
+- **Chip colors**: chips show a subtle tinted version of their stage color always (55% opacity when inactive, full color+weight when active). `_applyActionChipColor(val, active)` handles both states. `initActionChipColors()` called on page init to set initial tints.
+- **Column header dropdown**: `▾` button on Stage `<th>` opens a `.lic-dropdown` with checkboxes for all 8 stages + Unset (`id="action-dropdown-stage"`). Chips and dropdown **stay in sync bidirectionally**.
+- `clearActionStageFilters()` resets both chips AND clears inline styles
 - State: `actionStageFilters` (Set, global)
+
+#### Action Stats Bar (redesigned v30)
+- **Total Accounts** — all accounts with `hasAction=true`
+- **Active Accounts** — non-tabled action accounts (all except `acctActionStage === 'tabled'`)
+- **Open Opps** — accounts with `hasActiveOpp(name)` returning true
+- **No Stage Set** — active (non-tabled) accounts with no stage assigned
+- **Tabled** — count of tabled accounts
+- IDs: `action-stat-total`, `action-stat-active`, `action-stat-opps`, `action-stat-nostage`, `action-stat-tabled`
+- Old stats removed: Active (0-30d), Cooling (31-90d), Overdue (90d+), Avg Days Inactive
+
+#### Auto-sync Workables → Action (v30)
+- `syncAllWorkablesToAction()` runs on every page load (called from `init()` after all data loads)
+- Iterates all non-archived, non-DQ workable contacts and calls `autoAddToAction(o.accountName)` for each
+- Ensures any existing workables already pull their accounts into the Action tab without needing a CSV re-upload
+- Skeleton accounts created for workable contacts whose account is not in the CSV (shown with grey territory dot)
 
 #### Active Client Column Filter
 - Clicking the "Active Client" `<th>` toggles `actionActiveClientFilter` boolean
@@ -177,10 +214,11 @@ Company | Opp | Stage | Action Headline | Next Date | Tier | Vertical | Active C
 - Visual indicator: red dot `●` appears inline in the header. Header gets `.lic-filter-active` class.
 - `toggleActionActiveLicFilter()` function
 
-#### Territory Dot (new in v29)
-- Small dot shown in the top-left of each kanban card (next to logo)
-- 🟢 **Green** (`.action-terr-dot.in-csv`): `!acc._droppedFromCSV` — account is still in the accounts CSV
-- ⚪ **Grey** (`.action-terr-dot.dropped`): `acc._droppedFromCSV === true` — account was dropped from the CSV but protected by Action rule
+#### Territory Dot (v29 kanban, v30 table)
+- Small dot shown in the top-left of each kanban card AND as a column in the Action table
+- 🟢 **Green** (`.action-terr-dot.in-csv` / `.sixqa-terr-dot.in-csv`): account is in the master CSV (not skeleton, not dropped)
+- ⚪ **Grey** (`.action-terr-dot.dropped` / `.sixqa-terr-dot.dropped`): skeleton account (`_isSkeletonAccount`) or dropped from CSV (`_droppedFromCSV`)
+- Kanban uses `.action-terr-dot` class; table column reuses `.sixqa-terr-dot` class (8×8px dot)
 
 #### Action Kanban Cards (redesigned v29)
 - Width: 240px per column (was 200px)
@@ -195,15 +233,15 @@ Company | Opp | Stage | Action Headline | Next Date | Tier | Vertical | Active C
 #### Action Tab State Variables
 ```javascript
 let actionView = 'cards';           // 'cards' | 'table'
-let actionStageFilters = new Set(); // stages to filter by (empty = show all)
+let actionStageFilters = new Set(); // stages to filter by (empty = show all except Tabled)
 let actionActiveClientFilter = false; // when true, only show accounts with active license
 let actionSortCol, actionSortDir;   // current sort
-const ACTION_STAGES = [...];        // 6 stage objects with val, label, emoji, color, bg
+const ACTION_STAGES = [...];        // 8 stage objects with val, label, emoji, color, bg
 ```
 
 #### ibis_local fields used by Action tab
 - `hasAction` (bool) — whether account is in the Action list
-- `acctActionStage` (string) — one of the 6 stage vals or ''
+- `acctActionStage` (string) — one of the 8 stage vals or '' ('' = unset; 'tabled' = hidden by default)
 - `actionHeadline` (string) — short action note shown in table + cards
 - `actionNextDate` (string) — free-text date, shown in table + cards
 - `actionNotes` (string) — longer notes in account page action block
@@ -225,7 +263,7 @@ const ACTION_STAGES = [...];        // 6 stage objects with val, label, emoji, c
 - **Six panels in a CSS grid (3 cols, 2 rows):**
   - Row 1, full width: **Header** — logo (same cascade), name, description (new v29), meta strip (Tier · Revenue · Vertical · Sentiment badge · Stage · Days inactive), stat strip (Licenses · Active Opps · Contacts · Intent · Workables · Priority)
   - Row 2 col 1: **🎯 Priority Outreach** — contacts sorted by urgency, action labels (Email today / Follow up / Re-engage / On ice)
-  - Row 2 col 2: **👥 Campaigns** — all non-archived contacts with avatar, stage pill, days chip; "+ Add contact" placeholder
+  - Row 2 col 2: **👥 Campaigns** — grouped mini-table by campaign (v30): one column per campaign (🎯 Workables / 🧪 Old Samples / 🔥 6QA), each with a colour-coded header badge showing campaign name + count. Contacts stacked list-style per column: avatar + name + title + stage pill (Workables only) + days. CSS: `.ap-campaigns-table`, `.ap-camp-col`, `.ap-camp-header`, `.ap-camp-row`, `.ap-camp-avatar`, `.ap-camp-info`, `.ap-camp-name`, `.ap-camp-title`, `.ap-camp-days`. Only campaigns with contacts for that account are rendered.
   - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout, type badges use existing `.lic-type-badge` classes
   - Row 3 col 1: **📈 Opportunities** — contacts with `sfOpp=true`, stage pill, amount, close date; placeholder button
   - Row 3 cols 2–3: **📝 Account Plan** — inline editable textarea, auto-saves to `ibis_local[name].accountPlan` on every keystroke
@@ -752,6 +790,17 @@ When a new session begins, Claude Code should:
 | ✅ Done | Action stage dropdown color fix | `.action-stage-select option { background:#fff !important; color:#111827 !important; }` — prevents selected stage bg color bleeding into dropdown option list. |
 | ✅ Done | Account page: description below name | `local.desc` shown below account name in AP header — soft grey, hidden if empty. |
 | ✅ Done | Account page: Key Contact field | In action block between Next Date and Notes. Auto-populates workable chip (right) + write-in input (left) when workable exists. Write-in only when no workable. Stored in `ibis_local[name].actionKeyContact`. |
+| ✅ Done | 6QA campaign | 🔥 6QA — third campaign under Campaigns tab. Same CSV schema as Old Samples. Territory dots (green=in territory, grey=not). Dead contacts wiring (`ibis_dead.sixqaContacts`). `getSixqaCount(name)`. `.sixqa-dot` bubble (cyan) in Accounts + Action tables. Active Accounts Only filter chip. `CAMPAIGN_DEFS` entry. |
+| ✅ Done | Account page Campaigns panel redesign v30 | Mini-table grouped by campaign: one column per campaign with colour-coded header + contacts stacked list-style. CSS: `.ap-campaigns-table`, `.ap-camp-col`, `.ap-camp-header`, `.ap-camp-row` etc. Replaces old per-contact card grid. |
+| ✅ Done | Old Samples + 6QA table design pass v30 | Both tables now use `.table-wrap` wrapper (white rounded-border, matches Workables). Row layout uses same flex company cell + logo + Workables-style typography. Territory dots added to Old Samples (reuses `.sixqa-terr-dot` class). |
+| ✅ Done | Tabled stage v30 | 8th ACTION_STAGE (🗄 grey). Hidden from main Action list and kanban by default. Only revealed when 🗄 Tabled filter chip is active. Kanban column renders to the right of Internal Support when active. |
+| ✅ Done | Action stage colors overhaul v30 | Multi-threading changed from teal → indigo (#4338ca/#eef2ff) to distinguish from New Sequence green. All 8 stages now visually distinct. |
+| ✅ Done | Action filter chip tints v30 | `_applyActionChipColor()` — chips show subtle tinted bg/color always (55% opacity inactive, full color active). `initActionChipColors()` sets tints on page load. `clearActionStageFilters()` resets inline styles. |
+| ✅ Done | Action stats bar redesign v30 | New stats: Total Accounts · Active Accounts (non-tabled) · Open Opps · No Stage Set · Tabled. Removed: Active (0-30d), Cooling, Overdue, Avg Days Inactive. IDs: `action-stat-total/active/opps/nostage/tabled`. |
+| ✅ Done | Auto-sync workables → Action v30 | `syncAllWorkablesToAction()` runs on init. Backfills all existing non-DQ/non-archived workable accounts into Action. Skeleton accounts created for workables whose account is not in CSV. |
+| ✅ Done | Territory dot in Action table v30 | New column after Company: green if in CSV, grey if skeleton or dropped. Reuses `.sixqa-terr-dot` CSS class. |
+| ✅ Done | Action stage select apostrophe bug fix | `onchange` now uses `data-acctname="${escHtml(name)}"` + `this.dataset.acctname` instead of embedding name in JS string. Fixes accounts with apostrophes (e.g. Women's Business Development Center). Applied to both table select and account page select. |
+| ✅ Done | Card footer opp overflow fix | `.card-footer` now has `flex-wrap:wrap; gap:6px`. Opp inputs slightly narrower in card context (50px/66px). Active opp widget wraps below stage badge cleanly. |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample contact reappears in a future Old Samples CSV re-upload, restore them to `samples` and remove from `deadSampleContacts`. Not yet implemented. |
 | 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
 | 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |
