@@ -371,7 +371,7 @@
   #controls-accounts select, #controls-accounts .filter-chips { flex-shrink: 0; }
   #controls-licenses { flex-wrap: nowrap; }
   #controls-licenses select { flex-shrink: 0; }
-  #controls-workables-inner, #controls-samples-inner { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex: 1; min-width: 0; }
+  #controls-workables-inner, #controls-samples-inner, #controls-sixqa-inner, #controls-netnew-inner { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex: 1; min-width: 0; }
   #controls-campaigns { flex-wrap: nowrap; overflow-x: auto; }
   #controls-action { flex-wrap: nowrap; }
 
@@ -596,6 +596,8 @@
   .sixqa-dot:hover { opacity:0.82; }
   .churn-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#c2410c; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
   .churn-dot:hover { opacity:0.82; }
+  .netnew-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#2563eb; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .netnew-dot:hover { opacity:0.82; }
   .sixqa-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
   .sixqa-terr-dot.in-csv { background:#16a34a; }
   .sixqa-terr-dot.dropped { background:#d1d5db; }
@@ -1156,6 +1158,11 @@
   .ap-key-contact-input::placeholder { color:#9ca3af; font-style:italic; }
   .ap-key-contact-input:not(:focus):not(:placeholder-shown) { border-bottom-color:transparent; background:#eff6ff; color:#1d4ed8; font-weight:600; padding:4px 12px; }
   .ap-key-contact-auto { display:flex; align-items:center; gap:7px; background:#f5f3ff; border:1px solid #ede9fe; border-radius:999px; padding:4px 12px 4px 8px; flex-shrink:0; }
+  /* Write-in key contact chips (blue, distinct from auto chips) */
+  .ap-kc-write-chip { display:inline-flex; align-items:center; gap:5px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:999px; padding:3px 6px 3px 10px; flex-shrink:0; }
+  .ap-kc-write-chip span { font-size:12px; font-weight:600; color:#1d4ed8; white-space:nowrap; }
+  .ap-kc-chip-x { background:none; border:none; cursor:pointer; color:#93c5fd; font-size:15px; line-height:1; padding:0 2px; transition:color 120ms ease; font-family:'DM Sans',sans-serif; }
+  .ap-kc-chip-x:hover { color:#1d4ed8; }
   /* Action headline input in Action table — distinct from plain opp-inline-input */
   .action-headline-input { border:none; border-bottom:1.5px solid #d1d5db; background:transparent; font-size:12px; font-weight:500; font-family:'DM Sans',sans-serif; color:var(--text-primary); outline:none; width:240px; transition:border-color 0.15s; padding:2px 2px 3px; }
   .action-headline-input::placeholder { color:#9ca3af; font-style:italic; font-size:11px; }
@@ -1419,6 +1426,11 @@
           <span class="upload-menu-dot" id="udot-churn"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearChurnData()" title="Clear">✕</span>
         </button>
+        <button class="upload-menu-row" onclick="document.getElementById('netnew-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🌱 Net New CSV</span>
+          <span class="upload-menu-dot" id="udot-netnew"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearNetnewData()" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
@@ -1427,6 +1439,7 @@
     <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)" style="display:none;">
     <input type="file" id="sixqa-file-input" accept=".csv" onchange="handleSixqaCSV(event)" style="display:none;">
     <input type="file" id="churn-file-input" accept=".csv" onchange="handleChurnCSV(event)" style="display:none;">
+    <input type="file" id="netnew-file-input" accept=".csv" onchange="handleNetnewCSV(event)" style="display:none;">
   </div>
 </div>
 
@@ -1636,6 +1649,10 @@
         <span>🐣 Churn</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-churn">0</span>
       </div>
+      <div class="campaign-selector-item" id="cmenu-netnew" onclick="selectCampaignFromMenu('netnew')">
+        <span>🌱 Net New</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-netnew">0</span>
+      </div>
       <div class="campaign-selector-divider"></div>
       <div class="campaign-selector-item disabled">+ Add campaign (coming soon)</div>
     </div>
@@ -1686,6 +1703,13 @@
     <div class="stat-item">
       <div class="stat-label">Total Contacts</div>
       <div class="stat-value red" id="chstat-total">—</div>
+    </div>
+  </div>
+  <!-- Net New stats (shown when currentCampaign=netnew) -->
+  <div id="campaign-netnew-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="nnstat-total">—</div>
     </div>
   </div>
   <div class="stat-item csv-upload-stat" id="csv-stat-campaigns">
@@ -1837,6 +1861,13 @@
     </div>
     <div class="filter-chips">
       <button class="chip" id="sixqa-filter-active-accts" onclick="toggleSixqaActiveFilter()">🟢 Active Accounts Only</button>
+    </div>
+  </div>
+  <!-- Net New controls -->
+  <div id="controls-netnew-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search Net New contacts..." id="netnew-search-input" oninput="renderNetnew()">
     </div>
   </div>
 </div>
@@ -2066,6 +2097,32 @@
       </div>
     </div>
   </div>
+  <div id="campaign-view-netnew" class="hidden">
+    <div id="netnew-empty-state" class="empty-state">
+      <div class="empty-icon">🌱</div>
+      <div class="empty-title">Upload your Net New CSV to get started</div>
+      <div class="empty-desc">Export brand-new prospect contacts from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🌱 Net New CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('netnew-file-input').click()">🌱 Upload Net New CSV</button>
+    </div>
+    <div id="netnew-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="netnew-table-wrap" class="opp-tbl-wrap hidden">
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="netnew-table-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- DEAD TAB CONTENT -->
@@ -2191,11 +2248,11 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadView = 'accounts';
 let csvStats = {};
 let _deadActionPending = null;
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
-let samples = {}, sixqa = {}, churn = {};
+let samples = {}, sixqa = {}, churn = {}, netnew = {};
 let sixqaActiveFilter = false;
 let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
@@ -2297,6 +2354,11 @@ function init() {
   if (Object.keys(churn).length > 0) {
     document.getElementById('churn-empty-state')?.classList.add('hidden');
     document.getElementById('churn-table-wrap')?.classList.remove('hidden');
+  }
+  loadNetnew();
+  if (Object.keys(netnew).length > 0) {
+    document.getElementById('netnew-empty-state')?.classList.add('hidden');
+    document.getElementById('netnew-table-wrap')?.classList.remove('hidden');
   }
   updateCampaignPillCounts();
   // Auto-add all existing workable contacts' accounts to Action (backfill)
@@ -4627,14 +4689,77 @@ function renderAccountPage(name) {
     // Set existing content (HTML or plain text — both work as innerHTML)
     notesEl.innerHTML = localData[name]?.actionNotes || '';
     notesEl.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); notesEl.blur(); }
-      if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); document.execCommand('insertUnorderedList'); }
+      // Ctrl/Cmd+Enter = done editing (blur & save)
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); notesEl.blur(); return; }
+      // Shift+Enter = insert a clean bullet on a new line
+      if (e.key === 'Enter' && e.shiftKey) {
+        e.preventDefault();
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const br = document.createElement('br');
+        range.insertNode(br);
+        const bullet = document.createTextNode('\u2022 ');
+        br.after(bullet);
+        range.setStartAfter(bullet);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      // Regular Enter = natural line break (no override — browser handles it)
+      // Ctrl/Cmd+B = bold
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); document.execCommand('bold'); }
     });
     notesEl.addEventListener('blur', () => {
       if (!localData[name]) localData[name] = {};
       localData[name].actionNotes = notesEl.innerHTML;
       localStorage.setItem('ibis_local', JSON.stringify(localData));
+    });
+  }
+
+  // ── Key Contact write-in chip system ──────────────────────────
+  const kcInput = container.querySelector('#ap-action-keycontact');
+  const kcWrap  = container.querySelector('#ap-kc-write-ins');
+  if (kcInput && kcWrap) {
+    function parseKCArray() {
+      const raw = localData[name]?.actionKeyContact || '';
+      if (!raw) return [];
+      try { const a = JSON.parse(raw); return Array.isArray(a) ? a : (raw ? [raw] : []); }
+      catch { return raw ? [raw] : []; }
+    }
+    function saveKCArray(arr) {
+      if (!localData[name]) localData[name] = {};
+      localData[name].actionKeyContact = JSON.stringify(arr);
+      localStorage.setItem('ibis_local', JSON.stringify(localData));
+    }
+    function renderWriteInChips() {
+      const arr = parseKCArray();
+      kcWrap.innerHTML = arr.map((n, i) =>
+        `<div class="ap-kc-write-chip"><span>${escHtml(n)}</span><button class="ap-kc-chip-x" data-idx="${i}" title="Remove">\u00d7</button></div>`
+      ).join('');
+      kcWrap.querySelectorAll('.ap-kc-chip-x').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const arr2 = parseKCArray();
+          arr2.splice(parseInt(btn.dataset.idx), 1);
+          saveKCArray(arr2);
+          renderWriteInChips();
+        });
+      });
+    }
+    renderWriteInChips();
+    kcInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = kcInput.value.trim();
+        if (!val) return;
+        const arr = parseKCArray();
+        arr.push(val);
+        saveKCArray(arr);
+        kcInput.value = '';
+        renderWriteInChips();
+      }
     });
   }
 }
@@ -4676,7 +4801,6 @@ function renderAPAction(local, name) {
       ${(()=>{
         const kw = getKeyWorkable(name);
         const kc = getKeyChurnContact(name);
-        const kcVal = escHtml(local.actionKeyContact||'');
         const workableChip = kw ? `<div class="ap-key-contact-auto">
               <span style="width:7px;height:7px;border-radius:50%;background:#7c3aed;flex-shrink:0;display:inline-block;"></span>
               <div style="line-height:1.3;">
@@ -4691,14 +4815,12 @@ function renderAPAction(local, name) {
                 ${kc.title ? `<div style="font-size:10px;color:#ea580c;">${escHtml(kc.title)}</div>` : ''}
               </div>
             </div>` : '';
-        const hasAnyChip = kw || kc;
         return `<div class="ap-key-contact-row">
           <span class="ap-key-contact-label">Key Contact</span>
           ${workableChip}${churnChip}
-          <input class="ap-key-contact-input" type="text" id="ap-action-keycontact" value="${kcVal}"
-            placeholder="${hasAnyChip ? 'Add another contact…' : 'Write in a key contact…'}"
-            onblur="saveActionField('${esc}','actionKeyContact',this.value)"
-            onkeydown="if(event.key==='Enter')this.blur()">
+          <div id="ap-kc-write-ins" style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;"></div>
+          <input class="ap-key-contact-input" type="text" id="ap-action-keycontact"
+            placeholder="Add name, press Enter…">
         </div>`;
       })()}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:6px;">
@@ -4746,7 +4868,14 @@ function renderAPHeader(acc, local, name) {
   const sampleCount   = getSampleCount(name);
   const sixqaCount    = getSixqaCount(name);
   const churnCount    = getChurnCount(name);
-  const contactCount  = Object.values(opps).filter(o => normName(o.accountName) === normName(name)).length;
+  const netnewCount   = getNetnewCount(name);
+  const _cn = normName(name);
+  const contactCount  =
+    Object.values(opps).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(samples).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(sixqa).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(churn).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(netnew).filter(o => normName(o.accountName) === _cn).length;
   const activeOppCount= Object.values(opps).filter(o => normName(o.accountName) === normName(name) && o.sfOpp).length;
   const prioOpt       = ACCT_PRIORITY_OPTS.find(o => o.key === (local.acctPriority || ''));
 
@@ -4763,6 +4892,7 @@ function renderAPHeader(acc, local, name) {
     sampleCount   > 0 ? `<span class="smpl-dot" onclick="openContactPreview(event,'${escN}','samples')">${sampleCount}</span>` : '',
     sixqaCount    > 0 ? `<span class="sixqa-dot" onclick="openContactPreview(event,'${escN}','sixqa')">${sixqaCount}</span>` : '',
     churnCount    > 0 ? `<span class="churn-dot" onclick="openContactPreview(event,'${escN}','churn')">${churnCount}</span>` : '',
+    netnewCount   > 0 ? `<span class="netnew-dot" onclick="openContactPreview(event,'${escN}','netnew')">${netnewCount}</span>` : '',
   ].filter(Boolean).join('');
 
   // Stage + sentiment inline
@@ -4854,11 +4984,12 @@ function renderAPCampaigns(name) {
   const workables = Object.values(opps).filter(o => !o.archived && normName(o.accountName) === n);
   const sampleContacts = Object.values(samples).filter(o => normName(o.accountName) === n);
   const sixqaContacts = Object.values(sixqa).filter(o => normName(o.accountName) === n);
-  const churnContacts = Object.values(churn).filter(o => normName(o.accountName) === n);
+  const churnContacts  = Object.values(churn).filter(o => normName(o.accountName) === n);
+  const netnewContacts = Object.values(netnew).filter(o => normName(o.accountName) === n);
 
-  if (!workables.length && !sampleContacts.length && !sixqaContacts.length && !churnContacts.length) return `
+  if (!workables.length && !sampleContacts.length && !sixqaContacts.length && !churnContacts.length && !netnewContacts.length) return `
     <div class="ap-panel-title">👥 Campaigns</div>
-    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, 🔥 6QA, or 🐣 Churn CSV to populate</div>`;
+    <div class="ap-empty">No contacts found<br>Upload Workables, Old Samples, 🔥 6QA, 🐣 Churn, or 🌱 Net New CSV to populate</div>`;
 
   function renderCampRows(contacts, type) {
     return contacts.map(o => {
@@ -4911,6 +5042,13 @@ function renderAPCampaigns(name) {
         <span>🐣</span><span>Churn</span><span style="margin-left:auto;font-size:10px;background:#fed7aa;color:#c2410c;border-radius:999px;padding:1px 7px;">${churnContacts.length}</span>
       </div>
       ${renderCampRows(churnContacts, 'churn')}
+    </div>`);
+  if (netnewContacts.length) cols.push(`
+    <div class="ap-camp-col">
+      <div class="ap-camp-header" style="background:#eff6ff;color:#1e40af;">
+        <span>🌱</span><span>Net New</span><span style="margin-left:auto;font-size:10px;background:#dbeafe;color:#1e40af;border-radius:999px;padding:1px 7px;">${netnewContacts.length}</span>
+      </div>
+      ${renderCampRows(netnewContacts, 'netnew')}
     </div>`);
 
   return `
@@ -5164,6 +5302,14 @@ function reviveDeadContact(email, campaign) {
     delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
     churn[email] = contact;
     saveChurn();
+  } else if (campaign === 'netnew') {
+    const idx = deadNetnewContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadNetnewContacts[idx] };
+    deadNetnewContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    netnew[email] = contact;
+    saveNetnew();
   }
   saveDead();
   updateDeadTabBadge();
@@ -5416,12 +5562,16 @@ function renderActionTable(rows) {
     const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
 
     // Campaigns cell — shows colored bubble per campaign that has contacts for this account
-    const sCount = getSampleCount(name);
-    const qCount = getSixqaCount(name);
+    const sCount  = getSampleCount(name);
+    const qCount  = getSixqaCount(name);
+    const chCount = getChurnCount(name);
+    const nnCount = getNetnewCount(name);
     const campaignBubbles = [
-      wCount > 0 ? `<span class="wkbl-dot" title="🎯 Workables" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wCount}</span>` : '',
-      sCount > 0 ? `<span class="smpl-dot" title="🧪 Old Samples" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sCount}</span>` : '',
-      qCount > 0 ? `<span class="sixqa-dot" title="🔥 6QA" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'sixqa')">${qCount}</span>` : '',
+      wCount  > 0 ? `<span class="wkbl-dot"  title="🎯 Workables"  data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wCount}</span>`  : '',
+      sCount  > 0 ? `<span class="smpl-dot"  title="🧪 Old Samples" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sCount}</span>`   : '',
+      qCount  > 0 ? `<span class="sixqa-dot" title="🔥 6QA"         data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'sixqa')">${qCount}</span>`    : '',
+      chCount > 0 ? `<span class="churn-dot" title="🐣 Churn"        data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'churn')">${chCount}</span>`   : '',
+      nnCount > 0 ? `<span class="netnew-dot" title="🌱 Net New"     data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'netnew')">${nnCount}</span>`  : '',
     ].filter(Boolean).join('');
     const campaignCell = campaignBubbles ? `<div style="display:flex;gap:4px;justify-content:center;align-items:center;">${campaignBubbles}</div>` : '<span style="color:var(--text-muted);">—</span>';
     const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
@@ -6640,6 +6790,126 @@ function getKeyChurnContact(name) {
   return contacts[0] || null;
 }
 
+// ── Net New Campaign ───────────────────────────────────────────────────────────
+function loadNetnew() {
+  try { const s = localStorage.getItem('ibis_netnew'); if (s) netnew = JSON.parse(s); } catch(e) { netnew = {}; }
+}
+function saveNetnew() {
+  try { localStorage.setItem('ibis_netnew', JSON.stringify(netnew)); } catch(e) { console.warn('ibis_netnew save failed:', e); }
+}
+
+function handleNetnewCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result);
+    const result = mergeNetnew(newContacts);
+    saveNetnew();
+    saveCsvStat('netnew', result.added, result.deadCount);
+    updateCampaignPillCounts();
+    updateUploadDots();
+    renderNetnew();
+    document.getElementById('netnew-empty-state')?.classList.add('hidden');
+    document.getElementById('netnew-table-wrap')?.classList.remove('hidden');
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function mergeNetnew(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
+  newContacts.forEach(c => {
+    if (netnew[c.email]) {
+      netnew[c.email].name = c.name;
+      netnew[c.email].accountName = c.accountName;
+      netnew[c.email].title = c.title;
+      netnew[c.email].country = c.country;
+      netnew[c.email].lastActivity = c.lastActivity;
+      updated++;
+    } else {
+      netnew[c.email] = { ...c, notes: '', dateAdded: today };
+      added++;
+    }
+  });
+  if (Object.keys(netnew).length > newContacts.length) {
+    Object.keys(netnew).forEach(email => {
+      if (!newEmails.has(email)) {
+        const alreadyDead = deadNetnewContacts.some(d => d.email === email);
+        if (!alreadyDead) {
+          deadNetnewContacts.push({ ...netnew[email], _deadSince: today, _campaign: 'netnew', _campaignLabel: '🌱 Net New' });
+          deadCount++;
+        }
+        delete netnew[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
+}
+
+function renderNetnew() {
+  const q = (document.getElementById('netnew-search-input')?.value || '').toLowerCase();
+  const all = Object.values(netnew);
+  let list = all;
+  if (q) list = list.filter(o =>
+    (o.name||'').toLowerCase().includes(q) ||
+    (o.accountName||'').toLowerCase().includes(q) ||
+    (o.title||'').toLowerCase().includes(q)
+  );
+
+  const countLabel = document.getElementById('netnew-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} net new contacts` : '';
+
+  if (!all.length) {
+    document.getElementById('netnew-empty-state')?.classList.remove('hidden');
+    document.getElementById('netnew-table-wrap')?.classList.add('hidden');
+    return;
+  }
+  document.getElementById('netnew-empty-state')?.classList.add('hidden');
+  document.getElementById('netnew-table-wrap')?.classList.remove('hidden');
+
+  const tbody = document.getElementById('netnew-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
+    return `<tr>
+      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteNetnew('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function deleteNetnew(email) {
+  const o = netnew[email];
+  if (!o) return;
+  if (!confirm(`Remove ${o.name || email} from Net New? This cannot be undone.`)) return;
+  delete netnew[email];
+  saveNetnew();
+  renderNetnew();
+  updateCampaignPillCounts();
+}
+
+function clearNetnewData() {
+  if (!confirm('Clear all Net New data?')) return;
+  localStorage.removeItem('ibis_netnew');
+  location.reload();
+}
+
+function getNetnewCount(name) {
+  const n = normName(name);
+  return Object.values(netnew).filter(o => normName(o.accountName) === n).length;
+}
+
 const CAMPAIGN_DEFS = {
   workables: {
     emoji: '🎯',
@@ -6665,6 +6935,12 @@ const CAMPAIGN_DEFS = {
     getCount: () => Object.values(churn).length,
     onActivate: () => renderChurn(),
   },
+  netnew: {
+    emoji: '🌱',
+    label: 'Net New',
+    getCount: () => Object.values(netnew).length,
+    onActivate: () => renderNetnew(),
+  },
 };
 
 function updateCampaignPillCounts() {
@@ -6687,6 +6963,9 @@ function updateCampaignPillCounts() {
   // Update Churn total stat element
   const chtotal = document.getElementById('chstat-total');
   if (chtotal) chtotal.textContent = CAMPAIGN_DEFS.churn.getCount() || '—';
+  // Update Net New total stat element
+  const nntotal = document.getElementById('nnstat-total');
+  if (nntotal) nntotal.textContent = CAMPAIGN_DEFS.netnew.getCount() || '—';
 }
 
 function setCampaign(name) {
@@ -6824,6 +7103,7 @@ function updateUploadDots() {
     samples:  { storageKey: 'ibis_samples',  dotId: 'udot-samples'   },
     sixqa:    { storageKey: 'ibis_6qa',      dotId: 'udot-sixqa'     },
     churn:    { storageKey: 'ibis_churn',    dotId: 'udot-churn'     },
+    netnew:   { storageKey: 'ibis_netnew',   dotId: 'udot-netnew'    },
   };
   Object.entries(MAP).forEach(([csvKey, { storageKey, dotId }]) => {
     const el = document.getElementById(dotId);
@@ -6949,18 +7229,19 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[],"netnewContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
     deadSampleContacts = raw.sampleContacts || [];
     deadSixqaContacts = raw.sixqaContacts || [];
     deadWorkableContacts = raw.workableContacts || [];
     deadChurnContacts = raw.churnContacts || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; }
+    deadNetnewContacts = raw.netnewContacts || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; deadNetnewContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts, netnewContacts: deadNetnewContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -6980,6 +7261,7 @@ function markDeadAsSeen() {
   deadSampleContacts.forEach(d => deadSeenKeys.add('sc|' + d.email));
   deadSixqaContacts.forEach(d => deadSeenKeys.add('6q|' + d.email));
   deadChurnContacts.forEach(d => deadSeenKeys.add('ch|' + d.email));
+  deadNetnewContacts.forEach(d => deadSeenKeys.add('nn|' + d.email));
   saveDeadSeen();
   updateDeadTabBadge();
 }
@@ -6990,7 +7272,8 @@ function updateDeadTabBadge() {
   const unseenSixqa    = deadSixqaContacts.filter(d => !deadSeenKeys.has('6q|' + d.email)).length;
   const unseenWkbl     = deadWorkableContacts.filter(d => !deadSeenKeys.has('wk|' + d.email)).length;
   const unseenChurn    = deadChurnContacts.filter(d => !deadSeenKeys.has('ch|' + d.email)).length;
-  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn;
+  const unseenNetnew   = deadNetnewContacts.filter(d => !deadSeenKeys.has('nn|' + d.email)).length;
+  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn + unseenNetnew;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -7217,7 +7500,7 @@ function renderDeadContacts() {
   if (!body) return;
 
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts];
+  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts, ...deadNetnewContacts];
   if (search) {
     list = list.filter(d =>
       (d.name||'').toLowerCase().includes(search) ||
@@ -7248,7 +7531,7 @@ function renderDeadContacts() {
       : res ? `<div class="td-logo"><img src="${res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${escHtml(d.accountName||'')}"></div>`
       : `<div class="td-logo"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(d.accountName||'')}"></div>`;
     const camp = d._campaign || 'samples';
-    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;' };
+    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;', netnew:'background:#dbeafe;color:#1e40af;' };
     const campBadge = `<span style="font-size:10px;${campColors[camp]||campColors.samples}border-radius:999px;padding:2px 8px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
     return `<tr>
       <td><div class="td-company">${logoHtml}<div><span class="td-name">${escHtml(d.accountName||'')}</span></div></div></td>
@@ -7280,12 +7563,16 @@ function openContactPreview(event, accountName, type) {
     contacts = Object.values(churn)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
+  } else if (type === 'netnew') {
+    contacts = Object.values(netnew)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   } else {
     contacts = Object.values(samples)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   }
-  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : '🧪 Old Samples';
+  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : type === 'netnew' ? '🌱 Net New' : '🧪 Old Samples';
   let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
   if (!contacts.length) {
     html += `<div class="cprev-empty">No contacts</div>`;
