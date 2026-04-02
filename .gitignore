@@ -1,0 +1,12 @@
+# Auto-sync data files — may contain account/contact PII from Salesforce
+Data/
+Data/*.json
+
+# Local environment / OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor temp files
+*.tmp
+*.bak

@@ -4703,6 +4703,8 @@ function renderAccountPage(name) {
         : 'Enter URL:';
       const raw = prompt(label);
       if (!raw || !raw.trim()) return;
+      const trimmed = raw.trim().toLowerCase();
+      if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:') || trimmed.startsWith('vbscript:')) return;
       const url = raw.trim().startsWith('http') ? raw.trim() : 'https://' + raw.trim();
       notesEl.focus();
       if (selectedText) {
@@ -5842,7 +5844,7 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen'];
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
