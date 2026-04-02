@@ -7,7 +7,8 @@ const IBIS_CONFIG = {
 
   // ── Identity ────────────────────────────────────────────────────────────
   // Your work email — tells the engine apart emails you sent vs. received
-  MY_EMAIL: 'daniel.starr@ibisworld.com',
+  // Set this to your email address (not committed to repo)
+  MY_EMAIL: '',
 
   // ── Scan behaviour ──────────────────────────────────────────────────────
   // Minutes before a contact's email cache is considered stale
