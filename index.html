@@ -599,6 +599,16 @@
   .churn-dot:hover { opacity:0.82; }
   .netnew-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#2563eb; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
   .netnew-dot:hover { opacity:0.82; }
+  .multithread-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#92400e; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .multithread-dot:hover { opacity:0.82; }
+  .winback-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#be185d; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .winback-dot:hover { opacity:0.82; }
+  .powerback-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#0f766e; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
+  .powerback-dot:hover { opacity:0.82; }
+  /* Campaign cluster widget — compact ovals, scales to 8+ campaigns */
+  .camp-cluster { display:inline-flex; align-items:center; gap:3px; flex-wrap:wrap; }
+  .camp-oval { display:inline-flex; align-items:center; justify-content:center; height:20px; min-width:24px; border-radius:999px; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; cursor:pointer; transition:opacity 150ms ease; white-space:nowrap; letter-spacing:0; }
+  .camp-oval:hover { opacity:0.82; }
   .sixqa-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
   .sixqa-terr-dot.in-csv { background:#16a34a; }
   .sixqa-terr-dot.dropped { background:#d1d5db; }
@@ -1438,6 +1448,21 @@
           <span class="upload-menu-dot" id="udot-netnew"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearNetnewData()" title="Clear">✕</span>
         </button>
+        <button class="upload-menu-row" onclick="document.getElementById('multithread-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">😎 Multithread CSV</span>
+          <span class="upload-menu-dot" id="udot-multithread"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearMultithreadData()" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('winback-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">❄️ Winback CSV</span>
+          <span class="upload-menu-dot" id="udot-winback"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearWinbackData()" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('powerback-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🥶 Powerback CSV</span>
+          <span class="upload-menu-dot" id="udot-powerback"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearPowerbackData()" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
@@ -1447,6 +1472,9 @@
     <input type="file" id="sixqa-file-input" accept=".csv" onchange="handleSixqaCSV(event)" style="display:none;">
     <input type="file" id="churn-file-input" accept=".csv" onchange="handleChurnCSV(event)" style="display:none;">
     <input type="file" id="netnew-file-input" accept=".csv" onchange="handleNetnewCSV(event)" style="display:none;">
+    <input type="file" id="multithread-file-input" accept=".csv" onchange="handleMultithreadCSV(event)" style="display:none;">
+    <input type="file" id="winback-file-input" accept=".csv" onchange="handleWinbackCSV(event)" style="display:none;">
+    <input type="file" id="powerback-file-input" accept=".csv" onchange="handlePowerbackCSV(event)" style="display:none;">
   </div>
 </div>
 
@@ -1496,6 +1524,7 @@
   </div>
   <div class="filter-chips" id="action-filter-chips">
     <button class="chip" id="action-filter-workables" onclick="setActionFilter('workables')">🎯 Has Workables</button>
+    <button class="chip" id="action-filter-hasopp" onclick="toggleActionHasOppFilter()">💼 Has Opp</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip" id="action-stage-chip-new_sequence"     onclick="toggleActionStageFilter('new_sequence')"    >🚀 New Sequence</button>
     <button class="chip" id="action-stage-chip-multithreading"   onclick="toggleActionStageFilter('multithreading')"  >👥 Multi-threading</button>
@@ -1526,7 +1555,7 @@
             <tr>
               <th style="min-width:200px;">Company</th>
               <th style="width:20px;padding:0 4px;"></th>
-              <th style="text-align:center;min-width:110px;">Opp</th>
+              <th onclick="setActionSortCol('opp')" style="cursor:pointer;text-align:center;min-width:110px;">Opp <span class="acct-sort-arrow" id="axsort-opp"></span></th>
               <th style="min-width:140px;position:relative;" id="ath-action-stage">
                 <div class="lic-th-inner">
                   <span style="cursor:pointer;" onclick="setActionSortCol('stage')">Stage <span class="acct-sort-arrow" id="axsort-stage"></span></span>
@@ -1719,6 +1748,27 @@
       <div class="stat-value red" id="nnstat-total">—</div>
     </div>
   </div>
+  <!-- Multithread stats (shown when currentCampaign=multithread) -->
+  <div id="campaign-multithread-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="mtstat-total">—</div>
+    </div>
+  </div>
+  <!-- Winback stats (shown when currentCampaign=winback) -->
+  <div id="campaign-winback-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="wbstat-total">—</div>
+    </div>
+  </div>
+  <!-- Powerback stats (shown when currentCampaign=powerback) -->
+  <div id="campaign-powerback-stats" style="display:none;">
+    <div class="stat-item">
+      <div class="stat-label">Total Contacts</div>
+      <div class="stat-value red" id="pbstat-total">—</div>
+    </div>
+  </div>
   <div class="stat-item csv-upload-stat" id="csv-stat-campaigns">
     <div class="stat-label">Last Import</div>
     <div class="csv-stat-date empty" id="csv-stat-campaigns-date">—</div>
@@ -1877,6 +1927,27 @@
       <input type="text" placeholder="Search Net New contacts..." id="netnew-search-input" oninput="renderNetnew()">
     </div>
   </div>
+  <!-- Multithread controls -->
+  <div id="controls-multithread-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search Multithread contacts..." id="multithread-search-input" oninput="renderMultithread()">
+    </div>
+  </div>
+  <!-- Winback controls -->
+  <div id="controls-winback-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search Winback contacts..." id="winback-search-input" oninput="renderWinback()">
+    </div>
+  </div>
+  <!-- Powerback controls -->
+  <div id="controls-powerback-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search Powerback contacts..." id="powerback-search-input" oninput="renderPowerback()">
+    </div>
+  </div>
 </div>
 
 <div class="change-banner" id="change-banner">
@@ -1929,9 +2000,7 @@
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
-            <th onclick="setSortCol('workables')" style="cursor:pointer;text-align:center;">Workables <span class="acct-sort-arrow" id="asort-workables"></span></th>
-            <th onclick="setSortCol('samples')" style="cursor:pointer;text-align:center;">Samples <span class="acct-sort-arrow" id="asort-samples"></span></th>
-            <th onclick="setSortCol('sixqa')" style="cursor:pointer;text-align:center;">6QA <span class="acct-sort-arrow" id="asort-sixqa"></span></th>
+            <th style="text-align:center;">Campaigns</th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
@@ -2130,6 +2199,84 @@
       </div>
     </div>
   </div>
+  <div id="campaign-view-multithread" class="hidden">
+    <div id="multithread-empty-state" class="empty-state">
+      <div class="empty-icon">😎</div>
+      <div class="empty-title">Upload your Multithread CSV to get started</div>
+      <div class="empty-desc">Export multithread contacts from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 😎 Multithread CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('multithread-file-input').click()">😎 Upload Multithread CSV</button>
+    </div>
+    <div id="multithread-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="multithread-table-wrap" class="opp-tbl-wrap hidden">
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="multithread-table-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  <div id="campaign-view-winback" class="hidden">
+    <div id="winback-empty-state" class="empty-state">
+      <div class="empty-icon">❄️</div>
+      <div class="empty-title">Upload your Winback CSV to get started</div>
+      <div class="empty-desc">Export winback contacts from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click ❄️ Winback CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('winback-file-input').click()">❄️ Upload Winback CSV</button>
+    </div>
+    <div id="winback-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="winback-table-wrap" class="opp-tbl-wrap hidden">
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="winback-table-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  <div id="campaign-view-powerback" class="hidden">
+    <div id="powerback-empty-state" class="empty-state">
+      <div class="empty-icon">🥶</div>
+      <div class="empty-title">Upload your Powerback CSV to get started</div>
+      <div class="empty-desc">Export powerback contacts from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🥶 Powerback CSV above.</div>
+      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('powerback-file-input').click()">🥶 Upload Powerback CSV</button>
+    </div>
+    <div id="powerback-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
+    <div id="powerback-table-wrap" class="opp-tbl-wrap hidden">
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24px;padding:0 4px 0 10px;"></th>
+            <th>Company</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Days Inactive</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="powerback-table-body"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- DEAD TAB CONTENT -->
@@ -2255,12 +2402,13 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadMultithreadContacts = [], deadWinbackContacts = [], deadPowerbackContacts = [], deadView = 'accounts';
 let csvStats = {};
 let _deadActionPending = null;
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
-let samples = {}, sixqa = {}, churn = {}, netnew = {};
+let samples = {}, sixqa = {}, churn = {}, netnew = {}, multithread = {}, winback = {}, powerback = {};
 let sixqaActiveFilter = false;
+let actionHasOppFilter = false;
 let currentCampaign = 'workables';
 const FLAGS = ['🔥','✅','🔄','👀','💤','🆕','⚡','🎯'];
 
@@ -2366,6 +2514,21 @@ function init() {
   if (Object.keys(netnew).length > 0) {
     document.getElementById('netnew-empty-state')?.classList.add('hidden');
     document.getElementById('netnew-table-wrap')?.classList.remove('hidden');
+  }
+  loadMultithread();
+  if (Object.keys(multithread).length > 0) {
+    document.getElementById('multithread-empty-state')?.classList.add('hidden');
+    document.getElementById('multithread-table-wrap')?.classList.remove('hidden');
+  }
+  loadWinback();
+  if (Object.keys(winback).length > 0) {
+    document.getElementById('winback-empty-state')?.classList.add('hidden');
+    document.getElementById('winback-table-wrap')?.classList.remove('hidden');
+  }
+  loadPowerback();
+  if (Object.keys(powerback).length > 0) {
+    document.getElementById('powerback-empty-state')?.classList.add('hidden');
+    document.getElementById('powerback-table-wrap')?.classList.remove('hidden');
   }
   updateCampaignPillCounts();
   // Auto-add all existing workable contacts' accounts to Action (backfill)
@@ -2822,9 +2985,7 @@ function renderTable(list) {
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
-      <td style="text-align:center;">${(()=>{const wc=getWorkableCount(name);return wc>0?`<span class="wkbl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
-      <td style="text-align:center;">${(()=>{const sc=getSampleCount(name);return sc>0?`<span class="smpl-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
-      <td style="text-align:center;">${(()=>{const qc=getSixqaCount(name);return qc>0?`<span class="sixqa-dot" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'sixqa')">${qc}</span>`:'<span style="color:var(--text-muted);font-size:12px;">—</span>';})()}</td>
+      <td style="text-align:center;padding:0 8px;">${renderCampCluster(name)}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
@@ -4941,18 +5102,16 @@ function renderAPHeader(acc, local, name) {
 
   // Stats
   const licCount      = getLicCount(name);
-  const workableCount = getWorkableCount(name);
-  const sampleCount   = getSampleCount(name);
-  const sixqaCount    = getSixqaCount(name);
-  const churnCount    = getChurnCount(name);
-  const netnewCount   = getNetnewCount(name);
   const _cn = normName(name);
   const contactCount  =
     Object.values(opps).filter(o => normName(o.accountName) === _cn).length +
     Object.values(samples).filter(o => normName(o.accountName) === _cn).length +
     Object.values(sixqa).filter(o => normName(o.accountName) === _cn).length +
     Object.values(churn).filter(o => normName(o.accountName) === _cn).length +
-    Object.values(netnew).filter(o => normName(o.accountName) === _cn).length;
+    Object.values(netnew).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(multithread).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(winback).filter(o => normName(o.accountName) === _cn).length +
+    Object.values(powerback).filter(o => normName(o.accountName) === _cn).length;
   const activeOppCount= Object.values(opps).filter(o => normName(o.accountName) === normName(name) && o.sfOpp).length;
   const prioOpt       = ACCT_PRIORITY_OPTS.find(o => o.key === (local.acctPriority || ''));
 
@@ -4962,15 +5121,8 @@ function renderAPHeader(acc, local, name) {
     ? `<span style="display:inline-flex;align-items:center;${PRIO_COLORS[prioOpt.key]||''}border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">${prioOpt.label}</span>`
     : '<span style="color:var(--text-muted);">—</span>';
 
-  // Campaign bubbles
-  const escN = escHtml(name);
-  const campBubbles = [
-    workableCount > 0 ? `<span class="wkbl-dot" onclick="openContactPreview(event,'${escN}','workables')">${workableCount}</span>` : '',
-    sampleCount   > 0 ? `<span class="smpl-dot" onclick="openContactPreview(event,'${escN}','samples')">${sampleCount}</span>` : '',
-    sixqaCount    > 0 ? `<span class="sixqa-dot" onclick="openContactPreview(event,'${escN}','sixqa')">${sixqaCount}</span>` : '',
-    churnCount    > 0 ? `<span class="churn-dot" onclick="openContactPreview(event,'${escN}','churn')">${churnCount}</span>` : '',
-    netnewCount   > 0 ? `<span class="netnew-dot" onclick="openContactPreview(event,'${escN}','netnew')">${netnewCount}</span>` : '',
-  ].filter(Boolean).join('');
+  // Campaign bubbles — compact cluster widget scales to all 8 campaigns
+  const campBubbles = renderCampCluster(name);
 
   // Stage + sentiment inline
   const stageMeta = stage ? `<span class="ap-meta-sep">·</span><span class="stage-tag ${stageClass(stage)}" style="font-size:11px;">${stage}</span>` : '';
@@ -5227,7 +5379,7 @@ let actionFilter = null;
 let actionView = 'cards';
 let actionStageFilters = new Set(); // stages currently filtered in Action tab
 let actionActiveClientFilter = false; // filter to only accounts with active licenses
-const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc', nextdate:'asc', stage:'asc' };
+const ACTION_SORT_DEFAULT_DIR = { days:'asc', name:'asc', tier:'asc', revenue:'desc', sentiment:'desc', vertical:'asc', workables:'desc', acctStatus:'asc', acctPriority:'asc', nextdate:'asc', stage:'asc', opp:'desc' };
 
 const ACTION_STAGES = [
   { val:'new_sequence',     label:'New Sequence',     emoji:'🚀', color:'#15803d', bg:'#dcfce7' },
@@ -5255,6 +5407,12 @@ function setActionFilter(f) {
   renderAction();
 }
 
+function toggleActionHasOppFilter() {
+  actionHasOppFilter = !actionHasOppFilter;
+  document.getElementById('action-filter-hasopp')?.classList.toggle('active', actionHasOppFilter);
+  renderAction();
+}
+
 function setActionSortCol(col) {
   if (actionSortCol === col) { actionSortDir = actionSortDir === 'asc' ? 'desc' : 'asc'; }
   else { actionSortCol = col; actionSortDir = ACTION_SORT_DEFAULT_DIR[col] || 'asc'; }
@@ -5263,7 +5421,7 @@ function setActionSortCol(col) {
 }
 
 function updateActionSortArrows() {
-  ['acctPriority','vertical','tier','days','workables','revenue','sentiment','nextdate','stage'].forEach(col => {
+  ['acctPriority','vertical','tier','days','workables','revenue','sentiment','nextdate','stage','opp'].forEach(col => {
     const el = document.getElementById('axsort-' + col);
     if (!el) return;
     el.textContent = actionSortCol === col ? (actionSortDir === 'asc' ? '▲' : '▼') : '';
@@ -5387,6 +5545,30 @@ function reviveDeadContact(email, campaign) {
     delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
     netnew[email] = contact;
     saveNetnew();
+  } else if (campaign === 'multithread') {
+    const idx = deadMultithreadContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadMultithreadContacts[idx] };
+    deadMultithreadContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    multithread[email] = contact;
+    saveMultithread();
+  } else if (campaign === 'winback') {
+    const idx = deadWinbackContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadWinbackContacts[idx] };
+    deadWinbackContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    winback[email] = contact;
+    saveWinback();
+  } else if (campaign === 'powerback') {
+    const idx = deadPowerbackContacts.findIndex(c => c.email === email);
+    if (idx === -1) return;
+    const contact = { ...deadPowerbackContacts[idx] };
+    deadPowerbackContacts.splice(idx, 1);
+    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+    powerback[email] = contact;
+    savePowerback();
   }
   saveDead();
   updateDeadTabBadge();
@@ -5561,6 +5743,9 @@ function renderAction() {
   if (actionActiveClientFilter) {
     filtered = filtered.filter(r => !!getActiveLicBadges(r.name));
   }
+  if (actionHasOppFilter) {
+    filtered = filtered.filter(r => hasActiveOpp(r.name) || hasAnyContactOpp(r.name));
+  }
   if (q) filtered = filtered.filter(r => r.name.toLowerCase().includes(q) || (getField(r.acc,'Vertical')||'').toLowerCase().includes(q));
 
   // Sort
@@ -5591,6 +5776,7 @@ function renderAction() {
         bv = STAGE_ORDER[bl.acctActionStage||''] ?? 0;
         break;
       }
+      case 'opp': av = (hasActiveOpp(a.name)||hasAnyContactOpp(a.name))?1:0; bv = (hasActiveOpp(b.name)||hasAnyContactOpp(b.name))?1:0; break;
       default: av = a.days; bv = b.days;
     }
     if (av < bv) return actionSortDir === 'asc' ? -1 : 1;
@@ -5638,19 +5824,8 @@ function renderActionTable(rows) {
     const daysC  = days <= 30 ? '#15803d' : days <= 90 ? '#a16207' : '#b91c1c';
     const daysBadge = `<span style="background:${daysBg};color:${daysC};border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace;">${days}d</span>`;
 
-    // Campaigns cell — shows colored bubble per campaign that has contacts for this account
-    const sCount  = getSampleCount(name);
-    const qCount  = getSixqaCount(name);
-    const chCount = getChurnCount(name);
-    const nnCount = getNetnewCount(name);
-    const campaignBubbles = [
-      wCount  > 0 ? `<span class="wkbl-dot"  title="🎯 Workables"  data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'workables')">${wCount}</span>`  : '',
-      sCount  > 0 ? `<span class="smpl-dot"  title="🧪 Old Samples" data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'samples')">${sCount}</span>`   : '',
-      qCount  > 0 ? `<span class="sixqa-dot" title="🔥 6QA"         data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'sixqa')">${qCount}</span>`    : '',
-      chCount > 0 ? `<span class="churn-dot" title="🐣 Churn"        data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'churn')">${chCount}</span>`   : '',
-      nnCount > 0 ? `<span class="netnew-dot" title="🌱 Net New"     data-name="${escHtml(name)}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'netnew')">${nnCount}</span>`  : '',
-    ].filter(Boolean).join('');
-    const campaignCell = campaignBubbles ? `<div style="display:flex;gap:4px;justify-content:center;align-items:center;">${campaignBubbles}</div>` : '<span style="color:var(--text-muted);">—</span>';
+    // Campaigns cell — compact cluster widget, all 8 campaigns
+    const campaignCell = `<div style="display:flex;justify-content:center;align-items:center;">${renderCampCluster(name)}</div>`;
     const tierBadge = tier !== '—' ? `<span class="tier-badge tier-${tier}"><span>${tier}</span></span>` : '<span style="color:var(--text-muted);">—</span>';
 
     // Company cell + dropped badge
@@ -5845,7 +6020,7 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats'];
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_powerback','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -6986,6 +7161,262 @@ function getNetnewCount(name) {
   const n = normName(name);
   return Object.values(netnew).filter(o => normName(o.accountName) === n).length;
 }
+function getMultithreadCount(name) {
+  const n = normName(name);
+  return Object.values(multithread).filter(o => normName(o.accountName) === n).length;
+}
+function getWinbackCount(name) {
+  const n = normName(name);
+  return Object.values(winback).filter(o => normName(o.accountName) === n).length;
+}
+function getPowerbackCount(name) {
+  const n = normName(name);
+  return Object.values(powerback).filter(o => normName(o.accountName) === n).length;
+}
+
+// ── Multithread Campaign ─────────────────────────────────────────────────────
+function loadMultithread() {
+  try { const s = localStorage.getItem('ibis_multithread'); if (s) multithread = JSON.parse(s); } catch(e) { multithread = {}; }
+}
+function saveMultithread() {
+  try { localStorage.setItem('ibis_multithread', JSON.stringify(multithread)); } catch(e) { console.warn('ibis_multithread save failed:', e); }
+}
+function handleMultithreadCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result);
+    const result = mergeMultithread(newContacts);
+    saveMultithread(); saveCsvStat('multithread', result.added, result.deadCount);
+    updateCampaignPillCounts(); updateUploadDots(); renderMultithread();
+    document.getElementById('multithread-empty-state')?.classList.add('hidden');
+    document.getElementById('multithread-table-wrap')?.classList.remove('hidden');
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1'); e.target.value = '';
+}
+function mergeMultithread(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
+  newContacts.forEach(c => {
+    if (multithread[c.email]) {
+      multithread[c.email].name = c.name; multithread[c.email].accountName = c.accountName;
+      multithread[c.email].title = c.title; multithread[c.email].country = c.country;
+      multithread[c.email].lastActivity = c.lastActivity; updated++;
+    } else { multithread[c.email] = { ...c, notes: '', dateAdded: today }; added++; }
+  });
+  if (Object.keys(multithread).length > newContacts.length) {
+    Object.keys(multithread).forEach(email => {
+      if (!newEmails.has(email)) {
+        if (!deadMultithreadContacts.some(d => d.email === email)) {
+          deadMultithreadContacts.push({ ...multithread[email], _deadSince: today, _campaign: 'multithread', _campaignLabel: '😎 Multithread' }); deadCount++;
+        }
+        delete multithread[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
+}
+function renderMultithread() {
+  const q = (document.getElementById('multithread-search-input')?.value || '').toLowerCase();
+  const all = Object.values(multithread);
+  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
+  const countLabel = document.getElementById('multithread-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} multithread contacts` : '';
+  if (!all.length) { document.getElementById('multithread-empty-state')?.classList.remove('hidden'); document.getElementById('multithread-table-wrap')?.classList.add('hidden'); return; }
+  document.getElementById('multithread-empty-state')?.classList.add('hidden'); document.getElementById('multithread-table-wrap')?.classList.remove('hidden');
+  const tbody = document.getElementById('multithread-table-body'); if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    return `<tr>
+      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteMultithread('${escHtml(o.email)}')" title="Remove">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+function deleteMultithread(email) {
+  const o = multithread[email]; if (!o) return;
+  if (!confirm(`Remove ${o.name||email} from Multithread?`)) return;
+  delete multithread[email]; saveMultithread(); renderMultithread(); updateCampaignPillCounts();
+}
+function clearMultithreadData() { if (!confirm('Clear all Multithread data?')) return; localStorage.removeItem('ibis_multithread'); location.reload(); }
+
+// ── Winback Campaign ──────────────────────────────────────────────────────────
+function loadWinback() {
+  try { const s = localStorage.getItem('ibis_winback'); if (s) winback = JSON.parse(s); } catch(e) { winback = {}; }
+}
+function saveWinback() {
+  try { localStorage.setItem('ibis_winback', JSON.stringify(winback)); } catch(e) { console.warn('ibis_winback save failed:', e); }
+}
+function handleWinbackCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result);
+    const result = mergeWinback(newContacts);
+    saveWinback(); saveCsvStat('winback', result.added, result.deadCount);
+    updateCampaignPillCounts(); updateUploadDots(); renderWinback();
+    document.getElementById('winback-empty-state')?.classList.add('hidden');
+    document.getElementById('winback-table-wrap')?.classList.remove('hidden');
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1'); e.target.value = '';
+}
+function mergeWinback(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
+  newContacts.forEach(c => {
+    if (winback[c.email]) {
+      winback[c.email].name = c.name; winback[c.email].accountName = c.accountName;
+      winback[c.email].title = c.title; winback[c.email].country = c.country;
+      winback[c.email].lastActivity = c.lastActivity; updated++;
+    } else { winback[c.email] = { ...c, notes: '', dateAdded: today }; added++; }
+  });
+  if (Object.keys(winback).length > newContacts.length) {
+    Object.keys(winback).forEach(email => {
+      if (!newEmails.has(email)) {
+        if (!deadWinbackContacts.some(d => d.email === email)) {
+          deadWinbackContacts.push({ ...winback[email], _deadSince: today, _campaign: 'winback', _campaignLabel: '❄️ Winback' }); deadCount++;
+        }
+        delete winback[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
+}
+function renderWinback() {
+  const q = (document.getElementById('winback-search-input')?.value || '').toLowerCase();
+  const all = Object.values(winback);
+  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
+  const countLabel = document.getElementById('winback-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} winback contacts` : '';
+  if (!all.length) { document.getElementById('winback-empty-state')?.classList.remove('hidden'); document.getElementById('winback-table-wrap')?.classList.add('hidden'); return; }
+  document.getElementById('winback-empty-state')?.classList.add('hidden'); document.getElementById('winback-table-wrap')?.classList.remove('hidden');
+  const tbody = document.getElementById('winback-table-body'); if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    return `<tr>
+      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteWinback('${escHtml(o.email)}')" title="Remove">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+function deleteWinback(email) {
+  const o = winback[email]; if (!o) return;
+  if (!confirm(`Remove ${o.name||email} from Winback?`)) return;
+  delete winback[email]; saveWinback(); renderWinback(); updateCampaignPillCounts();
+}
+function clearWinbackData() { if (!confirm('Clear all Winback data?')) return; localStorage.removeItem('ibis_winback'); location.reload(); }
+
+// ── Powerback Campaign ────────────────────────────────────────────────────────
+function loadPowerback() {
+  try { const s = localStorage.getItem('ibis_powerback'); if (s) powerback = JSON.parse(s); } catch(e) { powerback = {}; }
+}
+function savePowerback() {
+  try { localStorage.setItem('ibis_powerback', JSON.stringify(powerback)); } catch(e) { console.warn('ibis_powerback save failed:', e); }
+}
+function handlePowerbackCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const newContacts = parseOppsCSV(ev.target.result);
+    const result = mergePowerback(newContacts);
+    savePowerback(); saveCsvStat('powerback', result.added, result.deadCount);
+    updateCampaignPillCounts(); updateUploadDots(); renderPowerback();
+    document.getElementById('powerback-empty-state')?.classList.add('hidden');
+    document.getElementById('powerback-table-wrap')?.classList.remove('hidden');
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1'); e.target.value = '';
+}
+function mergePowerback(newContacts) {
+  const today = new Date().toISOString().slice(0, 10);
+  const newEmails = new Set(newContacts.map(c => c.email));
+  let added = 0, updated = 0, deadCount = 0;
+  newContacts.forEach(c => {
+    if (powerback[c.email]) {
+      powerback[c.email].name = c.name; powerback[c.email].accountName = c.accountName;
+      powerback[c.email].title = c.title; powerback[c.email].country = c.country;
+      powerback[c.email].lastActivity = c.lastActivity; updated++;
+    } else { powerback[c.email] = { ...c, notes: '', dateAdded: today }; added++; }
+  });
+  if (Object.keys(powerback).length > newContacts.length) {
+    Object.keys(powerback).forEach(email => {
+      if (!newEmails.has(email)) {
+        if (!deadPowerbackContacts.some(d => d.email === email)) {
+          deadPowerbackContacts.push({ ...powerback[email], _deadSince: today, _campaign: 'powerback', _campaignLabel: '🥶 Powerback' }); deadCount++;
+        }
+        delete powerback[email];
+      }
+    });
+    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
+  }
+  return { added, updated, deadCount };
+}
+function renderPowerback() {
+  const q = (document.getElementById('powerback-search-input')?.value || '').toLowerCase();
+  const all = Object.values(powerback);
+  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
+  const countLabel = document.getElementById('powerback-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} powerback contacts` : '';
+  if (!all.length) { document.getElementById('powerback-empty-state')?.classList.remove('hidden'); document.getElementById('powerback-table-wrap')?.classList.add('hidden'); return; }
+  document.getElementById('powerback-empty-state')?.classList.add('hidden'); document.getElementById('powerback-table-wrap')?.classList.remove('hidden');
+  const tbody = document.getElementById('powerback-table-body'); if (!tbody) return;
+  tbody.innerHTML = list.map(o => {
+    const days = oppDaysAgo(o.lastActivity);
+    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
+    return `<tr>
+      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
+      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
+      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
+      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
+      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deletePowerback('${escHtml(o.email)}')" title="Remove">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+function deletePowerback(email) {
+  const o = powerback[email]; if (!o) return;
+  if (!confirm(`Remove ${o.name||email} from Powerback?`)) return;
+  delete powerback[email]; savePowerback(); renderPowerback(); updateCampaignPillCounts();
+}
+function clearPowerbackData() { if (!confirm('Clear all Powerback data?')) return; localStorage.removeItem('ibis_powerback'); location.reload(); }
+
+// Compact campaign cluster widget — one colored oval per campaign with contacts, scales to 8+
+function renderCampCluster(name) {
+  const escN = escHtml(name);
+  const camps = [
+    { count: getWorkableCount(name),    bg:'#7c3aed', type:'workables'   },
+    { count: getSampleCount(name),      bg:'#059669', type:'samples'     },
+    { count: getSixqaCount(name),       bg:'#0891b2', type:'sixqa'       },
+    { count: getChurnCount(name),       bg:'#c2410c', type:'churn'       },
+    { count: getNetnewCount(name),      bg:'#2563eb', type:'netnew'      },
+    { count: getMultithreadCount(name), bg:'#92400e', type:'multithread' },
+    { count: getWinbackCount(name),     bg:'#be185d', type:'winback'     },
+    { count: getPowerbackCount(name),   bg:'#0f766e', type:'powerback'   },
+  ].filter(c => c.count > 0);
+  if (!camps.length) return `<span style="color:var(--text-muted);font-size:12px;">—</span>`;
+  return `<div class="camp-cluster">${camps.map(c =>
+    `<span class="camp-oval" style="background:${c.bg};" data-name="${escN}" onclick="event.stopPropagation();openContactPreview(event,this.dataset.name,'${c.type}')">${c.count}</span>`
+  ).join('')}</div>`;
+}
 
 const CAMPAIGN_DEFS = {
   workables: {
@@ -7018,6 +7449,24 @@ const CAMPAIGN_DEFS = {
     getCount: () => Object.values(netnew).length,
     onActivate: () => renderNetnew(),
   },
+  multithread: {
+    emoji: '😎',
+    label: 'Multithread',
+    getCount: () => Object.values(multithread).length,
+    onActivate: () => renderMultithread(),
+  },
+  winback: {
+    emoji: '❄️',
+    label: 'Winback',
+    getCount: () => Object.values(winback).length,
+    onActivate: () => renderWinback(),
+  },
+  powerback: {
+    emoji: '🥶',
+    label: 'Powerback',
+    getCount: () => Object.values(powerback).length,
+    onActivate: () => renderPowerback(),
+  },
 };
 
 function updateCampaignPillCounts() {
@@ -7043,6 +7492,15 @@ function updateCampaignPillCounts() {
   // Update Net New total stat element
   const nntotal = document.getElementById('nnstat-total');
   if (nntotal) nntotal.textContent = CAMPAIGN_DEFS.netnew.getCount() || '—';
+  // Update Multithread total stat element
+  const mttotal = document.getElementById('mtstat-total');
+  if (mttotal) mttotal.textContent = CAMPAIGN_DEFS.multithread.getCount() || '—';
+  // Update Winback total stat element
+  const wbtotal = document.getElementById('wbstat-total');
+  if (wbtotal) wbtotal.textContent = CAMPAIGN_DEFS.winback.getCount() || '—';
+  // Update Powerback total stat element
+  const pbtotal = document.getElementById('pbstat-total');
+  if (pbtotal) pbtotal.textContent = CAMPAIGN_DEFS.powerback.getCount() || '—';
 }
 
 function setCampaign(name) {
@@ -7180,7 +7638,10 @@ function updateUploadDots() {
     samples:  { storageKey: 'ibis_samples',  dotId: 'udot-samples'   },
     sixqa:    { storageKey: 'ibis_6qa',      dotId: 'udot-sixqa'     },
     churn:    { storageKey: 'ibis_churn',    dotId: 'udot-churn'     },
-    netnew:   { storageKey: 'ibis_netnew',   dotId: 'udot-netnew'    },
+    netnew:      { storageKey: 'ibis_netnew',      dotId: 'udot-netnew'      },
+    multithread: { storageKey: 'ibis_multithread', dotId: 'udot-multithread' },
+    winback:     { storageKey: 'ibis_winback',     dotId: 'udot-winback'     },
+    powerback:   { storageKey: 'ibis_powerback',   dotId: 'udot-powerback'   },
   };
   Object.entries(MAP).forEach(([csvKey, { storageKey, dotId }]) => {
     const el = document.getElementById(dotId);
@@ -7306,7 +7767,7 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[],"netnewContacts":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[],"netnewContacts":[],"multithreadContacts":[],"winbackContacts":[],"powerbackContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
     deadSampleContacts = raw.sampleContacts || [];
@@ -7314,11 +7775,14 @@ function loadDead() {
     deadWorkableContacts = raw.workableContacts || [];
     deadChurnContacts = raw.churnContacts || [];
     deadNetnewContacts = raw.netnewContacts || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; deadNetnewContacts = []; }
+    deadMultithreadContacts = raw.multithreadContacts || [];
+    deadWinbackContacts = raw.winbackContacts || [];
+    deadPowerbackContacts = raw.powerbackContacts || [];
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; deadNetnewContacts = []; deadMultithreadContacts = []; deadWinbackContacts = []; deadPowerbackContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts, netnewContacts: deadNetnewContacts })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts, netnewContacts: deadNetnewContacts, multithreadContacts: deadMultithreadContacts, winbackContacts: deadWinbackContacts, powerbackContacts: deadPowerbackContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -7339,18 +7803,24 @@ function markDeadAsSeen() {
   deadSixqaContacts.forEach(d => deadSeenKeys.add('6q|' + d.email));
   deadChurnContacts.forEach(d => deadSeenKeys.add('ch|' + d.email));
   deadNetnewContacts.forEach(d => deadSeenKeys.add('nn|' + d.email));
+  deadMultithreadContacts.forEach(d => deadSeenKeys.add('mt|' + d.email));
+  deadWinbackContacts.forEach(d => deadSeenKeys.add('wb|' + d.email));
+  deadPowerbackContacts.forEach(d => deadSeenKeys.add('pb|' + d.email));
   saveDeadSeen();
   updateDeadTabBadge();
 }
 function updateDeadTabBadge() {
-  const unseenAccts    = deadAccounts.filter(d => !deadSeenKeys.has(deadItemKey(d,'account'))).length;
-  const unseenLics     = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
-  const unseenContacts = deadSampleContacts.filter(d => !deadSeenKeys.has('sc|' + d.email)).length;
-  const unseenSixqa    = deadSixqaContacts.filter(d => !deadSeenKeys.has('6q|' + d.email)).length;
-  const unseenWkbl     = deadWorkableContacts.filter(d => !deadSeenKeys.has('wk|' + d.email)).length;
-  const unseenChurn    = deadChurnContacts.filter(d => !deadSeenKeys.has('ch|' + d.email)).length;
-  const unseenNetnew   = deadNetnewContacts.filter(d => !deadSeenKeys.has('nn|' + d.email)).length;
-  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn + unseenNetnew;
+  const unseenAccts      = deadAccounts.filter(d => !deadSeenKeys.has(deadItemKey(d,'account'))).length;
+  const unseenLics       = deadLicenses.filter(d => !deadSeenKeys.has(deadItemKey(d,'license'))).length;
+  const unseenContacts   = deadSampleContacts.filter(d => !deadSeenKeys.has('sc|' + d.email)).length;
+  const unseenSixqa      = deadSixqaContacts.filter(d => !deadSeenKeys.has('6q|' + d.email)).length;
+  const unseenWkbl       = deadWorkableContacts.filter(d => !deadSeenKeys.has('wk|' + d.email)).length;
+  const unseenChurn      = deadChurnContacts.filter(d => !deadSeenKeys.has('ch|' + d.email)).length;
+  const unseenNetnew     = deadNetnewContacts.filter(d => !deadSeenKeys.has('nn|' + d.email)).length;
+  const unseenMultithread = deadMultithreadContacts.filter(d => !deadSeenKeys.has('mt|' + d.email)).length;
+  const unseenWinback    = deadWinbackContacts.filter(d => !deadSeenKeys.has('wb|' + d.email)).length;
+  const unseenPowerback  = deadPowerbackContacts.filter(d => !deadSeenKeys.has('pb|' + d.email)).length;
+  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn + unseenNetnew + unseenMultithread + unseenWinback + unseenPowerback;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -7369,7 +7839,7 @@ function renderDead() {
   const dsw = document.getElementById('dstat-warnings');
   if (dsa) dsa.textContent = deadAccounts.length;
   if (dsl) dsl.textContent = deadLicenses.length;
-  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length + deadWorkableContacts.length + deadChurnContacts.length;
+  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length + deadWorkableContacts.length + deadChurnContacts.length + deadNetnewContacts.length + deadMultithreadContacts.length + deadWinbackContacts.length + deadPowerbackContacts.length;
   if (dsc) dsc.textContent = totalDeadContacts || '—';
   if (dsw) dsw.textContent = warnings || '—';
   // Update pill counts
@@ -7577,7 +8047,7 @@ function renderDeadContacts() {
   if (!body) return;
 
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts, ...deadNetnewContacts];
+  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts, ...deadNetnewContacts, ...deadMultithreadContacts, ...deadWinbackContacts, ...deadPowerbackContacts];
   if (search) {
     list = list.filter(d =>
       (d.name||'').toLowerCase().includes(search) ||
@@ -7608,7 +8078,7 @@ function renderDeadContacts() {
       : res ? `<div class="td-logo"><img src="${res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${escHtml(d.accountName||'')}"></div>`
       : `<div class="td-logo"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(d.accountName||'')}"></div>`;
     const camp = d._campaign || 'samples';
-    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;', netnew:'background:#dbeafe;color:#1e40af;' };
+    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;', netnew:'background:#dbeafe;color:#1e40af;', multithread:'background:#fef3c7;color:#92400e;', winback:'background:#fce7f3;color:#be185d;', powerback:'background:#ccfbf1;color:#0f766e;' };
     const campBadge = `<span style="font-size:10px;${campColors[camp]||campColors.samples}border-radius:999px;padding:2px 8px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
     return `<tr>
       <td><div class="td-company">${logoHtml}<div><span class="td-name">${escHtml(d.accountName||'')}</span></div></div></td>
@@ -7644,12 +8114,24 @@ function openContactPreview(event, accountName, type) {
     contacts = Object.values(netnew)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
+  } else if (type === 'multithread') {
+    contacts = Object.values(multithread)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
+  } else if (type === 'winback') {
+    contacts = Object.values(winback)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
+  } else if (type === 'powerback') {
+    contacts = Object.values(powerback)
+      .filter(o => normName(o.accountName) === n)
+      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   } else {
     contacts = Object.values(samples)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   }
-  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : type === 'netnew' ? '🌱 Net New' : '🧪 Old Samples';
+  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : type === 'netnew' ? '🌱 Net New' : type === 'multithread' ? '😎 Multithread' : type === 'winback' ? '❄️ Winback' : type === 'powerback' ? '🥶 Powerback' : '🧪 Old Samples';
   let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
   if (!contacts.length) {
     html += `<div class="cprev-empty">No contacts</div>`;
