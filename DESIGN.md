@@ -382,6 +382,7 @@ The campaign selector menu (`#campaign-selector-menu`) is `position:fixed` at bo
 
 | Version | Session | Change |
 |---|---|---|
+| v32 | 2026-04-06 | Action tab design pass: `.camp-cluster` changed from `flex-wrap:wrap` to `nowrap` — ovals now stay on one row in table cells. Campaigns `<th>` min-width:110px added to Action + Accounts tables. `#controls-action` nowrap removed — filter chips now wrap cleanly like all other tabs. `.action-opp-badge` padding corrected 7px→8px. `.action-terr-dot` size corrected 7px→8px (aligned with `.sixqa-terr-dot`). |
 | v28 | 2026-03-27 | DESIGN.md created. Token set established. Full UI/UX consistency pass initiated. |
 | v28 | 2026-03-27 | Global badge/pill radius pass: all badges, pills, filter chips, stage tags, status/priority triggers unified to `border-radius:999px` across all tabs. |
 | v28 | 2026-03-27 | Campaigns tab spacing pass: opp-card padding, stage pill padding, kanban header font, controls bar, stats bar gap/margin, opp-next-select radius, opp-amt-input border-width, patch-badge padding all normalized to design token scale. |

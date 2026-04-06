@@ -374,7 +374,7 @@
   #controls-licenses select { flex-shrink: 0; }
   #controls-workables-inner, #controls-samples-inner, #controls-sixqa-inner, #controls-netnew-inner { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex: 1; min-width: 0; }
   #controls-campaigns { flex-wrap: nowrap; overflow-x: auto; }
-  #controls-action { flex-wrap: nowrap; }
+  #controls-action .filter-chips { flex-shrink: 0; }
 
   .search-wrap { position: relative; flex: 0 0 220px; }
   .search-wrap input {
@@ -606,7 +606,7 @@
   .powerback-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#0f766e; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
   .powerback-dot:hover { opacity:0.82; }
   /* Campaign cluster widget — compact ovals, scales to 8+ campaigns */
-  .camp-cluster { display:inline-flex; align-items:center; gap:3px; flex-wrap:wrap; }
+  .camp-cluster { display:inline-flex; align-items:center; gap:3px; flex-wrap:nowrap; }
   .camp-oval { display:inline-flex; align-items:center; justify-content:center; height:20px; min-width:24px; border-radius:999px; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; cursor:pointer; transition:opacity 150ms ease; white-space:nowrap; letter-spacing:0; }
   .camp-oval:hover { opacity:0.82; }
   .sixqa-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
@@ -1215,9 +1215,9 @@
   .action-kanban-card.action-card-overdue:hover { box-shadow:0 2px 8px rgba(251,146,60,0.18); }
   .action-kanban-card-top { display:flex; gap:8px; align-items:flex-start; margin-bottom:8px; }
   /* Opp badge — absolute top-right corner of card */
-  .action-opp-badge { position:absolute; top:10px; right:10px; background:#2563eb; color:#fff; font-size:9px; font-weight:700; padding:2px 7px; border-radius:999px; font-family:'DM Sans',sans-serif; letter-spacing:0.3px; pointer-events:none; }
+  .action-opp-badge { position:absolute; top:10px; right:10px; background:#2563eb; color:#fff; font-size:9px; font-weight:700; padding:2px 8px; border-radius:999px; font-family:'DM Sans',sans-serif; letter-spacing:0.3px; pointer-events:none; }
   /* Territory dot — green = in CSV, grey = dropped from CSV */
-  .action-terr-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:3px; display:inline-block; }
+  .action-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; display:inline-block; }
   .action-terr-dot.in-csv { background:#22c55e; }
   .action-terr-dot.dropped { background:#d1d5db; }
   .action-kanban-name { font-size:12px; font-weight:600; color:var(--text-primary); cursor:pointer; }
@@ -1580,7 +1580,7 @@
               <th onclick="setActionSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="axsort-vertical"></span></th>
               <th id="axh-active-client" onclick="toggleActionActiveLicFilter()" style="cursor:pointer;" title="Click to filter: has active license">Active Client <span id="axh-active-client-dot" style="display:none;color:var(--ibis-red);font-size:9px;">●</span></th>
               <th onclick="setActionSortCol('days')" style="cursor:pointer;text-align:center;">Days Inactive <span class="acct-sort-arrow" id="axsort-days"></span></th>
-              <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;">Campaigns <span class="acct-sort-arrow" id="axsort-workables"></span></th>
+              <th onclick="setActionSortCol('workables')" style="cursor:pointer;text-align:center;min-width:110px;">Campaigns <span class="acct-sort-arrow" id="axsort-workables"></span></th>
               <th onclick="setActionSortCol('acctPriority')" style="cursor:pointer;min-width:90px;">Priority <span class="acct-sort-arrow" id="axsort-acctPriority"></span></th>
             </tr>
           </thead>
@@ -2000,7 +2000,7 @@
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
-            <th style="text-align:center;">Campaigns</th>
+            <th style="text-align:center;min-width:110px;">Campaigns</th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
