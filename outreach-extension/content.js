@@ -80,17 +80,29 @@
 
   function processEmailCache(data) {
     if (!Array.isArray(data)) return;
+    // Debug: log first item's from/toRecipients shape to confirm field format
+    if (data.length > 0) {
+      const s = data[0];
+      LOG('Cache item shape — from:', JSON.stringify(s.from), '| toRecipients[0]:', JSON.stringify((s.toRecipients||[])[0]), '| date field:', s.receivedDateTime || s.sentDateTime || s.date);
+    }
     const map = {};
     data.forEach(item => {
-      // Raw format from PA Get emails (V3): from, toRecipients[], receivedDateTime
-      const fromEmail = (typeof item.from === 'string' ? item.from : '').toLowerCase().trim();
+      // Handle both plain-string and Graph object format for from/toRecipients
+      const fromObj = item.from;
+      const fromEmail = (
+        typeof fromObj === 'string' ? fromObj :
+        (fromObj?.emailAddress?.address || fromObj?.address || '')
+      ).toLowerCase().trim();
       // Only count emails Dan sent (outgoing = from ibisworld.com)
       if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
-      const dt = item.receivedDateTime;
+      const dt = item.receivedDateTime || item.sentDateTime || item.date;
       if (!dt) return;
       const recipients = Array.isArray(item.toRecipients) ? item.toRecipients : [];
       recipients.forEach(r => {
-        const em = (typeof r === 'string' ? r : (r?.emailAddress?.address || '')).toLowerCase().trim();
+        const em = (
+          typeof r === 'string' ? r :
+          (r?.emailAddress?.address || r?.address || '')
+        ).toLowerCase().trim();
         if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
         if (!map[em]) map[em] = { lastDate: dt, count: 0 };
         if (dt > map[em].lastDate) map[em].lastDate = dt;
