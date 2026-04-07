@@ -1,0 +1,102 @@
+/* IBISWorld Outreach — Overlay Styles v3.0 */
+/* Injected into Outlook Web. All classes prefixed ibis- to avoid collisions. */
+
+/* ── Folder badge ─────────────────────────────────────────────────────────── */
+/* Orange pill shown next to campaign folder names in the left nav tree.        */
+
+.ibis-folder-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #f97316;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'DM Mono', 'Courier New', monospace;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ── Row badge wrapper ────────────────────────────────────────────────────── */
+/* Container injected between From and Subject on each email row.               */
+
+.ibis-row-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 8px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+/* ── Staleness chip ───────────────────────────────────────────────────────── */
+/* Colored dot + days-since label. Color driven by age inline style on the dot. */
+
+.ibis-stale-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 1px 7px 1px 5px;
+  font-size: 10px;
+  font-family: 'DM Mono', 'Courier New', monospace;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+  line-height: 16px;
+}
+
+.ibis-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* background set inline per-row based on age */
+}
+
+.ibis-days {
+  color: inherit;
+}
+
+/* ── Company bubble ───────────────────────────────────────────────────────── */
+/* Favicon + company name. Background/color/border set inline via domainToColor. */
+
+.ibis-company-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 1px 8px 1px 4px;
+  font-size: 10px;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  line-height: 16px;
+  /* bg, color, border-color set inline */
+}
+
+.ibis-co-logo {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.ibis-co-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}

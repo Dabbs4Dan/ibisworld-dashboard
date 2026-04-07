@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "IBISWorld Outreach",
-  "version": "2.0.0",
-  "description": "Priority-based contact engine for IBISWorld sales — powered by your dashboard and real Outlook email history.",
+  "version": "3.0.0",
+  "description": "Outlook DOM overlay — staleness badges on campaign folders and email rows.",
   "content_scripts": [
     {
       "matches": [
@@ -12,8 +12,8 @@
         "https://outlook.cloud.microsoft/*",
         "https://outlook.microsoft.com/*"
       ],
-      "js": ["config.js", "content.js"],
-      "css": ["sidebar.css"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
       "run_at": "document_idle"
     },
     {
@@ -26,6 +26,10 @@
   "background": {
     "service_worker": "background.js"
   },
+  "action": {
+    "default_title": "IBISWorld Outreach",
+    "default_popup": "popup.html"
+  },
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://dabbs4dan.github.io/*",
@@ -33,9 +37,6 @@
     "https://outlook.office.com/*",
     "https://outlook.office365.com/*",
     "https://outlook.live.com/*",
-    "https://graph.microsoft.com/*"
-  ],
-  "action": {
-    "default_title": "IBISWorld Outreach"
-  }
+    "https://outlook.microsoft.com/*"
+  ]
 }
