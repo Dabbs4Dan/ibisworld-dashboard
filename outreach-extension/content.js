@@ -79,6 +79,8 @@
         data.forEach(item => {
           if (!item.to || !item.date) return;
           const em = item.to.toLowerCase().trim();
+          // Skip received emails — their "to" is Dan's own IBISWorld address
+          if (em.endsWith('@ibisworld.com')) return;
           if (!map[em]) map[em] = { lastDate: item.date, count: 0 };
           // Keep the most recent sent date
           if (item.date > map[em].lastDate) map[em].lastDate = item.date;
