@@ -1,8 +1,11 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.4
+// IBISWorld Outreach — DOM Overlay v3.5
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
+// Feature C — Email cache: fetches contact_activity.json from OneDrive (written
+//             by the PA flow every 2h) to get real last-sent dates instead of
+//             Outlook DOM dates (which show last received, not last sent).
 //
 // Debug: F12 → Console → filter "[IBISWorld]"
 // =============================================================================
@@ -14,16 +17,22 @@
   const DEBOUNCE_MS  = 700;
   const OWN_DOMAIN   = 'ibisworld.com';
 
+  // Paste the OneDrive share URL for contact_activity.json here after PA flow
+  // creates the file. See setup instructions in the repo.
+  const CONTACT_ACTIVITY_URL = '';
+
   const CAMPAIGN_FOLDERS = [
     'Workables', '6QA', 'Churns', 'Multithread', 'Winback', 'Old Samples', 'Net New',
   ];
 
   const LOG = (...a) => console.log('[IBISWorld]', ...a);
 
-  let contactMap    = {};
-  let folderCounts  = {};
-  let debounceTimer = null;
-  let scanning      = false; // re-entry guard — prevents mutation feedback loops
+  let contactMap       = {};
+  let folderCounts     = {};
+  let debounceTimer    = null;
+  let scanning         = false; // re-entry guard — prevents mutation feedback loops
+  let emailCache       = {};    // email (lowercase) → ISO date string (last PA-confirmed sent)
+  let emailCacheLoaded = false; // true once cache has been successfully populated
 
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
@@ -49,6 +58,46 @@
         LOG('Contact map:', Object.keys(contactMap).length, 'contacts');
       } catch (_) {}
     });
+  }
+
+  // ── Email activity cache (PA flow data) ──────────────────────────────────────
+  // PA flow writes contact_activity.json: [{to, date}, ...] sorted newest-first.
+  // We build a map: email → most-recent-sent-date (ISO string).
+  // On first successful load, we clear all processed row markers so badges get
+  // re-injected using real sent dates instead of the Outlook DOM dates.
+
+  function loadEmailCache() {
+    if (!CONTACT_ACTIVITY_URL) return;
+    fetch(CONTACT_ACTIVITY_URL)
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data)) return;
+        const map = {};
+        data.forEach(item => {
+          if (!item.to || !item.date) return;
+          const em = item.to.toLowerCase().trim();
+          // Keep the most recent sent date per recipient
+          if (!map[em] || item.date > map[em]) map[em] = item.date;
+        });
+        const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
+        emailCache = map;
+        emailCacheLoaded = true;
+        LOG('Email cache loaded:', Object.keys(emailCache).length, 'contacts');
+        // First load with real data → force re-badge all rows so they show
+        // accurate PA dates rather than whatever the DOM date happened to be.
+        if (isFirstLoad) {
+          document.querySelectorAll('[data-ibis-processed]').forEach(row => {
+            row.removeAttribute('data-ibis-processed');
+            const badge = row.querySelector('.ibis-row-badges');
+            if (badge) badge.remove();
+          });
+          scanEmailRows();
+        }
+      })
+      .catch(err => LOG('Email cache fetch failed:', err.message));
   }
 
   // ── Date parsing ──────────────────────────────────────────────────────────────
@@ -298,19 +347,45 @@
     let overdueCount = 0;
 
     rows.forEach(row => {
-      const date = getDateFromRow(row);
+      const alreadyProcessed = !!row.dataset.ibisProcessed;
+
+      // ── Date resolution: PA cache wins, DOM date is fallback ──
+      // For already-processed rows we stored the email in data-ibis-email so
+      // we don't need to re-run the expensive findContactForRow DOM query.
+      let date = null;
+      let contactInfo = null;
+
+      const storedEmail = row.dataset.ibisEmail || '';
+      if (storedEmail && emailCache[storedEmail]) {
+        date = new Date(emailCache[storedEmail]);
+        if (isNaN(date.getTime())) date = null;
+      }
+
+      if (!date && !alreadyProcessed) {
+        // First time seeing this row — find the contact
+        contactInfo = findContactForRow(row);
+        if (contactInfo?.email && emailCache[contactInfo.email]) {
+          date = new Date(emailCache[contactInfo.email]);
+          if (isNaN(date.getTime())) date = null;
+        }
+      }
+
+      // DOM date fallback
+      if (!date) date = getDateFromRow(row);
+
       const days = daysSince(date);
 
       // Always count for the folder badge — even if this row is already badged
       if (days !== null && days >= OVERDUE_DAYS) overdueCount++;
 
       // Only inject badges once per row (tracked by data attribute, not class)
-      if (row.dataset.ibisProcessed) return;
+      if (alreadyProcessed) return;
       if (days === null) return;
 
+      if (!contactInfo) contactInfo = findContactForRow(row);
       row.dataset.ibisProcessed = '1';
-
-      const contactInfo = findContactForRow(row);
+      // Cache the email on the row so future scans can skip findContactForRow
+      if (contactInfo?.email) row.dataset.ibisEmail = contactInfo.email;
       injectRowBadges(row, days, contactInfo);
     });
 
@@ -493,15 +568,18 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.4 init on', location.hostname);
+    LOG('v3.5 init on', location.hostname);
     loadContactMap();
     setInterval(loadContactMap, 60_000);
+    loadEmailCache();
+    // Refresh email cache every 2h — matches PA flow frequency
+    setInterval(loadEmailCache, 2 * 60 * 60 * 1000);
     // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
     // Uses a long-ish interval (1.5s) to avoid fighting with Outlook's renders.
     setInterval(updateFolderBadges, 1500);
     new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
     setTimeout(() => {
-      LOG('Initial scan — title:', document.title);
+      LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
       scanEmailRows();
     }, 1800);
   }
