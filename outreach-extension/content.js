@@ -79,8 +79,11 @@
         data.forEach(item => {
           if (!item.to || !item.date) return;
           const em = item.to.toLowerCase().trim();
-          // Keep the most recent sent date per recipient
-          if (!map[em] || item.date > map[em]) map[em] = item.date;
+          if (!map[em]) map[em] = { lastDate: item.date, count: 0 };
+          // Keep the most recent sent date
+          if (item.date > map[em].lastDate) map[em].lastDate = item.date;
+          // Count total emails sent to this recipient = sequence step
+          map[em].count++;
         });
         const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
         emailCache = map;
@@ -348,45 +351,48 @@
 
     rows.forEach(row => {
       const alreadyProcessed = !!row.dataset.ibisProcessed;
+      const storedEmail      = row.dataset.ibisEmail || '';
 
-      // ── Date resolution: PA cache wins, DOM date is fallback ──
-      // For already-processed rows we stored the email in data-ibis-email so
-      // we don't need to re-run the expensive findContactForRow DOM query.
+      // ── Date + step resolution: PA cache wins, DOM date is fallback ──
+      const cacheEntry = storedEmail ? emailCache[storedEmail] : null;
       let date = null;
-      let contactInfo = null;
 
-      const storedEmail = row.dataset.ibisEmail || '';
-      if (storedEmail && emailCache[storedEmail]) {
-        date = new Date(emailCache[storedEmail]);
+      if (cacheEntry) {
+        date = new Date(cacheEntry.lastDate);
         if (isNaN(date.getTime())) date = null;
       }
-
-      if (!date && !alreadyProcessed) {
-        // First time seeing this row — find the contact
-        contactInfo = findContactForRow(row);
-        if (contactInfo?.email && emailCache[contactInfo.email]) {
-          date = new Date(emailCache[contactInfo.email]);
-          if (isNaN(date.getTime())) date = null;
-        }
-      }
-
-      // DOM date fallback
       if (!date) date = getDateFromRow(row);
 
       const days = daysSince(date);
 
-      // Always count for the folder badge — even if this row is already badged
+      // Always count for the folder badge — even already-badged rows
       if (days !== null && days >= OVERDUE_DAYS) overdueCount++;
 
-      // Only inject badges once per row (tracked by data attribute, not class)
+      // Only inject badges once per row
       if (alreadyProcessed) return;
       if (days === null) return;
 
-      if (!contactInfo) contactInfo = findContactForRow(row);
+      // Resolve contact info — use stored email shortcut when available
+      let contactInfo;
+      if (storedEmail) {
+        contactInfo = { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' };
+      } else {
+        contactInfo = findContactForRow(row);
+        // If cache has data for this contact, prefer cache date
+        if (contactInfo?.email && emailCache[contactInfo.email]) {
+          const entry = emailCache[contactInfo.email];
+          const d = new Date(entry.lastDate);
+          if (!isNaN(d.getTime())) date = d;
+        }
+      }
+
+      // Step count = number of emails Dan has sent to this contact
+      const resolvedEmail = contactInfo?.email || '';
+      const stepCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
+
       row.dataset.ibisProcessed = '1';
-      // Cache the email on the row so future scans can skip findContactForRow
-      if (contactInfo?.email) row.dataset.ibisEmail = contactInfo.email;
-      injectRowBadges(row, days, contactInfo);
+      if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
+      injectRowBadges(row, days, contactInfo, stepCount);
     });
 
     folderCounts[activeFolder] = overdueCount;
@@ -397,7 +403,7 @@
 
   // ── Row badge injection ───────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, contactInfo) {
+  function injectRowBadges(row, days, contactInfo, stepCount = 0) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
     p(wrap, 'display',        'inline-flex');
@@ -445,6 +451,38 @@
       `box-shadow:0 0 5px 2px ${glowColor};flex-shrink:0;display:inline-block"></span>` +
       `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${dayLabel}</span>`;
     wrap.appendChild(chip);
+
+    // ── Step count chip (only when PA data is available) ──
+    // Color-coded: grey (1-2) → amber (3) → red (4+)
+    // Tells Dan at a glance which email in his sequence this is.
+    if (stepCount > 0) {
+      const stepColor =
+        stepCount >= 4 ? '#dc2626' :   // red  — at/past the 4-email limit
+        stepCount === 3 ? '#d97706' :  // amber — one more before limit
+                          '#6b7280';   // grey  — early in sequence
+
+      const stepBg =
+        stepCount >= 4 ? '#fef2f2' :
+        stepCount === 3 ? '#fffbeb' :
+                          '#f9fafb';
+
+      const stepChip = document.createElement('span');
+      stepChip.title = `${stepCount} email${stepCount === 1 ? '' : 's'} sent`;
+      p(stepChip, 'display',       'inline-flex');
+      p(stepChip, 'align-items',   'center');
+      p(stepChip, 'gap',           '3px');
+      p(stepChip, 'background',    stepBg);
+      p(stepChip, 'border',        `1px solid ${stepCount >= 4 ? '#fecaca' : stepCount === 3 ? '#fde68a' : '#e5e7eb'}`);
+      p(stepChip, 'border-radius', '999px');
+      p(stepChip, 'padding',       '1px 7px 1px 6px');
+      p(stepChip, 'white-space',   'nowrap');
+      p(stepChip, 'line-height',   '18px');
+      p(stepChip, 'cursor',        'default');
+      stepChip.innerHTML =
+        `<span style="font-size:10px;line-height:1">✉</span>` +
+        `<span style="font-family:monospace;font-size:10px;font-weight:700;color:${stepColor}">${stepCount}</span>`;
+      wrap.appendChild(stepChip);
+    }
 
     // ── Company bubble ──
     if (contactInfo) {
