@@ -67,47 +67,48 @@
   // re-injected using real sent dates instead of the Outlook DOM dates.
 
   function loadEmailCache() {
-    if (!CONTACT_ACTIVITY_URL) return;
-    fetch(CONTACT_ACTIVITY_URL)
-      .then(r => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(data => {
-        if (!Array.isArray(data)) return;
-        const map = {};
-        data.forEach(item => {
-          // Raw format from PA Get emails (V3): from, toRecipients[], receivedDateTime
-          const fromEmail = (typeof item.from === 'string' ? item.from : '').toLowerCase().trim();
-          // Only count emails Dan sent (outgoing = from ibisworld.com)
-          if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
-          const dt = item.receivedDateTime;
-          if (!dt) return;
-          const recipients = Array.isArray(item.toRecipients) ? item.toRecipients : [];
-          recipients.forEach(r => {
-            const em = (typeof r === 'string' ? r : (r?.emailAddress?.address || '')).toLowerCase().trim();
-            if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
-            if (!map[em]) map[em] = { lastDate: dt, count: 0 };
-            if (dt > map[em].lastDate) map[em].lastDate = dt;
-            map[em].count++;
-          });
-        });
-        const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
-        emailCache = map;
-        emailCacheLoaded = true;
-        LOG('Email cache loaded:', Object.keys(emailCache).length, 'contacts');
-        // First load with real data → force re-badge all rows so they show
-        // accurate PA dates rather than whatever the DOM date happened to be.
-        if (isFirstLoad) {
-          document.querySelectorAll('[data-ibis-processed]').forEach(row => {
-            row.removeAttribute('data-ibis-processed');
-            const badge = row.querySelector('.ibis-row-badges');
-            if (badge) badge.remove();
-          });
-          scanEmailRows();
-        }
-      })
-      .catch(err => LOG('Email cache fetch failed:', err.message));
+    if (!CONTACT_ACTIVITY_URL || !ctxOk()) return;
+    // Route through background service worker to bypass CORS restrictions
+    chrome.runtime.sendMessage({ type: 'FETCH_URL', url: CONTACT_ACTIVITY_URL }, (res) => {
+      if (!res || !res.ok) {
+        LOG('Email cache fetch failed:', res?.error || 'no response');
+        return;
+      }
+      processEmailCache(res.data);
+    });
+  }
+
+  function processEmailCache(data) {
+    if (!Array.isArray(data)) return;
+    const map = {};
+    data.forEach(item => {
+      // Raw format from PA Get emails (V3): from, toRecipients[], receivedDateTime
+      const fromEmail = (typeof item.from === 'string' ? item.from : '').toLowerCase().trim();
+      // Only count emails Dan sent (outgoing = from ibisworld.com)
+      if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
+      const dt = item.receivedDateTime;
+      if (!dt) return;
+      const recipients = Array.isArray(item.toRecipients) ? item.toRecipients : [];
+      recipients.forEach(r => {
+        const em = (typeof r === 'string' ? r : (r?.emailAddress?.address || '')).toLowerCase().trim();
+        if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
+        if (!map[em]) map[em] = { lastDate: dt, count: 0 };
+        if (dt > map[em].lastDate) map[em].lastDate = dt;
+        map[em].count++;
+      });
+    });
+    const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
+    emailCache = map;
+    emailCacheLoaded = true;
+    LOG('Email cache loaded:', Object.keys(emailCache).length, 'contacts');
+    if (isFirstLoad) {
+      document.querySelectorAll('[data-ibis-processed]').forEach(row => {
+        row.removeAttribute('data-ibis-processed');
+        const badge = row.querySelector('.ibis-row-badges');
+        if (badge) badge.remove();
+      });
+      scanEmailRows();
+    }
   }
 
   // ── Date parsing ──────────────────────────────────────────────────────────────

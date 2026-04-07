@@ -44,3 +44,17 @@ async function setExtensionIcon() {
 chrome.runtime.onInstalled.addListener(setExtensionIcon);
 chrome.runtime.onStartup.addListener(setExtensionIcon);
 setExtensionIcon();
+
+// ── Fetch proxy (content scripts can't fetch cross-origin; route through SW) ─
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'FETCH_URL') {
+    fetch(msg.url)
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(data => sendResponse({ ok: true, data }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true; // keep message channel open for async response
+  }
+});
