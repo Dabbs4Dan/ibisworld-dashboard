@@ -1,20 +1,17 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.3
+// IBISWorld Outreach — DOM Overlay v3.4
 // =============================================================================
-// Feature A — Folder badge: colored count pill on campaign folder nav items.
-//             Orange when overdue threads exist, grey "0" when clear.
-// Feature B — Row badges: vibrant staleness dot + days + thread count + company bubble.
+// Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
+// Feature B — Row badges: staleness dot + days + company bubble (from greeting).
 //
-// Debug: F12 → Console → filter "[IBISWorld]" to see what the overlay finds.
+// Debug: F12 → Console → filter "[IBISWorld]"
 // =============================================================================
 
 (function () {
   'use strict';
 
-  // ── Config ───────────────────────────────────────────────────────────────────
-
   const OVERDUE_DAYS = 3;
-  const DEBOUNCE_MS  = 300;
+  const DEBOUNCE_MS  = 700;
   const OWN_DOMAIN   = 'ibisworld.com';
 
   const CAMPAIGN_FOLDERS = [
@@ -23,17 +20,16 @@
 
   const LOG = (...a) => console.log('[IBISWorld]', ...a);
 
-  // ── State ────────────────────────────────────────────────────────────────────
-
-  let contactMap    = {};   // email → { accountName, domain, name }
-  let folderCounts  = {};   // folderName → overdueCount (null = not scanned yet)
+  let contactMap    = {};
+  let folderCounts  = {};
   let debounceTimer = null;
+  let scanning      = false; // re-entry guard — prevents mutation feedback loops
 
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
   }
 
-  // ── Contact map (from bridge.js) ──────────────────────────────────────────────
+  // ── Contact map ───────────────────────────────────────────────────────────────
 
   function loadContactMap() {
     if (!ctxOk() || !chrome.storage) return;
@@ -80,7 +76,10 @@
       if (str.startsWith(MONTHS_LONG[mi]) || str.startsWith(MONTHS_SHORT[mi])) {
         const d = new Date(str);
         if (!isNaN(d.getTime())) {
-          if (!/\b20\d\d\b/.test(str)) { d.setFullYear(now.getFullYear()); if (d > now) d.setFullYear(now.getFullYear() - 1); }
+          if (!/\b20\d\d\b/.test(str)) {
+            d.setFullYear(now.getFullYear());
+            if (d > now) d.setFullYear(now.getFullYear() - 1);
+          }
           return d;
         }
       }
@@ -117,57 +116,73 @@
     return null;
   }
 
-  // ── Thread count extraction ───────────────────────────────────────────────────
-  // Outlook sometimes shows "(3)" or "3 messages" in the row.
+  // ── Date extraction from a row ────────────────────────────────────────────────
+  // Centralised so we can call it for BOTH counting and badge injection.
 
-  function getThreadCount(row) {
-    const ariaLabel = row.getAttribute('aria-label') || '';
-    // "5 messages" / "3 items"
-    const m = ariaLabel.match(/(\d+)\s+(?:messages?|items?|conversations?)/i);
-    if (m) return parseInt(m[1]);
-    // Subject may have "(3)" suffix
-    const subj = ariaLabel.match(/\((\d{1,2})\)/);
-    if (subj) return parseInt(subj[1]);
-    // Small standalone number span — likely the thread count indicator
-    const nums = [...row.querySelectorAll('span')].filter(el => {
-      if (el.childElementCount > 0) return false;
+  function getDateFromRow(row) {
+    // 1. aria-label (most reliable)
+    let date = dateFromAriaLabel(row.getAttribute('aria-label') || '');
+    if (date) return date;
+    // 2. <time> element
+    const timeEl = row.querySelector('time');
+    if (timeEl) {
+      const dt = timeEl.getAttribute('datetime');
+      date = dt ? new Date(dt) : null;
+      if (!date || isNaN(date.getTime())) date = parseOutlookDate(timeEl.textContent.trim());
+      if (date && !isNaN(date.getTime())) return date;
+    }
+    // 3. Short text spans (date-like strings)
+    for (const el of [...row.querySelectorAll('span')].filter(e => e.childElementCount === 0)) {
       const t = el.textContent.trim();
-      return /^\d{1,2}$/.test(t) && parseInt(t) >= 2;
-    });
-    if (nums.length > 0) return parseInt(nums[0].textContent.trim());
+      if (t.length > 0 && t.length < 20) {
+        date = parseOutlookDate(t);
+        if (date) return date;
+      }
+    }
     return null;
   }
 
-  // ── Contact lookup — handles OUTGOING emails ──────────────────────────────────
-  // For emails sent by Dan (sender = ibisworld.com), we scan the entire row
-  // for any non-ibisworld email address to find the recipient.
+  // ── Contact / company lookup ──────────────────────────────────────────────────
+  // For outgoing emails (From: Daniel Starr), we extract the recipient's first name
+  // from the email preview greeting ("Hey Thomas," / "Hi Dajin,") and match against
+  // the contact map. This is the most reliable approach for campaign folder emails.
 
   function findContactForRow(row) {
-    // 1. Scan elements with likely email attributes (not every element — too slow)
-    const checkAttrs = ['title', 'aria-label', 'data-email', 'href', 'data-address'];
+    // 1. Scan for non-ibisworld email addresses in element attributes
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
-      for (const attr of checkAttrs) {
+      for (const attr of ['title', 'aria-label', 'data-email', 'href']) {
         const val = el.getAttribute(attr);
         if (!val || !val.includes('@')) continue;
-        const emails = val.match(/[\w.+'\\-]+@[\w.\\-]+\.[a-z]{2,}/gi);
+        const emails = val.match(/[\w.+'\-]+@[\w.\-]+\.[a-z]{2,}/gi);
         if (!emails) continue;
         for (const email of emails) {
           const em = email.toLowerCase();
-          if (em.endsWith(OWN_DOMAIN) || em.endsWith('.' + OWN_DOMAIN)) continue;
-          return { email: em, contact: contactMap[em] || null, domain: em.split('@')[1] };
+          if (!em.endsWith(OWN_DOMAIN) && !em.endsWith('.' + OWN_DOMAIN)) {
+            return { email: em, contact: contactMap[em] || null, domain: em.split('@')[1] };
+          }
         }
       }
     }
 
-    // 2. "To: Name" pattern in aria-label — match contact by name
-    const ariaLabel = row.getAttribute('aria-label') || '';
-    const toMatch = ariaLabel.match(/^To:\s*([^,.\n]+)/i) || ariaLabel.match(/To:\s*([^,.\n]+)/i);
-    if (toMatch) {
-      const recipientName = toMatch[1].trim().toLowerCase();
-      for (const [email, c] of Object.entries(contactMap)) {
-        if (c.name && c.name.toLowerCase() === recipientName) {
-          return { email, contact: c, domain: email.split('@')[1] };
+    // 2. Extract first name from email preview greeting: "Hey Thomas," / "Hi Dajin,"
+    //    Outlook shows the start of the email body as preview text in the row.
+    const previewEl = [...row.querySelectorAll('span, div')]
+      .filter(el => el.childElementCount === 0 && el.textContent.trim().length > 20)
+      .sort((a, b) => b.textContent.length - a.textContent.length)[0];
+
+    if (previewEl) {
+      const preview = previewEl.textContent.trim();
+      const greetMatch = preview.match(/^(?:Hey|Hi|Hello|Dear)\s+([A-Z][a-z]{1,20})[,\s!]/);
+      if (greetMatch) {
+        const firstName = greetMatch[1].toLowerCase();
+        for (const [email, c] of Object.entries(contactMap)) {
+          const contactFirstName = (c.name || '').split(' ')[0].toLowerCase();
+          if (contactFirstName && contactFirstName === firstName) {
+            return { email, contact: c, domain: email.split('@')[1] };
+          }
         }
+        // No contact match — still show the domain bubble if we can get it
+        // (we can't without the email, so return null)
       }
     }
 
@@ -177,15 +192,12 @@
   // ── Active folder detection ───────────────────────────────────────────────────
 
   function getActiveCampaignFolder() {
-    // Primary: page title contains folder name ("6QA - Daniel Starr - Outlook")
     const fromTitle = CAMPAIGN_FOLDERS.find(f => document.title.includes(f));
     if (fromTitle) return fromTitle;
-    // Fallback: heading elements
     for (const el of document.querySelectorAll('[role="heading"], h1, h2, h3')) {
       const match = CAMPAIGN_FOLDERS.find(f => el.textContent.includes(f));
       if (match) return match;
     }
-    // Fallback: selected treeitem
     for (const item of document.querySelectorAll('[role="treeitem"]')) {
       const isActive = item.getAttribute('aria-selected') === 'true' ||
                        item.getAttribute('aria-current') === 'true'  ||
@@ -208,7 +220,6 @@
   }
 
   // ── Folder nav badges ─────────────────────────────────────────────────────────
-  // Called on EVERY mutation (no debounce) so badges survive Outlook's re-renders.
 
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
@@ -216,7 +227,7 @@
       if (!folderName) return;
 
       const count = folderCounts[folderName];
-      if (count === undefined) return; // not yet scanned — don't show anything
+      if (count === undefined) return; // not scanned yet — show nothing
 
       let badge = item.querySelector('.ibis-folder-badge');
 
@@ -224,8 +235,8 @@
         badge = document.createElement('span');
         badge.className = 'ibis-folder-badge';
 
-        // Force the treeitem + its ancestors to not clip our badge
         item.style.setProperty('position', 'relative', 'important');
+        // Force overflow visible up the ancestor chain
         let node = item;
         for (let i = 0; i < 5; i++) {
           if (!node) break;
@@ -236,7 +247,6 @@
         applyFolderBadgeStyle(badge, count > 0);
         item.appendChild(badge);
       } else {
-        // Update color if overdue state changed
         applyFolderBadgeStyle(badge, count > 0);
       }
 
@@ -259,8 +269,9 @@
     s.setProperty('font-size',       '10px',             'important');
     s.setProperty('font-weight',     '700',              'important');
     s.setProperty('font-family',     'monospace',        'important');
-    s.setProperty('padding',         '1px 5px',          'important');
+    s.setProperty('padding',         '0 5px',            'important');
     s.setProperty('min-width',       '16px',             'important');
+    s.setProperty('height',          '16px',             'important');
     s.setProperty('border-radius',   '999px',            'important');
     s.setProperty('white-space',     'nowrap',           'important');
     s.setProperty('z-index',         '9999',             'important');
@@ -269,119 +280,96 @@
   }
 
   // ── Email row scanning ────────────────────────────────────────────────────────
+  //
+  // CRITICAL FIX v3.4: We now count overdue rows from ALL rows on every scan,
+  // not just newly-processed ones. Previously, on the 2nd scan all rows were
+  // skipped (already had badges), overdueCount stayed 0, and overwrote the
+  // correct folder count — causing the badge to reset to grey "0".
 
   function scanEmailRows() {
+    if (scanning) return; // re-entry guard
     const activeFolder = getActiveCampaignFolder();
     if (!activeFolder) { LOG('No active campaign folder. Title:', document.title); return; }
 
     const rows = getEmailRows();
-    if (!rows.length) { LOG('No email rows found.'); return; }
+    if (!rows.length) { LOG('No rows found.'); return; }
 
+    scanning = true;
     let overdueCount = 0;
 
     rows.forEach(row => {
-      if (row.querySelector('.ibis-row-badges')) return; // already processed
-
-      // ── Date extraction ──
-      let date = dateFromAriaLabel(row.getAttribute('aria-label') || '');
-      if (!date) {
-        const timeEl = row.querySelector('time');
-        if (timeEl) {
-          date = new Date(timeEl.getAttribute('datetime') || '');
-          if (isNaN(date.getTime())) date = parseOutlookDate(timeEl.textContent.trim());
-        }
-      }
-      if (!date) {
-        for (const el of [...row.querySelectorAll('span, div')].filter(e => e.childElementCount === 0)) {
-          const t = el.textContent.trim();
-          if (t.length > 0 && t.length < 25) { date = parseOutlookDate(t); if (date) break; }
-        }
-      }
-
+      const date = getDateFromRow(row);
       const days = daysSince(date);
+
+      // Always count for the folder badge — even if this row is already badged
+      if (days !== null && days >= OVERDUE_DAYS) overdueCount++;
+
+      // Only inject badges once per row (tracked by data attribute, not class)
+      if (row.dataset.ibisProcessed) return;
       if (days === null) return;
-      if (days >= OVERDUE_DAYS) overdueCount++;
+
+      row.dataset.ibisProcessed = '1';
 
       const contactInfo = findContactForRow(row);
-      const threadCount = getThreadCount(row);
-
-      injectRowBadges(row, days, contactInfo, threadCount);
+      injectRowBadges(row, days, contactInfo);
     });
 
     folderCounts[activeFolder] = overdueCount;
     updateFolderBadges();
+    scanning = false;
     LOG(`"${activeFolder}": ${rows.length} rows, ${overdueCount} overdue`);
   }
 
   // ── Row badge injection ───────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, contactInfo, threadCount) {
+  function injectRowBadges(row, days, contactInfo) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
-    iProp(wrap, 'display',         'inline-flex');
-    iProp(wrap, 'align-items',     'center');
-    iProp(wrap, 'gap',             '4px');
-    iProp(wrap, 'vertical-align',  'middle');
-    iProp(wrap, 'flex-shrink',     '0');
-    iProp(wrap, 'white-space',     'nowrap');
-    iProp(wrap, 'pointer-events',  'none');
-    iProp(wrap, 'margin',          '0 8px');
+    p(wrap, 'display',        'inline-flex');
+    p(wrap, 'align-items',    'center');
+    p(wrap, 'gap',            '4px');
+    p(wrap, 'vertical-align', 'middle');
+    p(wrap, 'flex-shrink',    '0');
+    p(wrap, 'white-space',    'nowrap');
+    p(wrap, 'pointer-events', 'none');
+    p(wrap, 'margin',         '0 8px');
 
     // ── Staleness chip ──
     const dotColor =
-      days === 0          ? '#16a34a' :  // today  — green
-      days < OVERDUE_DAYS ? '#d97706' :  // 1-2d   — amber
-      days < 8            ? '#ea580c' :  // 3-7d   — orange
-      days < 14           ? '#dc2626' :  // 8-13d  — red
-                            '#9f1239';   // 14d+   — crimson
+      days === 0          ? '#16a34a' :  // today   — green
+      days < OVERDUE_DAYS ? '#d97706' :  // 1-2d    — amber
+      days < 8            ? '#ea580c' :  // 3-7d    — orange
+      days < 14           ? '#dc2626' :  // 8-13d   — red
+                            '#9f1239';   // 14d+    — crimson
 
     const glowColor =
-      days === 0          ? 'rgba(22,163,74,0.5)'   :
-      days < OVERDUE_DAYS ? 'rgba(217,119,6,0.5)'   :
-      days < 8            ? 'rgba(234,88,12,0.5)'   :
-      days < 14           ? 'rgba(220,38,38,0.5)'   :
-                            'rgba(159,18,57,0.5)';
+      days === 0          ? 'rgba(22,163,74,0.45)'  :
+      days < OVERDUE_DAYS ? 'rgba(217,119,6,0.45)'  :
+      days < 8            ? 'rgba(234,88,12,0.45)'  :
+      days < 14           ? 'rgba(220,38,38,0.45)'  :
+                            'rgba(159,18,57,0.45)';
 
     const dayLabel = days === 0 ? 'today' : days + 'd';
+    const tooltip  = `Last email in this folder: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
 
     const chip = document.createElement('span');
-    chip.title = `Last email in this folder: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
-    iProp(chip, 'display',       'inline-flex');
-    iProp(chip, 'align-items',   'center');
-    iProp(chip, 'gap',           '4px');
-    iProp(chip, 'background',    '#ffffff');
-    iProp(chip, 'border',        '1px solid #e5e7eb');
-    iProp(chip, 'border-radius', '999px');
-    iProp(chip, 'padding',       '1px 7px 1px 5px');
-    iProp(chip, 'white-space',   'nowrap');
-    iProp(chip, 'line-height',   '18px');
-    iProp(chip, 'cursor',        'default');
+    chip.title = tooltip;
+    p(chip, 'display',       'inline-flex');
+    p(chip, 'align-items',   'center');
+    p(chip, 'gap',           '4px');
+    p(chip, 'background',    '#ffffff');
+    p(chip, 'border',        '1px solid #e5e7eb');
+    p(chip, 'border-radius', '999px');
+    p(chip, 'padding',       '1px 7px 1px 5px');
+    p(chip, 'white-space',   'nowrap');
+    p(chip, 'line-height',   '18px');
+    p(chip, 'cursor',        'default');
 
     chip.innerHTML =
       `<span style="width:8px;height:8px;border-radius:50%;background:${dotColor};` +
       `box-shadow:0 0 5px 2px ${glowColor};flex-shrink:0;display:inline-block"></span>` +
       `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${dayLabel}</span>`;
     wrap.appendChild(chip);
-
-    // ── Thread count chip ──
-    if (threadCount && threadCount >= 2) {
-      const tc = document.createElement('span');
-      tc.title = `${threadCount} messages in thread`;
-      iProp(tc, 'display',       'inline-flex');
-      iProp(tc, 'align-items',   'center');
-      iProp(tc, 'background',    '#eff6ff');
-      iProp(tc, 'border',        '1px solid #bfdbfe');
-      iProp(tc, 'border-radius', '999px');
-      iProp(tc, 'padding',       '1px 6px');
-      iProp(tc, 'white-space',   'nowrap');
-      iProp(tc, 'line-height',   '18px');
-      iProp(tc, 'font-family',   'monospace');
-      iProp(tc, 'font-size',     '10px');
-      iProp(tc, 'font-weight',   '600');
-      iProp(tc, 'color',         '#2563eb');
-      tc.textContent = `✉ ${threadCount}`;
-      wrap.appendChild(tc);
-    }
 
     // ── Company bubble ──
     if (contactInfo) {
@@ -391,21 +379,21 @@
         const { bg, color, border } = domainToColor(domain || companyName);
         const bubble = document.createElement('span');
         bubble.title = companyName;
-        iProp(bubble, 'display',       'inline-flex');
-        iProp(bubble, 'align-items',   'center');
-        iProp(bubble, 'gap',           '4px');
-        iProp(bubble, 'background',    bg);
-        iProp(bubble, 'color',         color);
-        iProp(bubble, 'border',        `1px solid ${border}`);
-        iProp(bubble, 'border-radius', '999px');
-        iProp(bubble, 'padding',       '1px 8px 1px 4px');
-        iProp(bubble, 'white-space',   'nowrap');
-        iProp(bubble, 'max-width',     '150px');
-        iProp(bubble, 'overflow',      'hidden');
-        iProp(bubble, 'line-height',   '18px');
-        iProp(bubble, 'font-size',     '10px');
-        iProp(bubble, 'font-weight',   '500');
-        iProp(bubble, 'font-family',   'sans-serif');
+        p(bubble, 'display',       'inline-flex');
+        p(bubble, 'align-items',   'center');
+        p(bubble, 'gap',           '4px');
+        p(bubble, 'background',    bg);
+        p(bubble, 'color',         color);
+        p(bubble, 'border',        `1px solid ${border}`);
+        p(bubble, 'border-radius', '999px');
+        p(bubble, 'padding',       '1px 8px 1px 4px');
+        p(bubble, 'white-space',   'nowrap');
+        p(bubble, 'max-width',     '150px');
+        p(bubble, 'overflow',      'hidden');
+        p(bubble, 'line-height',   '18px');
+        p(bubble, 'font-size',     '10px');
+        p(bubble, 'font-weight',   '500');
+        p(bubble, 'font-family',   'sans-serif');
 
         if (domain) {
           const img = document.createElement('img');
@@ -423,14 +411,12 @@
       }
     }
 
-    // ── Inject badge wrap after the sender name element ───────────────────────
-    // Strategy: find the leaf span containing the sender name, then insert
-    // our wrap right after it. Force overflow:visible on ancestor chain so
-    // Outlook's clipping containers don't hide the badge.
+    // ── Inject after the sender name ──
+    // Force overflow:visible up the chain so Outlook doesn't clip the badge,
+    // then insert immediately after the sender name leaf element.
 
     const fromEl = findFromElement(row);
     if (fromEl) {
-      // Unlock overflow on every ancestor up to the row
       let node = fromEl.parentElement;
       while (node && node !== row) {
         node.style.setProperty('overflow', 'visible', 'important');
@@ -441,31 +427,24 @@
       return;
     }
 
-    // Fallback: absolute-position badge near the left side of the row
-    // (better than appending to row end which goes bottom-left)
+    // Fallback: absolute-position in the row at a safe left offset
     row.style.setProperty('position', 'relative', 'important');
     row.style.setProperty('overflow', 'visible', 'important');
-    iProp(wrap, 'position',  'absolute');
-    iProp(wrap, 'top',       '50%');
-    iProp(wrap, 'left',      '220px');
-    iProp(wrap, 'transform', 'translateY(-50%)');
-    iProp(wrap, 'z-index',   '100');
+    p(wrap, 'position',  'absolute');
+    p(wrap, 'top',       '50%');
+    p(wrap, 'left',      '210px');
+    p(wrap, 'transform', 'translateY(-50%)');
+    p(wrap, 'z-index',   '100');
     row.appendChild(wrap);
   }
 
   // ── Sender name detection ─────────────────────────────────────────────────────
-  // Find the leaf node that contains the sender/recipient name.
-  // Rules:
-  //  - Must be a leaf (no child elements)
-  //  - 4–55 chars (excludes avatar initials like "DS" and long subjects)
-  //  - Not all-uppercase abbreviation
-  //  - Not a date string
 
   function findFromElement(row) {
     const leaves = [...row.querySelectorAll('span, div, p')].filter(el => {
       if (el.childElementCount > 0) return false;
       const t = el.textContent.trim();
-      return t.length >= 4 && t.length <= 55 && !/^[A-Z]{2,4}$/.test(t);
+      return t.length >= 4 && t.length <= 55 && !/^[A-Z]{1,4}$/.test(t);
     });
     for (const el of leaves) {
       const t = el.textContent.trim();
@@ -475,10 +454,10 @@
     return null;
   }
 
-  // ── Inline style helper ───────────────────────────────────────────────────────
-  // All row badge styles use !important to beat Outlook's high-specificity rules.
+  // ── Style helper ──────────────────────────────────────────────────────────────
+  // Shorthand for setProperty with !important.
 
-  function iProp(el, prop, val) {
+  function p(el, prop, val) {
     el.style.setProperty(prop, val, 'important');
   }
 
@@ -495,17 +474,12 @@
     let h = 5381;
     for (let i = 0; i < (seed || '').length; i++) h = ((h << 5) + h) ^ seed.charCodeAt(i);
     const hue = Math.abs(h) % 360;
-    return {
-      bg:     `hsl(${hue},60%,93%)`,
-      color:  `hsl(${hue},55%,28%)`,
-      border: `hsl(${hue},50%,78%)`,
-    };
+    return { bg: `hsl(${hue},60%,93%)`, color: `hsl(${hue},55%,28%)`, border: `hsl(${hue},50%,78%)` };
   }
 
   // ── MutationObserver ──────────────────────────────────────────────────────────
-  // IMPORTANT: do NOT call updateFolderBadges() directly in onMutation.
-  // Setting styles on DOM elements triggers further mutations → infinite loop → freeze.
-  // Instead, debounce everything and use a heartbeat interval for badge persistence.
+  // Only debounced calls here — never call DOM-mutating functions directly
+  // from the observer callback (causes infinite mutation loops → freeze).
 
   function onMutation() {
     clearTimeout(debounceTimer);
@@ -519,17 +493,17 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.3 init on', location.hostname);
+    LOG('v3.4 init on', location.hostname);
     loadContactMap();
     setInterval(loadContactMap, 60_000);
-    // Heartbeat: re-inject folder badges every 600ms in case Outlook re-renders the nav.
-    // This keeps badges alive without causing mutation feedback loops.
-    setInterval(updateFolderBadges, 600);
+    // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
+    // Uses a long-ish interval (1.5s) to avoid fighting with Outlook's renders.
+    setInterval(updateFolderBadges, 1500);
     new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
     setTimeout(() => {
       LOG('Initial scan — title:', document.title);
       scanEmailRows();
-    }, 1500);
+    }, 1800);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
