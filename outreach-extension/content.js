@@ -86,6 +86,7 @@
       LOG('Cache item shape — from:', JSON.stringify(s.from), '| toRecipients[0]:', JSON.stringify((s.toRecipients||[])[0]), '| date field:', s.receivedDateTime || s.sentDateTime || s.date);
     }
     const map = {};
+    const seenIds = new Set(); // deduplicate emails that appear in multiple folders
     data.forEach(item => {
       // Handle both plain-string and Graph object format for from/toRecipients
       const fromObj = item.from;
@@ -97,6 +98,11 @@
       if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
       const dt = item.receivedDateTime || item.sentDateTime || item.date;
       if (!dt) return;
+      // Deduplicate by email ID (same email can appear in campaign folder AND Sent Items)
+      if (item.id) {
+        if (seenIds.has(item.id)) return;
+        seenIds.add(item.id);
+      }
       // toRecipients may be a plain email string or an array — handle both
       const toField = item.toRecipients;
       const recipients = Array.isArray(toField) ? toField : (typeof toField === 'string' ? [toField] : []);
@@ -106,9 +112,10 @@
           (r?.emailAddress?.address || r?.address || '')
         ).toLowerCase().trim();
         if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
-        if (!map[em]) map[em] = { lastDate: dt, count: 0 };
+        if (!map[em]) map[em] = { lastDate: dt, count: 0, dates: [] };
         if (dt > map[em].lastDate) map[em].lastDate = dt;
         map[em].count++;
+        map[em].dates.push(dt); // store all dates for row-to-contact matching
       });
     });
     const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
@@ -123,6 +130,34 @@
       });
       scanEmailRows();
     }
+  }
+
+  // ── Row-to-contact matching via date ─────────────────────────────────────────
+  // Campaign folder rows show the date of the FIRST email filed there, but the
+  // cache stores ALL dates (campaign folder + Sent Items). Match the row's DOM
+  // date against cache entries to resolve the correct email address, then use
+  // the cache's lastDate for accurate staleness (most recent sent to that contact).
+
+  function localDateStr(d) {
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  }
+
+  function findEmailByDate(rowDate) {
+    if (!rowDate || !emailCacheLoaded) return null;
+    const rowStr = localDateStr(rowDate);
+    let bestEmail = null;
+    let bestDiff = Infinity;
+    for (const [email, entry] of Object.entries(emailCache)) {
+      for (const d of (entry.dates || [])) {
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) continue;
+        if (localDateStr(dt) === rowStr) {
+          const diff = Math.abs(dt.getTime() - rowDate.getTime());
+          if (diff < bestDiff) { bestDiff = diff; bestEmail = email; }
+        }
+      }
+    }
+    return bestEmail;
   }
 
   // ── Date parsing ──────────────────────────────────────────────────────────────
@@ -238,28 +273,8 @@
       }
     }
 
-    // 2. Extract first name from email preview greeting: "Hey Thomas," / "Hi Dajin,"
-    //    Outlook shows the start of the email body as preview text in the row.
-    const previewEl = [...row.querySelectorAll('span, div')]
-      .filter(el => el.childElementCount === 0 && el.textContent.trim().length > 20)
-      .sort((a, b) => b.textContent.length - a.textContent.length)[0];
-
-    if (previewEl) {
-      const preview = previewEl.textContent.trim();
-      const greetMatch = preview.match(/^(?:Hey|Hi|Hello|Dear)\s+([A-Z][a-z]{1,20})[,\s!]/);
-      if (greetMatch) {
-        const firstName = greetMatch[1].toLowerCase();
-        for (const [email, c] of Object.entries(contactMap)) {
-          const contactFirstName = (c.name || '').split(' ')[0].toLowerCase();
-          if (contactFirstName && contactFirstName === firstName) {
-            return { email, contact: c, domain: email.split('@')[1] };
-          }
-        }
-        // No contact match — still show the domain bubble if we can get it
-        // (we can't without the email, so return null)
-      }
-    }
-
+    // First-name greeting fallback removed — too many false matches across contacts
+    // with the same first name. Accurate matching handled by date-based cache lookup.
     return null;
   }
 
@@ -373,17 +388,40 @@
 
     rows.forEach(row => {
       const alreadyProcessed = !!row.dataset.ibisProcessed;
-      const storedEmail      = row.dataset.ibisEmail || '';
+      let storedEmail = row.dataset.ibisEmail || '';
 
-      // ── Date + step resolution: PA cache wins, DOM date is fallback ──
-      const cacheEntry = storedEmail ? emailCache[storedEmail] : null;
+      // ── Resolve email address ──
+      // Priority: stored (from prior scan) → DOM attrs → date-based cache match
+      let cacheEntry = storedEmail ? emailCache[storedEmail] : null;
+
+      if (!storedEmail) {
+        // Try DOM attribute scan first (most reliable when email is exposed)
+        const found = findContactForRow(row);
+        if (found?.email) {
+          storedEmail = found.email;
+          cacheEntry = emailCache[storedEmail] || null;
+        }
+      }
+
+      // ── Date resolution ──
+      // Use DOM date for matching, then override with cache's lastDate (real last sent)
+      const domDate = getDateFromRow(row);
+
+      if (!storedEmail && emailCacheLoaded && domDate) {
+        // Match row to cache entry by its DOM date = date of first email in folder
+        const matched = findEmailByDate(domDate);
+        if (matched) {
+          storedEmail = matched;
+          cacheEntry = emailCache[matched];
+        }
+      }
+
       let date = null;
-
       if (cacheEntry) {
-        date = new Date(cacheEntry.lastDate);
+        date = new Date(cacheEntry.lastDate); // real last-sent date from PA
         if (isNaN(date.getTime())) date = null;
       }
-      if (!date) date = getDateFromRow(row);
+      if (!date) date = domDate; // fallback to DOM date
 
       const days = daysSince(date);
 
@@ -394,22 +432,12 @@
       if (alreadyProcessed) return;
       if (days === null) return;
 
-      // Resolve contact info — use stored email shortcut when available
-      let contactInfo;
-      if (storedEmail) {
-        contactInfo = { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' };
-      } else {
-        contactInfo = findContactForRow(row);
-        // If cache has data for this contact, prefer cache date
-        if (contactInfo?.email && emailCache[contactInfo.email]) {
-          const entry = emailCache[contactInfo.email];
-          const d = new Date(entry.lastDate);
-          if (!isNaN(d.getTime())) date = d;
-        }
-      }
+      const contactInfo = storedEmail
+        ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
+        : null;
 
-      // Step count = number of emails Dan has sent to this contact
-      const resolvedEmail = contactInfo?.email || '';
+      // Step count = total emails Dan has sent to this contact (from all sources)
+      const resolvedEmail = storedEmail || '';
       const stepCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
 
       row.dataset.ibisProcessed = '1';
