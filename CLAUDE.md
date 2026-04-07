@@ -684,41 +684,60 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v3.4
-**Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, and company bubble directly on each email row + folder badge counts on campaign folders.
+**Version:** v3.5
+**Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, step count, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
 | File | Purpose |
 |---|---|
 | `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
-| `content.js` | DOM overlay v3.4. Injects row badges + folder badges into Outlook. No sidebar. |
+| `content.js` | DOM overlay v3.5. Injects row badges + folder badges into Outlook. No sidebar. |
 | `overlay.css` | Minimal CSS for badge classes (most styles applied inline with `!important` to beat Outlook) |
-| `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. |
+| `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Also proxies cross-origin fetches for content scripts (FETCH_URL message). |
 | `bridge.js` | Content script on dashboard. Merges ALL 8 campaign stores → `chrome.storage.local.outreach_contacts_raw` |
-| `popup.html` | Simple "IBISWorld Overlay Active ✓" popup — no controls |
+| `popup.html` | Simple "IBISWorld Overlay Active ✓" popup — version shown dynamically |
+| `popup.js` | Reads `chrome.runtime.getManifest().version` and writes to `#ver` span |
 | `config.js` | `IBIS_CONFIG.OVERDUE_DAYS = 3` — staleness threshold |
 
 ### How data flows
 1. User opens dashboard → `bridge.js` merges all 8 campaign stores and pushes to `chrome.storage.local.outreach_contacts_raw`
-2. User opens Outlook campaign folder → `content.js` reads contact map, scans email rows, injects badges
+2. User opens Outlook campaign folder → `content.js` reads contact map + PA email cache, scans email rows, injects badges
 3. `bridge.js` polls every 3s for same-window changes; also listens for cross-tab storage events
-4. *(Future)* PA flow writes `contact_activity.json` to OneDrive → extension fetches → uses real sent dates
+4. PA flow `IBISWorld Contact Activity Sync` writes `contact_activity.json` to OneDrive → extension fetches via background proxy → uses real sent dates + step counts
 
 ### Storage keys (chrome.storage.local)
 - `outreach_contacts_raw` — merged JSON of ALL 8 campaign contacts, written by bridge.js v1.3
 - `outreach_contacts_ts` — timestamp of last push
-- *(Planned)* `outreach_email_cache` — `{ email → { lastSent, lastReceived, lastSubject, source } }` populated by PA flow
+- `ibis_folder_counts` — persisted folder overdue counts (JSON string `{folderName: count}`) — survives folder switches + page reloads
 
-### DOM Overlay (content.js v3.4)
-- **Folder badges** — orange count pill on each campaign folder in the left nav (grey "0" when all clear). Counts overdue threads (≥ `OVERDUE_DAYS` days since last email in folder). Persisted via 1500ms heartbeat interval separate from the mutation observer.
+### PA Flow: "IBISWorld Contact Activity Sync"
+- **Trigger:** Recurrence (every 2h)
+- **Actions:** 7× Get emails (V3) — one per campaign folder (Workables, 6QA, Churns, Multithread, Winback, Old Samples, Net New) + 1× Get emails for Sent Items (Top:500)
+- **Compose:** `union()` expression merges all 8 arrays into one flat array
+- **Update file (OneDrive):** writes to `contact_activity.json` in OneDrive
+- **SharePoint direct download URL:** stored in `CONTACT_ACTIVITY_URL` const in content.js — append `&download=1` to SharePoint share link
+- **Raw email fields used:** `from` (plain string), `toRecipients` (plain string — NOT an array), `receivedDateTime` (ISO string), `id` (for deduplication)
+- ⚠️ **`toRecipients` is a plain string** (not an array) in Get emails (V3) output — `typeof check` required before `Array.isArray()`
+
+### DOM Overlay (content.js v3.5)
+- **Folder badges** — orange count pill on each campaign folder in the left nav (grey "0" when all clear). Counts overdue threads (≥ `OVERDUE_DAYS` days since last email in folder). Persisted to `ibis_folder_counts` in chrome.storage.local.
 - **Row badges** — injected after the sender name on each email row:
-  - 🔴 **Staleness chip** — colored dot (green→amber→orange→red→crimson) + glow + "Nd" or "today". Dot color = days since last email filed in folder.
-  - 🏢 **Company bubble** — favicon + company name. For outgoing emails (From: Dan @ ibisworld.com), extracts recipient first name from preview greeting ("Hey Thomas,") and matches against contact map.
-- **Key functions:** `scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `injectRowBadges()`, `findFromElement()`
+  - 🔴 **Staleness chip** — colored dot (green→amber→orange→red→crimson) + glow + "Nd" or "today". When PA cache loaded: uses real last-sent date from cache. Falls back to DOM-parsed date when no cache match.
+  - ✉ **Step count** — envelope icon + count of all emails sent to that contact (from cache). Hidden when count = 0.
+  - 🏢 **Company bubble** — favicon + company name in neutral grey (`#f9fafb`/`#374151`). Matched via email attribute scan only (no first-name guessing).
+- **Key functions:** `scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `findEmailByDate()`, `injectRowBadges()`, `loadEmailCache()`, `processEmailCache()`
+- **Email cache loading:** `loadEmailCache()` routes through background service worker (`chrome.runtime.sendMessage({ type:'FETCH_URL', url })`) — bypasses CORS restriction on content scripts. `processEmailCache()` builds `emailCache` map: `{ email → { lastDate, count, dates[] } }`.
+- **Date-based row matching:** `findEmailByDate(rowDate)` — when no email found via DOM attribute scan, compares DOM row date to all `dates[]` in cache using local date string (`YYYY-M-D`). Finds best match by time proximity.
+- **ID deduplication:** `seenIds` Set in `processEmailCache()` prevents double-counting emails that appear in both a campaign folder AND Sent Items.
 - **Key design rule — mutation feedback loop prevention:** Never call DOM-mutating functions directly from MutationObserver callback. Both `updateFolderBadges()` and `scanEmailRows()` run inside a debounce timeout (700ms). Heartbeat uses `setInterval` independently.
 - **Re-entry guard:** `scanning` boolean flag prevents double-scans during Outlook re-renders.
-- **Folder count accuracy:** `scanEmailRows()` always counts overdue rows from ALL rows (not just newly-injected ones), so the folder badge never incorrectly resets to 0 after the first scan.
-- **Known limitation:** Staleness date = date of last email *filed in that folder*, not actual last outreach date. Tooltip says "Last email in this folder" to clarify. Fix requires the PA flow (see Open Items).
+- **Folder count accuracy:** `scanEmailRows()` always counts overdue rows from ALL rows, so the folder badge never resets to 0 after first scan.
+- **First-name guessing removed:** `findContactForRow()` no longer extracts "Hey Thomas," from email preview — caused false matches. Now matches only via email address in DOM attributes (`title`, `aria-label`, `data-email`, `href`).
+- **Cache reload re-scan:** when email cache loads for the first time (`isFirstLoad`), strips `data-ibis-processed` from all rows and calls `scanEmailRows()` to re-inject with real dates.
+
+### Background service worker (background.js) — FETCH proxy
+- Added `FETCH_URL` message listener: content scripts send `{type:'FETCH_URL', url}` → background fetches → returns `{ok, data}` or `{ok:false, error}`.
+- Required because MV3 content scripts cannot make cross-origin `fetch()` calls even with `host_permissions`. Background service worker can.
 
 ### CAMPAIGN_FOLDERS constant
 ```js
@@ -972,7 +991,8 @@ When a new session begins, Claude Code should:
 | ✅ Done | Outreach Extension: Workables campaign fix | `allWorkables` array tracks all non-archived contacts (including Lost stage). Workables campaign card shows correct full count. Contact row clicks use correct pool (allWorkables vs allContacts). |
 | 🔥 BLOCKED | Outreach Extension: direct email API | IBISWorld tenant blocks all mail API paths — confirmed. Graph token scp = `openid profile user.read` only. All 5 approaches (OWA cloud.microsoft, OWA office365, Graph me/messages, Graph search/query, OWA Bearer) return 403/HTML. Fix requires IT (Azure AD app reg with Mail.Read). Workaround: PA flow below. |
 | ✅ Done | Outreach Extension v3.x DOM overlay | Full rewrite of content.js — no sidebar, pure DOM overlay. Folder badge (orange count / grey 0). Row badges: staleness dot+glow+days chip, company bubble (from greeting text match). Mutation feedback loop fix (scanning guard + debounce). Bridge v1.3 pushes all 8 campaign stores. |
-| 🔴 Next | Outreach Extension: PA accurate-days flow | **Approach confirmed (simpler than abandoned accounts flow — no GitHub token needed):** PA flow `IBISWorld Contact Activity Sync`: Recurrence (every 2h) → Get emails (V3) from Sent Items, Top:500 → Select action: extract `{ to: recipient email, date: sentDateTime }` per email → Compose JSON array → Create/Update file in OneDrive as `contact_activity.json`. Extension: add OneDrive share URL to `manifest.json` host_permissions → fetch on init → build `{ email → maxSentDate }` map → use in `getDateFromRow()` instead of DOM date. Chrome extensions bypass CORS so OneDrive share link works directly (no relay/GitHub needed). Est. ~1.5h total. |
+| ✅ Done | Outreach Extension v3.5 — PA flow + date matching | PA flow `IBISWorld Contact Activity Sync` built (Recurrence → 7 campaign folders + Sent Items → Compose union → Update OneDrive file). Extension fetches via background FETCH_URL proxy (CORS fix). Email cache: `{email→{lastDate,count,dates[]}}`. Date-based row matching via `findEmailByDate()`. ID dedup via `seenIds` Set. First-name guessing removed. Neutral company bubbles. Folder counts persisted to `ibis_folder_counts`. Version shown dynamically in popup. |
+| 🔴 Next | PA flow: add Sent Items to union expression | Current PA Compose union covers 7 campaign folders only. Need to add Sent Items `Get emails (V3)` action (Top:500) + update Compose expression to `union(body('Get_emails_(V3)_-_Sent_Items')?['value'], union(...existing 7...))`. This fixes step count (LG showing ✉1 should be ✉3) and staleness dates for follow-up emails not in campaign folders. |
 | ⚠️ Monitor | Outreach Extension: company bubble accuracy | Works via greeting extraction ("Hey Thomas,") + contact map name match. Misses rows with "Hi there," openers or contacts not in any campaign store. Will improve once PA flow provides real email-to-contact mapping. |
 | 🗺️ Future | Outreach Extension: DOM scraper fallback | If Azure AD app registration isn't possible, build `scraper.js` content script that reads email list from Outlook DOM when user opens thread view. No API needed — reads rendered rows. Triggered on-click only (not background scan). |
 | 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
