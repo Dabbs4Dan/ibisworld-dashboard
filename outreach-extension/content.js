@@ -97,7 +97,9 @@
       if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
       const dt = item.receivedDateTime || item.sentDateTime || item.date;
       if (!dt) return;
-      const recipients = Array.isArray(item.toRecipients) ? item.toRecipients : [];
+      // toRecipients may be a plain email string or an array — handle both
+      const toField = item.toRecipients;
+      const recipients = Array.isArray(toField) ? toField : (typeof toField === 'string' ? [toField] : []);
       recipients.forEach(r => {
         const em = (
           typeof r === 'string' ? r :
