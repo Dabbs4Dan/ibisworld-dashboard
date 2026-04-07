@@ -1,24 +1,15 @@
 // =============================================================================
 // ARCHIVED CONTENT SCRIPT — v2 (sidebar + priority engine + Graph/OWA API)
 // Tabled in v3. Full implementation preserved in git history (commit 9487fe9).
-// Reason: replaced with lightweight DOM overlay — no external APIs needed.
 // =============================================================================
 
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.1
+// IBISWorld Outreach — DOM Overlay v3.2
 // =============================================================================
-// Pure DOM overlay. Reads Outlook's rendered HTML. No external APIs.
+// Feature A — Folder badge: orange "N overdue" pill on campaign folder nav items.
+// Feature B — Row badges: staleness dot+days chip + company bubble per email row.
 //
-// Feature A — Folder badge:
-//   Orange "N overdue" pill injected next to each campaign folder in the left nav.
-//   Count = threads in that folder where last activity >= OVERDUE_DAYS.
-//   Cached per-folder; refreshes each time you open the folder.
-//
-// Feature B — Row badges (shown when inside a campaign folder):
-//   Colored staleness dot + days count chip, plus a company name bubble.
-//   Injected between the From name and the Subject on each email row.
-//
-// Debug: open DevTools console and filter by "[IBISWorld]" to see what's found.
+// Debug: F12 → Console → filter "[IBISWorld]" to see what the overlay finds.
 // =============================================================================
 
 (function () {
@@ -27,10 +18,11 @@
   // ── Config ──────────────────────────────────────────────────────────────────
 
   const OVERDUE_DAYS = 3;
-  const DEBOUNCE_MS  = 400;
+  const DEBOUNCE_MS  = 350;
 
-  // Must match folder names as they appear in Outlook.
-  // Emoji prefixes are fine — we use .includes(), not startsWith().
+  // Dan's own domain — skip company bubble when sender is internal
+  const OWN_DOMAIN   = 'ibisworld.com';
+
   const CAMPAIGN_FOLDERS = [
     'Workables', '6QA', 'Churns', 'Multithread', 'Winback', 'Old Samples', 'Net New',
   ];
@@ -43,13 +35,11 @@
   let folderCounts  = {};
   let debounceTimer = null;
 
-  // ── Context guard ────────────────────────────────────────────────────────────
-
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
   }
 
-  // ── Contact map (from bridge.js via chrome.storage.local) ───────────────────
+  // ── Contact map (from bridge.js) ─────────────────────────────────────────────
 
   function loadContactMap() {
     if (!ctxOk() || !chrome.storage) return;
@@ -62,7 +52,7 @@
           const e = c.email.toLowerCase().trim();
           contactMap[e] = { accountName: c.accountName || '', domain: e.split('@')[1] || '' };
         });
-        LOG('Contact map:', Object.keys(contactMap).length, 'contacts loaded');
+        LOG('Contact map:', Object.keys(contactMap).length, 'contacts');
       } catch (_) {}
     });
   }
@@ -78,44 +68,30 @@
     if (!str) return null;
     str = str.trim();
     const now = new Date();
-
     if (/\d{1,2}:\d{2}\s*(am|pm)/i.test(str) || /^\d{1,2}:\d{2}$/.test(str)) return new Date(now);
     if (/^today/i.test(str)) return new Date(now);
-    if (/^yesterday/i.test(str)) {
-      const d = new Date(now); d.setDate(d.getDate() - 1); return d;
-    }
-
+    if (/^yesterday/i.test(str)) { const d = new Date(now); d.setDate(d.getDate() - 1); return d; }
     for (let i = 0; i < 7; i++) {
       if (str.startsWith(DAYS_LONG[i]) || str.startsWith(DAYS_SHORT[i])) {
-        const d    = new Date(now);
-        const diff = (now.getDay() - i + 7) % 7 || 7;
-        d.setDate(d.getDate() - diff);
-        return d;
+        const d = new Date(now); d.setDate(d.getDate() - ((now.getDay() - i + 7) % 7 || 7)); return d;
       }
     }
-
     for (let mi = 0; mi < 12; mi++) {
       if (str.startsWith(MONTHS_LONG[mi]) || str.startsWith(MONTHS_SHORT[mi])) {
         const d = new Date(str);
         if (!isNaN(d.getTime())) {
-          if (!/\b20\d\d\b/.test(str)) {
-            d.setFullYear(now.getFullYear());
-            if (d > now) d.setFullYear(now.getFullYear() - 1);
-          }
+          if (!/\b20\d\d\b/.test(str)) { d.setFullYear(now.getFullYear()); if (d > now) d.setFullYear(now.getFullYear() - 1); }
           return d;
         }
       }
     }
-
     // Numeric: "4/7/2026", "3/30/2026"
     const num = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
     if (num) {
-      const y    = num[3] ? parseInt(num[3]) : now.getFullYear();
-      const fullY = y < 100 ? 2000 + y : y;
-      const d    = new Date(fullY, parseInt(num[1]) - 1, parseInt(num[2]));
+      const y = num[3] ? parseInt(num[3]) : now.getFullYear();
+      const d = new Date(y < 100 ? 2000 + y : y, parseInt(num[1]) - 1, parseInt(num[2]));
       return isNaN(d.getTime()) ? null : d;
     }
-
     return null;
   }
 
@@ -124,15 +100,10 @@
     return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
   }
 
-  // Extract a date from the row's aria-label string.
-  // Outlook packs date info in aria-label, e.g.:
-  //   "Daniel Starr, IBISWorld Sample Request, Yesterday, 1:13 PM, Has attachment"
   function dateFromAriaLabel(label) {
     if (!label) return null;
     const patterns = [
-      /\d{1,2}:\d{2}\s*(AM|PM)/i,
-      /\bToday\b/i,
-      /\bYesterday\b/i,
+      /\d{1,2}:\d{2}\s*(AM|PM)/i, /\bToday\b/i, /\bYesterday\b/i,
       /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i,
       /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s*\d{4})?\b/i,
       /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:,\s*\d{4})?\b/i,
@@ -140,91 +111,50 @@
     ];
     for (const p of patterns) {
       const m = label.match(p);
-      if (m) {
-        const d = parseOutlookDate(m[0]);
-        if (d) return d;
-      }
+      if (m) { const d = parseOutlookDate(m[0]); if (d) return d; }
     }
     return null;
   }
 
   // ── Active folder detection ──────────────────────────────────────────────────
-  // Uses .includes() throughout — handles emoji-prefixed folder names like "🔥 6QA".
 
   function getActiveCampaignFolder() {
-    // ── Strategy 1: browser tab title ──────────────────────────────────────────
-    // Most reliable. Outlook sets title = "FolderName - User - Outlook".
-    // Doesn't include emoji so clean text match works.
-    const title = document.title || '';
-    const fromTitle = CAMPAIGN_FOLDERS.find(f => title.includes(f));
-    if (fromTitle) {
-      LOG('Active folder (from title):', fromTitle);
-      return fromTitle;
+    // Primary: tab title = "6QA - Daniel Starr - Outlook" (no emoji, reliable)
+    const fromTitle = CAMPAIGN_FOLDERS.find(f => document.title.includes(f));
+    if (fromTitle) return fromTitle;
+    // Fallback: any visible heading
+    for (const el of document.querySelectorAll('[role="heading"], h1, h2, h3')) {
+      const match = CAMPAIGN_FOLDERS.find(f => el.textContent.includes(f));
+      if (match) return match;
     }
-
-    // ── Strategy 2: visible heading elements ────────────────────────────────────
-    const headingEls = document.querySelectorAll('[role="heading"], h1, h2, h3');
-    for (const el of headingEls) {
-      const t = el.textContent.trim();
-      const match = CAMPAIGN_FOLDERS.find(f => t.includes(f));
-      if (match) {
-        LOG('Active folder (from heading):', match);
-        return match;
-      }
-    }
-
-    // ── Strategy 3: selected/active treeitem ────────────────────────────────────
+    // Fallback: selected treeitem
     for (const item of document.querySelectorAll('[role="treeitem"]')) {
-      const isActive =
-        item.getAttribute('aria-selected') === 'true' ||
-        item.getAttribute('aria-current') === 'true'  ||
-        item.getAttribute('aria-current') === 'page';
+      const isActive = item.getAttribute('aria-selected') === 'true' || item.getAttribute('aria-current') === 'true' || item.getAttribute('aria-current') === 'page';
       if (!isActive) continue;
-      const t = item.textContent.trim();
-      const match = CAMPAIGN_FOLDERS.find(f => t.includes(f));
-      if (match) {
-        LOG('Active folder (from treeitem):', match);
-        return match;
-      }
+      const match = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
+      if (match) return match;
     }
-
-    LOG('Active folder: none detected. Title was:', title);
     return null;
   }
 
   // ── Get email rows ────────────────────────────────────────────────────────────
-  // Try selectors in order — new Outlook (cloud.microsoft) varies by version.
 
   function getEmailRows() {
-    // Most common: listbox > option
     let rows = [...document.querySelectorAll('[role="option"]')];
-    if (rows.length > 0) { LOG('Rows found via [role=option]:', rows.length); return rows; }
-
-    // Alternative: listitem with aria-label (some OWA versions)
+    if (rows.length > 0) return rows;
     rows = [...document.querySelectorAll('[role="listitem"][aria-label]')];
-    if (rows.length > 0) { LOG('Rows found via [role=listitem]:', rows.length); return rows; }
-
-    // New Outlook: conversation list items with data-convid
+    if (rows.length > 0) return rows;
     rows = [...document.querySelectorAll('[data-convid]')];
-    if (rows.length > 0) { LOG('Rows found via [data-convid]:', rows.length); return rows; }
-
-    // Last resort: any element with a long, date-containing aria-label
-    rows = [...document.querySelectorAll('[aria-label]')].filter(el => {
-      const label = el.getAttribute('aria-label') || '';
-      return label.length > 20 && dateFromAriaLabel(label) !== null;
-    });
-    if (rows.length > 0) { LOG('Rows found via aria-label scan:', rows.length); return rows; }
-
-    LOG('No email rows found. Check DOM structure in DevTools.');
-    return [];
+    return rows;
   }
 
   // ── Folder nav badges ────────────────────────────────────────────────────────
+  // All CSS applied inline with setProperty('important') to beat Outlook's specificity.
+  // Badge is position:absolute within the treeitem so it doesn't break text truncation.
 
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      const itemText   = item.textContent || '';
-      const folderName = CAMPAIGN_FOLDERS.find(f => itemText.includes(f));
+      const folderName = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
       if (!folderName) return;
 
       const count = folderCounts[folderName] || 0;
@@ -235,82 +165,83 @@
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'ibis-folder-badge';
-        // Find the text node containing the folder name and inject after its parent element.
-        // Uses .includes() — handles emoji-prefixed names like "🔥 6QA".
-        const labelEl = findFolderLabel(item, folderName);
-        if (labelEl) labelEl.appendChild(badge);
-        else item.appendChild(badge);
+
+        // Force the treeitem to be position:relative and overflow:visible so our
+        // absolute-positioned badge isn't clipped by Outlook's fixed-width nav column.
+        item.style.setProperty('position', 'relative', 'important');
+        item.style.setProperty('overflow', 'visible', 'important');
+
+        // Walk up and also force overflow visible on the parent nav container
+        const nav = item.parentElement;
+        if (nav) nav.style.setProperty('overflow', 'visible', 'important');
+
+        // All badge styles inline — don't rely on overlay.css being applied
+        applyBadgeStyle(badge);
+        item.appendChild(badge);
       }
+
       badge.textContent = count === 1 ? '1 overdue' : `${count} overdue`;
     });
   }
 
-  function findFolderLabel(treeItem, folderName) {
-    const walker = document.createTreeWalker(treeItem, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      // Use .includes() not startsWith() — folder name may have emoji prefix
-      if (node.textContent.trim().includes(folderName)) {
-        return node.parentElement;
-      }
-    }
-    return null;
+  function applyBadgeStyle(el) {
+    const s = el.style;
+    s.setProperty('display',          'inline-flex',     'important');
+    s.setProperty('align-items',      'center',          'important');
+    s.setProperty('position',         'absolute',        'important');
+    s.setProperty('right',            '4px',             'important');
+    s.setProperty('top',              '50%',             'important');
+    s.setProperty('transform',        'translateY(-50%)', 'important');
+    s.setProperty('background',       '#f97316',         'important');
+    s.setProperty('color',            '#ffffff',         'important');
+    s.setProperty('font-size',        '10px',            'important');
+    s.setProperty('font-weight',      '700',             'important');
+    s.setProperty('font-family',      'monospace',       'important');
+    s.setProperty('padding',          '1px 6px',         'important');
+    s.setProperty('border-radius',    '999px',           'important');
+    s.setProperty('white-space',      'nowrap',          'important');
+    s.setProperty('z-index',          '9999',            'important');
+    s.setProperty('pointer-events',   'none',            'important');
+    s.setProperty('line-height',      '16px',            'important');
   }
 
   // ── Email row scanning ───────────────────────────────────────────────────────
 
   function scanEmailRows() {
     const activeFolder = getActiveCampaignFolder();
-    if (!activeFolder) return;
+    if (!activeFolder) { LOG('No active campaign folder detected. Title:', document.title); return; }
 
     const rows = getEmailRows();
-    if (rows.length === 0) return;
+    if (!rows.length) { LOG('No email rows found.'); return; }
 
     let overdueCount = 0;
 
     rows.forEach(row => {
-      if (row.querySelector('.ibis-row-badges')) return; // already badged this render
+      if (row.querySelector('.ibis-row-badges')) return;
 
-      // ── 1. Extract date ──────────────────────────────────────────────────────
-      const ariaLabel = row.getAttribute('aria-label') || '';
-      let date = dateFromAriaLabel(ariaLabel);
-
+      // ── Date extraction ──
+      let date = dateFromAriaLabel(row.getAttribute('aria-label') || '');
       if (!date) {
         const timeEl = row.querySelector('time');
-        if (timeEl) {
-          const dt = timeEl.getAttribute('datetime');
-          date = dt ? new Date(dt) : parseOutlookDate(timeEl.textContent.trim());
-        }
+        if (timeEl) date = new Date(timeEl.getAttribute('datetime') || '') || parseOutlookDate(timeEl.textContent.trim());
       }
-
       if (!date) {
-        // Scan leaf text nodes for date-like short strings
-        const leaves = [...row.querySelectorAll('span, div, td')].filter(
-          el => el.childElementCount === 0 && el.textContent.trim().length > 0
-        );
-        for (const el of leaves) {
+        for (const el of [...row.querySelectorAll('span, div')].filter(e => e.childElementCount === 0)) {
           const t = el.textContent.trim();
-          if (t.length < 25) {
-            date = parseOutlookDate(t);
-            if (date) break;
-          }
+          if (t.length > 0 && t.length < 25) { date = parseOutlookDate(t); if (date) break; }
         }
       }
 
       const days = daysSince(date);
       if (days === null) return;
+      if (days >= OVERDUE_DAYS) overdueCount++;
 
-      const isOverdue = days >= OVERDUE_DAYS;
-      if (isOverdue) overdueCount++;
-
-      // ── 2. Extract sender email (best-effort) ─────────────────────────────────
+      // ── Sender email extraction ──
       let senderEmail = '';
       for (const el of row.querySelectorAll('[title*="@"], [aria-label*="@"]')) {
-        const attr  = el.getAttribute('title') || el.getAttribute('aria-label') || '';
-        const match = attr.match(/[\w.+'\-]+@[\w.\-]+\.[a-z]{2,}/i);
-        if (match) { senderEmail = match[0].toLowerCase(); break; }
+        const m = (el.getAttribute('title') || el.getAttribute('aria-label') || '').match(/[\w.+'\-]+@[\w.\-]+\.[a-z]{2,}/i);
+        if (m) { senderEmail = m[0].toLowerCase(); break; }
       }
-
       const contact = senderEmail ? contactMap[senderEmail] : null;
       const domain  = senderEmail ? senderEmail.split('@')[1] : null;
 
@@ -319,7 +250,7 @@
 
     folderCounts[activeFolder] = overdueCount;
     updateFolderBadges();
-    LOG(`Scanned ${rows.length} rows in "${activeFolder}": ${overdueCount} overdue`);
+    LOG(`"${activeFolder}": ${rows.length} rows scanned, ${overdueCount} overdue`);
   }
 
   // ── Row badge injection ──────────────────────────────────────────────────────
@@ -327,8 +258,9 @@
   function injectRowBadges(row, days, contact, domain) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
+    applyWrapStyle(wrap);
 
-    // Staleness chip
+    // ── Staleness chip ──────────────────────────────────────────────────────
     const dotColor =
       days === 0          ? '#16a34a' :
       days < OVERDUE_DAYS ? '#d97706' :
@@ -336,138 +268,166 @@
                             '#991b1b';
 
     const chip = document.createElement('span');
-    chip.className = 'ibis-stale-chip';
+    applyChipStyle(chip, dotColor);
     chip.title = `Last activity: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
     chip.innerHTML =
-      `<span class="ibis-dot" style="background:${dotColor}"></span>` +
-      `<span class="ibis-days">${days === 0 ? 'today' : days + 'd'}</span>`;
+      `<span style="width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0;display:inline-block;margin-right:3px"></span>` +
+      `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${days === 0 ? 'today' : days + 'd'}</span>`;
     wrap.appendChild(chip);
 
-    // Company bubble
-    const companyName    = contact?.accountName || (domain ? domainToName(domain) : '');
-    const effectiveSeed  = domain || companyName;
+    // ── Company bubble ──────────────────────────────────────────────────────
+    // Skip if sender is from Dan's own domain (outgoing email, no contact info to show)
+    const skipBubble = !domain || domain === OWN_DOMAIN || domain.endsWith('.' + OWN_DOMAIN);
+    const companyName = !skipBubble ? (contact?.accountName || domainToName(domain)) : '';
 
     if (companyName) {
-      const { bg, color, border } = domainToColor(effectiveSeed);
+      const { bg, color, border } = domainToColor(domain || companyName);
       const bubble = document.createElement('span');
-      bubble.className = 'ibis-company-bubble';
-      bubble.title     = companyName;
-      bubble.style.cssText = `background:${bg};color:${color};border-color:${border}`;
+      applyBubbleStyle(bubble, bg, color, border);
+      bubble.title = companyName;
 
-      if (domain) {
-        const img     = document.createElement('img');
-        img.src       = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
-        img.className = 'ibis-co-logo';
-        img.onerror   = () => img.style.display = 'none';
-        bubble.appendChild(img);
-      }
+      const img = document.createElement('img');
+      img.src = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+      img.style.cssText = 'width:12px;height:12px;border-radius:2px;flex-shrink:0;object-fit:contain;margin-right:4px';
+      img.onerror = () => img.style.display = 'none';
+      bubble.appendChild(img);
 
-      const nameEl      = document.createElement('span');
-      nameEl.className  = 'ibis-co-name';
+      const nameEl = document.createElement('span');
+      nameEl.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;display:inline-block';
       nameEl.textContent = companyName.length > 22 ? companyName.slice(0, 20) + '…' : companyName;
       bubble.appendChild(nameEl);
       wrap.appendChild(bubble);
     }
 
-    // ── Injection: find From cell and insert after it ─────────────────────────
-    // Strategy 1: table cell — classic OWA layout
-    const firstTd = row.querySelector('td');
-    if (firstTd) {
-      firstTd.appendChild(wrap);
-      return;
-    }
+    // ── Inject between From and Subject ─────────────────────────────────────
+    // Strategy: find the direct-row-child container holding the sender name,
+    // insert our wrap immediately after it so it sits between From and Subject.
+    // Key fix: findFromElement now SKIPS avatar initials (e.g. "DS", "AM").
 
-    // Strategy 2: find the From-name element.
-    // It's a short-text leaf node that doesn't look like a date or subject preview.
-    // In new Outlook rows the sender name is typically the first short text block.
     const fromEl = findFromElement(row);
     if (fromEl) {
-      // Insert wrap as a sibling after the From element's parent container
-      const parent = fromEl.parentElement;
-      if (parent && parent !== row) {
-        parent.insertAdjacentElement('afterend', wrap);
-      } else {
-        fromEl.insertAdjacentElement('afterend', wrap);
+      // Walk up to find the direct child of the row (the From column container)
+      const fromColumn = walkUpToRowChild(row, fromEl);
+      if (fromColumn) {
+        fromColumn.insertAdjacentElement('afterend', wrap);
+        return;
       }
+      fromEl.insertAdjacentElement('afterend', wrap);
       return;
     }
 
-    // Fallback: prepend to row (always visible, positioning may be off)
-    row.prepend(wrap);
+    // Fallback: prepend to the subject area (longest text block in the row)
+    const subjectEl = findSubjectContainer(row);
+    if (subjectEl) { subjectEl.prepend(wrap); return; }
+
+    row.appendChild(wrap);
   }
 
-  // Find the element most likely to be the sender name within a row.
+  // Walk from el up to its ancestor that is a direct child of `row`.
+  function walkUpToRowChild(row, el) {
+    let node = el;
+    while (node && node.parentElement && node.parentElement !== row) {
+      node = node.parentElement;
+    }
+    return (node && node.parentElement === row) ? node : null;
+  }
+
+  // Find the element most likely to be the sender name.
+  // FIX v3.2: excludes avatar initials (2-3 uppercase chars like "DS", "AM", "ZR").
   function findFromElement(row) {
-    const allLeaves = [...row.querySelectorAll('span, div, p')].filter(el => {
+    const leaves = [...row.querySelectorAll('span, div, p')].filter(el => {
       if (el.childElementCount > 0) return false;
       const t = el.textContent.trim();
-      return t.length > 1 && t.length < 55;
+      // Requirements for a sender name:
+      // - At least 4 chars (rules out "DS", "AM", "ZR" avatar initials)
+      // - Not a pure uppercase abbreviation (rules out "DS", "IBW", etc.)
+      // - Not date-like
+      // - Not too long (not the subject preview)
+      return t.length >= 4 && t.length <= 55 &&
+             !/^[A-Z]{2,4}$/.test(t);
     });
 
-    for (const el of allLeaves) {
+    for (const el of leaves) {
       const t = el.textContent.trim();
-      // Skip date-like strings
       if (/^\d{1,2}(:|\/)|^(today|yesterday|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(t)) continue;
-      // Skip subject-preview-length text (usually 60+ chars) — we want the short From name
-      if (t.length > 55) continue;
       return el;
     }
     return null;
+  }
+
+  // Find the subject text container — used as fallback injection point.
+  function findSubjectContainer(row) {
+    const leaves = [...row.querySelectorAll('span, div')].filter(e =>
+      e.childElementCount === 0 && e.textContent.trim().length > 10
+    );
+    leaves.sort((a, b) => b.textContent.length - a.textContent.length);
+    if (!leaves.length) return null;
+    return leaves[0].parentElement || leaves[0];
+  }
+
+  // ── Inline styles (not relying on overlay.css to beat Outlook specificity) ──
+
+  function applyWrapStyle(el) {
+    el.style.cssText = [
+      'display:inline-flex', 'align-items:center', 'gap:4px',
+      'vertical-align:middle', 'flex-shrink:0', 'white-space:nowrap',
+      'margin:0 6px', 'pointer-events:none',
+    ].join(';');
+  }
+
+  function applyChipStyle(el) {
+    el.style.cssText = [
+      'display:inline-flex', 'align-items:center',
+      'background:#f9fafb', 'border:1px solid #e5e7eb',
+      'border-radius:999px', 'padding:1px 7px 1px 5px',
+      'white-space:nowrap', 'line-height:18px', 'cursor:default',
+    ].join(';');
+  }
+
+  function applyBubbleStyle(el, bg, color, border) {
+    el.style.cssText = [
+      'display:inline-flex', 'align-items:center',
+      `background:${bg}`, `color:${color}`, `border:1px solid ${border}`,
+      'border-radius:999px', 'padding:1px 7px 1px 5px',
+      'white-space:nowrap', 'max-width:150px',
+      'overflow:hidden', 'line-height:18px',
+      'font-size:10px', 'font-weight:500',
+    ].join(';');
   }
 
   // ── Utilities ────────────────────────────────────────────────────────────────
 
   function domainToName(domain) {
     return domain.replace(/^www\./, '').split('.')[0]
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
+      .replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  // Deterministic pastel color from domain/company seed — same input = same color always.
   function domainToColor(seed) {
     let h = 5381;
-    for (let i = 0; i < seed.length; i++) h = ((h << 5) + h) ^ seed.charCodeAt(i);
+    for (let i = 0; i < (seed || '').length; i++) h = ((h << 5) + h) ^ seed.charCodeAt(i);
     const hue = Math.abs(h) % 360;
-    return {
-      bg:     `hsl(${hue}, 55%, 93%)`,
-      color:  `hsl(${hue}, 50%, 30%)`,
-      border: `hsl(${hue}, 45%, 78%)`,
-    };
+    return { bg: `hsl(${hue},55%,93%)`, color: `hsl(${hue},50%,30%)`, border: `hsl(${hue},45%,78%)` };
   }
 
   // ── MutationObserver ─────────────────────────────────────────────────────────
 
   function onMutation() {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      updateFolderBadges();
-      scanEmailRows();
-    }, DEBOUNCE_MS);
+    debounceTimer = setTimeout(() => { updateFolderBadges(); scanEmailRows(); }, DEBOUNCE_MS);
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────────
 
   function init() {
     if (!ctxOk()) return;
-    LOG('Overlay v3.1 initialising on', location.hostname);
-
+    LOG('v3.2 init on', location.hostname);
     loadContactMap();
-    setInterval(loadContactMap, 60 * 1000);
-
-    const observer = new MutationObserver(onMutation);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    setTimeout(() => {
-      LOG('Running initial scan...');
-      updateFolderBadges();
-      scanEmailRows();
-    }, 1500);
+    setInterval(loadContactMap, 60000);
+    new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
+    setTimeout(() => { LOG('Initial scan, title:', document.title); updateFolderBadges(); scanEmailRows(); }, 1500);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    setTimeout(init, 500);
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else setTimeout(init, 500);
 
 })();
