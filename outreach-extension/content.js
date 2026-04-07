@@ -418,6 +418,8 @@
     });
 
     folderCounts[activeFolder] = overdueCount;
+    // Persist so badges show on other folders immediately without needing to click each one
+    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts) });
     updateFolderBadges();
     scanning = false;
     LOG(`"${activeFolder}": ${rows.length} rows, ${overdueCount} overdue`);
@@ -511,15 +513,14 @@
       const { contact, domain } = contactInfo;
       const companyName = contact?.accountName || domainToName(domain);
       if (companyName) {
-        const { bg, color, border } = domainToColor(domain || companyName);
         const bubble = document.createElement('span');
         bubble.title = companyName;
         p(bubble, 'display',       'inline-flex');
         p(bubble, 'align-items',   'center');
         p(bubble, 'gap',           '4px');
-        p(bubble, 'background',    bg);
-        p(bubble, 'color',         color);
-        p(bubble, 'border',        `1px solid ${border}`);
+        p(bubble, 'background',    '#f9fafb');
+        p(bubble, 'color',         '#374151');
+        p(bubble, 'border',        '1px solid #e5e7eb');
         p(bubble, 'border-radius', '999px');
         p(bubble, 'padding',       '1px 8px 1px 4px');
         p(bubble, 'white-space',   'nowrap');
@@ -629,6 +630,13 @@
   function init() {
     if (!ctxOk()) return;
     LOG('v3.5 init on', location.hostname);
+    // Restore persisted folder counts so badges show before user visits each folder
+    chrome.storage.local.get(['ibis_folder_counts'], (res) => {
+      try {
+        if (res.ibis_folder_counts) Object.assign(folderCounts, JSON.parse(res.ibis_folder_counts));
+        updateFolderBadges();
+      } catch (_) {}
+    });
     loadContactMap();
     setInterval(loadContactMap, 60_000);
     loadEmailCache();
