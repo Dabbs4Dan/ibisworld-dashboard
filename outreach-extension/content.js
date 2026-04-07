@@ -19,7 +19,7 @@
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
-  const CONTACT_ACTIVITY_URL = '';
+  const CONTACT_ACTIVITY_URL = 'https://ibisworld-my.sharepoint.com/:u:/p/daniel_starr/IQAgzsMLkpwARZTTD2uMrM6MARtiLz5aePFycFYpNu1AKQ4?e=KtJvva&download=1';
 
   const CAMPAIGN_FOLDERS = [
     'Workables', '6QA', 'Churns', 'Multithread', 'Winback', 'Old Samples', 'Net New',
@@ -77,15 +77,20 @@
         if (!Array.isArray(data)) return;
         const map = {};
         data.forEach(item => {
-          if (!item.to || !item.date) return;
-          const em = item.to.toLowerCase().trim();
-          // Skip received emails — their "to" is Dan's own IBISWorld address
-          if (em.endsWith('@ibisworld.com')) return;
-          if (!map[em]) map[em] = { lastDate: item.date, count: 0 };
-          // Keep the most recent sent date
-          if (item.date > map[em].lastDate) map[em].lastDate = item.date;
-          // Count total emails sent to this recipient = sequence step
-          map[em].count++;
+          // Raw format from PA Get emails (V3): from, toRecipients[], receivedDateTime
+          const fromEmail = (typeof item.from === 'string' ? item.from : '').toLowerCase().trim();
+          // Only count emails Dan sent (outgoing = from ibisworld.com)
+          if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
+          const dt = item.receivedDateTime;
+          if (!dt) return;
+          const recipients = Array.isArray(item.toRecipients) ? item.toRecipients : [];
+          recipients.forEach(r => {
+            const em = (typeof r === 'string' ? r : (r?.emailAddress?.address || '')).toLowerCase().trim();
+            if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
+            if (!map[em]) map[em] = { lastDate: dt, count: 0 };
+            if (dt > map[em].lastDate) map[em].lastDate = dt;
+            map[em].count++;
+          });
         });
         const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
         emailCache = map;
