@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~8,000+ lines
+**File:** `index.html` — single self-contained file, ~8,700+ lines
 
 ---
 
@@ -41,13 +41,16 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
   - `ibis_6qa` → 6QA campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_churn` → Churn campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_netnew` → Net New campaign contacts, keyed by email (same schema as ibis_opps)
-  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - `ibis_multithread` → Multithread campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_winback` → Winback campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_powerback` → Powerback campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], powerbackContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v32 (stable)
+## CURRENT STATE — v33 (stable)
 
 ### Five tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -81,7 +84,7 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 - **Row click modal removed** — clicking a row no longer opens the flags/notes/revenue modal (removed `onclick="openModal(...)"` from `<tr>` and `.account-card`)
 
 #### Accounts Table Columns (left → right)
-Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Workables | Samples | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
+Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Campaigns | US Client | Active Client | Opps | Licenses | Stage | Intent | Days Inactive
 
 #### Status Column (new in v23)
 - Per-account dropdown: **✓ Keep** (green), **👁 Monitor** (yellow), **✗ Drop** (red), **— ** (grey dash)
@@ -99,11 +102,13 @@ Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Workable
 - Filter chips: 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon in the top filter bar
 - Sortable column; `acctPriority` added to `ACCT_SORT_DEFAULT_DIR`
 
-#### Workables Column (reverted to count bubble in v29+)
-- Shows **purple count bubble** (`.wkbl-dot`) — reverted from name+title display back to compact bubble
-- Positioned between Score and Samples columns
-- **Clickable** — click bubble opens `#contact-preview-portal` showing a popover list of all non-archived workable contacts for that account, each with name, title, and stage pill
-- `getWorkableCount(name)` used for the count; grey dash if zero
+#### Campaigns Column (unified in v33)
+- **Replaced** the separate Workables / Samples / 6QA columns with a single **Campaigns** column using `renderCampCluster(name)`.
+- Shows **compact colored oval pills** (`.camp-oval`) — one per campaign with contacts, side-by-side in a single row (`.camp-cluster { flex-wrap:nowrap }`)
+- **8 campaigns:** Workables (purple `#7c3aed`) · Old Samples (green `#059669`) · 6QA (cyan `#0891b2`) · Churn (orange `#c2410c`) · Net New (blue `#2563eb`) · Multithread (amber `#92400e`) · Winback (rose `#be185d`) · Powerback (teal `#0f766e`)
+- Only campaigns with ≥1 contact show an oval; grey dash if none
+- **Clickable** — click any oval opens `#contact-preview-portal` via `openContactPreview(event, name, type)` for that specific campaign
+- `renderCampCluster(name)` — shared function used in Accounts table, Action table, Account page header stat strip
 - `getKeyWorkable(name)` still used by Action tab cards and Account page Key Contact field
 
 #### US Client Column (new in v23)
@@ -273,9 +278,15 @@ Company | Territory Dot | Opp | Stage | Action Headline | Next Date | Tier | Ver
 let actionView = 'cards';           // 'cards' | 'table'
 let actionStageFilters = new Set(); // stages to filter by (empty = show all except Tabled)
 let actionActiveClientFilter = false; // when true, only show accounts with active license
+let actionHasOppFilter = false;     // when true, only show accounts with an active opp
 let actionSortCol, actionSortDir;   // current sort
 const ACTION_STAGES = [...];        // 8 stage objects with val, label, emoji, color, bg
 ```
+
+#### Has Opp Filter Chip (v33)
+- **💼 Has Opp** chip in Action controls bar filters to accounts with `hasActiveOpp(name) || hasAnyContactOpp(name)` — shows both account-level and contact-level active opps
+- `toggleActionHasOppFilter()` — toggles `actionHasOppFilter` bool + `.active` class on `#action-filter-hasopp` chip, calls `renderAction()`
+- **Opp column sortable (v33):** Click Opp `<th>` → `setActionSortCol('opp')`. Sort logic: `av = hasActiveOpp||hasAnyContactOpp ? 1 : 0`. `ACTION_SORT_DEFAULT_DIR.opp = 'desc'`. Arrow tracked at `#axsort-opp`.
 
 #### ibis_local fields used by Action tab
 - `hasAction` (bool) — whether account is in the Action list
@@ -392,7 +403,45 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - **CAMPAIGN_DEFS entry:** `{ emoji:'🌱', label:'Net New', getCount: () => Object.values(netnew).length, onActivate: () => renderNetnew() }`
 - **Upload menu:** 🌱 Net New CSV row + `udot-netnew` dot + `netnew-file-input` file input + clear button
 
-### Dead Tab Features (v25, updated v31)
+### Multithread Campaign (v33)
+- **😎 Multithread** — sixth campaign under Campaigns tab. Same CSV schema as Old Samples/6QA/Churn/Net New (Account Name, First/Last Name, Title, Mailing Country, Email, Last Activity).
+- **Colors:** amber/brown — bg `#fef3c7`, text `#92400e`, count badge bg `#fde68a`
+- **`ibis_multithread`** localStorage key (same keyed-by-email pattern as all other campaigns)
+- **Key functions:** `loadMultithread()`, `saveMultithread()`, `handleMultithreadCSV()`, `mergeMultithread()`, `renderMultithread()`, `deleteMultithread()`, `clearMultithreadData()`, `getMultithreadCount(name)`
+- **Dead contacts:** `deadMultithreadContacts[]` — contacts missing from re-upload move here. `ibis_dead.multithreadContacts` array. Revivable via ↩ Revive button.
+- **Campaign cluster oval:** amber `#92400e` — shown in Accounts + Action tables + Account page header via `renderCampCluster()`
+- **CAMPAIGN_DEFS entry:** `{ emoji:'😎', label:'Multithread', getCount: () => Object.values(multithread).length, onActivate: () => renderMultithread() }`
+- **Upload menu:** 😎 Multithread CSV row + `udot-multithread` dot + `multithread-file-input` file input + clear button
+
+### Winback Campaign (v33)
+- **❄️ Winback** — seventh campaign under Campaigns tab. Same CSV schema.
+- **Colors:** rose/pink — bg `#fce7f3`, text `#be185d`, count badge bg `#fbcfe8`
+- **`ibis_winback`** localStorage key
+- **Key functions:** `loadWinback()`, `saveWinback()`, `handleWinbackCSV()`, `mergeWinback()`, `renderWinback()`, `deleteWinback()`, `clearWinbackData()`, `getWinbackCount(name)`
+- **Dead contacts:** `deadWinbackContacts[]` → `ibis_dead.winbackContacts`
+- **Campaign cluster oval:** rose `#be185d`
+- **CAMPAIGN_DEFS entry:** `{ emoji:'❄️', label:'Winback', getCount: () => Object.values(winback).length, onActivate: () => renderWinback() }`
+- **Upload menu:** ❄️ Winback CSV row + `udot-winback` dot + `winback-file-input` file input + clear button
+
+### Powerback Campaign (v33)
+- **🥶 Powerback** — eighth campaign under Campaigns tab. Same CSV schema.
+- **Colors:** teal — bg `#ccfbf1`, text `#0f766e`, count badge bg `#99f6e4`
+- **`ibis_powerback`** localStorage key
+- **Key functions:** `loadPowerback()`, `savePowerback()`, `handlePowerbackCSV()`, `mergePowerback()`, `renderPowerback()`, `deletePowerback()`, `clearPowerbackData()`, `getPowerbackCount(name)`
+- **Dead contacts:** `deadPowerbackContacts[]` → `ibis_dead.powerbackContacts`
+- **Campaign cluster oval:** teal `#0f766e`
+- **CAMPAIGN_DEFS entry:** `{ emoji:'🥶', label:'Powerback', getCount: () => Object.values(powerback).length, onActivate: () => renderPowerback() }`
+- **Upload menu:** 🥶 Powerback CSV row + `udot-powerback` dot + `powerback-file-input` file input + clear button
+
+### Campaign Cluster Widget (v33)
+- **`renderCampCluster(name)`** — universal function returning a row of compact colored oval pills for all 8 campaigns.
+- **CSS:** `.camp-cluster { display:inline-flex; align-items:center; gap:3px; flex-wrap:nowrap; }` — stays on one row always. `.camp-oval { height:20px; min-width:24px; border-radius:999px; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; cursor:pointer; }`
+- Only campaigns with ≥1 contact render an oval. Grey dash if all zero.
+- Each oval is clickable → `openContactPreview(event, name, type)` shows contact preview popover for that campaign.
+- **Used in 3 places:** Accounts table Campaigns column · Action table Campaigns column · Account page header stat strip
+- `openContactPreview()` handles all 8 campaign types via `type` string matching.
+
+### Dead Tab Features (v25, updated v33)
 - **Purpose:** Accounts/licenses/contacts that disappear from a re-upload CSV move here instead of silently vanishing
 - **Pill view switcher** — `⚰️ Accounts` / `🗂 Licenses` / `☠️ Contacts` buttons (not a dropdown), with live count badges
 - **Resurrection:** if an account/license reappears in a future CSV upload, it's removed from dead and returns to the live tab
@@ -401,9 +450,9 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - **⚠️ Unexpected drop warning:** accounts that died WITHOUT being marked as `drop` status get an orange ⚠️ flag and sort to top of the table — these are accounts that left your territory unexpectedly
 - **Status key note:** `_unexpectedDrop` is re-derived live in render as `statusKey !== 'drop'` — fixing any historical records that stored the wrong value
 - **Dead accounts columns:** ⚠️ | Status | Company | Vertical | Tier | Revenue | Score | Intent | Stage | Days Inactive | Dead Since (mirrors live Accounts table)
-- **Dead contacts (v31):** unified view showing `deadWorkableContacts + deadSampleContacts + deadSixqaContacts + deadChurnContacts`. Color-coded campaign badge per row. **↩ Revive** button restores contact to correct campaign store via `reviveDeadContact(email, campaign)`.
-- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
-- **State vars:** `let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadView = 'accounts'`
+- **Dead contacts (v31, updated v33):** unified view showing all dead campaign contacts. Color-coded campaign badge per row. **↩ Revive** button restores contact to correct campaign store via `reviveDeadContact(email, campaign)`.
+- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], powerbackContacts: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
+- **State vars:** `let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadMultithreadContacts = [], deadWinbackContacts = [], deadPowerbackContacts = [], deadView = 'accounts'`
 - **Key functions:** `saveDead()`, `loadDead()`, `updateDeadTabBadge()`, `renderDead()`, `renderDeadAccounts()`, `renderDeadLicenses()`, `renderDeadContacts()`, `reviveDeadContact(email, campaign)`, `setDeadView(v)`
 - **Section IDs:** `dead-accts-section`, `dead-lics-section`, `dead-contacts-section` — explicit IDs used for show/hide
 
@@ -897,7 +946,7 @@ When a new session begins, Claude Code should:
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented. |
 | 🗺️ Future | Old Samples: stage tracking | No stage dropdown yet. Could add simplified stages (Contacted / Responded etc) in future. |
 | 🗺️ Future | Old Samples: cards view | Table-only for now. Cards view deferred. |
-| 🗺️ Future | Campaigns: Winbacks campaign | Fifth campaign type — churned license accounts + lost contacts. |
+| ✅ Done | Campaigns: Winbacks/Multithread/Powerback | Three new campaigns added in v33. See above. |
 | 🗺️ Future | Workables sort persistence | Sort state for Workables table not yet saved to `ibis_sort`. |
 | 🗺️ Future | Opp dollar auto-format | Format sfAmt as currency on blur ($ prefix, comma separation). |
 | 🗺️ Future | Licenses dropdown overflow | Type/Status filter dropdowns get clipped when only 1–2 rows showing. Needs position:fixed dropdown. |
@@ -919,3 +968,9 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Outreach Extension: email compose integration | Pre-fill Outlook compose with contact name + template on click |
 | 🗺️ Future | Outreach Extension: activity logging | Log sent emails back to dashboard (surface in Workables tab) |
 | ✅ Done | Slash command worktree fix | `/end-session` Step 4b now deletes project history entry FIRST (before git worktree remove) so it's always gone even when session is inside the worktree. `/start-session` now auto-runs full cleanup (remove + branch delete + history delete) when stale worktrees are detected from the main folder. |
+| ✅ Done | Action tab: Has Opp filter chip + opp sort (v33) | `💼 Has Opp` chip in Action controls bar. `actionHasOppFilter` bool + `toggleActionHasOppFilter()`. Filters to `hasActiveOpp(name) || hasAnyContactOpp(name)`. Opp column header now sortable (`setActionSortCol('opp')`), sort tracked at `#axsort-opp`. |
+| ✅ Done | 3 new campaigns: Multithread / Winback / Powerback (v33) | 😎 Multithread (amber), ❄️ Winback (rose), 🥶 Powerback (teal). All have full function stacks, upload CSV rows, dead contact wiring, CAMPAIGN_DEFS entries. Same schema as all other campaigns. |
+| ✅ Done | Universal campaign cluster widget (v33) | `renderCampCluster(name)` — compact oval pills for all 8 campaigns. `.camp-oval` CSS. Replaced 3 separate columns (Workables/Samples/6QA) in Accounts table with one unified Campaigns column. Used in Accounts table, Action table, Account page header. Each oval clickable for preview. |
+| ✅ Done | Action tab design pass (v33) | Camp cluster `flex-wrap:nowrap` (ovals no longer stack vertically). Controls bar chips now wrap naturally (removed nowrap from `#controls-action`). Campaigns `<th>` min-width:110px. Opp badge padding 7→8px. Territory dot size 7→8px. |
+| 🗺️ Future | Campaigns: Winbacks campaign | NOW DONE as ❄️ Winback (v33). |
+| 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented for any campaign except workables. |
