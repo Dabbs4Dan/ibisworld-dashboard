@@ -143,9 +143,9 @@
   // for any non-ibisworld email address to find the recipient.
 
   function findContactForRow(row) {
-    // 1. Scan all elements' attributes for a non-own-domain email
+    // 1. Scan elements with likely email attributes (not every element — too slow)
     const checkAttrs = ['title', 'aria-label', 'data-email', 'href', 'data-address'];
-    for (const el of [row, ...row.querySelectorAll('*')]) {
+    for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
       for (const attr of checkAttrs) {
         const val = el.getAttribute(attr);
         if (!val || !val.includes('@')) continue;
@@ -503,13 +503,16 @@
   }
 
   // ── MutationObserver ──────────────────────────────────────────────────────────
+  // IMPORTANT: do NOT call updateFolderBadges() directly in onMutation.
+  // Setting styles on DOM elements triggers further mutations → infinite loop → freeze.
+  // Instead, debounce everything and use a heartbeat interval for badge persistence.
 
   function onMutation() {
-    // Folder badges: update immediately — fast and must survive Outlook re-renders
-    updateFolderBadges();
-    // Row badges: debounce — wait for DOM to settle after SPA navigation
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(scanEmailRows, DEBOUNCE_MS);
+    debounceTimer = setTimeout(() => {
+      updateFolderBadges();
+      scanEmailRows();
+    }, DEBOUNCE_MS);
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────────
@@ -519,6 +522,9 @@
     LOG('v3.3 init on', location.hostname);
     loadContactMap();
     setInterval(loadContactMap, 60_000);
+    // Heartbeat: re-inject folder badges every 600ms in case Outlook re-renders the nav.
+    // This keeps badges alive without causing mutation feedback loops.
+    setInterval(updateFolderBadges, 600);
     new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
     setTimeout(() => {
       LOG('Initial scan — title:', document.title);
