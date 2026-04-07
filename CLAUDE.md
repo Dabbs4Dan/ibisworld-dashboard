@@ -684,38 +684,50 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v2.0.0
-**Purpose:** Priority-based contact engine + email history layer on top of Outlook Web — companion to the dashboard
+**Version:** v3.4
+**Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
 | File | Purpose |
 |---|---|
 | `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
-| `content.js` | Injects collapsible sidebar into Outlook. Reads contacts from `chrome.storage.local` |
-| `sidebar.css` | All sidebar styles. DM Sans/Mono, #C8102E, #f0f2f5 — matches dashboard exactly |
-| `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Relays refresh messages to bridge.js |
-| `bridge.js` | Content script injected into dashboard page. Reads `ibis_opps` from localStorage → writes to `chrome.storage.local` as `outreach_contacts_raw` |
+| `content.js` | DOM overlay v3.4. Injects row badges + folder badges into Outlook. No sidebar. |
+| `overlay.css` | Minimal CSS for badge classes (most styles applied inline with `!important` to beat Outlook) |
+| `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. |
+| `bridge.js` | Content script on dashboard. Merges ALL 8 campaign stores → `chrome.storage.local.outreach_contacts_raw` |
+| `popup.html` | Simple "IBISWorld Overlay Active ✓" popup — no controls |
+| `config.js` | `IBIS_CONFIG.OVERDUE_DAYS = 3` — staleness threshold |
 
 ### How data flows
-1. User opens dashboard → `bridge.js` auto-pushes `ibis_opps` into `chrome.storage.local.outreach_contacts_raw`
-2. User opens Outlook → `content.js` reads `outreach_contacts_raw` → parses + displays contacts
-3. Refresh button → asks `background.js` → finds open dashboard tab → tells `bridge.js` to re-push
-4. CSV upload in dashboard → `bridge.js` detects `storage` event → auto-pushes updated data
+1. User opens dashboard → `bridge.js` merges all 8 campaign stores and pushes to `chrome.storage.local.outreach_contacts_raw`
+2. User opens Outlook campaign folder → `content.js` reads contact map, scans email rows, injects badges
+3. `bridge.js` polls every 3s for same-window changes; also listens for cross-tab storage events
+4. *(Future)* PA flow writes `contact_activity.json` to OneDrive → extension fetches → uses real sent dates
 
 ### Storage keys (chrome.storage.local)
-- `outreach_contacts_raw` — raw `ibis_opps` JSON string, written by bridge.js
+- `outreach_contacts_raw` — merged JSON of ALL 8 campaign contacts, written by bridge.js v1.3
 - `outreach_contacts_ts` — timestamp of last push
-- `ibis_sidebar_collapsed` — sidebar open/closed state
-- `ibis_badge_top` — vertical position of the collapse badge
+- *(Planned)* `outreach_email_cache` — `{ email → { lastSent, lastReceived, lastSubject, source } }` populated by PA flow
 
-### Sidebar UI
-- 300px right-anchored sidebar, IBISWorld red header
-- 3 campaign cards: 🎯 Workables · 🔄 Winbacks · 📋 Samples
-- 🎯 Workables: populated from `ibis_opps` — filters out `archived=true` and `stage='Lost'`
-- Contact rows: letter avatar (color by initial) · Name · Company · stage pill (dashboard colors)
-- Click contact → navigates Outlook to `from:[email]` search
-- Collapse badge: small red "I" square, pinned to right wall, drag up/down only
-- 🔄 refresh button in header — re-syncs from dashboard tab if open
+### DOM Overlay (content.js v3.4)
+- **Folder badges** — orange count pill on each campaign folder in the left nav (grey "0" when all clear). Counts overdue threads (≥ `OVERDUE_DAYS` days since last email in folder). Persisted via 1500ms heartbeat interval separate from the mutation observer.
+- **Row badges** — injected after the sender name on each email row:
+  - 🔴 **Staleness chip** — colored dot (green→amber→orange→red→crimson) + glow + "Nd" or "today". Dot color = days since last email filed in folder.
+  - 🏢 **Company bubble** — favicon + company name. For outgoing emails (From: Dan @ ibisworld.com), extracts recipient first name from preview greeting ("Hey Thomas,") and matches against contact map.
+- **Key functions:** `scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `injectRowBadges()`, `findFromElement()`
+- **Key design rule — mutation feedback loop prevention:** Never call DOM-mutating functions directly from MutationObserver callback. Both `updateFolderBadges()` and `scanEmailRows()` run inside a debounce timeout (700ms). Heartbeat uses `setInterval` independently.
+- **Re-entry guard:** `scanning` boolean flag prevents double-scans during Outlook re-renders.
+- **Folder count accuracy:** `scanEmailRows()` always counts overdue rows from ALL rows (not just newly-injected ones), so the folder badge never incorrectly resets to 0 after the first scan.
+- **Known limitation:** Staleness date = date of last email *filed in that folder*, not actual last outreach date. Tooltip says "Last email in this folder" to clarify. Fix requires the PA flow (see Open Items).
+
+### CAMPAIGN_FOLDERS constant
+```js
+['Workables', '6QA', 'Churns', 'Multithread', 'Winback', 'Old Samples', 'Net New']
+```
+Folder names must match Outlook folder names exactly (no emoji prefix — title detection uses `document.title` which strips emoji).
+
+### bridge.js v1.3 — all 8 campaigns
+Merges `ibis_opps`, `ibis_samples`, `ibis_6qa`, `ibis_churn`, `ibis_netnew`, `ibis_multithread`, `ibis_winback`, `ibis_powerback` into one flat contact map keyed by email. Previously only pushed `ibis_opps`, causing company bubbles to only appear for Workables contacts.
 
 ### Manifest URL patterns (all Outlook variants covered)
 - `https://outlook.live.com/*`
@@ -958,9 +970,10 @@ When a new session begins, Claude Code should:
 | ✅ Done | Outreach Extension: search fix | `navigateToContact` now uses `window.open(..., '_blank')` to open search in new tab — avoids breaking the cloud.microsoft SPA. |
 | ✅ Done | Outreach Extension v2.0: Priority Engine | Full rewrite. `config.js` for all settings. 3-view sidebar: Home → Contact List → Thread View. CORS fix: all email fetches route through background service worker. `allWorkables` (non-archived incl. Lost) used for Workables campaign count; `allContacts` (non-Lost) for Priority Engine. Diagnostic panel with token scope display. |
 | ✅ Done | Outreach Extension: Workables campaign fix | `allWorkables` array tracks all non-archived contacts (including Lost stage). Workables campaign card shows correct full count. Contact row clicks use correct pool (allWorkables vs allContacts). |
-| 🔥 BLOCKED | Outreach Extension: direct email API | IBISWorld tenant blocks all mail API paths — confirmed. Graph token scp = `openid profile user.read` only. All 5 approaches (OWA cloud.microsoft, OWA office365, Graph me/messages, Graph search/query, OWA Bearer) return 403/HTML. **Workaround path chosen: Power Automate → SF Activities → OneDrive JSON** (see below). Direct API unblocking requires IT (Azure AD app reg with Mail.Read). |
-| 🔴 Next | Outreach Extension: PA flow + extension wiring | Build `IBISWorld Contact Activity Sync` PA flow: recurrence trigger (every 2h) → Salesforce Get Records (Tasks, filter by WhoId populated) → compose `contact_activity.json` (one entry per contact email: lastSent, lastReceived, lastSubject, source:"powerautomate") → OneDrive Create/Update file in `IBISWorld Outreach/contact_activity.json`. Then update `config.js` with OneDrive share URL + update `content.js` to fetch + parse into `outreach_email_cache`. Export flow as zip → `/powerautomate-flows/contact-activity-sync.zip` in repo. |
-| ⚠️ Monitor | Outreach Extension: contact count | Workables card shows 0 until dashboard opened once (bridge.js pushes ibis_opps on load). |
+| 🔥 BLOCKED | Outreach Extension: direct email API | IBISWorld tenant blocks all mail API paths — confirmed. Graph token scp = `openid profile user.read` only. All 5 approaches (OWA cloud.microsoft, OWA office365, Graph me/messages, Graph search/query, OWA Bearer) return 403/HTML. Fix requires IT (Azure AD app reg with Mail.Read). Workaround: PA flow below. |
+| ✅ Done | Outreach Extension v3.x DOM overlay | Full rewrite of content.js — no sidebar, pure DOM overlay. Folder badge (orange count / grey 0). Row badges: staleness dot+glow+days chip, company bubble (from greeting text match). Mutation feedback loop fix (scanning guard + debounce). Bridge v1.3 pushes all 8 campaign stores. |
+| 🔴 Next | Outreach Extension: PA accurate-days flow | **Approach confirmed (simpler than abandoned accounts flow — no GitHub token needed):** PA flow `IBISWorld Contact Activity Sync`: Recurrence (every 2h) → Get emails (V3) from Sent Items, Top:500 → Select action: extract `{ to: recipient email, date: sentDateTime }` per email → Compose JSON array → Create/Update file in OneDrive as `contact_activity.json`. Extension: add OneDrive share URL to `manifest.json` host_permissions → fetch on init → build `{ email → maxSentDate }` map → use in `getDateFromRow()` instead of DOM date. Chrome extensions bypass CORS so OneDrive share link works directly (no relay/GitHub needed). Est. ~1.5h total. |
+| ⚠️ Monitor | Outreach Extension: company bubble accuracy | Works via greeting extraction ("Hey Thomas,") + contact map name match. Misses rows with "Hi there," openers or contacts not in any campaign store. Will improve once PA flow provides real email-to-contact mapping. |
 | 🗺️ Future | Outreach Extension: DOM scraper fallback | If Azure AD app registration isn't possible, build `scraper.js` content script that reads email list from Outlook DOM when user opens thread view. No API needed — reads rendered rows. Triggered on-click only (not background scan). |
 | 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
 | 🗺️ Future | Outreach Extension: Samples campaign | Define filter logic + contact list |
