@@ -1,31 +1,24 @@
 // =============================================================================
 // ARCHIVED CONTENT SCRIPT — v2 (sidebar + priority engine + Graph/OWA API)
-// Tabled in v3. Full implementation preserved in git history (commit bf60db7).
-// Reason: replaced with lightweight DOM overlay that needs no external APIs.
+// Tabled in v3. Full implementation preserved in git history (commit 9487fe9).
+// Reason: replaced with lightweight DOM overlay — no external APIs needed.
 // =============================================================================
 
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.0
+// IBISWorld Outreach — DOM Overlay v3.1
 // =============================================================================
 // Pure DOM overlay. Reads Outlook's rendered HTML. No external APIs.
 //
 // Feature A — Folder badge:
-//   Orange "N overdue" pill on each campaign folder in the left nav tree.
+//   Orange "N overdue" pill injected next to each campaign folder in the left nav.
 //   Count = threads in that folder where last activity >= OVERDUE_DAYS.
-//   Badge is cached per folder — updates each time you open the folder.
+//   Cached per-folder; refreshes each time you open the folder.
 //
 // Feature B — Row badges (shown when inside a campaign folder):
-//   Between "From" and "Subject" on each email row:
-//     • Colored dot + days chip  (green < 3d · orange 3-7d · red 8d+)
-//     • Company bubble: favicon + name, colored uniquely per domain
+//   Colored staleness dot + days count chip, plus a company name bubble.
+//   Injected between the From name and the Subject on each email row.
 //
-// Company data: tries chrome.storage (bridge.js contact map) for account names.
-// Falls back to guessing company from the sender's email domain.
-//
-// DOM selectors note:
-//   We use ARIA roles ([role="option"], [role="treeitem"]) which are stable
-//   across Outlook updates. The within-row injection point uses multiple
-//   fallback strategies — adjust INJECT_SELECTOR in config if layout shifts.
+// Debug: open DevTools console and filter by "[IBISWorld]" to see what's found.
 // =============================================================================
 
 (function () {
@@ -33,35 +26,21 @@
 
   // ── Config ──────────────────────────────────────────────────────────────────
 
-  const OVERDUE_DAYS = 3;         // Days of inactivity before a thread is "overdue"
-  const DEBOUNCE_MS  = 400;       // Observer debounce (ms) — Outlook re-renders constantly
+  const OVERDUE_DAYS = 3;
+  const DEBOUNCE_MS  = 400;
 
-  // Exact folder names as they appear in your Outlook left nav
+  // Must match folder names as they appear in Outlook.
+  // Emoji prefixes are fine — we use .includes(), not startsWith().
   const CAMPAIGN_FOLDERS = [
     'Workables', '6QA', 'Churns', 'Multithread', 'Winback', 'Old Samples', 'Net New',
   ];
 
-  // Selector for finding the "From" region within a row so we know where to inject.
-  // If badges appear in the wrong place after a UI update, tweak this.
-  // Strategy order: try each until one works.
-  const FROM_STRATEGIES = [
-    // Strategy 1: table-based layout — first <td>
-    (row) => row.querySelector('td:first-child'),
-    // Strategy 2: flex/grid — find the first short leaf-text span (likely sender name)
-    (row) => {
-      const spans = [...row.querySelectorAll('span, div')].filter(el =>
-        el.childElementCount === 0 &&
-        el.textContent.trim().length > 1 &&
-        el.textContent.trim().length < 60
-      );
-      return spans[0] || null;
-    },
-  ];
+  const LOG = (...a) => console.log('[IBISWorld]', ...a);
 
   // ── State ───────────────────────────────────────────────────────────────────
 
-  let contactMap    = {};  // sender email (lc) → { accountName, domain }
-  let folderCounts  = {};  // folderName → overdue count (cached on last visit)
+  let contactMap    = {};
+  let folderCounts  = {};
   let debounceTimer = null;
 
   // ── Context guard ────────────────────────────────────────────────────────────
@@ -71,7 +50,6 @@
   }
 
   // ── Contact map (from bridge.js via chrome.storage.local) ───────────────────
-  // Gives us accountName for known contacts — enhances the company bubble.
 
   function loadContactMap() {
     if (!ctxOk() || !chrome.storage) return;
@@ -82,18 +60,14 @@
         Object.values(raw).forEach(c => {
           if (!c.email) return;
           const e = c.email.toLowerCase().trim();
-          contactMap[e] = {
-            accountName: c.accountName || '',
-            domain:      e.split('@')[1] || '',
-          };
+          contactMap[e] = { accountName: c.accountName || '', domain: e.split('@')[1] || '' };
         });
+        LOG('Contact map:', Object.keys(contactMap).length, 'contacts loaded');
       } catch (_) {}
     });
   }
 
   // ── Date parsing ─────────────────────────────────────────────────────────────
-  // Outlook displays dates in the row's aria-label as human-readable strings.
-  // We parse those first (most reliable), then fall back to scanning child elements.
 
   const MONTHS_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -105,16 +79,12 @@
     str = str.trim();
     const now = new Date();
 
-    // Time string (today): "3:45 PM", "10:30"
-    if (/^\d{1,2}:\d{2}/.test(str) || /\d{1,2}:\d{2}\s*(am|pm)/i.test(str)) {
-      return new Date(now);
-    }
+    if (/\d{1,2}:\d{2}\s*(am|pm)/i.test(str) || /^\d{1,2}:\d{2}$/.test(str)) return new Date(now);
     if (/^today/i.test(str)) return new Date(now);
     if (/^yesterday/i.test(str)) {
       const d = new Date(now); d.setDate(d.getDate() - 1); return d;
     }
 
-    // Day of week: "Monday", "Mon" → earlier this week
     for (let i = 0; i < 7; i++) {
       if (str.startsWith(DAYS_LONG[i]) || str.startsWith(DAYS_SHORT[i])) {
         const d    = new Date(now);
@@ -124,12 +94,10 @@
       }
     }
 
-    // "April 7, 2025" / "Apr 7, 2025" / "Apr 7"
     for (let mi = 0; mi < 12; mi++) {
       if (str.startsWith(MONTHS_LONG[mi]) || str.startsWith(MONTHS_SHORT[mi])) {
         const d = new Date(str);
         if (!isNaN(d.getTime())) {
-          // No year in string → assume current year; push back one year if date is future
           if (!/\b20\d\d\b/.test(str)) {
             d.setFullYear(now.getFullYear());
             if (d > now) d.setFullYear(now.getFullYear() - 1);
@@ -139,7 +107,7 @@
       }
     }
 
-    // Numeric: "4/7/2025" or "4/7"
+    // Numeric: "4/7/2026", "3/30/2026"
     const num = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
     if (num) {
       const y    = num[3] ? parseInt(num[3]) : now.getFullYear();
@@ -156,11 +124,11 @@
     return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
   }
 
-  // Pull a date from an Outlook row's aria-label string.
-  // Example: "Laura Jimenez, SKO Recap, Monday, April 7, 2025, Has attachment"
+  // Extract a date from the row's aria-label string.
+  // Outlook packs date info in aria-label, e.g.:
+  //   "Daniel Starr, IBISWorld Sample Request, Yesterday, 1:13 PM, Has attachment"
   function dateFromAriaLabel(label) {
     if (!label) return null;
-    // Try patterns from most specific to least
     const patterns = [
       /\d{1,2}:\d{2}\s*(AM|PM)/i,
       /\bToday\b/i,
@@ -181,32 +149,81 @@
   }
 
   // ── Active folder detection ──────────────────────────────────────────────────
-  // Checks the main content heading and selected treeitem.
+  // Uses .includes() throughout — handles emoji-prefixed folder names like "🔥 6QA".
 
   function getActiveCampaignFolder() {
-    // Primary: look for a heading that matches a campaign folder name
-    const headings = document.querySelectorAll('[role="heading"], h1, h2');
-    for (const h of headings) {
-      const t = h.textContent.trim();
-      const match = CAMPAIGN_FOLDERS.find(f => t === f || t.startsWith(f + ' '));
-      if (match) return match;
+    // ── Strategy 1: browser tab title ──────────────────────────────────────────
+    // Most reliable. Outlook sets title = "FolderName - User - Outlook".
+    // Doesn't include emoji so clean text match works.
+    const title = document.title || '';
+    const fromTitle = CAMPAIGN_FOLDERS.find(f => title.includes(f));
+    if (fromTitle) {
+      LOG('Active folder (from title):', fromTitle);
+      return fromTitle;
     }
-    // Fallback: selected treeitem
-    const sel = document.querySelector(
-      '[role="treeitem"][aria-selected="true"], [role="treeitem"].is-selected'
-    );
-    if (sel) {
-      const t = sel.textContent.trim();
-      return CAMPAIGN_FOLDERS.find(f => t.startsWith(f)) || null;
+
+    // ── Strategy 2: visible heading elements ────────────────────────────────────
+    const headingEls = document.querySelectorAll('[role="heading"], h1, h2, h3');
+    for (const el of headingEls) {
+      const t = el.textContent.trim();
+      const match = CAMPAIGN_FOLDERS.find(f => t.includes(f));
+      if (match) {
+        LOG('Active folder (from heading):', match);
+        return match;
+      }
     }
+
+    // ── Strategy 3: selected/active treeitem ────────────────────────────────────
+    for (const item of document.querySelectorAll('[role="treeitem"]')) {
+      const isActive =
+        item.getAttribute('aria-selected') === 'true' ||
+        item.getAttribute('aria-current') === 'true'  ||
+        item.getAttribute('aria-current') === 'page';
+      if (!isActive) continue;
+      const t = item.textContent.trim();
+      const match = CAMPAIGN_FOLDERS.find(f => t.includes(f));
+      if (match) {
+        LOG('Active folder (from treeitem):', match);
+        return match;
+      }
+    }
+
+    LOG('Active folder: none detected. Title was:', title);
     return null;
+  }
+
+  // ── Get email rows ────────────────────────────────────────────────────────────
+  // Try selectors in order — new Outlook (cloud.microsoft) varies by version.
+
+  function getEmailRows() {
+    // Most common: listbox > option
+    let rows = [...document.querySelectorAll('[role="option"]')];
+    if (rows.length > 0) { LOG('Rows found via [role=option]:', rows.length); return rows; }
+
+    // Alternative: listitem with aria-label (some OWA versions)
+    rows = [...document.querySelectorAll('[role="listitem"][aria-label]')];
+    if (rows.length > 0) { LOG('Rows found via [role=listitem]:', rows.length); return rows; }
+
+    // New Outlook: conversation list items with data-convid
+    rows = [...document.querySelectorAll('[data-convid]')];
+    if (rows.length > 0) { LOG('Rows found via [data-convid]:', rows.length); return rows; }
+
+    // Last resort: any element with a long, date-containing aria-label
+    rows = [...document.querySelectorAll('[aria-label]')].filter(el => {
+      const label = el.getAttribute('aria-label') || '';
+      return label.length > 20 && dateFromAriaLabel(label) !== null;
+    });
+    if (rows.length > 0) { LOG('Rows found via aria-label scan:', rows.length); return rows; }
+
+    LOG('No email rows found. Check DOM structure in DevTools.');
+    return [];
   }
 
   // ── Folder nav badges ────────────────────────────────────────────────────────
 
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      const itemText  = item.textContent;
+      const itemText   = item.textContent || '';
       const folderName = CAMPAIGN_FOLDERS.find(f => itemText.includes(f));
       if (!folderName) return;
 
@@ -218,7 +235,8 @@
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'ibis-folder-badge';
-        // Inject next to the folder name text — find its direct text container
+        // Find the text node containing the folder name and inject after its parent element.
+        // Uses .includes() — handles emoji-prefixed names like "🔥 6QA".
         const labelEl = findFolderLabel(item, folderName);
         if (labelEl) labelEl.appendChild(badge);
         else item.appendChild(badge);
@@ -227,13 +245,12 @@
     });
   }
 
-  // Walk text nodes to find the smallest element containing the folder name.
-  // This avoids wrapping the entire treeitem (which includes child folder rows).
   function findFolderLabel(treeItem, folderName) {
     const walker = document.createTreeWalker(treeItem, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      if (node.textContent.trim().startsWith(folderName)) {
+      // Use .includes() not startsWith() — folder name may have emoji prefix
+      if (node.textContent.trim().includes(folderName)) {
         return node.parentElement;
       }
     }
@@ -244,20 +261,21 @@
 
   function scanEmailRows() {
     const activeFolder = getActiveCampaignFolder();
-    if (!activeFolder) return; // Only badge rows when inside a campaign folder
+    if (!activeFolder) return;
+
+    const rows = getEmailRows();
+    if (rows.length === 0) return;
 
     let overdueCount = 0;
 
-    document.querySelectorAll('[role="option"]').forEach(row => {
-      // Skip rows we've already badged this render cycle
-      if (row.querySelector('.ibis-row-badges')) return;
+    rows.forEach(row => {
+      if (row.querySelector('.ibis-row-badges')) return; // already badged this render
 
-      // ── 1. Extract date ──────────────────────────────────────────────────
+      // ── 1. Extract date ──────────────────────────────────────────────────────
       const ariaLabel = row.getAttribute('aria-label') || '';
       let date = dateFromAriaLabel(ariaLabel);
 
       if (!date) {
-        // Fallback A: <time> element
         const timeEl = row.querySelector('time');
         if (timeEl) {
           const dt = timeEl.getAttribute('datetime');
@@ -266,8 +284,8 @@
       }
 
       if (!date) {
-        // Fallback B: scan leaf text nodes for date-like strings
-        const leaves = [...row.querySelectorAll('span, div')].filter(
+        // Scan leaf text nodes for date-like short strings
+        const leaves = [...row.querySelectorAll('span, div, td')].filter(
           el => el.childElementCount === 0 && el.textContent.trim().length > 0
         );
         for (const el of leaves) {
@@ -280,17 +298,14 @@
       }
 
       const days = daysSince(date);
-      if (days === null) return; // Can't determine date — skip this row
+      if (days === null) return;
 
       const isOverdue = days >= OVERDUE_DAYS;
       if (isOverdue) overdueCount++;
 
-      // ── 2. Extract sender email (best-effort) ────────────────────────────
-      // Outlook sometimes puts the email in title/aria-label attributes.
-      // This succeeds often on hover-loaded rows; skips gracefully when absent.
+      // ── 2. Extract sender email (best-effort) ─────────────────────────────────
       let senderEmail = '';
-      const emailAttrEls = row.querySelectorAll('[title*="@"], [aria-label*="@"]');
-      for (const el of emailAttrEls) {
+      for (const el of row.querySelectorAll('[title*="@"], [aria-label*="@"]')) {
         const attr  = el.getAttribute('title') || el.getAttribute('aria-label') || '';
         const match = attr.match(/[\w.+'\-]+@[\w.\-]+\.[a-z]{2,}/i);
         if (match) { senderEmail = match[0].toLowerCase(); break; }
@@ -299,94 +314,116 @@
       const contact = senderEmail ? contactMap[senderEmail] : null;
       const domain  = senderEmail ? senderEmail.split('@')[1] : null;
 
-      // ── 3. Inject badges ─────────────────────────────────────────────────
-      injectRowBadges(row, days, isOverdue, contact, domain);
+      injectRowBadges(row, days, contact, domain);
     });
 
-    // Cache the count → folder badge will reflect it next updateFolderBadges() call
     folderCounts[activeFolder] = overdueCount;
     updateFolderBadges();
+    LOG(`Scanned ${rows.length} rows in "${activeFolder}": ${overdueCount} overdue`);
   }
 
   // ── Row badge injection ──────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, isOverdue, contact, domain) {
+  function injectRowBadges(row, days, contact, domain) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
 
-    // ── Staleness chip: colored dot + "Nd" ──────────────────────────────────
+    // Staleness chip
     const dotColor =
-      days === 0             ? '#16a34a' :   // green  — today
-      days < OVERDUE_DAYS    ? '#d97706' :   // orange — 1-2d
-      days < 8               ? '#dc2626' :   // red    — 3-7d (overdue)
-                               '#991b1b';    // dark red — 8d+ (very stale)
+      days === 0          ? '#16a34a' :
+      days < OVERDUE_DAYS ? '#d97706' :
+      days < 8            ? '#dc2626' :
+                            '#991b1b';
 
     const chip = document.createElement('span');
     chip.className = 'ibis-stale-chip';
-    chip.title     = `Last activity: ${days === 0 ? 'today' : days + ' day' + (days !== 1 ? 's' : '') + ' ago'}`;
+    chip.title = `Last activity: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
     chip.innerHTML =
       `<span class="ibis-dot" style="background:${dotColor}"></span>` +
       `<span class="ibis-days">${days === 0 ? 'today' : days + 'd'}</span>`;
     wrap.appendChild(chip);
 
-    // ── Company bubble: favicon + name, unique pastel color ─────────────────
-    const companyName = contact?.accountName || (domain ? domainToName(domain) : '');
-    const effectiveDomain = domain || (contact?.domain) || '';
+    // Company bubble
+    const companyName    = contact?.accountName || (domain ? domainToName(domain) : '');
+    const effectiveSeed  = domain || companyName;
 
     if (companyName) {
-      const { bg, color, border } = domainToColor(effectiveDomain || companyName);
-
+      const { bg, color, border } = domainToColor(effectiveSeed);
       const bubble = document.createElement('span');
       bubble.className = 'ibis-company-bubble';
       bubble.title     = companyName;
       bubble.style.cssText = `background:${bg};color:${color};border-color:${border}`;
 
-      if (effectiveDomain) {
-        const img    = document.createElement('img');
-        img.src      = `https://icons.duckduckgo.com/ip3/${effectiveDomain}.ico`;
+      if (domain) {
+        const img     = document.createElement('img');
+        img.src       = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
         img.className = 'ibis-co-logo';
-        img.onerror  = () => img.style.display = 'none';
+        img.onerror   = () => img.style.display = 'none';
         bubble.appendChild(img);
       }
 
       const nameEl      = document.createElement('span');
       nameEl.className  = 'ibis-co-name';
-      nameEl.textContent = companyName.length > 22
-        ? companyName.slice(0, 20) + '…'
-        : companyName;
+      nameEl.textContent = companyName.length > 22 ? companyName.slice(0, 20) + '…' : companyName;
       bubble.appendChild(nameEl);
       wrap.appendChild(bubble);
     }
 
-    // ── Find injection point: between From and Subject ───────────────────────
-    // Try each strategy in order until one finds a target.
-    let injected = false;
-    for (const strategy of FROM_STRATEGIES) {
-      const target = strategy(row);
-      if (target) {
-        // Insert wrap as sibling AFTER the From element
-        target.insertAdjacentElement('afterend', wrap);
-        injected = true;
-        break;
-      }
+    // ── Injection: find From cell and insert after it ─────────────────────────
+    // Strategy 1: table cell — classic OWA layout
+    const firstTd = row.querySelector('td');
+    if (firstTd) {
+      firstTd.appendChild(wrap);
+      return;
     }
-    if (!injected) row.appendChild(wrap);
+
+    // Strategy 2: find the From-name element.
+    // It's a short-text leaf node that doesn't look like a date or subject preview.
+    // In new Outlook rows the sender name is typically the first short text block.
+    const fromEl = findFromElement(row);
+    if (fromEl) {
+      // Insert wrap as a sibling after the From element's parent container
+      const parent = fromEl.parentElement;
+      if (parent && parent !== row) {
+        parent.insertAdjacentElement('afterend', wrap);
+      } else {
+        fromEl.insertAdjacentElement('afterend', wrap);
+      }
+      return;
+    }
+
+    // Fallback: prepend to row (always visible, positioning may be off)
+    row.prepend(wrap);
+  }
+
+  // Find the element most likely to be the sender name within a row.
+  function findFromElement(row) {
+    const allLeaves = [...row.querySelectorAll('span, div, p')].filter(el => {
+      if (el.childElementCount > 0) return false;
+      const t = el.textContent.trim();
+      return t.length > 1 && t.length < 55;
+    });
+
+    for (const el of allLeaves) {
+      const t = el.textContent.trim();
+      // Skip date-like strings
+      if (/^\d{1,2}(:|\/)|^(today|yesterday|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(t)) continue;
+      // Skip subject-preview-length text (usually 60+ chars) — we want the short From name
+      if (t.length > 55) continue;
+      return el;
+    }
+    return null;
   }
 
   // ── Utilities ────────────────────────────────────────────────────────────────
 
-  // Convert domain → human-readable company name guess
-  // "cloud.microsoft" → "Cloud Microsoft", "lyft.com" → "Lyft"
   function domainToName(domain) {
-    return domain
-      .replace(/^www\./, '')
-      .split('.')[0]
+    return domain.replace(/^www\./, '').split('.')[0]
       .replace(/[-_]/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  // Deterministic pastel color from a seed string (domain or company name).
-  // Same input always gives same color — no random flickering between renders.
+  // Deterministic pastel color from domain/company seed — same input = same color always.
   function domainToColor(seed) {
     let h = 5381;
     for (let i = 0; i < seed.length; i++) h = ((h << 5) + h) ^ seed.charCodeAt(i);
@@ -399,7 +436,6 @@
   }
 
   // ── MutationObserver ─────────────────────────────────────────────────────────
-  // Outlook's SPA re-renders constantly. Debounce keeps CPU cost minimal.
 
   function onMutation() {
     clearTimeout(debounceTimer);
@@ -413,15 +449,16 @@
 
   function init() {
     if (!ctxOk()) return;
+    LOG('Overlay v3.1 initialising on', location.hostname);
 
     loadContactMap();
-    setInterval(loadContactMap, 60 * 1000); // refresh contact map every minute
+    setInterval(loadContactMap, 60 * 1000);
 
     const observer = new MutationObserver(onMutation);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Initial scan — wait for Outlook to finish rendering
     setTimeout(() => {
+      LOG('Running initial scan...');
       updateFolderBadges();
       scanEmailRows();
     }, 1500);
@@ -430,7 +467,7 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
-    setTimeout(init, 500); // slight delay so Outlook SPA finishes mounting
+    setTimeout(init, 500);
   }
 
 })();
