@@ -301,23 +301,18 @@
   // ── Active folder detection ───────────────────────────────────────────────────
 
   function getActiveCampaignFolder() {
-    // Check page title first (most reliable for Outlook SPA)
     const fromTitle = CAMPAIGN_FOLDERS.find(f => document.title.includes(f));
     if (fromTitle) return fromTitle;
-    // Check heading elements
     for (const el of document.querySelectorAll('[role="heading"], h1, h2, h3')) {
-      const normed = normFolderName(el.textContent.trim());
-      const match = CAMPAIGN_FOLDERS.find(f => normed.toLowerCase() === f.toLowerCase());
+      const match = CAMPAIGN_FOLDERS.find(f => el.textContent.includes(f));
       if (match) return match;
     }
-    // Check active treeitem (selected folder in nav)
     for (const item of document.querySelectorAll('[role="treeitem"]')) {
       const isActive = item.getAttribute('aria-selected') === 'true' ||
                        item.getAttribute('aria-current') === 'true'  ||
                        item.getAttribute('aria-current') === 'page';
       if (!isActive) continue;
-      const normed = normFolderName(item.textContent.trim());
-      const match = CAMPAIGN_FOLDERS.find(f => normed.toLowerCase() === f.toLowerCase());
+      const match = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
       if (match) return match;
     }
     return null;
@@ -335,19 +330,9 @@
 
   // ── Folder nav badges ─────────────────────────────────────────────────────────
 
-  // Strip prefix symbols (★, →, ✓ etc.) and trailing numbers from folder display name
-  // so "★ 6QA" matches "6QA" but "Winback 2" does NOT match "Winback"
-  function normFolderName(text) {
-    return text.replace(/^[\s★→✓•\-–—]+/, '').trim();
-  }
-
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      // Use normalised text of the first leaf text node for precise matching
-      const rawText = (item.querySelector('span,div') || item).textContent.trim();
-      const normed  = normFolderName(rawText);
-      // Require the normed name to exactly equal a campaign folder name (case-insensitive)
-      const folderName = CAMPAIGN_FOLDERS.find(f => normed.toLowerCase() === f.toLowerCase());
+      const folderName = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
       if (!folderName) return;
 
       const count = folderCounts[folderName];
@@ -616,7 +601,14 @@
           const img = document.createElement('img');
           img.src = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
           img.style.cssText = 'width:12px;height:12px;border-radius:2px;flex-shrink:0;object-fit:contain';
-          img.onerror = () => { img.style.display = 'none'; };
+          // Fallback chain: DuckDuckGo → Google favicon API → hide
+          img.onerror = () => {
+            if (!img.dataset.tried) {
+              img.dataset.tried = '1';
+              img.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
+              img.onerror = () => { img.style.display = 'none'; };
+            }
+          };
           bubble.appendChild(img);
         }
 
@@ -714,7 +706,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.7 init on', location.hostname);
+    LOG('v3.8 init on', location.hostname);
     // Restore persisted folder counts so badges show before user visits each folder
     chrome.storage.local.get(['ibis_folder_counts'], (res) => {
       try {
