@@ -108,8 +108,12 @@
         typeof fromObj === 'string' ? fromObj :
         (fromObj?.emailAddress?.address || fromObj?.address || '')
       ).toLowerCase().trim();
-      // Only count emails Dan sent (outgoing = from ibisworld.com)
-      if (!fromEmail.endsWith('@' + OWN_DOMAIN)) return;
+      // Inbound emails (FROM = contact) → mark hasReplied, don't count as a sent step
+      if (!fromEmail.endsWith('@' + OWN_DOMAIN)) {
+        if (!map[fromEmail]) map[fromEmail] = { lastDate: null, count: 0, dates: [], hasReplied: true };
+        else map[fromEmail].hasReplied = true;
+        return;
+      }
       const dt = item.receivedDateTime || item.sentDateTime || item.date;
       if (!dt) return;
       // Deduplicate by email ID (same email can appear in campaign folder AND Sent Items)
@@ -303,7 +307,10 @@
   // Strip leading emoji/symbols so "🔥 6QA" → "6QA", "❄️ Winback" → "Winback"
   // Does NOT strip trailing text, so "Winback 3" stays "Winback 3" (no match to "Winback")
   function normFolder(text) {
-    return text.replace(/^[\s\p{Emoji}\p{So}\-–—★→✓•]+/u, '').trim();
+    return text
+      .replace(/^[\s\p{Emoji}\p{So}\-–—★→✓•]+/u, '') // strip leading emoji/symbols
+      .replace(/[\s\p{Emoji}\p{So}\-–—★→✓•]+$/u, '') // strip trailing (e.g. "6QA ☆" → "6QA")
+      .trim();
   }
 
   function exactFolderMatch(text) {
@@ -348,11 +355,30 @@
     return [...document.querySelectorAll('[data-convid]')];
   }
 
+  // ── Thread depth from Outlook DOM ────────────────────────────────────────────
+  // Outlook renders an expand button on threaded rows: aria-label="Expand conversation, 6 items"
+  // Use this as the thread count rather than PA total-sent count (which grows unbounded).
+
+  function getThreadCountFromDOM(row) {
+    for (const el of row.querySelectorAll('[aria-label]')) {
+      const label = el.getAttribute('aria-label') || '';
+      if (/expand|conversation/i.test(label)) {
+        const m = label.match(/(\d+)\s*(item|message)/i);
+        if (m) return parseInt(m[1], 10);
+      }
+    }
+    return 0;
+  }
+
   // ── Folder nav badges ─────────────────────────────────────────────────────────
 
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      const folderName = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
+      // Use aria-label with comma-split for precise matching.
+      // "❄️ Winback, 23 unread items" → "❄️ Winback" → normFolder → "Winback" → match ✓
+      // "→ Winback 3" or "Winback 3, 0 unread" → "Winback 3" → no match ✓ (won't bleed)
+      const ariaLabel = (item.getAttribute('aria-label') || '').split(',')[0].trim();
+      const folderName = ariaLabel ? exactFolderMatch(ariaLabel) : null;
       if (!folderName) return;
 
       const count = folderCounts[folderName];
@@ -479,9 +505,12 @@
         ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
         : null;
 
-      // Step count = total emails Dan has sent to this contact (from all sources)
+      // Thread count: prefer Outlook's own conversation depth from DOM (most accurate),
+      // fall back to PA cache count (total sent to this contact across all time).
       const resolvedEmail = storedEmail || '';
-      const stepCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
+      const domThreadCount = getThreadCountFromDOM(row);
+      const cacheCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
+      const stepCount = domThreadCount || cacheCount;
 
       row.dataset.ibisProcessed = '1';
       if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
@@ -578,6 +607,28 @@
         `<span style="font-size:10px;line-height:1">✉</span>` +
         `<span style="font-family:monospace;font-size:10px;font-weight:700;color:${stepColor}">${stepCount}</span>`;
       wrap.appendChild(stepChip);
+    }
+
+    // ── Reply indicator ──
+    // Green ↩ chip when the contact has sent at least one reply (detected from inbound
+    // emails in PA cache that were filed into campaign folders).
+    const cacheEntry = contactInfo?.email ? emailCache[contactInfo.email] : null;
+    if (cacheEntry?.hasReplied) {
+      const replyChip = document.createElement('span');
+      replyChip.title = 'Contact has replied';
+      p(replyChip, 'display',       'inline-flex');
+      p(replyChip, 'align-items',   'center');
+      p(replyChip, 'background',    '#f0fdf4');
+      p(replyChip, 'border',        '1px solid #86efac');
+      p(replyChip, 'border-radius', '999px');
+      p(replyChip, 'padding',       '1px 7px');
+      p(replyChip, 'font-size',     '11px');
+      p(replyChip, 'font-weight',   '700');
+      p(replyChip, 'color',         '#16a34a');
+      p(replyChip, 'white-space',   'nowrap');
+      p(replyChip, 'line-height',   '18px');
+      replyChip.textContent = '↩';
+      wrap.appendChild(replyChip);
     }
 
     // ── Company bubble ──
@@ -726,7 +777,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.9 init on', location.hostname);
+    LOG('v3.10 init on', location.hostname);
     // Restore persisted folder counts so badges show before user visits each folder
     chrome.storage.local.get(['ibis_folder_counts'], (res) => {
       try {
