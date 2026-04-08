@@ -17,6 +17,12 @@
   const DEBOUNCE_MS  = 700;
   const OWN_DOMAIN   = 'ibisworld.com';
 
+  // Personal/free email domains — never derive a company name from these
+  const PERSONAL_DOMAINS = new Set([
+    'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com',
+    'aol.com','live.com','msn.com','protonmail.com','me.com','mac.com',
+  ]);
+
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
   const CONTACT_ACTIVITY_URL = 'https://ibisworld-my.sharepoint.com/:u:/p/daniel_starr/IQAgzsMLkpwARZTTD2uMrM6MARtiLz5aePFycFYpNu1AKQ4?e=KtJvva&download=1';
@@ -129,7 +135,13 @@
     const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
     emailCache = map;
     emailCacheLoaded = true;
-    LOG('Email cache loaded:', Object.keys(emailCache).length, 'contacts');
+    const cacheKeys = Object.keys(emailCache);
+    LOG('Email cache loaded:', cacheKeys.length, 'contacts');
+    // Debug: log top 10 entries so you can verify counts + dates in console
+    cacheKeys.slice(0, 10).forEach(e => {
+      const v = emailCache[e];
+      LOG('  >', e, '→', v.count + 'x, last:', v.lastDate ? v.lastDate.slice(0, 10) : 'none');
+    });
     if (isFirstLoad) {
       document.querySelectorAll('[data-ibis-processed]').forEach(row => {
         row.removeAttribute('data-ibis-processed');
@@ -289,18 +301,23 @@
   // ── Active folder detection ───────────────────────────────────────────────────
 
   function getActiveCampaignFolder() {
+    // Check page title first (most reliable for Outlook SPA)
     const fromTitle = CAMPAIGN_FOLDERS.find(f => document.title.includes(f));
     if (fromTitle) return fromTitle;
+    // Check heading elements
     for (const el of document.querySelectorAll('[role="heading"], h1, h2, h3')) {
-      const match = CAMPAIGN_FOLDERS.find(f => el.textContent.includes(f));
+      const normed = normFolderName(el.textContent.trim());
+      const match = CAMPAIGN_FOLDERS.find(f => normed.toLowerCase() === f.toLowerCase());
       if (match) return match;
     }
+    // Check active treeitem (selected folder in nav)
     for (const item of document.querySelectorAll('[role="treeitem"]')) {
       const isActive = item.getAttribute('aria-selected') === 'true' ||
                        item.getAttribute('aria-current') === 'true'  ||
                        item.getAttribute('aria-current') === 'page';
       if (!isActive) continue;
-      const match = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
+      const normed = normFolderName(item.textContent.trim());
+      const match = CAMPAIGN_FOLDERS.find(f => normed.toLowerCase() === f.toLowerCase());
       if (match) return match;
     }
     return null;
@@ -318,9 +335,19 @@
 
   // ── Folder nav badges ─────────────────────────────────────────────────────────
 
+  // Strip prefix symbols (★, →, ✓ etc.) and trailing numbers from folder display name
+  // so "★ 6QA" matches "6QA" but "Winback 2" does NOT match "Winback"
+  function normFolderName(text) {
+    return text.replace(/^[\s★→✓•\-–—]+/, '').trim();
+  }
+
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      const folderName = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
+      // Use normalised text of the first leaf text node for precise matching
+      const rawText = (item.querySelector('span,div') || item).textContent.trim();
+      const normed  = normFolderName(rawText);
+      // Require the normed name to exactly equal a campaign folder name (case-insensitive)
+      const folderName = CAMPAIGN_FOLDERS.find(f => normed.toLowerCase() === f.toLowerCase());
       if (!folderName) return;
 
       const count = folderCounts[folderName];
@@ -397,6 +424,7 @@
     rows.forEach(row => {
       const alreadyProcessed = !!row.dataset.ibisProcessed;
       let storedEmail = row.dataset.ibisEmail || '';
+      let emailMatchedViaDOM = row.dataset.ibisMatchDom === '1'; // true = high confidence
 
       // ── Resolve email address ──
       // Priority: stored (from prior scan) → DOM attrs → date-based cache match
@@ -408,6 +436,7 @@
         if (found?.email) {
           storedEmail = found.email;
           cacheEntry = emailCache[storedEmail] || null;
+          emailMatchedViaDOM = true;
         }
       }
 
@@ -421,6 +450,7 @@
         if (matched) {
           storedEmail = matched;
           cacheEntry = emailCache[matched];
+          emailMatchedViaDOM = false; // date-matched = lower confidence
         }
       }
 
@@ -450,7 +480,8 @@
 
       row.dataset.ibisProcessed = '1';
       if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
-      injectRowBadges(row, days, contactInfo, stepCount);
+      if (emailMatchedViaDOM) row.dataset.ibisMatchDom = '1';
+      injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM);
     });
 
     folderCounts[activeFolder] = overdueCount;
@@ -463,7 +494,7 @@
 
   // ── Row badge injection ───────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, contactInfo, stepCount = 0) {
+  function injectRowBadges(row, days, contactInfo, stepCount = 0, highConfidence = false) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
     p(wrap, 'display',        'inline-flex');
@@ -545,10 +576,23 @@
     }
 
     // ── Company bubble ──
+    // Only show when we have real confidence in the match:
+    //   - High confidence (email found via DOM scan): show any company
+    //   - Low confidence (date-based match): only show if email is a known campaign contact
+    //     and NOT a personal domain (avoids wrong-company false positives)
     if (contactInfo) {
       const { contact, domain } = contactInfo;
-      // Priority: exact contact match → domain reverse-lookup (uses dashboard account names) → generic domain parse
-      const companyName = contact?.accountName || domainContactMap[domain] || domainToName(domain);
+      const isPersonalDomain = PERSONAL_DOMAINS.has(domain);
+      const isKnownContact = !!contact;
+      // Skip bubble if: low confidence match + personal domain with no contact entry
+      if (!highConfidence && !isKnownContact && isPersonalDomain) {
+        // No company bubble — can't reliably link this to a company
+      } else
+      // Also skip if: low confidence + not a known contact (domain-guessed company = unreliable)
+      if (!highConfidence && !isKnownContact) {
+        // Skip domain-guessed names for date-matched rows — too many false positives
+      } else {
+      const companyName = contact?.accountName || (!isPersonalDomain && (domainContactMap[domain] || domainToName(domain))) || '';
       if (companyName) {
         const bubble = document.createElement('span');
         bubble.title = companyName;
@@ -582,6 +626,7 @@
         bubble.appendChild(nameEl);
         wrap.appendChild(bubble);
       }
+      } // end else (show company)
     }
 
     // ── Inject after the sender name ──
@@ -669,7 +714,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.6 init on', location.hostname);
+    LOG('v3.7 init on', location.hostname);
     // Restore persisted folder counts so badges show before user visits each folder
     chrome.storage.local.get(['ibis_folder_counts'], (res) => {
       try {
