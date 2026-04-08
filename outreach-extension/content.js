@@ -300,20 +300,40 @@
 
   // ── Active folder detection ───────────────────────────────────────────────────
 
+  // Strip leading emoji/symbols so "🔥 6QA" → "6QA", "❄️ Winback" → "Winback"
+  // Does NOT strip trailing text, so "Winback 3" stays "Winback 3" (no match to "Winback")
+  function normFolder(text) {
+    return text.replace(/^[\s\p{Emoji}\p{So}\-–—★→✓•]+/u, '').trim();
+  }
+
+  function exactFolderMatch(text) {
+    const n = normFolder(text);
+    return CAMPAIGN_FOLDERS.find(f => n.toLowerCase() === f.toLowerCase()) || null;
+  }
+
   function getActiveCampaignFolder() {
-    const fromTitle = CAMPAIGN_FOLDERS.find(f => document.title.includes(f));
+    // 1. Title: Outlook sets title to "FolderName - Mail - ..." — most reliable
+    //    Split on " - " and check only the first segment for exact match
+    const titleSegment = document.title.split(/\s[–\-]\s/)[0].trim();
+    const fromTitle = exactFolderMatch(titleSegment);
     if (fromTitle) return fromTitle;
+
+    // 2. H1/heading (SPA sometimes lags on title update)
     for (const el of document.querySelectorAll('[role="heading"], h1, h2, h3')) {
-      const match = CAMPAIGN_FOLDERS.find(f => el.textContent.includes(f));
-      if (match) return match;
+      const m = exactFolderMatch(el.textContent.trim());
+      if (m) return m;
     }
+
+    // 3. Active treeitem — use aria-label first (most precise), then textContent
     for (const item of document.querySelectorAll('[role="treeitem"]')) {
       const isActive = item.getAttribute('aria-selected') === 'true' ||
                        item.getAttribute('aria-current') === 'true'  ||
                        item.getAttribute('aria-current') === 'page';
       if (!isActive) continue;
-      const match = CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f));
-      if (match) return match;
+      // aria-label often = "FolderName, N unread" — take just the name part
+      const label = (item.getAttribute('aria-label') || '').split(',')[0];
+      const m = exactFolderMatch(label || item.textContent.trim());
+      if (m) return m;
     }
     return null;
   }
@@ -706,7 +726,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.8 init on', location.hostname);
+    LOG('v3.9 init on', location.hostname);
     // Restore persisted folder counts so badges show before user visits each folder
     chrome.storage.local.get(['ibis_folder_counts'], (res) => {
       try {
