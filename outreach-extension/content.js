@@ -23,6 +23,17 @@
     'aol.com','live.com','msn.com','protonmail.com','me.com','mac.com',
   ]);
 
+  // Some companies use an email domain that differs from their public website.
+  // Map email domain → website domain for reliable favicon lookup.
+  // Add entries here as mismatches are discovered.
+  const FAVICON_DOMAIN_OVERRIDES = {
+    'lge.com': 'lg.com', // LG Electronics staff email → LG website
+  };
+
+  // Bump this constant whenever a fresh start for folder counts is needed.
+  // On version mismatch the persisted (potentially stale) counts are discarded.
+  const FC_VERSION = '3.12';
+
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
   const CONTACT_ACTIVITY_URL = 'https://ibisworld-my.sharepoint.com/:u:/p/daniel_starr/IQAgzsMLkpwARZTTD2uMrM6MARtiLz5aePFycFYpNu1AKQ4?e=KtJvva&download=1';
@@ -527,7 +538,7 @@
 
     folderCounts[activeFolder] = overdueCount;
     // Persist so badges show on other folders immediately without needing to click each one
-    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts) });
+    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
     updateFolderBadges();
     scanning = false;
     LOG(`"${activeFolder}": ${rows.length} rows, ${overdueCount} overdue`);
@@ -677,13 +688,15 @@
 
         if (domain) {
           const img = document.createElement('img');
-          img.src = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+          // Use override domain for favicon when email domain ≠ company website domain
+          const faviconDomain = FAVICON_DOMAIN_OVERRIDES[domain] || domain;
+          img.src = `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
           img.style.cssText = 'width:12px;height:12px;border-radius:2px;flex-shrink:0;object-fit:contain';
           // Fallback chain: DuckDuckGo → Google favicon API → hide
           img.onerror = () => {
             if (!img.dataset.tried) {
               img.dataset.tried = '1';
-              img.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
+              img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
               img.onerror = () => { img.style.display = 'none'; };
             }
           };
@@ -784,11 +797,14 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.11 init on', location.hostname);
-    // Restore persisted folder counts so badges show before user visits each folder
-    chrome.storage.local.get(['ibis_folder_counts'], (res) => {
+    LOG('v3.12 init on', location.hostname);
+    // Restore persisted folder counts only when version matches.
+    // Version bump (e.g. 3.11 → 3.12) clears any stale / poisoned counts automatically.
+    chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version'], (res) => {
       try {
-        if (res.ibis_folder_counts) Object.assign(folderCounts, JSON.parse(res.ibis_folder_counts));
+        if (res.ibis_fc_version === FC_VERSION && res.ibis_folder_counts) {
+          Object.assign(folderCounts, JSON.parse(res.ibis_folder_counts));
+        }
         updateFolderBadges();
       } catch (_) {}
     });
