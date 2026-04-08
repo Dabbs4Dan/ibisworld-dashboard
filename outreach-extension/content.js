@@ -32,7 +32,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.12';
+  const FC_VERSION = '3.13';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -133,15 +133,15 @@
         if (seenIds.has(item.id)) return;
         seenIds.add(item.id);
       }
-      // toRecipients may be a plain email string or an array — handle both
+      // toRecipients may be a plain string, "Name <email>" string, or array — handle all
       const toField = item.toRecipients;
       const recipients = Array.isArray(toField) ? toField : (typeof toField === 'string' ? [toField] : []);
       recipients.forEach(r => {
-        const em = (
-          typeof r === 'string' ? r :
-          (r?.emailAddress?.address || r?.address || '')
-        ).toLowerCase().trim();
-        if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
+        let raw = (typeof r === 'string' ? r : (r?.emailAddress?.address || r?.address || '')).trim();
+        // Handle "Display Name <email@domain.com>" format from some Outlook connectors
+        const angleMatch = raw.match(/<([^>@\s]+@[^>@\s]+)>/);
+        const em = (angleMatch ? angleMatch[1] : raw).toLowerCase().trim();
+        if (!em || !em.includes('@') || em.endsWith('@' + OWN_DOMAIN)) return;
         if (!map[em]) map[em] = { lastDate: dt, count: 0, dates: [] };
         if (!map[em].lastDate || dt > map[em].lastDate) map[em].lastDate = dt; // handle '' from inbound-first entries
         map[em].count++;
@@ -375,13 +375,30 @@
   // Use this as the thread count rather than PA total-sent count (which grows unbounded).
 
   function getThreadCountFromDOM(row) {
+    // 1. Row's own aria-label — Outlook sometimes puts "3 messages" or "3 items" here directly
+    const rowLabel = row.getAttribute('aria-label') || '';
+    let m = rowLabel.match(/\b(\d+)\s*(?:messages?|items?|emails?)\b/i);
+    if (m) return parseInt(m[1], 10);
+
+    // 2. Child element aria-labels — expand button, count badge, etc.
     for (const el of row.querySelectorAll('[aria-label]')) {
       const label = el.getAttribute('aria-label') || '';
+      // "Expand conversation, 3 items" / "Expand, 3 messages" / "3 items in conversation"
       if (/expand|conversation/i.test(label)) {
-        const m = label.match(/(\d+)\s*(item|message)/i);
-        if (m) return parseInt(m[1], 10);
+        m = label.match(/(\d+)/);
+        if (m && parseInt(m[1], 10) > 1) return parseInt(m[1], 10);
       }
+      // Pure count label: "3 messages" / "3 items"
+      m = label.match(/^(\d+)\s*(?:messages?|items?)\b/i);
+      if (m) return parseInt(m[1], 10);
     }
+
+    // 3. data-count / data-thread-count attributes on row or direct children
+    for (const el of [row, ...row.querySelectorAll('[data-count],[data-thread-count]')]) {
+      const c = parseInt(el.getAttribute('data-count') || el.getAttribute('data-thread-count') || '', 10);
+      if (c > 0) return c;
+    }
+
     return 0;
   }
 
@@ -797,7 +814,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.12 init on', location.hostname);
+    LOG('v3.13 init on', location.hostname);
     // Restore persisted folder counts only when version matches.
     // Version bump (e.g. 3.11 → 3.12) clears any stale / poisoned counts automatically.
     chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version'], (res) => {
