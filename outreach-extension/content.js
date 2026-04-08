@@ -110,7 +110,8 @@
       ).toLowerCase().trim();
       // Inbound emails (FROM = contact) → mark hasReplied, don't count as a sent step
       if (!fromEmail.endsWith('@' + OWN_DOMAIN)) {
-        if (!map[fromEmail]) map[fromEmail] = { lastDate: null, count: 0, dates: [], hasReplied: true };
+        // Inbound reply — mark hasReplied. Use '' not null so date comparisons work correctly.
+        if (!map[fromEmail]) map[fromEmail] = { lastDate: '', count: 0, dates: [], hasReplied: true };
         else map[fromEmail].hasReplied = true;
         return;
       }
@@ -131,7 +132,7 @@
         ).toLowerCase().trim();
         if (!em || em.endsWith('@' + OWN_DOMAIN)) return;
         if (!map[em]) map[em] = { lastDate: dt, count: 0, dates: [] };
-        if (dt > map[em].lastDate) map[em].lastDate = dt;
+        if (!map[em].lastDate || dt > map[em].lastDate) map[em].lastDate = dt; // handle '' from inbound-first entries
         map[em].count++;
         map[em].dates.push(dt); // store all dates for row-to-contact matching
       });
@@ -307,9 +308,12 @@
   // Strip leading emoji/symbols so "🔥 6QA" → "6QA", "❄️ Winback" → "Winback"
   // Does NOT strip trailing text, so "Winback 3" stays "Winback 3" (no match to "Winback")
   function normFolder(text) {
+    // IMPORTANT: use \p{Extended_Pictographic} NOT \p{Emoji}.
+    // \p{Emoji} includes ASCII digits 0-9 (because 1️⃣ etc. exist), which would strip
+    // the "6" from "6QA". \p{Extended_Pictographic} only matches actual pictographic emoji.
     return text
-      .replace(/^[\s\p{Emoji}\p{So}\-–—★→✓•]+/u, '') // strip leading emoji/symbols
-      .replace(/[\s\p{Emoji}\p{So}\-–—★→✓•]+$/u, '') // strip trailing (e.g. "6QA ☆" → "6QA")
+      .replace(/^[\s\p{Extended_Pictographic}\p{So}\-–—★→✓•]+/u, '') // strip leading
+      .replace(/[\s\p{Extended_Pictographic}\p{So}\-–—★→✓•]+$/u, '') // strip trailing ☆ etc.
       .trim();
   }
 
@@ -375,10 +379,13 @@
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
       // Use aria-label with comma-split for precise matching.
-      // "❄️ Winback, 23 unread items" → "❄️ Winback" → normFolder → "Winback" → match ✓
-      // "→ Winback 3" or "Winback 3, 0 unread" → "Winback 3" → no match ✓ (won't bleed)
+      // Primary: aria-label exact match — "❄️ Winback, 23 unread" → "Winback" ✓
+      //   Also excludes "→ Winback 3, 0 unread" → "Winback 3" → no match ✓
+      // Fallback: textContent .includes() for Outlook builds without aria-label attributes.
       const ariaLabel = (item.getAttribute('aria-label') || '').split(',')[0].trim();
-      const folderName = ariaLabel ? exactFolderMatch(ariaLabel) : null;
+      const folderName = (ariaLabel ? exactFolderMatch(ariaLabel) : null)
+                      || CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f))
+                      || null;
       if (!folderName) return;
 
       const count = folderCounts[folderName];
@@ -777,7 +784,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.10 init on', location.hostname);
+    LOG('v3.11 init on', location.hostname);
     // Restore persisted folder counts so badges show before user visits each folder
     chrome.storage.local.get(['ibis_folder_counts'], (res) => {
       try {
