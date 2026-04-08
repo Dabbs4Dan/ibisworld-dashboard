@@ -28,6 +28,7 @@
   const LOG = (...a) => console.log('[IBISWorld]', ...a);
 
   let contactMap       = {};
+  let domainContactMap = {}; // domain → accountName (built from contactMap for fallback lookup)
   let folderCounts     = {};
   let debounceTimer    = null;
   let scanning         = false; // re-entry guard — prevents mutation feedback loops
@@ -55,7 +56,14 @@
             name:        c.name || '',
           };
         });
-        LOG('Contact map:', Object.keys(contactMap).length, 'contacts');
+        // Build domain → accountName reverse lookup for rows where we only have the domain
+        domainContactMap = {};
+        Object.values(contactMap).forEach(c => {
+          if (c.domain && c.accountName && !domainContactMap[c.domain]) {
+            domainContactMap[c.domain] = c.accountName;
+          }
+        });
+        LOG('Contact map:', Object.keys(contactMap).length, 'contacts,', Object.keys(domainContactMap).length, 'domains');
       } catch (_) {}
     });
   }
@@ -483,7 +491,7 @@
                             'rgba(159,18,57,0.45)';
 
     const dayLabel = days === 0 ? 'today' : days + 'd';
-    const tooltip  = `Last email in this folder: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
+    const tooltip  = `Last email sent: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}${emailCacheLoaded ? ' (PA data)' : ' (Outlook date)'}`;
 
     const chip = document.createElement('span');
     chip.title = tooltip;
@@ -539,7 +547,8 @@
     // ── Company bubble ──
     if (contactInfo) {
       const { contact, domain } = contactInfo;
-      const companyName = contact?.accountName || domainToName(domain);
+      // Priority: exact contact match → domain reverse-lookup (uses dashboard account names) → generic domain parse
+      const companyName = contact?.accountName || domainContactMap[domain] || domainToName(domain);
       if (companyName) {
         const bubble = document.createElement('span');
         bubble.title = companyName;
@@ -647,17 +656,20 @@
 
   function onMutation() {
     clearTimeout(debounceTimer);
+    // 350ms: halves the visible flicker window vs 700ms while still preventing
+    // mutation feedback loops (badges injected inside setTimeout, not directly
+    // from the observer callback).
     debounceTimer = setTimeout(() => {
       updateFolderBadges();
       scanEmailRows();
-    }, DEBOUNCE_MS);
+    }, 350);
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.5 init on', location.hostname);
+    LOG('v3.6 init on', location.hostname);
     // Restore persisted folder counts so badges show before user visits each folder
     chrome.storage.local.get(['ibis_folder_counts'], (res) => {
       try {
