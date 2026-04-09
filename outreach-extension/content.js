@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.18
+// IBISWorld Outreach — DOM Overlay v3.20
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -14,7 +14,6 @@
   'use strict';
 
   const OVERDUE_DAYS = 3;
-  const DEBOUNCE_MS  = 700;
   const OWN_DOMAIN   = 'ibisworld.com';
 
   // Personal/free email domains — never derive a company name from these
@@ -32,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.16';
+  const FC_VERSION = '3.20';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -48,11 +47,12 @@
   let domainContactMap = {}; // domain → accountName (built from contactMap for fallback lookup)
   let folderCounts     = {};
   let debounceTimer    = null;
-  let scanning         = false; // re-entry guard — prevents mutation feedback loops
-  let emailCache       = {};    // email (lowercase) → ISO date string (last PA-confirmed sent)
-  let emailCacheLoaded = false; // true once cache has been successfully populated
-  let cacheRetryCount  = 0;    // how many times loadEmailCache has been retried after failure
-  let lastScanTime     = 0;    // timestamp of last completed scan — prevents scan spam
+  let scanning         = false;   // re-entry guard — prevents mutation feedback loops
+  let emailCache       = {};      // email (lowercase) → { lastDate, count, dates[], hasReplied }
+  let emailCacheLoaded = false;   // true once cache has been successfully populated
+  let cacheRetryCount  = 0;      // how many times loadEmailCache has been retried after failure
+  let lastScanTime     = 0;      // timestamp of last completed scan — prevents scan spam
+  let lastActiveFolder = null;   // tracks folder nav changes so we can strip stale badges
 
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
@@ -204,32 +204,48 @@
   }
 
   function findEmailByDate(rowDate, preferFolder) {
-    // Folder-preferred date matching. Two-pass approach:
-    //   Pass 1: among cache entries where contact._folder === preferFolder, find closest date match.
-    //   Pass 2: if pass 1 found nothing, search globally (all cache entries regardless of folder).
-    // This fixes cross-folder date collisions (e.g. Dajin/LG and Elise/Cégep both emailed on
-    // March 25 — when in 6QA folder, Dajin wins because Dajin's _folder is '6QA').
-    // Graceful degradation: if _folder data isn't available yet (folder = null for all contacts),
-    // pass 1 finds nothing and pass 2 runs the full global search — same as v3.16.
+    // Folder-strict date matching. Three-pass approach:
+    //   Pass 1 (folderBest):   contacts whose _folder === preferFolder — highest confidence.
+    //   Pass 2 (noFolderBest): contacts with no _folder assignment yet — acceptable fallback.
+    //   Pass 3 (globalBest):   any cache entry regardless of folder — legacy / no-data fallback.
+    //
+    // When bridge has pushed _folder data (hasFolderData = true):
+    //   Return folderBest || noFolderBest — NEVER return a contact from a *different* folder.
+    //   This prevents cross-folder date collisions (e.g. Dajin/LG in 6QA and Elise/Cégep in
+    //   Workables both emailed on Mar 25 — without this guard, Elise was returned for Dajin's row).
+    //
+    // When bridge has NOT pushed _folder data yet (all _folder = null):
+    //   hasFolderData = false → return globalBest (same as v3.16 — best effort, no false-folder risk).
     if (!rowDate || !emailCacheLoaded) return null;
     const rowStr = localDateStr(rowDate);
 
-    let globalBest = null, globalDiff = Infinity;
-    let folderBest = null, folderDiff = Infinity;
+    const hasFolderData = Object.values(contactMap).some(c => c._folder);
+
+    let globalBest = null,   globalDiff   = Infinity;
+    let folderBest = null,   folderDiff   = Infinity;
+    let noFolderBest = null, noFolderDiff = Infinity;
 
     for (const [email, entry] of Object.entries(emailCache)) {
-      const c = contactMap[email];
-      const inFolder = preferFolder && c?._folder === preferFolder;
+      const c       = contactMap[email];
+      const cFolder = c?._folder || null;
+      const inFolder       = preferFolder && cFolder === preferFolder;
+      const noFolderAssign = !cFolder; // in cache but no folder tag yet
+
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
         if (isNaN(dt.getTime())) continue;
         if (localDateStr(dt) !== rowStr) continue;
         const diff = Math.abs(dt.getTime() - rowDate.getTime());
-        if (diff < globalDiff) { globalDiff = diff; globalBest = email; }
-        if (inFolder && diff < folderDiff) { folderDiff = diff; folderBest = email; }
+        if (diff < globalDiff)   { globalDiff   = diff; globalBest   = email; }
+        if (inFolder       && diff < folderDiff)   { folderDiff   = diff; folderBest   = email; }
+        if (noFolderAssign && diff < noFolderDiff) { noFolderDiff = diff; noFolderBest = email; }
       }
     }
-    return folderBest || globalBest;
+
+    // When folder data is available: strict matching — never return a different-folder contact.
+    if (hasFolderData) return folderBest || noFolderBest;
+    // No folder data yet: global search (bridge hasn't pushed, legacy graceful degradation).
+    return globalBest;
   }
 
   // ── Date parsing ──────────────────────────────────────────────────────────────
@@ -499,10 +515,13 @@
       if (count === undefined) return; // not scanned yet — show nothing
 
       let badge = item.querySelector('.ibis-folder-badge');
+      const isOverdue = count > 0;
+      const countStr  = String(count);
 
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'ibis-folder-badge';
+        badge.dataset.ibisOverdue = String(isOverdue);
 
         item.style.setProperty('position', 'relative', 'important');
         // Force overflow visible up the ancestor chain
@@ -513,13 +532,22 @@
           node = node.parentElement;
         }
 
-        applyFolderBadgeStyle(badge, count > 0);
+        applyFolderBadgeStyle(badge, isOverdue);
+        badge.textContent = countStr;  // set before appendChild to avoid second mutation
         item.appendChild(badge);
-      } else {
-        applyFolderBadgeStyle(badge, count > 0);
+        return; // newly created — nothing more to update
       }
 
-      badge.textContent = String(count);
+      // Only mutate the DOM when the displayed value has actually changed.
+      // Setting textContent even to the same string creates a childList mutation,
+      // which re-triggers the MutationObserver → infinite scan loop. Guard prevents this.
+      if (badge.dataset.ibisOverdue !== String(isOverdue)) {
+        badge.dataset.ibisOverdue = String(isOverdue);
+        applyFolderBadgeStyle(badge, isOverdue);
+      }
+      if (badge.textContent !== countStr) {
+        badge.textContent = countStr;
+      }
     });
   }
 
@@ -565,6 +593,22 @@
 
     const activeFolder = getActiveCampaignFolder();
     if (!activeFolder) return; // silently skip — no log spam when on non-folder pages
+
+    // When the user navigates to a different campaign folder, strip all stale row badges
+    // and row-processed markers so rows are re-matched against the current email cache.
+    // Without this, rows processed before the cache loaded (or from a prior folder visit)
+    // keep their wrong data-ibis-processed stamp and never get re-evaluated.
+    if (activeFolder !== lastActiveFolder) {
+      LOG(`Folder change: "${lastActiveFolder}" → "${activeFolder}" — stripping stale badges`);
+      document.querySelectorAll('[data-ibis-processed]').forEach(row => {
+        row.removeAttribute('data-ibis-processed');
+        row.removeAttribute('data-ibis-email');
+        row.removeAttribute('data-ibis-match-dom');
+        const badge = row.querySelector('.ibis-row-badges');
+        if (badge) badge.remove();
+      });
+      lastActiveFolder = activeFolder;
+    }
 
     const rows = getEmailRows();
     if (!rows.length) return;
@@ -917,7 +961,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.18',
+        version: '3.20',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -984,7 +1028,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.18 init on', location.hostname);
+    LOG('v3.20 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
