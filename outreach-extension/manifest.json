@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IBISWorld Outreach",
-  "version": "3.28.0",
+  "version": "3.29.0",
   "description": "Outlook DOM overlay — staleness badges on campaign folders and email rows.",
   "content_scripts": [
     {

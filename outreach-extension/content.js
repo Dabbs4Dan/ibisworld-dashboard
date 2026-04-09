@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.28
+// IBISWorld Outreach — DOM Overlay v3.29
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -32,7 +32,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.28';
+  const FC_VERSION = '3.29';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -240,57 +240,50 @@
   }
 
   function findEmailByDate(rowDate, preferFolder) {
-    // Folder-strict date matching. Three-pass approach:
-    //   Pass 1 (folderBest):   contacts whose _folder === preferFolder — highest confidence.
-    //   Pass 2 (noFolderBest): contacts with no _folder assignment yet — acceptable fallback.
-    //   Pass 3 (globalBest):   any cache entry regardless of folder — legacy / no-data fallback.
+    // Folder-STRICT date matching (v3.29+).
     //
-    // When bridge has pushed _folder data (hasFolderData = true):
-    //   Return folderBest || noFolderBest — NEVER return a contact from a *different* folder.
-    //   This prevents cross-folder date collisions (e.g. Dajin/LG in 6QA and Elise/Cégep in
-    //   Workables both emailed on Mar 25 — without this guard, Elise was returned for Dajin's row).
+    // With 107+ contacts in the PA cache, date collisions are very common — many contacts
+    // are emailed on the same day. The old "noFolderBest" fallback allowed ANY untagged
+    // contact (in Sent Items but not in any dashboard campaign) to match into any folder,
+    // producing completely wrong company bubbles (e.g. Gmail/Evergreen in LG's 6QA row).
     //
-    // When bridge has NOT pushed _folder data yet (all _folder = null):
-    //   hasFolderData = false → return globalBest (same as v3.16 — best effort, no false-folder risk).
+    // Rule: ONLY return a contact whose _folders includes the active folder.
+    //       If no such contact matches, return null — show staleness only, no company bubble.
+    //       Never return untagged contacts; never return contacts from other folders.
+    //
+    // Exception: when bridge hasn't pushed any _folders data yet (hasFolderData = false),
+    //            fall back to globalBest so the extension isn't completely dark on first load.
     if (!rowDate || !emailCacheLoaded) return null;
 
-    // Calendar-day of the row date (midnight UTC equivalent for comparison)
+    // Calendar-day of the row date
     const rowDayMs = new Date(rowDate.getFullYear(), rowDate.getMonth(), rowDate.getDate()).getTime();
 
     // hasFolderData: true once bridge v1.4 has pushed _folders data.
-    // Contacts with empty _folders array count as "no folder data yet".
     const hasFolderData = Object.values(contactMap).some(c => c._folders && c._folders.length > 0);
 
-    let globalBest = null,   globalDiff   = Infinity;
-    let folderBest = null,   folderDiff   = Infinity;
-    let noFolderBest = null, noFolderDiff = Infinity;
+    let folderBest = null, folderDiff = Infinity;
+    let globalBest = null, globalDiff = Infinity; // only used when hasFolderData = false
 
     for (const [email, entry] of Object.entries(emailCache)) {
       const c        = contactMap[email];
       const cFolders = c?._folders || [];
-      // inFolder: contact is tagged to the active folder — highest confidence match
-      const inFolder       = preferFolder && cFolders.includes(preferFolder);
-      // noFolderAssign: in PA cache but bridge hasn't assigned any folder yet
-      const noFolderAssign = cFolders.length === 0;
+      const inFolder = preferFolder && cFolders.includes(preferFolder);
 
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
         if (isNaN(dt.getTime())) continue;
-        // Allow ±1 calendar day tolerance — Outlook displays emails < 24h as a time string
-        // which parseOutlookDate converts to "today", while PA cache has yesterday's date.
+        // ±1 calendar day tolerance — Outlook shows time-strings for <24h emails, parsed as "today",
+        // while PA cache stores the actual send date (yesterday). Without tolerance Kyri never matches.
         const dtDayMs = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-        if (Math.abs(dtDayMs - rowDayMs) > 86400000) continue; // > 1 calendar day apart
+        if (Math.abs(dtDayMs - rowDayMs) > 86400000) continue;
         const diff = Math.abs(dt.getTime() - rowDate.getTime());
-        if (diff < globalDiff)   { globalDiff   = diff; globalBest   = email; }
-        if (inFolder       && diff < folderDiff)   { folderDiff   = diff; folderBest   = email; }
-        if (noFolderAssign && diff < noFolderDiff) { noFolderDiff = diff; noFolderBest = email; }
+        if (inFolder && diff < folderDiff) { folderDiff = diff; folderBest = email; }
+        if (!hasFolderData && diff < globalDiff) { globalDiff = diff; globalBest = email; }
       }
     }
 
-    // When folder data is available: strict matching — never return a different-folder contact.
-    if (hasFolderData) return folderBest || noFolderBest;
-    // No folder data yet: global search (bridge hasn't pushed, legacy graceful degradation).
-    return globalBest;
+    // Strict: only return folder-matched contacts. Null = show staleness only, no company bubble.
+    return hasFolderData ? folderBest : globalBest;
   }
 
   // ── Date parsing ──────────────────────────────────────────────────────────────
@@ -1008,7 +1001,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.28',
+        version: '3.29',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1075,7 +1068,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.28 init on', location.hostname);
+    LOG('v3.29 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
