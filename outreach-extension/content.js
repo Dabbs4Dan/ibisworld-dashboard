@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.23
+// IBISWorld Outreach — DOM Overlay v3.24
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.23';
+  const FC_VERSION = '3.24';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -499,10 +499,12 @@
       if (days === null || days < OVERDUE_DAYS) return;
       const c = contactMap[email];
       if (!c?._folders?.length) return;
-      // A contact can belong to multiple folders — increment count for each
-      c._folders.forEach(folder => {
-        if (counts[folder] !== undefined) counts[folder]++;
-      });
+      // Only count towards the contact's PRIMARY folder (_folders[0]).
+      // A contact in multiple campaigns (e.g. Workables + Old Samples) would
+      // otherwise inflate every folder they belong to — including empty Outlook
+      // folders that have never received emails from this contact.
+      const primaryFolder = c._folders[0];
+      if (counts[primaryFolder] !== undefined) counts[primaryFolder]++;
     });
 
     // Update folder counts from cache — but NEVER overwrite the currently active folder.
@@ -851,7 +853,12 @@
     if (contactInfo) {
       const { contact, domain } = contactInfo;
       const isPersonalDomain = PERSONAL_DOMAINS.has(domain);
+      // Company name priority:
+      // 1. contactMap accountName (exact match from dashboard campaign store — most reliable)
+      // 2. domainContactMap lookup (another campaign contact shares the domain → same company)
+      // 3. domainToName() generic guess (only for high-confidence DOM-scanned emails, non-personal)
       const companyName = contact?.accountName
+        || (!isPersonalDomain && domainContactMap[domain])
         || (highConfidence && !isPersonalDomain ? domainToName(domain) : '')
         || '';
       if (companyName) {
@@ -1057,7 +1064,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.23 init on', location.hostname);
+    LOG('v3.24 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
