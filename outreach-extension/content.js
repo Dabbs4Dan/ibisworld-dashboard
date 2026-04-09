@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.21
+// IBISWorld Outreach — DOM Overlay v3.22
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.21';
+  const FC_VERSION = '3.22';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -443,9 +443,10 @@
   // Use this as the thread count rather than PA total-sent count (which grows unbounded).
 
   function getThreadCountFromDOM(row) {
-    // 1. Row's own aria-label — Outlook sometimes puts "3 messages" or "3 items" here directly
+    // 1. Row's own aria-label — scan for any number followed by message/item count words.
+    //    Outlook cloud.microsoft format: "Subject. From. N messages. Date." or similar.
     const rowLabel = row.getAttribute('aria-label') || '';
-    let m = rowLabel.match(/\b(\d+)\s*(?:messages?|items?|emails?)\b/i);
+    let m = rowLabel.match(/\b(\d+)\s*(?:messages?|items?|emails?|conversations?)\b/i);
     if (m) return parseInt(m[1], 10);
 
     // 2. Child element aria-labels — expand button, count badge, etc.
@@ -465,6 +466,17 @@
     for (const el of [row, ...row.querySelectorAll('[data-count],[data-thread-count]')]) {
       const c = parseInt(el.getAttribute('data-count') || el.getAttribute('data-thread-count') || '', 10);
       if (c > 0) return c;
+    }
+
+    // 4. Outlook new UI: small text nodes that are just a number (thread count badge)
+    //    e.g. a <span> showing "3" next to the expand arrow
+    for (const el of row.querySelectorAll('span, div')) {
+      if (el.childElementCount > 0) continue;
+      const t = (el.textContent || '').trim();
+      if (/^\d+$/.test(t)) {
+        const n = parseInt(t, 10);
+        if (n > 1 && n < 1000) return n; // sanity bounds — thread counts are small numbers
+      }
     }
 
     return 0;
@@ -659,9 +671,19 @@
         }
 
         // ── Date resolution ──
-        // Use DOM date for matching, then override with cache's lastDate (real last sent)
+        // DOM date: Outlook's displayed date for this thread (date of LATEST email, always accurate).
+        // PA cache date: Dan's last *sent* date for this contact (only accurate when PA Sent Items is complete).
+        //
+        // Primary source: DOM date — always correct since Outlook renders it from real mail data.
+        // Fallback: PA cache date — used only when DOM date is unavailable.
+        //
+        // Rationale: PA Sent Items may miss follow-up emails (e.g. only the first filed copy of
+        // a thread gets captured). DOM date is never stale. The ↩ indicator already tells Dan
+        // when a contact replied, so DOM date (last thread activity) is the right staleness signal.
         const domDate = getDateFromRow(row);
 
+        // Use date-based cache matching to identify the contact (for count + company bubble),
+        // but do NOT use the PA cache date for staleness — use DOM date for that.
         if (!storedEmail && emailCacheLoaded && domDate) {
           // Match row to cache entry by date — prefer contacts in the active campaign folder.
           const matched = findEmailByDate(domDate, activeFolder);
@@ -672,12 +694,13 @@
           }
         }
 
-        let date = null;
-        if (cacheEntry) {
-          date = new Date(cacheEntry.lastDate); // real last-sent date from PA
-          if (isNaN(date.getTime())) date = null;
+        // Always use DOM date for staleness — it reflects actual Outlook thread state.
+        // Fall back to PA cache date only when DOM can't parse a date (rare).
+        let date = domDate;
+        if (!date && cacheEntry) {
+          const paDate = new Date(cacheEntry.lastDate);
+          if (!isNaN(paDate.getTime())) date = paDate;
         }
-        if (!date) date = domDate; // fallback to DOM date
 
         const days = daysSince(date);
 
@@ -698,6 +721,10 @@
         const domThreadCount = getThreadCountFromDOM(row);
         const cacheCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
         const stepCount = domThreadCount || cacheCount;
+        // Debug: log what we found for each row (helps diagnose count issues)
+        if (!alreadyProcessed && resolvedEmail) {
+          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | domThreadCount=${domThreadCount} | cacheCount=${cacheCount} | days=${days}`);
+        }
 
         row.dataset.ibisProcessed = '1';
         if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
@@ -971,7 +998,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.21',
+        version: '3.22',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1038,7 +1065,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.21 init on', location.hostname);
+    LOG('v3.22 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
