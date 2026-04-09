@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.25
+// IBISWorld Outreach — DOM Overlay v3.26
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.25';
+  const FC_VERSION = '3.26';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -86,9 +86,6 @@
           }
         });
         LOG('Contact map:', Object.keys(contactMap).length, 'contacts,', Object.keys(domainContactMap).length, 'domains');
-        // NOTE: do NOT call refreshFolderCountsFromCache() here — it uses PA cache counts
-        // to estimate non-active folder badges, but that number reflects contact-list age,
-        // not actual folder contents. Let DOM scans be the sole source of truth for counts.
       } catch (_) {}
     });
   }
@@ -193,10 +190,6 @@
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // Recompute folder badge counts from PA cache so non-active folders show counts
-    // immediately after load — without this, counts stay blank until user visits each folder.
-    // The active folder's count is always overwritten by the DOM scan (authoritative).
-    refreshFolderCountsFromCache();
     updateDebugBadge('ok');
   }
 
@@ -479,53 +472,21 @@
     return 0;
   }
 
-  // ── Folder count estimation from PA cache ────────────────────────────────────
-  // Computes overdue contact counts per campaign folder from the PA email cache
-  // + contact map. Called when either data source loads, so ALL folder badges
-  // display accurate numbers immediately — without needing to click into each folder.
-  // DOM scans (scanEmailRows) override the active folder's count with real-time data.
-
-  function refreshFolderCountsFromCache() {
-    if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
-
-    // Guard: only run if bridge.js has pushed _folders data (requires opening the dashboard).
-    // Without this guard, all counts = 0 and we'd zero out valid DOM-scanned counts.
-    const hasFolderData = Object.values(contactMap).some(c => c._folders && c._folders.length > 0);
-    if (!hasFolderData) {
-      LOG('refreshFolderCountsFromCache: no _folders data yet — open dashboard to activate folder badges');
-      return;
-    }
-
-    const counts = {};
-    CAMPAIGN_FOLDERS.forEach(f => { counts[f] = 0; });
-    Object.entries(emailCache).forEach(([email, entry]) => {
-      if (!entry.lastDate) return; // inbound-only reply — no sent date
-      const days = daysSince(new Date(entry.lastDate));
-      if (days === null || days < OVERDUE_DAYS) return;
-      const c = contactMap[email];
-      if (!c?._folders?.length) return;
-      // Only count towards the contact's PRIMARY folder (_folders[0]).
-      // A contact in multiple campaigns (e.g. Workables + Old Samples) would
-      // otherwise inflate every folder they belong to — including empty Outlook
-      // folders that have never received emails from this contact.
-      const primaryFolder = c._folders[0];
-      if (counts[primaryFolder] !== undefined) counts[primaryFolder]++;
-    });
-
-    // Update folder counts from cache — but NEVER overwrite the currently active folder.
-    // The DOM scan is authoritative for whichever folder the user is inside right now.
-    const activeFolder = getActiveCampaignFolder();
-    CAMPAIGN_FOLDERS.forEach(f => {
-      if (f !== activeFolder) folderCounts[f] = counts[f];
-    });
-
-    updateFolderBadges();
-    if (ctxOk()) chrome.storage.local.set({
-      ibis_folder_counts: JSON.stringify(folderCounts),
-      ibis_fc_version:    FC_VERSION,
-    });
-    LOG('Folder counts from cache:', JSON.stringify(counts));
-  }
+  // ── Folder count model (v3.26+): scan-only, no estimation ───────────────────
+  // folderCounts[f] is set ONLY when we physically navigate to folder f and scan
+  // its DOM rows. This is the only reliable source of truth — estimating counts
+  // from PA cache + dashboard campaign membership was wrong because:
+  //   - dashboard campaign ≠ Outlook folder (e.g. a contact in ibis_samples may
+  //     have their emails filed under the Workables Outlook folder, not Old Samples)
+  //   - inflated / false counts for physically empty folders (e.g. Old Samples = 1
+  //     when folder is empty, because Elise is in ibis_samples campaign in dashboard)
+  //
+  // How counts work:
+  //   - On load: restored from ibis_folder_counts (chrome.storage) — previous session scan results
+  //   - FC_VERSION bump: clears all persisted counts → fresh start, rebuild as folders are visited
+  //   - Visit folder → scanEmailRows() → folderCounts[f] = realCount → persisted
+  //   - Empty folder → scanEmailRows() resets to 0 → grey badge shown
+  //   - Folders not yet visited in this version: no badge shown (undefined filtered in updateFolderBadges)
 
   // ── Folder nav badges ─────────────────────────────────────────────────────────
 
@@ -1012,7 +973,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.25',
+        version: '3.26',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1082,9 +1043,8 @@
     LOG('v3.24 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
-    // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
-    // callbacks — they must find folderCounts already populated so they don't race with
-    // the storage.get() callback and produce an empty initial state.
+    // Counts are restored from the previous session's DOM scans. They are never estimated
+    // from PA cache — only real folder scans update folderCounts (see v3.26 model above).
     chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version'], (res) => {
       try {
         if (res.ibis_fc_version === FC_VERSION && res.ibis_folder_counts) {
