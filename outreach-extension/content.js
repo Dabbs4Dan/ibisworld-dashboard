@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.22
+// IBISWorld Outreach — DOM Overlay v3.23
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.22';
+  const FC_VERSION = '3.23';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -193,7 +193,10 @@
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // NOTE: do NOT call refreshFolderCountsFromCache() here — see note in loadContactMap().
+    // Recompute folder badge counts from PA cache so non-active folders show counts
+    // immediately after load — without this, counts stay blank until user visits each folder.
+    // The active folder's count is always overwritten by the DOM scan (authoritative).
+    refreshFolderCountsFromCache();
     updateDebugBadge('ok');
   }
 
@@ -466,17 +469,6 @@
     for (const el of [row, ...row.querySelectorAll('[data-count],[data-thread-count]')]) {
       const c = parseInt(el.getAttribute('data-count') || el.getAttribute('data-thread-count') || '', 10);
       if (c > 0) return c;
-    }
-
-    // 4. Outlook new UI: small text nodes that are just a number (thread count badge)
-    //    e.g. a <span> showing "3" next to the expand arrow
-    for (const el of row.querySelectorAll('span, div')) {
-      if (el.childElementCount > 0) continue;
-      const t = (el.textContent || '').trim();
-      if (/^\d+$/.test(t)) {
-        const n = parseInt(t, 10);
-        if (n > 1 && n < 1000) return n; // sanity bounds — thread counts are small numbers
-      }
     }
 
     return 0;
@@ -998,7 +990,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.22',
+        version: '3.23',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1065,7 +1057,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.22 init on', location.hostname);
+    LOG('v3.23 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
