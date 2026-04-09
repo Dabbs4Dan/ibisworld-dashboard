@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.15
+// IBISWorld Outreach — DOM Overlay v3.16
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -32,7 +32,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.14';
+  const FC_VERSION = '3.16';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -51,6 +51,7 @@
   let scanning         = false; // re-entry guard — prevents mutation feedback loops
   let emailCache       = {};    // email (lowercase) → ISO date string (last PA-confirmed sent)
   let emailCacheLoaded = false; // true once cache has been successfully populated
+  let cacheRetryCount  = 0;    // how many times loadEmailCache has been retried after failure
 
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
@@ -95,12 +96,24 @@
 
   function loadEmailCache() {
     if (!CONTACT_ACTIVITY_URL || !ctxOk()) return;
-    // Route through background service worker to bypass CORS restrictions
+    updateDebugBadge('loading');
+    // Route through background service worker to bypass CORS restrictions.
+    // Chrome MV3 service workers can be inactive — if the SW is starting up when
+    // sendMessage is called, the response may never arrive. We retry up to 3 times
+    // with exponential back-off to handle a sleeping SW gracefully.
     chrome.runtime.sendMessage({ type: 'FETCH_URL', url: CONTACT_ACTIVITY_URL }, (res) => {
-      if (!res || !res.ok) {
-        LOG('Email cache fetch failed:', res?.error || 'no response');
+      if (chrome.runtime.lastError || !res || !res.ok) {
+        const errMsg = chrome.runtime.lastError?.message || res?.error || 'no response';
+        LOG('Email cache fetch failed:', errMsg, '| retry:', cacheRetryCount);
+        updateDebugBadge('error');
+        if (cacheRetryCount < 3) {
+          cacheRetryCount++;
+          // 3s → 8s → 15s back-off — gives SW time to wake up
+          setTimeout(loadEmailCache, cacheRetryCount * cacheRetryCount * 3000);
+        }
         return;
       }
+      cacheRetryCount = 0; // reset on success
       processEmailCache(res.data);
     });
   }
@@ -174,6 +187,7 @@
     // Always recompute folder badge counts from cache so ALL folder badges
     // show correct numbers without needing to click into each folder.
     refreshFolderCountsFromCache();
+    updateDebugBadge('ok');
   }
 
   // ── Row-to-contact matching via date ─────────────────────────────────────────
@@ -187,23 +201,17 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  function findEmailByDate(rowDate, folderConstraint) {
+  function findEmailByDate(rowDate) {
+    // Global date-based matching: find the cache entry whose sent date most closely
+    // matches the DOM row date. No folder constraint — the folder constraint introduced
+    // in v3.15 caused ALL matches to fail whenever hasAnyFolderData was true but a
+    // contact had the wrong _folder value, breaking every row badge.
     if (!rowDate || !emailCacheLoaded) return null;
     const rowStr = localDateStr(rowDate);
-
-    // Folder-constrained matching: when _folder data is available, only match contacts
-    // in the current campaign folder. This prevents cross-folder collisions where two
-    // contacts emailed on the same day (different folders) get mixed up.
-    // Graceful fallback: if bridge.js hasn't sent _folder data yet, match globally.
-    const hasAnyFolderData = !!(folderConstraint && Object.values(contactMap).some(c => c._folder));
 
     let bestEmail = null;
     let bestDiff = Infinity;
     for (const [email, entry] of Object.entries(emailCache)) {
-      if (hasAnyFolderData) {
-        const c = contactMap[email];
-        if (!c || c._folder !== folderConstraint) continue; // wrong folder — skip
-      }
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
         if (isNaN(dt.getTime())) continue;
@@ -547,6 +555,9 @@
     const rows = getEmailRows();
     if (!rows.length) { LOG('No rows found.'); return; }
 
+    // Debug state snapshot — visible in F12 console, filter "[IBISWorld]"
+    LOG(`Scan: folder="${activeFolder}" contacts=${Object.keys(contactMap).length} cacheLoaded=${emailCacheLoaded} cacheEntries=${Object.keys(emailCache).length} retries=${cacheRetryCount}`);
+
     scanning = true;
     let overdueCount = 0;
 
@@ -575,8 +586,7 @@
 
       if (!storedEmail && emailCacheLoaded && domDate) {
         // Match row to cache entry by its DOM date = date of first email in folder.
-        // Pass activeFolder so we only match against contacts in the current campaign folder.
-        const matched = findEmailByDate(domDate, activeFolder);
+        const matched = findEmailByDate(domDate);
         if (matched) {
           storedEmail = matched;
           cacheEntry = emailCache[matched];
@@ -862,6 +872,78 @@
     return { bg: `hsl(${hue},60%,93%)`, color: `hsl(${hue},55%,28%)`, border: `hsl(${hue},50%,78%)` };
   }
 
+  // ── Debug status badge ────────────────────────────────────────────────────────
+  // Small floating indicator bottom-right of the screen showing email cache state.
+  // 🟢 = cache loaded OK   🟡 = loading/retrying   🔴 = failed after all retries
+  // Click it to dump the full extension state to the console for diagnosis.
+
+  let _debugBadge = null;
+
+  function getOrCreateDebugBadge() {
+    if (_debugBadge && document.body.contains(_debugBadge)) return _debugBadge;
+    const b = document.createElement('div');
+    b.id = 'ibis-debug-badge';
+    b.title = 'IBISWorld Outreach — click to log debug state';
+    b.style.cssText = [
+      'position:fixed', 'bottom:12px', 'right:12px', 'z-index:2147483647',
+      'background:#1f2937', 'color:#f9fafb',
+      'font-family:monospace', 'font-size:10px', 'font-weight:700',
+      'padding:3px 8px', 'border-radius:999px',
+      'cursor:pointer', 'user-select:none',
+      'display:flex', 'align-items:center', 'gap:4px',
+      'opacity:0.75', 'transition:opacity 0.2s',
+      'pointer-events:auto',
+    ].join(';');
+    b.addEventListener('mouseenter', () => { b.style.opacity = '1'; });
+    b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
+    b.addEventListener('click', () => {
+      const state = {
+        version: '3.16',
+        url: location.href,
+        title: document.title,
+        activeFolder: getActiveCampaignFolder(),
+        contactMapSize: Object.keys(contactMap).length,
+        emailCacheLoaded,
+        emailCacheSize: Object.keys(emailCache).length,
+        cacheRetryCount,
+        folderCounts: { ...folderCounts },
+        sampleCacheEmails: Object.keys(emailCache).slice(0, 15),
+        sampleContacts: Object.entries(contactMap).slice(0, 10).map(([e, c]) => ({
+          email: e, name: c.name, account: c.accountName, folder: c._folder
+        })),
+      };
+      LOG('=== DEBUG DUMP ===');
+      LOG(JSON.stringify(state, null, 2));
+      console.table(
+        Object.entries(emailCache).slice(0, 20).map(([e, v]) => ({
+          email: e, count: v.count, lastDate: v.lastDate?.slice(0, 10) || '', replied: !!v.hasReplied
+        }))
+      );
+    });
+    document.body.appendChild(b);
+    _debugBadge = b;
+    return b;
+  }
+
+  function updateDebugBadge(state) {
+    // state: 'loading' | 'ok' | 'error'
+    // Only create the badge when there's something interesting to show — avoids
+    // cluttering Outlook permanently when everything is working fine.
+    if (state === 'ok' && Object.keys(emailCache).length === 0) return;
+    const b = getOrCreateDebugBadge();
+    const dot  = state === 'ok'      ? '🟢' : state === 'loading' ? '🟡' : '🔴';
+    const size = Object.keys(emailCache).length;
+    const cont = Object.keys(contactMap).length;
+    b.innerHTML = `${dot} IBW ${state === 'ok' ? size + 'e ' + cont + 'c' : state}`;
+    // Auto-hide after 8s when everything is working (keep showing if error)
+    if (state === 'ok') {
+      clearTimeout(b._hideTimer);
+      b._hideTimer = setTimeout(() => {
+        if (b.parentElement) b.style.opacity = '0.3';
+      }, 8000);
+    }
+  }
+
   // ── MutationObserver ──────────────────────────────────────────────────────────
   // Only debounced calls here — never call DOM-mutating functions directly
   // from the observer callback (causes infinite mutation loops → freeze).
@@ -881,7 +963,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.15 init on', location.hostname);
+    LOG('v3.16 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
