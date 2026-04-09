@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.26
+// IBISWorld Outreach — DOM Overlay v3.27
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.26';
+  const FC_VERSION = '3.27';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -153,7 +153,12 @@
       }
       // toRecipients may be a plain string, "Name <email>" string, or array — handle all
       const toField = item.toRecipients;
-      const recipients = Array.isArray(toField) ? toField : (typeof toField === 'string' ? [toField] : []);
+      // Split semicolon-separated multi-recipient strings (e.g. "a@x.com;b@x.com;c@x.com")
+      const recipients = Array.isArray(toField)
+        ? toField
+        : (typeof toField === 'string'
+          ? toField.split(';').map(s => s.trim()).filter(Boolean)
+          : []);
       recipients.forEach(r => {
         let raw = (typeof r === 'string' ? r : (r?.emailAddress?.address || r?.address || '')).trim();
         // Handle "Display Name <email@domain.com>" format from some Outlook connectors
@@ -973,7 +978,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.26',
+        version: '3.27',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1040,7 +1045,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.24 init on', location.hostname);
+    LOG('v3.27 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
