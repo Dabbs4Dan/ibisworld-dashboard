@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.27
+// IBISWorld Outreach — DOM Overlay v3.28
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -26,12 +26,13 @@
   // Map email domain → website domain for reliable favicon lookup.
   // Add entries here as mismatches are discovered.
   const FAVICON_DOMAIN_OVERRIDES = {
-    'lge.com': 'lg.com', // LG Electronics staff email → LG website
+    'lge.com':    'lg.com',           // LG Electronics staff email → LG website
+    'parker.com': 'parkerhannifin.com', // Parker domain → Parker Hannifin website
   };
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.27';
+  const FC_VERSION = '3.28';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -194,6 +195,35 @@
       });
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
+    }
+    // Pre-load folder counts for non-visited folders using real PA email data.
+    // Uses actual last-sent dates from the cache (not guessed) — much more accurate than v3.24.
+    // Only runs once per cache load. Active folder is always overwritten by the real DOM scan.
+    // NOTE: estimates folder from _folders[0] (primary dashboard campaign = likely Outlook folder).
+    // Edge case: a contact in ibis_samples whose emails are physically in Workables Outlook folder
+    // will inflate the Old Samples count. This resolves the moment Dan visits that folder.
+    if (isFirstLoad && Object.keys(contactMap).length > 0) {
+      const activeFolder = getActiveCampaignFolder();
+      const estimates = {};
+      CAMPAIGN_FOLDERS.forEach(f => { estimates[f] = 0; });
+      Object.entries(emailCache).forEach(([email, entry]) => {
+        if (!entry.lastDate) return;
+        const days = daysSince(new Date(entry.lastDate));
+        if (days === null || days < OVERDUE_DAYS) return;
+        const c = contactMap[email];
+        if (!c?._folders?.length) return;
+        const primaryFolder = c._folders[0];
+        if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
+      });
+      CAMPAIGN_FOLDERS.forEach(f => {
+        if (f !== activeFolder && folderCounts[f] === undefined) {
+          // Only pre-fill folders NOT yet visited this session (undefined = never scanned)
+          folderCounts[f] = estimates[f];
+        }
+      });
+      if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
+      updateFolderBadges();
+      LOG('Pre-loaded folder count estimates from PA cache:', JSON.stringify(estimates));
     }
     updateDebugBadge('ok');
   }
@@ -978,7 +1008,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.27',
+        version: '3.28',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1045,7 +1075,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.27 init on', location.hostname);
+    LOG('v3.28 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
