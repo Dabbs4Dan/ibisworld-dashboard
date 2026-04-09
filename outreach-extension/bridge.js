@@ -1,7 +1,9 @@
-// IBISWorld Outreach — dashboard bridge v1.3
+// IBISWorld Outreach — dashboard bridge v1.4
 // Runs as a content script on dabbs4dan.github.io/ibisworld-dashboard.
 // Merges contacts from ALL 8 campaign stores into outreach_contacts_raw
 // so the Outlook extension has the full contact map for company bubble matching.
+// v1.4: _folder (single string) → _folders (array) — a contact can belong to
+// multiple Outlook campaign folders simultaneously. content.js uses includes().
 
 (function () {
   'use strict';
@@ -37,15 +39,16 @@
             if (!email || !contact) return;
             const em = email.toLowerCase().trim();
             if (!merged[em]) {
-              // First time seeing this email — use this campaign's full data + folder
-              merged[em] = { ...contact, _folder: folder };
-            } else if (!merged[em]._folder && folder) {
-              // Seen before but without a folder (e.g. from Powerback) — add folder only,
-              // preserve the original contact data (accountName etc.) from the first campaign
-              merged[em] = { ...merged[em], _folder: folder };
+              // First time seeing this email — use this campaign's contact data.
+              // _folders is an array so we can collect ALL folders this contact belongs to.
+              merged[em] = { ...contact, _folders: folder ? [folder] : [] };
+            } else {
+              // Already seen — preserve original contact data (accountName etc.) but
+              // add this campaign's folder to the _folders array if not already there.
+              if (folder && !merged[em]._folders.includes(folder)) {
+                merged[em]._folders = [...merged[em]._folders, folder];
+              }
             }
-            // If already seen with a valid folder: skip entirely (first campaign wins).
-            // This prevents a later campaign from overwriting accountName with a wrong value.
             totalCount++;
           });
         } catch (_) {}

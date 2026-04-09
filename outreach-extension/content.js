@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.20
+// IBISWorld Outreach — DOM Overlay v3.21
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.20';
+  const FC_VERSION = '3.21';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -73,7 +73,9 @@
             accountName: c.accountName || '',
             domain:      e.split('@')[1] || '',
             name:        c.name || '',
-            _folder:     c._folder || null, // Outlook campaign folder, set by bridge.js
+            // bridge v1.4+ sends _folders (array). Fall back to legacy _folder string for
+            // contacts pushed by older bridge versions still in chrome.storage.
+            _folders: Array.isArray(c._folders) ? c._folders : (c._folder ? [c._folder] : []),
           };
         });
         // Build domain → accountName reverse lookup for rows where we only have the domain
@@ -84,7 +86,9 @@
           }
         });
         LOG('Contact map:', Object.keys(contactMap).length, 'contacts,', Object.keys(domainContactMap).length, 'domains');
-        refreshFolderCountsFromCache(); // seed folder badges if email cache already loaded
+        // NOTE: do NOT call refreshFolderCountsFromCache() here — it uses PA cache counts
+        // to estimate non-active folder badges, but that number reflects contact-list age,
+        // not actual folder contents. Let DOM scans be the sole source of truth for counts.
       } catch (_) {}
     });
   }
@@ -181,14 +185,15 @@
     if (isFirstLoad && getActiveCampaignFolder()) {
       document.querySelectorAll('[data-ibis-processed]').forEach(row => {
         row.removeAttribute('data-ibis-processed');
+        row.removeAttribute('data-ibis-email');      // clear stale email match
+        row.removeAttribute('data-ibis-match-dom');  // clear stale confidence flag
         const badge = row.querySelector('.ibis-row-badges');
         if (badge) badge.remove();
       });
+      lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // Always recompute folder badge counts from cache so ALL folder badges
-    // show correct numbers without needing to click into each folder.
-    refreshFolderCountsFromCache();
+    // NOTE: do NOT call refreshFolderCountsFromCache() here — see note in loadContactMap().
     updateDebugBadge('ok');
   }
 
@@ -219,17 +224,21 @@
     if (!rowDate || !emailCacheLoaded) return null;
     const rowStr = localDateStr(rowDate);
 
-    const hasFolderData = Object.values(contactMap).some(c => c._folder);
+    // hasFolderData: true once bridge v1.4 has pushed _folders data.
+    // Contacts with empty _folders array count as "no folder data yet".
+    const hasFolderData = Object.values(contactMap).some(c => c._folders && c._folders.length > 0);
 
     let globalBest = null,   globalDiff   = Infinity;
     let folderBest = null,   folderDiff   = Infinity;
     let noFolderBest = null, noFolderDiff = Infinity;
 
     for (const [email, entry] of Object.entries(emailCache)) {
-      const c       = contactMap[email];
-      const cFolder = c?._folder || null;
-      const inFolder       = preferFolder && cFolder === preferFolder;
-      const noFolderAssign = !cFolder; // in cache but no folder tag yet
+      const c        = contactMap[email];
+      const cFolders = c?._folders || [];
+      // inFolder: contact is tagged to the active folder — highest confidence match
+      const inFolder       = preferFolder && cFolders.includes(preferFolder);
+      // noFolderAssign: in PA cache but bridge hasn't assigned any folder yet
+      const noFolderAssign = cFolders.length === 0;
 
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
@@ -292,7 +301,14 @@
 
   function daysSince(date) {
     if (!date || isNaN(date.getTime())) return null;
-    return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+    // Calendar-day comparison — midnight to midnight.
+    // Using raw millisecond division gives wrong results near day boundaries:
+    // an email sent at 6pm yesterday = "0d" at 7am today (only 13h elapsed).
+    // Comparing midnight-stripped dates gives the correct calendar answer: 1d.
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dateMidnight  = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return Math.max(0, Math.floor((todayMidnight - dateMidnight) / 86400000));
   }
 
   function dateFromAriaLabel(label) {
@@ -463,11 +479,11 @@
   function refreshFolderCountsFromCache() {
     if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
 
-    // Guard: only run if bridge.js has pushed _folder data (requires opening the dashboard).
+    // Guard: only run if bridge.js has pushed _folders data (requires opening the dashboard).
     // Without this guard, all counts = 0 and we'd zero out valid DOM-scanned counts.
-    const hasFolderData = Object.values(contactMap).some(c => c._folder);
+    const hasFolderData = Object.values(contactMap).some(c => c._folders && c._folders.length > 0);
     if (!hasFolderData) {
-      LOG('refreshFolderCountsFromCache: no _folder data yet — open dashboard to activate folder badges');
+      LOG('refreshFolderCountsFromCache: no _folders data yet — open dashboard to activate folder badges');
       return;
     }
 
@@ -478,8 +494,11 @@
       const days = daysSince(new Date(entry.lastDate));
       if (days === null || days < OVERDUE_DAYS) return;
       const c = contactMap[email];
-      if (!c?._folder || counts[c._folder] === undefined) return;
-      counts[c._folder]++;
+      if (!c?._folders?.length) return;
+      // A contact can belong to multiple folders — increment count for each
+      c._folders.forEach(folder => {
+        if (counts[folder] !== undefined) counts[folder]++;
+      });
     });
 
     // Update folder counts from cache — but NEVER overwrite the currently active folder.
@@ -804,26 +823,18 @@
     }
 
     // ── Company bubble ──
-    // Only show when we have real confidence in the match:
-    //   - High confidence (email found via DOM scan): show any company
-    //   - Low confidence (date-based match): only show if email is a known campaign contact
-    //     and NOT a personal domain (avoids wrong-company false positives)
+    // Show the company bubble when we have a reliable company name:
+    //   - contact.accountName: use it regardless of match confidence — this is the exact
+    //     name from the dashboard campaign store and is always correct for known contacts.
+    //   - Domain-guessed name: only for high-confidence (DOM email scan) matches, and only
+    //     for non-personal domains. Never guess from domain on date-matched rows — too many
+    //     false positives when different contacts share the same email date.
     if (contactInfo) {
       const { contact, domain } = contactInfo;
       const isPersonalDomain = PERSONAL_DOMAINS.has(domain);
-      const isKnownContact = !!contact;
-      // Skip bubble if: low confidence match + personal domain with no contact entry
-      if (!highConfidence && !isKnownContact && isPersonalDomain) {
-        // No company bubble — can't reliably link this to a company
-      } else
-      // Also skip if: low confidence + not a known contact (domain-guessed company = unreliable)
-      if (!highConfidence && !isKnownContact) {
-        // Skip domain-guessed names for date-matched rows — too many false positives
-      } else {
-      // For exact matches (high confidence DOM scan): derive name from domain if no contact record.
-      // For date-based matches (low confidence): ONLY use exact contact.accountName — never guess from
-      // domain, as domainContactMap can map the wrong company when contacts share a date collision.
-      const companyName = contact?.accountName || (highConfidence && !isPersonalDomain && domainToName(domain)) || '';
+      const companyName = contact?.accountName
+        || (highConfidence && !isPersonalDomain ? domainToName(domain) : '')
+        || '';
       if (companyName) {
         const bubble = document.createElement('span');
         bubble.title = companyName;
@@ -866,7 +877,6 @@
         bubble.appendChild(nameEl);
         wrap.appendChild(bubble);
       }
-      } // end else (show company)
     }
 
     // ── Inject after the sender name ──
@@ -961,7 +971,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.20',
+        version: '3.21',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -972,7 +982,7 @@
         folderCounts: { ...folderCounts },
         sampleCacheEmails: Object.keys(emailCache).slice(0, 15),
         sampleContacts: Object.entries(contactMap).slice(0, 10).map(([e, c]) => ({
-          email: e, name: c.name, account: c.accountName, folder: c._folder
+          email: e, name: c.name, account: c.accountName, folders: c._folders
         })),
       };
       LOG('=== DEBUG DUMP ===');
@@ -1028,7 +1038,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.20 init on', location.hostname);
+    LOG('v3.21 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
