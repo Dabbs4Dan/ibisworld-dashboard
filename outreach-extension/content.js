@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.16
+// IBISWorld Outreach — DOM Overlay v3.17
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -52,6 +52,7 @@
   let emailCache       = {};    // email (lowercase) → ISO date string (last PA-confirmed sent)
   let emailCacheLoaded = false; // true once cache has been successfully populated
   let cacheRetryCount  = 0;    // how many times loadEmailCache has been retried after failure
+  let lastScanTime     = 0;    // timestamp of last completed scan — prevents scan spam
 
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
@@ -123,7 +124,8 @@
     // Debug: log first item's from/toRecipients shape to confirm field format
     if (data.length > 0) {
       const s = data[0];
-      LOG('Cache item shape — from:', JSON.stringify(s.from), '| toRecipients[0]:', JSON.stringify((s.toRecipients||[])[0]), '| date field:', s.receivedDateTime || s.sentDateTime || s.date);
+      const toSample = Array.isArray(s.toRecipients) ? JSON.stringify(s.toRecipients[0]) : JSON.stringify(s.toRecipients);
+      LOG(`Cache shape: ${data.length} items | from: ${JSON.stringify(s.from)} | toRecipients (${typeof s.toRecipients}): ${toSample} | date: ${s.receivedDateTime || s.sentDateTime || s.date || 'none'}`);
     }
     const map = {};
     const seenIds = new Set(); // deduplicate emails that appear in multiple folders
@@ -201,27 +203,33 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  function findEmailByDate(rowDate) {
-    // Global date-based matching: find the cache entry whose sent date most closely
-    // matches the DOM row date. No folder constraint — the folder constraint introduced
-    // in v3.15 caused ALL matches to fail whenever hasAnyFolderData was true but a
-    // contact had the wrong _folder value, breaking every row badge.
+  function findEmailByDate(rowDate, preferFolder) {
+    // Folder-preferred date matching. Two-pass approach:
+    //   Pass 1: among cache entries where contact._folder === preferFolder, find closest date match.
+    //   Pass 2: if pass 1 found nothing, search globally (all cache entries regardless of folder).
+    // This fixes cross-folder date collisions (e.g. Dajin/LG and Elise/Cégep both emailed on
+    // March 25 — when in 6QA folder, Dajin wins because Dajin's _folder is '6QA').
+    // Graceful degradation: if _folder data isn't available yet (folder = null for all contacts),
+    // pass 1 finds nothing and pass 2 runs the full global search — same as v3.16.
     if (!rowDate || !emailCacheLoaded) return null;
     const rowStr = localDateStr(rowDate);
 
-    let bestEmail = null;
-    let bestDiff = Infinity;
+    let globalBest = null, globalDiff = Infinity;
+    let folderBest = null, folderDiff = Infinity;
+
     for (const [email, entry] of Object.entries(emailCache)) {
+      const c = contactMap[email];
+      const inFolder = preferFolder && c?._folder === preferFolder;
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
         if (isNaN(dt.getTime())) continue;
-        if (localDateStr(dt) === rowStr) {
-          const diff = Math.abs(dt.getTime() - rowDate.getTime());
-          if (diff < bestDiff) { bestDiff = diff; bestEmail = email; }
-        }
+        if (localDateStr(dt) !== rowStr) continue;
+        const diff = Math.abs(dt.getTime() - rowDate.getTime());
+        if (diff < globalDiff) { globalDiff = diff; globalBest = email; }
+        if (inFolder && diff < folderDiff) { folderDiff = diff; folderBest = email; }
       }
     }
-    return bestEmail;
+    return folderBest || globalBest;
   }
 
   // ── Date parsing ──────────────────────────────────────────────────────────────
@@ -549,11 +557,17 @@
 
   function scanEmailRows() {
     if (scanning) return; // re-entry guard
+    // Rate-limit: don't scan more than once per 2 seconds.
+    // Outlook's DOM mutates constantly (unread counts, animations) — without this guard
+    // the debounce keeps resetting and we scan dozens of times per minute needlessly.
+    const now = Date.now();
+    if (now - lastScanTime < 2000) return;
+
     const activeFolder = getActiveCampaignFolder();
-    if (!activeFolder) { LOG('No active campaign folder. Title:', document.title); return; }
+    if (!activeFolder) return; // silently skip — no log spam when on non-folder pages
 
     const rows = getEmailRows();
-    if (!rows.length) { LOG('No rows found.'); return; }
+    if (!rows.length) return;
 
     // Debug state snapshot — visible in F12 console, filter "[IBISWorld]"
     LOG(`Scan: folder="${activeFolder}" contacts=${Object.keys(contactMap).length} cacheLoaded=${emailCacheLoaded} cacheEntries=${Object.keys(emailCache).length} retries=${cacheRetryCount}`);
@@ -585,8 +599,8 @@
       const domDate = getDateFromRow(row);
 
       if (!storedEmail && emailCacheLoaded && domDate) {
-        // Match row to cache entry by its DOM date = date of first email in folder.
-        const matched = findEmailByDate(domDate);
+        // Match row to cache entry by date — prefer contacts in the active campaign folder.
+        const matched = findEmailByDate(domDate, activeFolder);
         if (matched) {
           storedEmail = matched;
           cacheEntry = emailCache[matched];
@@ -631,6 +645,7 @@
     // Persist so badges show on other folders immediately without needing to click each one
     if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
     updateFolderBadges();
+    lastScanTime = Date.now();
     scanning = false;
     LOG(`"${activeFolder}": ${rows.length} rows, ${overdueCount} overdue`);
   }
@@ -950,20 +965,20 @@
 
   function onMutation() {
     clearTimeout(debounceTimer);
-    // 350ms: halves the visible flicker window vs 700ms while still preventing
-    // mutation feedback loops (badges injected inside setTimeout, not directly
-    // from the observer callback).
+    // 1500ms debounce: Outlook's DOM mutates constantly (unread counts, animations).
+    // Combined with the 2s lastScanTime guard in scanEmailRows(), this prevents the
+    // scan-spam that was producing 60+ scans/min and flooding the console log.
     debounceTimer = setTimeout(() => {
       updateFolderBadges();
       scanEmailRows();
-    }, 350);
+    }, 1500);
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.16 init on', location.hostname);
+    LOG('v3.17 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
