@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.5
+// IBISWorld Outreach — DOM Overlay v3.14
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -32,7 +32,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.13';
+  const FC_VERSION = '3.14';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -71,6 +71,7 @@
             accountName: c.accountName || '',
             domain:      e.split('@')[1] || '',
             name:        c.name || '',
+            _folder:     c._folder || null, // Outlook campaign folder, set by bridge.js
           };
         });
         // Build domain → accountName reverse lookup for rows where we only have the domain
@@ -81,6 +82,7 @@
           }
         });
         LOG('Contact map:', Object.keys(contactMap).length, 'contacts,', Object.keys(domainContactMap).length, 'domains');
+        refreshFolderCountsFromCache(); // seed folder badges if email cache already loaded
       } catch (_) {}
     });
   }
@@ -158,7 +160,10 @@
       const v = emailCache[e];
       LOG('  >', e, '→', v.count + 'x, last:', v.lastDate ? v.lastDate.slice(0, 10) : 'none');
     });
-    if (isFirstLoad) {
+    // Only strip + re-scan if currently inside a campaign folder.
+    // Without this guard, badges are deleted but scanEmailRows() exits early
+    // (no active folder), leaving rows permanently bare until next mutation.
+    if (isFirstLoad && getActiveCampaignFolder()) {
       document.querySelectorAll('[data-ibis-processed]').forEach(row => {
         row.removeAttribute('data-ibis-processed');
         const badge = row.querySelector('.ibis-row-badges');
@@ -166,6 +171,9 @@
       });
       scanEmailRows();
     }
+    // Always recompute folder badge counts from cache so ALL folder badges
+    // show correct numbers without needing to click into each folder.
+    refreshFolderCountsFromCache();
   }
 
   // ── Row-to-contact matching via date ─────────────────────────────────────────
@@ -400,6 +408,35 @@
     }
 
     return 0;
+  }
+
+  // ── Folder count estimation from PA cache ────────────────────────────────────
+  // Computes overdue contact counts per campaign folder from the PA email cache
+  // + contact map. Called when either data source loads, so ALL folder badges
+  // display accurate numbers immediately — without needing to click into each folder.
+  // DOM scans (scanEmailRows) override the active folder's count with real-time data.
+
+  function refreshFolderCountsFromCache() {
+    if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
+    const counts = {};
+    CAMPAIGN_FOLDERS.forEach(f => { counts[f] = 0; });
+    Object.entries(emailCache).forEach(([email, entry]) => {
+      if (!entry.lastDate) return; // inbound-only reply — no sent date
+      const days = daysSince(new Date(entry.lastDate));
+      if (days === null || days < OVERDUE_DAYS) return;
+      const c = contactMap[email];
+      if (!c?._folder || counts[c._folder] === undefined) return;
+      counts[c._folder]++;
+    });
+    // Populate all folder badges from cache. DOM scan will override the
+    // active folder with its own accurate count whenever the user is in it.
+    CAMPAIGN_FOLDERS.forEach(f => { folderCounts[f] = counts[f]; });
+    updateFolderBadges();
+    if (ctxOk()) chrome.storage.local.set({
+      ibis_folder_counts: JSON.stringify(folderCounts),
+      ibis_fc_version:    FC_VERSION,
+    });
+    LOG('Folder counts from cache:', JSON.stringify(counts));
   }
 
   // ── Folder nav badges ─────────────────────────────────────────────────────────
@@ -814,7 +851,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.13 init on', location.hostname);
+    LOG('v3.14 init on', location.hostname);
     // Restore persisted folder counts only when version matches.
     // Version bump (e.g. 3.11 → 3.12) clears any stale / poisoned counts automatically.
     chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version'], (res) => {

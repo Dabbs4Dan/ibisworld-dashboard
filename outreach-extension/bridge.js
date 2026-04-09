@@ -6,16 +6,17 @@
 (function () {
   'use strict';
 
-  // All campaign localStorage keys + a label for each
+  // All campaign localStorage keys + a label + the matching Outlook folder name.
+  // folder: null = no dedicated Outlook folder for this campaign yet.
   const CAMPAIGN_KEYS = [
-    { key: 'ibis_opps',        label: 'Workables'   },
-    { key: 'ibis_samples',     label: 'Old Samples' },
-    { key: 'ibis_6qa',         label: '6QA'         },
-    { key: 'ibis_churn',       label: 'Churn'       },
-    { key: 'ibis_netnew',      label: 'Net New'     },
-    { key: 'ibis_multithread', label: 'Multithread' },
-    { key: 'ibis_winback',     label: 'Winback'     },
-    { key: 'ibis_powerback',   label: 'Powerback'   },
+    { key: 'ibis_opps',        label: 'Workables',   folder: 'Workables'   },
+    { key: 'ibis_samples',     label: 'Old Samples',  folder: 'Old Samples' },
+    { key: 'ibis_6qa',         label: '6QA',          folder: '6QA'         },
+    { key: 'ibis_churn',       label: 'Churn',        folder: 'Churns'      }, // Outlook folder = "Churns"
+    { key: 'ibis_netnew',      label: 'Net New',      folder: 'Net New'     },
+    { key: 'ibis_multithread', label: 'Multithread',  folder: 'Multithread' },
+    { key: 'ibis_winback',     label: 'Winback',      folder: 'Winback'     },
+    { key: 'ibis_powerback',   label: 'Powerback',    folder: null          }, // no Outlook folder yet
   ];
 
   function pushContactsToExtension() {
@@ -27,14 +28,18 @@
       const merged = {};
       let totalCount = 0;
 
-      CAMPAIGN_KEYS.forEach(({ key }) => {
+      CAMPAIGN_KEYS.forEach(({ key, folder }) => {
         const raw = localStorage.getItem(key);
         if (!raw) return;
         try {
           const store = JSON.parse(raw);
           Object.entries(store).forEach(([email, contact]) => {
             if (!email || !contact) return;
-            merged[email.toLowerCase().trim()] = contact;
+            const em = email.toLowerCase().trim();
+            // Preserve the first valid folder assignment — earlier campaigns take priority.
+            // This way Workables contact stays in Workables even if they also appear in Powerback (no folder).
+            const existingFolder = merged[em]?._folder;
+            merged[em] = { ...contact, _folder: existingFolder || folder };
             totalCount++;
           });
         } catch (_) {}
