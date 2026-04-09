@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.17
+// IBISWorld Outreach — DOM Overlay v3.18
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -575,79 +575,83 @@
     scanning = true;
     let overdueCount = 0;
 
-    rows.forEach(row => {
-      const alreadyProcessed = !!row.dataset.ibisProcessed;
-      let storedEmail = row.dataset.ibisEmail || '';
-      let emailMatchedViaDOM = row.dataset.ibisMatchDom === '1'; // true = high confidence
+    try {
+      rows.forEach(row => {
+        const alreadyProcessed = !!row.dataset.ibisProcessed;
+        let storedEmail = row.dataset.ibisEmail || '';
+        let emailMatchedViaDOM = row.dataset.ibisMatchDom === '1'; // true = high confidence
 
-      // ── Resolve email address ──
-      // Priority: stored (from prior scan) → DOM attrs → date-based cache match
-      let cacheEntry = storedEmail ? emailCache[storedEmail] : null;
+        // ── Resolve email address ──
+        // Priority: stored (from prior scan) → DOM attrs → date-based cache match
+        let cacheEntry = storedEmail ? emailCache[storedEmail] : null;
 
-      if (!storedEmail) {
-        // Try DOM attribute scan first (most reliable when email is exposed)
-        const found = findContactForRow(row);
-        if (found?.email) {
-          storedEmail = found.email;
-          cacheEntry = emailCache[storedEmail] || null;
-          emailMatchedViaDOM = true;
+        if (!storedEmail) {
+          // Try DOM attribute scan first (most reliable when email is exposed)
+          const found = findContactForRow(row);
+          if (found?.email) {
+            storedEmail = found.email;
+            cacheEntry = emailCache[storedEmail] || null;
+            emailMatchedViaDOM = true;
+          }
         }
-      }
 
-      // ── Date resolution ──
-      // Use DOM date for matching, then override with cache's lastDate (real last sent)
-      const domDate = getDateFromRow(row);
+        // ── Date resolution ──
+        // Use DOM date for matching, then override with cache's lastDate (real last sent)
+        const domDate = getDateFromRow(row);
 
-      if (!storedEmail && emailCacheLoaded && domDate) {
-        // Match row to cache entry by date — prefer contacts in the active campaign folder.
-        const matched = findEmailByDate(domDate, activeFolder);
-        if (matched) {
-          storedEmail = matched;
-          cacheEntry = emailCache[matched];
-          emailMatchedViaDOM = false; // date-matched = lower confidence
+        if (!storedEmail && emailCacheLoaded && domDate) {
+          // Match row to cache entry by date — prefer contacts in the active campaign folder.
+          const matched = findEmailByDate(domDate, activeFolder);
+          if (matched) {
+            storedEmail = matched;
+            cacheEntry = emailCache[matched];
+            emailMatchedViaDOM = false; // date-matched = lower confidence
+          }
         }
-      }
 
-      let date = null;
-      if (cacheEntry) {
-        date = new Date(cacheEntry.lastDate); // real last-sent date from PA
-        if (isNaN(date.getTime())) date = null;
-      }
-      if (!date) date = domDate; // fallback to DOM date
+        let date = null;
+        if (cacheEntry) {
+          date = new Date(cacheEntry.lastDate); // real last-sent date from PA
+          if (isNaN(date.getTime())) date = null;
+        }
+        if (!date) date = domDate; // fallback to DOM date
 
-      const days = daysSince(date);
+        const days = daysSince(date);
 
-      // Always count for the folder badge — even already-badged rows
-      if (days !== null && days >= OVERDUE_DAYS) overdueCount++;
+        // Always count for the folder badge — even already-badged rows
+        if (days !== null && days >= OVERDUE_DAYS) overdueCount++;
 
-      // Only inject badges once per row
-      if (alreadyProcessed) return;
-      if (days === null) return;
+        // Only inject badges once per row
+        if (alreadyProcessed) return;
+        if (days === null) return;
 
-      const contactInfo = storedEmail
-        ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
-        : null;
+        const contactInfo = storedEmail
+          ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
+          : null;
 
-      // Thread count: prefer Outlook's own conversation depth from DOM (most accurate),
-      // fall back to PA cache count (total sent to this contact across all time).
-      const resolvedEmail = storedEmail || '';
-      const domThreadCount = getThreadCountFromDOM(row);
-      const cacheCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
-      const stepCount = domThreadCount || cacheCount;
+        // Thread count: prefer Outlook's own conversation depth from DOM (most accurate),
+        // fall back to PA cache count (total sent to this contact across all time).
+        const resolvedEmail = storedEmail || '';
+        const domThreadCount = getThreadCountFromDOM(row);
+        const cacheCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
+        const stepCount = domThreadCount || cacheCount;
 
-      row.dataset.ibisProcessed = '1';
-      if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
-      if (emailMatchedViaDOM) row.dataset.ibisMatchDom = '1';
-      injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM);
-    });
-
-    folderCounts[activeFolder] = overdueCount;
-    // Persist so badges show on other folders immediately without needing to click each one
-    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
-    updateFolderBadges();
-    lastScanTime = Date.now();
-    scanning = false;
-    LOG(`"${activeFolder}": ${rows.length} rows, ${overdueCount} overdue`);
+        row.dataset.ibisProcessed = '1';
+        if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
+        if (emailMatchedViaDOM) row.dataset.ibisMatchDom = '1';
+        injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM);
+      });
+    } catch (err) {
+      LOG('Scan error (non-fatal):', err.message);
+    } finally {
+      // Always reset scanning flag — prevents permanent lock if any exception occurs
+      folderCounts[activeFolder] = overdueCount;
+      if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
+      updateFolderBadges();
+      lastScanTime = Date.now();
+      scanning = false;
+      LOG(`"${activeFolder}": ${rows.length} rows, ${overdueCount} overdue`);
+    }
   }
 
   // ── Row badge injection ───────────────────────────────────────────────────────
@@ -913,7 +917,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.16',
+        version: '3.18',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -965,20 +969,22 @@
 
   function onMutation() {
     clearTimeout(debounceTimer);
-    // 1500ms debounce: Outlook's DOM mutates constantly (unread counts, animations).
-    // Combined with the 2s lastScanTime guard in scanEmailRows(), this prevents the
-    // scan-spam that was producing 60+ scans/min and flooding the console log.
+    // 300ms debounce: short enough to fire despite Outlook's constant DOM mutations.
+    // Outlook mutates every ~500ms (unread counts, animations) — a longer debounce
+    // (e.g. 1500ms) would reset on every mutation and NEVER fire.
+    // Scan spam is handled by the 2-second lastScanTime guard inside scanEmailRows(),
+    // not here. These two guards solve different problems and work together.
     debounceTimer = setTimeout(() => {
       updateFolderBadges();
       scanEmailRows();
-    }, 1500);
+    }, 300);
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.17 init on', location.hostname);
+    LOG('v3.18 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
