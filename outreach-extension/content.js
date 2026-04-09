@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.14
+// IBISWorld Outreach — DOM Overlay v3.15
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -183,15 +183,27 @@
   // the cache's lastDate for accurate staleness (most recent sent to that contact).
 
   function localDateStr(d) {
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    // NOTE: getMonth() is 0-indexed — must add 1 and pad to avoid Jan=0 matching Dec=12 collisions
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  function findEmailByDate(rowDate) {
+  function findEmailByDate(rowDate, folderConstraint) {
     if (!rowDate || !emailCacheLoaded) return null;
     const rowStr = localDateStr(rowDate);
+
+    // Folder-constrained matching: when _folder data is available, only match contacts
+    // in the current campaign folder. This prevents cross-folder collisions where two
+    // contacts emailed on the same day (different folders) get mixed up.
+    // Graceful fallback: if bridge.js hasn't sent _folder data yet, match globally.
+    const hasAnyFolderData = !!(folderConstraint && Object.values(contactMap).some(c => c._folder));
+
     let bestEmail = null;
     let bestDiff = Infinity;
     for (const [email, entry] of Object.entries(emailCache)) {
+      if (hasAnyFolderData) {
+        const c = contactMap[email];
+        if (!c || c._folder !== folderConstraint) continue; // wrong folder — skip
+      }
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
         if (isNaN(dt.getTime())) continue;
@@ -418,6 +430,15 @@
 
   function refreshFolderCountsFromCache() {
     if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
+
+    // Guard: only run if bridge.js has pushed _folder data (requires opening the dashboard).
+    // Without this guard, all counts = 0 and we'd zero out valid DOM-scanned counts.
+    const hasFolderData = Object.values(contactMap).some(c => c._folder);
+    if (!hasFolderData) {
+      LOG('refreshFolderCountsFromCache: no _folder data yet — open dashboard to activate folder badges');
+      return;
+    }
+
     const counts = {};
     CAMPAIGN_FOLDERS.forEach(f => { counts[f] = 0; });
     Object.entries(emailCache).forEach(([email, entry]) => {
@@ -428,9 +449,14 @@
       if (!c?._folder || counts[c._folder] === undefined) return;
       counts[c._folder]++;
     });
-    // Populate all folder badges from cache. DOM scan will override the
-    // active folder with its own accurate count whenever the user is in it.
-    CAMPAIGN_FOLDERS.forEach(f => { folderCounts[f] = counts[f]; });
+
+    // Update folder counts from cache — but NEVER overwrite the currently active folder.
+    // The DOM scan is authoritative for whichever folder the user is inside right now.
+    const activeFolder = getActiveCampaignFolder();
+    CAMPAIGN_FOLDERS.forEach(f => {
+      if (f !== activeFolder) folderCounts[f] = counts[f];
+    });
+
     updateFolderBadges();
     if (ctxOk()) chrome.storage.local.set({
       ibis_folder_counts: JSON.stringify(folderCounts),
@@ -548,8 +574,9 @@
       const domDate = getDateFromRow(row);
 
       if (!storedEmail && emailCacheLoaded && domDate) {
-        // Match row to cache entry by its DOM date = date of first email in folder
-        const matched = findEmailByDate(domDate);
+        // Match row to cache entry by its DOM date = date of first email in folder.
+        // Pass activeFolder so we only match against contacts in the current campaign folder.
+        const matched = findEmailByDate(domDate, activeFolder);
         if (matched) {
           storedEmail = matched;
           cacheEntry = emailCache[matched];
@@ -720,7 +747,10 @@
       if (!highConfidence && !isKnownContact) {
         // Skip domain-guessed names for date-matched rows — too many false positives
       } else {
-      const companyName = contact?.accountName || (!isPersonalDomain && (domainContactMap[domain] || domainToName(domain))) || '';
+      // For exact matches (high confidence DOM scan): derive name from domain if no contact record.
+      // For date-based matches (low confidence): ONLY use exact contact.accountName — never guess from
+      // domain, as domainContactMap can map the wrong company when contacts share a date collision.
+      const companyName = contact?.accountName || (highConfidence && !isPersonalDomain && domainToName(domain)) || '';
       if (companyName) {
         const bubble = document.createElement('span');
         bubble.title = companyName;
@@ -851,30 +881,32 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.14 init on', location.hostname);
-    // Restore persisted folder counts only when version matches.
-    // Version bump (e.g. 3.11 → 3.12) clears any stale / poisoned counts automatically.
+    LOG('v3.15 init on', location.hostname);
+
+    // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
+    // loadContactMap() and loadEmailCache() call refreshFolderCountsFromCache() in their
+    // callbacks — they must find folderCounts already populated so they don't race with
+    // the storage.get() callback and produce an empty initial state.
     chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version'], (res) => {
       try {
         if (res.ibis_fc_version === FC_VERSION && res.ibis_folder_counts) {
           Object.assign(folderCounts, JSON.parse(res.ibis_folder_counts));
         }
-        updateFolderBadges();
       } catch (_) {}
+
+      updateFolderBadges();       // show persisted counts immediately while data loads
+      loadContactMap();
+      setInterval(loadContactMap, 60_000);
+      loadEmailCache();
+      setInterval(loadEmailCache, 2 * 60 * 60 * 1000);
+      // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
+      setInterval(updateFolderBadges, 1500);
+      new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => {
+        LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
+        scanEmailRows();
+      }, 1800);
     });
-    loadContactMap();
-    setInterval(loadContactMap, 60_000);
-    loadEmailCache();
-    // Refresh email cache every 2h — matches PA flow frequency
-    setInterval(loadEmailCache, 2 * 60 * 60 * 1000);
-    // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
-    // Uses a long-ish interval (1.5s) to avoid fighting with Outlook's renders.
-    setInterval(updateFolderBadges, 1500);
-    new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => {
-      LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
-      scanEmailRows();
-    }, 1800);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

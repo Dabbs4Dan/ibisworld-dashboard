@@ -36,10 +36,16 @@
           Object.entries(store).forEach(([email, contact]) => {
             if (!email || !contact) return;
             const em = email.toLowerCase().trim();
-            // Preserve the first valid folder assignment — earlier campaigns take priority.
-            // This way Workables contact stays in Workables even if they also appear in Powerback (no folder).
-            const existingFolder = merged[em]?._folder;
-            merged[em] = { ...contact, _folder: existingFolder || folder };
+            if (!merged[em]) {
+              // First time seeing this email — use this campaign's full data + folder
+              merged[em] = { ...contact, _folder: folder };
+            } else if (!merged[em]._folder && folder) {
+              // Seen before but without a folder (e.g. from Powerback) — add folder only,
+              // preserve the original contact data (accountName etc.) from the first campaign
+              merged[em] = { ...merged[em], _folder: folder };
+            }
+            // If already seen with a valid folder: skip entirely (first campaign wins).
+            // This prevents a later campaign from overwriting accountName with a wrong value.
             totalCount++;
           });
         } catch (_) {}
