@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.24
+// IBISWorld Outreach — DOM Overlay v3.25
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -31,7 +31,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.24';
+  const FC_VERSION = '3.25';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -225,7 +225,9 @@
     // When bridge has NOT pushed _folder data yet (all _folder = null):
     //   hasFolderData = false → return globalBest (same as v3.16 — best effort, no false-folder risk).
     if (!rowDate || !emailCacheLoaded) return null;
-    const rowStr = localDateStr(rowDate);
+
+    // Calendar-day of the row date (midnight UTC equivalent for comparison)
+    const rowDayMs = new Date(rowDate.getFullYear(), rowDate.getMonth(), rowDate.getDate()).getTime();
 
     // hasFolderData: true once bridge v1.4 has pushed _folders data.
     // Contacts with empty _folders array count as "no folder data yet".
@@ -246,7 +248,10 @@
       for (const d of (entry.dates || [])) {
         const dt = new Date(d);
         if (isNaN(dt.getTime())) continue;
-        if (localDateStr(dt) !== rowStr) continue;
+        // Allow ±1 calendar day tolerance — Outlook displays emails < 24h as a time string
+        // which parseOutlookDate converts to "today", while PA cache has yesterday's date.
+        const dtDayMs = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+        if (Math.abs(dtDayMs - rowDayMs) > 86400000) continue; // > 1 calendar day apart
         const diff = Math.abs(dt.getTime() - rowDate.getTime());
         if (diff < globalDiff)   { globalDiff   = diff; globalBest   = email; }
         if (inFolder       && diff < folderDiff)   { folderDiff   = diff; folderBest   = email; }
@@ -636,7 +641,17 @@
     }
 
     const rows = getEmailRows();
-    if (!rows.length) return;
+    if (!rows.length) {
+      // Empty folder — reset badge count to 0 so stale counts don't persist
+      if (emailCacheLoaded && activeFolder && folderCounts[activeFolder] !== 0) {
+        folderCounts[activeFolder] = 0;
+        if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
+        updateFolderBadges();
+        LOG(`"${activeFolder}": empty folder — badge reset to 0`);
+      }
+      lastScanTime = Date.now();
+      return;
+    }
 
     // Debug state snapshot — visible in F12 console, filter "[IBISWorld]"
     LOG(`Scan: folder="${activeFolder}" contacts=${Object.keys(contactMap).length} cacheLoaded=${emailCacheLoaded} cacheEntries=${Object.keys(emailCache).length} retries=${cacheRetryCount}`);
@@ -997,7 +1012,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.23',
+        version: '3.25',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
