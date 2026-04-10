@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.34
+// IBISWorld Outreach — DOM Overlay v3.35
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -13,7 +13,7 @@
 (function () {
   'use strict';
 
-  const OVERDUE_DAYS = 3;
+  const OVERDUE_DAYS = 2;
   const OWN_DOMAIN   = 'ibisworld.com';
   const OWN_NAMES    = new Set(['daniel', 'dan', 'starr']); // filter Dan's own name from greeting parse
 
@@ -28,12 +28,20 @@
   // Add entries here as mismatches are discovered.
   const FAVICON_DOMAIN_OVERRIDES = {
     'lge.com':    'lg.com',           // LG Electronics staff email → LG website
-    // parker.com IS the correct website — no override needed (parkerhannifin.com 404s)
+    'parker.com': 'parker.com',       // Parker Hannifin — explicit so Google fallback triggers cleanly
   };
 
-  // Bump this constant whenever a fresh start for folder counts is needed.
+  // Direct favicon URL overrides — when DuckDuckGo + Google both fail for a domain,
+  // specify the exact favicon URL here. Checked FIRST before the DuckDuckGo cascade.
+  const FAVICON_URL_OVERRIDES = {
+    'parker.com': 'https://www.parker.com/favicon.ico',
+  };
+
+  // Bump this ONLY when counting methodology changes (not on every release).
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.34';
+  // Bumping every release was causing all folder badges to disappear until
+  // each folder was physically visited — defeating the pre-load system.
+  const FC_VERSION = 'v1';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -1121,14 +1129,21 @@
           const img = document.createElement('img');
           // Use override domain for favicon when email domain ≠ company website domain
           const faviconDomain = FAVICON_DOMAIN_OVERRIDES[domain] || domain;
-          img.src = `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
+          // Favicon cascade: direct URL override → DuckDuckGo → Google → hide
+          const directUrl = FAVICON_URL_OVERRIDES[faviconDomain];
+          img.src = directUrl || `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
           img.style.cssText = 'width:12px;height:12px;border-radius:2px;flex-shrink:0;object-fit:contain';
-          // Fallback chain: DuckDuckGo → Google favicon API → hide
           img.onerror = () => {
             if (!img.dataset.tried) {
               img.dataset.tried = '1';
-              img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
-              img.onerror = () => { img.style.display = 'none'; };
+              img.src = `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
+              img.onerror = () => {
+                if (!img.dataset.tried2) {
+                  img.dataset.tried2 = '1';
+                  img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
+                  img.onerror = () => { img.style.display = 'none'; };
+                }
+              };
             }
           };
           bubble.appendChild(img);
@@ -1235,7 +1250,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.34',
+        version: '3.35',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1302,7 +1317,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.34 init on', location.hostname);
+    LOG('v3.35 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
