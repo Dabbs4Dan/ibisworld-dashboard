@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.30
+// IBISWorld Outreach — DOM Overlay v3.31
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -33,7 +33,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.30';
+  const FC_VERSION = '3.31';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -54,6 +54,7 @@
   let emailCacheLoaded = false;   // true once cache has been successfully populated
   let contactMapLoaded = false;   // true once contact map has been loaded with data
   let cacheRetryCount  = 0;      // how many times loadEmailCache has been retried after failure
+  let cacheNameMap     = {};     // firstName (lowercase) → [{email, domain, nameParts}] — derived from email cache addresses
   let lastScanTime     = 0;      // timestamp of last completed scan — prevents scan spam
   let lastActiveFolder = null;   // tracks folder nav changes so we can strip stale badges
 
@@ -196,6 +197,7 @@
     const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
     emailCache = map;
     emailCacheLoaded = true;
+    buildCacheNameMap(); // index email addresses by first name for greeting matching
     const cacheKeys = Object.keys(emailCache);
     LOG('Email cache loaded:', cacheKeys.length, 'contacts');
     // Debug: log top 10 entries so you can verify counts + dates in console
@@ -247,6 +249,29 @@
       LOG('Pre-loaded folder count estimates from PA cache:', JSON.stringify(estimates));
     }
     updateDebugBadge('ok');
+  }
+
+  // ── Cache name index ─────────────────────────────────────────────────────────
+  // Derive first names from email addresses in the PA cache so we can match
+  // greeting text ("Hi Ren") against contacts NOT in the dashboard campaign stores.
+  // e.g. "ren.thomas@evergreen.edu" → firstName "ren", nameParts ["ren","thomas"]
+
+  function buildCacheNameMap() {
+    cacheNameMap = {};
+    for (const email of Object.keys(emailCache)) {
+      const atIdx = email.indexOf('@');
+      if (atIdx < 0) continue;
+      const local  = email.substring(0, atIdx);
+      const domain = email.substring(atIdx + 1);
+      // Split local part by . _ - +  ("ren.thomas" → ["ren","thomas"])
+      // Filter out parts with digits ("keneljoseph97") or very short parts
+      const parts = local.split(/[._\-+]/).filter(p => p.length >= 2 && !/\d/.test(p));
+      if (parts.length === 0) continue;
+      const firstName = parts[0].toLowerCase();
+      if (OWN_NAMES.has(firstName)) continue; // don't index Dan's own name
+      if (!cacheNameMap[firstName]) cacheNameMap[firstName] = [];
+      cacheNameMap[firstName].push({ email, domain, nameParts: parts });
+    }
   }
 
   // ── Row-to-contact matching via date ─────────────────────────────────────────
@@ -492,6 +517,19 @@
     return best;
   }
 
+  // Build a synthetic contactInfo result for a cache-only match (contact not in dashboard campaigns).
+  function _synthCacheResult(cm, confidence) {
+    const isPersonal = PERSONAL_DOMAINS.has(cm.domain);
+    const accountName = !isPersonal ? (domainContactMap[cm.domain] || domainToName(cm.domain)) : '';
+    const synthName = cm.nameParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    return {
+      email: cm.email,
+      contact: { accountName, domain: cm.domain, name: synthName, _folders: [] },
+      domain: cm.domain,
+      confidence,
+    };
+  }
+
   function findContactForRow(row, activeFolder, domDate) {
     // ── Strategy 1: DOM email scan (highest confidence) ──
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
@@ -525,15 +563,41 @@
       }
     }
 
+    // ── Strategy 2b: Greeting name against email cache addresses ──
+    // For contacts not in any dashboard campaign store but present in the PA email cache.
+    // e.g. "Hi Ren" → cache has "ren.thomas@evergreen.edu" → match by first name "ren".
+    if (greetingName && Object.keys(cacheNameMap).length > 0) {
+      const cacheMatches = cacheNameMap[greetingName.toLowerCase()] || [];
+      if (cacheMatches.length === 1) {
+        const cm = cacheMatches[0];
+        return _synthCacheResult(cm, 'cache_name');
+      }
+      if (cacheMatches.length > 1) {
+        const candidates = cacheMatches.map(cm => ({
+          email: cm.email,
+          contact: { accountName: '', domain: cm.domain, name: '', _folders: [] },
+          domain: cm.domain,
+        }));
+        const best = domDate ? tiebreakByDate(candidates, domDate) : null;
+        if (best) {
+          const isP = PERSONAL_DOMAINS.has(best.domain);
+          best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
+          return { ...best, confidence: 'cache_name+date' };
+        }
+        // No date tiebreak possible — pick first
+        return _synthCacheResult(cacheMatches[0], 'cache_name');
+      }
+    }
+
     // ── Strategy 3: From name parse (non-Dan sender in inbound/mixed threads) ──
     const senderNames = getNonDanFromNames(row);
     for (const senderName of senderNames) {
-      // Try full name match first
+      // Try full name match first (contactMap)
       let matches = matchContactsByFullName(senderName, activeFolder);
       if (matches.length === 0) matches = matchContactsByFullName(senderName, null);
       if (matches.length === 1) return { ...matches[0], confidence: 'sender' };
 
-      // Try first name only
+      // Try first name only (contactMap)
       const firstName = senderName.split(/\s+/)[0];
       if (firstName && firstName.length >= 3) {
         let fMatches = matchContactsByFirstName(firstName, activeFolder);
@@ -544,9 +608,31 @@
           if (best) return { ...best, confidence: 'sender_first+date' };
         }
       }
+
+      // ── Strategy 3b: From name against email cache addresses ──
+      if (firstName && firstName.length >= 3 && Object.keys(cacheNameMap).length > 0) {
+        const lower = firstName.toLowerCase();
+        if (!OWN_NAMES.has(lower)) {
+          const cacheMatches = cacheNameMap[lower] || [];
+          if (cacheMatches.length === 1) return _synthCacheResult(cacheMatches[0], 'cache_sender');
+          if (cacheMatches.length > 1 && domDate) {
+            const candidates = cacheMatches.map(cm => ({
+              email: cm.email,
+              contact: { accountName: '', domain: cm.domain, name: senderName, _folders: [] },
+              domain: cm.domain,
+            }));
+            const best = tiebreakByDate(candidates, domDate);
+            if (best) {
+              const isP = PERSONAL_DOMAINS.has(best.domain);
+              best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
+              return { ...best, confidence: 'cache_sender+date' };
+            }
+          }
+        }
+      }
     }
 
-    return null; // no match — scanEmailRows handles date fallback
+    return null; // no match — row gets staleness-only badge (no company/step/reply)
   }
 
   // ── Active folder detection ───────────────────────────────────────────────────
@@ -810,23 +896,19 @@
           }
         }
 
-        // Last resort: date-only matching (lower confidence, may show wrong company)
-        if (!storedEmail && emailCacheLoaded && domDate) {
-          const matched = findEmailByDate(domDate, activeFolder);
-          if (matched) {
-            storedEmail = matched;
-            cacheEntry = emailCache[matched];
-            emailMatchedViaDOM = false; // date-matched = lower confidence
-            if (!alreadyProcessed) LOG(`  Match [date-fallback]: ${storedEmail}`);
-          }
-        }
+        // Date-fallback REMOVED (v3.31) — with 107+ contacts, date collisions caused
+        // wrong company names on most rows. Unmatched rows now show staleness-only.
 
-        // Always use DOM date for staleness — it reflects actual Outlook thread state.
-        // Fall back to PA cache date only when DOM can't parse a date (rare).
+        // Staleness date: for confident matches, prefer PA cache date (most recent sent)
+        // over DOM date (folder filing date). The PA date answers "when did I last
+        // email this person?" which is what Dan cares about for outreach tracking.
+        // For unmatched rows, DOM date is the only option.
         let date = domDate;
-        if (!date && cacheEntry) {
+        if (storedEmail && cacheEntry?.lastDate) {
           const paDate = new Date(cacheEntry.lastDate);
-          if (!isNaN(paDate.getTime())) date = paDate;
+          if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
+            date = paDate; // PA date is more recent — use it
+          }
         }
 
         const days = daysSince(date);
@@ -1131,7 +1213,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.30',
+        version: '3.31',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1198,7 +1280,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.30 init on', location.hostname);
+    LOG('v3.31 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
