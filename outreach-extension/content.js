@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.31
+// IBISWorld Outreach — DOM Overlay v3.32
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -28,12 +28,12 @@
   // Add entries here as mismatches are discovered.
   const FAVICON_DOMAIN_OVERRIDES = {
     'lge.com':    'lg.com',           // LG Electronics staff email → LG website
-    'parker.com': 'parkerhannifin.com', // Parker domain → Parker Hannifin website
+    // parker.com IS the correct website — no override needed (parkerhannifin.com 404s)
   };
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.31';
+  const FC_VERSION = '3.32';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -935,17 +935,13 @@
         // Date-fallback REMOVED (v3.31) — with 107+ contacts, date collisions caused
         // wrong company names on most rows. Unmatched rows now show staleness-only.
 
-        // Staleness date: for confident matches, prefer PA cache date (most recent sent)
-        // over DOM date (folder filing date). The PA date answers "when did I last
-        // email this person?" which is what Dan cares about for outreach tracking.
-        // For unmatched rows, DOM date is the only option.
+        // Staleness date: ALWAYS use DOM date (v3.32 thread isolation).
+        // DOM date = date shown on THIS specific email row in THIS folder.
+        // PA cache date = most recent email to this contact across ALL contexts
+        // (calendar invites, other folders, sent items). Using PA date caused
+        // misleading staleness — e.g. Parker showing 2d because of a calendar
+        // invite, when the actual Churns thread email is 4d old.
         let date = domDate;
-        if (storedEmail && cacheEntry?.lastDate) {
-          const paDate = new Date(cacheEntry.lastDate);
-          if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
-            date = paDate; // PA date is more recent — use it
-          }
-        }
 
         const days = daysSince(date);
 
@@ -960,15 +956,16 @@
           ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
           : null;
 
-        // Thread count: prefer Outlook's own conversation depth from DOM (most accurate),
-        // fall back to PA cache count (total sent to this contact across all time).
+        // Thread count: use Outlook's DOM thread count for THIS specific conversation.
+        // v3.32 thread isolation: NEVER fall back to PA cache count (which is total
+        // emails sent to this contact across ALL time/folders/calendar invites).
+        // If DOM can't detect thread depth, default to 1 (the email row exists).
         const resolvedEmail = storedEmail || '';
         const domThreadCount = getThreadCountFromDOM(row);
-        const cacheCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
-        const stepCount = domThreadCount || cacheCount;
+        const stepCount = domThreadCount || (resolvedEmail ? 1 : 0);
         // Debug: log what we found for each row (helps diagnose count issues)
         if (!alreadyProcessed && resolvedEmail) {
-          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | domThreadCount=${domThreadCount} | cacheCount=${cacheCount} | days=${days}`);
+          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | domThreadCount=${domThreadCount} | stepCount=${stepCount} | days=${days}`);
         }
 
         row.dataset.ibisProcessed = '1';
@@ -1019,7 +1016,7 @@
                             'rgba(159,18,57,0.45)';
 
     const dayLabel = days === 0 ? 'today' : days + 'd';
-    const tooltip  = `Last email sent: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}${emailCacheLoaded ? ' (PA data)' : ' (Outlook date)'}`;
+    const tooltip  = `Last email in thread: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
 
     const chip = document.createElement('span');
     chip.title = tooltip;
@@ -1249,7 +1246,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.31',
+        version: '3.32',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1316,7 +1313,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.31 init on', location.hostname);
+    LOG('v3.32 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
