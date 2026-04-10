@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.33
+// IBISWorld Outreach — DOM Overlay v3.34
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -33,7 +33,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.33';
+  const FC_VERSION = '3.34';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -752,23 +752,19 @@
 
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      // STRICT matching only (v3.33) — no .includes() fallback.
-      // .includes() was matching subfolders like "Multithreads" → "Multithread",
-      // "Winback 2" → "Winback", causing badges on wrong folders.
-      // Primary: aria-label exact match (most reliable).
-      // Fallback: textContent word-boundary match — handles badge counts appended
-      // to textContent (e.g. "😎 Multithread1") while rejecting "Multithreads".
+      // Primary: aria-label exact match (most reliable — "❄️ Winback, 23 unread" → "Winback").
+      // Fallback: textContent .includes() with letter-suffix guard (v3.34).
+      // The guard prevents "Multithreads" matching "Multithread" — if the character
+      // immediately after the folder name is a letter, it's a different word (subfolder).
       const ariaLabel = (item.getAttribute('aria-label') || '').split(',')[0].trim();
-      let folderName = ariaLabel ? exactFolderMatch(ariaLabel) : null;
-      if (!folderName) {
-        const normText = normFolder(item.textContent.trim()).toLowerCase();
-        folderName = CAMPAIGN_FOLDERS.find(f => {
-          const fl = f.toLowerCase();
-          // Match exact name, or name followed by non-letter (digit/space/comma)
-          // "multithread" matches "multithread" and "multithread1" but NOT "multithreads"
-          return normText === fl || (normText.startsWith(fl) && !/[a-z]/.test(normText[fl.length] || ''));
-        }) || null;
-      }
+      const folderName = (ariaLabel ? exactFolderMatch(ariaLabel) : null)
+                      || CAMPAIGN_FOLDERS.find(f => {
+                           const idx = item.textContent.indexOf(f);
+                           if (idx < 0) return false;
+                           const after = item.textContent[idx + f.length] || '';
+                           return !/[a-zA-Z]/.test(after); // reject "Multithreads" (s is a letter)
+                         })
+                      || null;
       if (!folderName) return;
 
       const count = folderCounts[folderName];
@@ -924,13 +920,20 @@
         // Date-fallback REMOVED (v3.31) — with 107+ contacts, date collisions caused
         // wrong company names on most rows. Unmatched rows now show staleness-only.
 
-        // Staleness date: ALWAYS use DOM date (v3.32 thread isolation).
-        // DOM date = date shown on THIS specific email row in THIS folder.
-        // PA cache date = most recent email to this contact across ALL contexts
-        // (calendar invites, other folders, sent items). Using PA date caused
-        // misleading staleness — e.g. Parker showing 2d because of a calendar
-        // invite, when the actual Churns thread email is 4d old.
+        // Staleness date: use the MORE RECENT of DOM date and PA cache date (v3.34).
+        // DOM date = when the email was filed in this campaign folder (could be weeks ago).
+        // PA cache date = most recent email sent to this contact (from any context).
+        // For outreach tracking, Dan wants "when did I last contact this person?" →
+        // the more recent date is always the right answer.
+        // v3.32 tried DOM-only but that was wrong: Dajin showed 16d (original filed
+        // email from 3/25) when Dan sent a follow-up 4d ago (4/6 in PA cache).
         let date = domDate;
+        if (storedEmail && cacheEntry?.lastDate) {
+          const paDate = new Date(cacheEntry.lastDate);
+          if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
+            date = paDate; // PA cache has a more recent sent date
+          }
+        }
 
         const days = daysSince(date);
 
@@ -945,20 +948,19 @@
           ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
           : null;
 
-        // Step count chip REMOVED (v3.33) — neither DOM thread count (cross-folder
-        // conversation total) nor PA cache count (cross-context total) is accurate
-        // for "how many emails in THIS specific thread in THIS folder". Showing wrong
-        // numbers (e.g. 10 when thread has 3) is worse than showing nothing.
+        // Step count: PA cache total sent to this contact. Not per-thread, but gives
+        // Dan a useful "how many times have I emailed this person" signal.
         const resolvedEmail = storedEmail || '';
+        const stepCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
-          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | days=${days}`);
+          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | paDate=${cacheEntry?.lastDate?.slice(0,10)||'none'} | steps=${stepCount} | days=${days}`);
         }
 
         row.dataset.ibisProcessed = '1';
         if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
         if (emailMatchedViaDOM) row.dataset.ibisMatchDom = '1';
-        injectRowBadges(row, days, contactInfo, emailMatchedViaDOM);
+        injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM);
       });
     } catch (err) {
       LOG('Scan error (non-fatal):', err.message);
@@ -975,7 +977,7 @@
 
   // ── Row badge injection ───────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, contactInfo, highConfidence = false) {
+  function injectRowBadges(row, days, contactInfo, stepCount = 0, highConfidence = false) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
     p(wrap, 'display',        'inline-flex');
@@ -1003,7 +1005,7 @@
                             'rgba(159,18,57,0.45)';
 
     const dayLabel = days === 0 ? 'today' : days + 'd';
-    const tooltip  = `Last email in thread: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
+    const tooltip  = `Last contact: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
 
     const chip = document.createElement('span');
     chip.title = tooltip;
@@ -1023,6 +1025,38 @@
       `box-shadow:0 0 5px 2px ${glowColor};flex-shrink:0;display:inline-block"></span>` +
       `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${dayLabel}</span>`;
     wrap.appendChild(chip);
+
+    // ── Step count chip ──
+    // Shows total emails sent to this contact (PA cache count). Gives Dan a quick
+    // "how many times have I reached out to this person" signal.
+    if (stepCount > 0) {
+      const stepColor =
+        stepCount >= 4 ? '#dc2626' :   // red  — heavy outreach
+        stepCount === 3 ? '#d97706' :  // amber — moderate
+                          '#6b7280';   // grey  — light
+
+      const stepBg =
+        stepCount >= 4 ? '#fef2f2' :
+        stepCount === 3 ? '#fffbeb' :
+                          '#f9fafb';
+
+      const stepChip = document.createElement('span');
+      stepChip.title = `${stepCount} email${stepCount === 1 ? '' : 's'} sent to this contact`;
+      p(stepChip, 'display',       'inline-flex');
+      p(stepChip, 'align-items',   'center');
+      p(stepChip, 'gap',           '3px');
+      p(stepChip, 'background',    stepBg);
+      p(stepChip, 'border',        `1px solid ${stepCount >= 4 ? '#fecaca' : stepCount === 3 ? '#fde68a' : '#e5e7eb'}`);
+      p(stepChip, 'border-radius', '999px');
+      p(stepChip, 'padding',       '1px 7px 1px 6px');
+      p(stepChip, 'white-space',   'nowrap');
+      p(stepChip, 'line-height',   '18px');
+      p(stepChip, 'cursor',        'default');
+      stepChip.innerHTML =
+        `<span style="font-size:10px;line-height:1">✉</span>` +
+        `<span style="font-family:monospace;font-size:10px;font-weight:700;color:${stepColor}">${stepCount}</span>`;
+      wrap.appendChild(stepChip);
+    }
 
     // ── Reply indicator ──
     // Green ↩ chip when the contact has sent at least one reply (detected from inbound
@@ -1201,7 +1235,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.33',
+        version: '3.34',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1268,7 +1302,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.33 init on', location.hostname);
+    LOG('v3.34 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
