@@ -198,6 +198,8 @@
     emailCache = map;
     emailCacheLoaded = true;
     buildCacheNameMap(); // index email addresses by first name for greeting matching
+    // Persist processed cache for instant load next session (avoids 5-10s SharePoint wait)
+    if (ctxOk()) chrome.storage.local.set({ ibis_email_cache_map: map });
     const cacheKeys = Object.keys(emailCache);
     LOG('Email cache loaded:', cacheKeys.length, 'contacts');
     // Debug: log top 10 entries so you can verify counts + dates in console
@@ -443,6 +445,9 @@
   // Name matching tries folder-restricted first, then cross-folder fallback.
   // Date tiebreaking used when multiple contacts share the same first name.
 
+  // Strip diacritics so "Élise" matches "Elise" in name comparisons.
+  function stripAccents(s) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+
   const GREETING_GENERIC = new Set(['There', 'All', 'Team', 'Everyone', 'Folks', 'Friend', 'Sir', 'Madam']);
   const GREETING_RE = /\b(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b/;
 
@@ -493,10 +498,10 @@
     // Find contacts whose first name matches, optionally restricted to a folder.
     // folder = null means search ALL contacts (cross-folder fallback).
     const results = [];
-    const lower = firstName.toLowerCase();
+    const lower = stripAccents(firstName).toLowerCase();
     for (const [email, c] of Object.entries(contactMap)) {
       if (folder && !c._folders?.includes(folder)) continue;
-      const cFirst = (c.name || '').split(/\s+/)[0].toLowerCase();
+      const cFirst = stripAccents((c.name || '').split(/\s+/)[0]).toLowerCase();
       if (cFirst === lower) {
         results.push({ email, contact: c, domain: c.domain || email.split('@')[1] || '' });
       }
@@ -507,10 +512,10 @@
   function matchContactsByFullName(fullName, folder) {
     // Try exact full-name match, then fall back to first-name-only.
     const results = [];
-    const lower = fullName.toLowerCase().trim();
+    const lower = stripAccents(fullName).toLowerCase().trim();
     for (const [email, c] of Object.entries(contactMap)) {
       if (folder && !c._folders?.includes(folder)) continue;
-      if ((c.name || '').toLowerCase().trim() === lower) {
+      if (stripAccents(c.name || '').toLowerCase().trim() === lower) {
         results.push({ email, contact: c, domain: c.domain || email.split('@')[1] || '' });
       }
     }
@@ -590,7 +595,7 @@
     // For contacts not in any dashboard campaign store but present in the PA email cache.
     // e.g. "Hi Ren" → cache has "ren.thomas@evergreen.edu" → match by first name "ren".
     if (greetingName && Object.keys(cacheNameMap).length > 0) {
-      const cacheMatches = cacheNameMap[greetingName.toLowerCase()] || [];
+      const cacheMatches = cacheNameMap[stripAccents(greetingName).toLowerCase()] || [];
       if (cacheMatches.length === 1) {
         const cm = cacheMatches[0];
         return _synthCacheResult(cm, 'cache_name');
@@ -877,6 +882,14 @@
     }
 
     const rows = getEmailRows();
+    // Fast path: all rows already processed → no work needed.
+    // Overdue count was already set on the last full scan; it only changes when
+    // new rows appear, cache loads, or folder changes — all of which clear the
+    // data-ibis-processed flags, so this fast path won't fire in those cases.
+    if (rows.length > 0 && rows.every(r => r.dataset.ibisProcessed)) {
+      lastScanTime = Date.now();
+      return;
+    }
     if (!rows.length) {
       // Empty folder — reset badge count to 0 so stale counts don't persist
       if (emailCacheLoaded && activeFolder && folderCounts[activeFolder] !== 0) {
@@ -1308,17 +1321,29 @@
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
     // from PA cache — only real folder scans update folderCounts (see v3.26 model above).
-    chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version'], (res) => {
+    chrome.storage.local.get(['ibis_folder_counts', 'ibis_fc_version', 'ibis_email_cache_map'], (res) => {
       try {
         if (res.ibis_fc_version === FC_VERSION && res.ibis_folder_counts) {
           Object.assign(folderCounts, JSON.parse(res.ibis_folder_counts));
         }
       } catch (_) {}
 
+      // Instant email cache from previous session — badges appear immediately instead
+      // of waiting 5-10s for the SharePoint fetch. Fresh data loads in the background.
+      if (res.ibis_email_cache_map && typeof res.ibis_email_cache_map === 'object') {
+        const size = Object.keys(res.ibis_email_cache_map).length;
+        if (size > 0) {
+          emailCache = res.ibis_email_cache_map;
+          emailCacheLoaded = true;
+          buildCacheNameMap();
+          LOG('Instant cache:', size, 'contacts from previous session');
+        }
+      }
+
       updateFolderBadges();       // show persisted counts immediately while data loads
       loadContactMap();
       setInterval(loadContactMap, 60_000);
-      loadEmailCache();
+      loadEmailCache();           // fetch fresh data from SharePoint (overwrites on success)
       setInterval(loadEmailCache, 2 * 60 * 60 * 1000);
       // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
       setInterval(updateFolderBadges, 1500);
