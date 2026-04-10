@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.32
+// IBISWorld Outreach — DOM Overlay v3.33
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -33,7 +33,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.32';
+  const FC_VERSION = '3.33';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -96,6 +96,8 @@
         // matching runs even if rows were previously date-matched (wrong) before map loaded.
         if (!contactMapLoaded && mapSize > 0) {
           contactMapLoaded = true;
+          // Pre-load folder counts now that contactMap is available (instant cache may already be loaded)
+          preloadFolderCounts();
           if (getActiveCampaignFolder()) {
             LOG('Contact map first load — re-scanning rows for name matching');
             document.querySelectorAll('[data-ibis-processed]').forEach(row => {
@@ -221,36 +223,43 @@
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // Pre-load folder counts for non-visited folders using real PA email data.
-    // Uses actual last-sent dates from the cache (not guessed) — much more accurate than v3.24.
-    // Only runs once per cache load. Active folder is always overwritten by the real DOM scan.
-    // NOTE: estimates folder from _folders[0] (primary dashboard campaign = likely Outlook folder).
-    // Edge case: a contact in ibis_samples whose emails are physically in Workables Outlook folder
-    // will inflate the Old Samples count. This resolves the moment Dan visits that folder.
+    // Pre-load folder counts for non-visited folders
     if (isFirstLoad && Object.keys(contactMap).length > 0) {
-      const activeFolder = getActiveCampaignFolder();
-      const estimates = {};
-      CAMPAIGN_FOLDERS.forEach(f => { estimates[f] = 0; });
-      Object.entries(emailCache).forEach(([email, entry]) => {
-        if (!entry.lastDate) return;
-        const days = daysSince(new Date(entry.lastDate));
-        if (days === null || days < OVERDUE_DAYS) return;
-        const c = contactMap[email];
-        if (!c?._folders?.length) return;
-        const primaryFolder = c._folders[0];
-        if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
-      });
-      CAMPAIGN_FOLDERS.forEach(f => {
-        if (f !== activeFolder && folderCounts[f] === undefined) {
-          // Only pre-fill folders NOT yet visited this session (undefined = never scanned)
-          folderCounts[f] = estimates[f];
-        }
-      });
-      if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
-      updateFolderBadges();
-      LOG('Pre-loaded folder count estimates from PA cache:', JSON.stringify(estimates));
+      preloadFolderCounts();
     }
     updateDebugBadge('ok');
+  }
+
+  // ── Pre-load folder count estimates ──────────────────────────────────────────
+  // Uses PA email cache + contactMap _folders to estimate overdue counts for folders
+  // not yet physically visited. Called from both processEmailCache AND loadContactMap
+  // (whichever fires second, once both data sources are available).
+  let _preloadDone = false;
+  function preloadFolderCounts() {
+    if (_preloadDone) return;
+    if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
+    _preloadDone = true;
+
+    const activeFolder = getActiveCampaignFolder();
+    const estimates = {};
+    CAMPAIGN_FOLDERS.forEach(f => { estimates[f] = 0; });
+    Object.entries(emailCache).forEach(([email, entry]) => {
+      if (!entry.lastDate) return;
+      const days = daysSince(new Date(entry.lastDate));
+      if (days === null || days < OVERDUE_DAYS) return;
+      const c = contactMap[email];
+      if (!c?._folders?.length) return;
+      const primaryFolder = c._folders[0];
+      if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
+    });
+    CAMPAIGN_FOLDERS.forEach(f => {
+      if (f !== activeFolder && folderCounts[f] === undefined) {
+        folderCounts[f] = estimates[f];
+      }
+    });
+    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
+    updateFolderBadges();
+    LOG('Pre-loaded folder count estimates:', JSON.stringify(estimates));
   }
 
   // ── Cache name index ─────────────────────────────────────────────────────────
@@ -719,38 +728,9 @@
     return [...document.querySelectorAll('[data-convid]')];
   }
 
-  // ── Thread depth from Outlook DOM ────────────────────────────────────────────
-  // Outlook renders an expand button on threaded rows: aria-label="Expand conversation, 6 items"
-  // Use this as the thread count rather than PA total-sent count (which grows unbounded).
-
-  function getThreadCountFromDOM(row) {
-    // 1. Row's own aria-label — scan for any number followed by message/item count words.
-    //    Outlook cloud.microsoft format: "Subject. From. N messages. Date." or similar.
-    const rowLabel = row.getAttribute('aria-label') || '';
-    let m = rowLabel.match(/\b(\d+)\s*(?:messages?|items?|emails?|conversations?)\b/i);
-    if (m) return parseInt(m[1], 10);
-
-    // 2. Child element aria-labels — expand button, count badge, etc.
-    for (const el of row.querySelectorAll('[aria-label]')) {
-      const label = el.getAttribute('aria-label') || '';
-      // "Expand conversation, 3 items" / "Expand, 3 messages" / "3 items in conversation"
-      if (/expand|conversation/i.test(label)) {
-        m = label.match(/(\d+)/);
-        if (m && parseInt(m[1], 10) > 1) return parseInt(m[1], 10);
-      }
-      // Pure count label: "3 messages" / "3 items"
-      m = label.match(/^(\d+)\s*(?:messages?|items?)\b/i);
-      if (m) return parseInt(m[1], 10);
-    }
-
-    // 3. data-count / data-thread-count attributes on row or direct children
-    for (const el of [row, ...row.querySelectorAll('[data-count],[data-thread-count]')]) {
-      const c = parseInt(el.getAttribute('data-count') || el.getAttribute('data-thread-count') || '', 10);
-      if (c > 0) return c;
-    }
-
-    return 0;
-  }
+  // getThreadCountFromDOM REMOVED (v3.33) — Outlook's DOM thread count is the
+  // full cross-folder conversation count (e.g. 10) not the per-thread-in-folder
+  // count (e.g. 3). No reliable per-thread source exists from the list view.
 
   // ── Folder count model (v3.26+): scan-only, no estimation ───────────────────
   // folderCounts[f] is set ONLY when we physically navigate to folder f and scan
@@ -772,14 +752,23 @@
 
   function updateFolderBadges() {
     document.querySelectorAll('[role="treeitem"]').forEach(item => {
-      // Use aria-label with comma-split for precise matching.
-      // Primary: aria-label exact match — "❄️ Winback, 23 unread" → "Winback" ✓
-      //   Also excludes "→ Winback 3, 0 unread" → "Winback 3" → no match ✓
-      // Fallback: textContent .includes() for Outlook builds without aria-label attributes.
+      // STRICT matching only (v3.33) — no .includes() fallback.
+      // .includes() was matching subfolders like "Multithreads" → "Multithread",
+      // "Winback 2" → "Winback", causing badges on wrong folders.
+      // Primary: aria-label exact match (most reliable).
+      // Fallback: textContent word-boundary match — handles badge counts appended
+      // to textContent (e.g. "😎 Multithread1") while rejecting "Multithreads".
       const ariaLabel = (item.getAttribute('aria-label') || '').split(',')[0].trim();
-      const folderName = (ariaLabel ? exactFolderMatch(ariaLabel) : null)
-                      || CAMPAIGN_FOLDERS.find(f => item.textContent.includes(f))
-                      || null;
+      let folderName = ariaLabel ? exactFolderMatch(ariaLabel) : null;
+      if (!folderName) {
+        const normText = normFolder(item.textContent.trim()).toLowerCase();
+        folderName = CAMPAIGN_FOLDERS.find(f => {
+          const fl = f.toLowerCase();
+          // Match exact name, or name followed by non-letter (digit/space/comma)
+          // "multithread" matches "multithread" and "multithread1" but NOT "multithreads"
+          return normText === fl || (normText.startsWith(fl) && !/[a-z]/.test(normText[fl.length] || ''));
+        }) || null;
+      }
       if (!folderName) return;
 
       const count = folderCounts[folderName];
@@ -956,22 +945,20 @@
           ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
           : null;
 
-        // Thread count: use Outlook's DOM thread count for THIS specific conversation.
-        // v3.32 thread isolation: NEVER fall back to PA cache count (which is total
-        // emails sent to this contact across ALL time/folders/calendar invites).
-        // If DOM can't detect thread depth, default to 1 (the email row exists).
+        // Step count chip REMOVED (v3.33) — neither DOM thread count (cross-folder
+        // conversation total) nor PA cache count (cross-context total) is accurate
+        // for "how many emails in THIS specific thread in THIS folder". Showing wrong
+        // numbers (e.g. 10 when thread has 3) is worse than showing nothing.
         const resolvedEmail = storedEmail || '';
-        const domThreadCount = getThreadCountFromDOM(row);
-        const stepCount = domThreadCount || (resolvedEmail ? 1 : 0);
-        // Debug: log what we found for each row (helps diagnose count issues)
+        // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
-          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | domThreadCount=${domThreadCount} | stepCount=${stepCount} | days=${days}`);
+          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | days=${days}`);
         }
 
         row.dataset.ibisProcessed = '1';
         if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
         if (emailMatchedViaDOM) row.dataset.ibisMatchDom = '1';
-        injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM);
+        injectRowBadges(row, days, contactInfo, emailMatchedViaDOM);
       });
     } catch (err) {
       LOG('Scan error (non-fatal):', err.message);
@@ -988,7 +975,7 @@
 
   // ── Row badge injection ───────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, contactInfo, stepCount = 0, highConfidence = false) {
+  function injectRowBadges(row, days, contactInfo, highConfidence = false) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
     p(wrap, 'display',        'inline-flex');
@@ -1036,38 +1023,6 @@
       `box-shadow:0 0 5px 2px ${glowColor};flex-shrink:0;display:inline-block"></span>` +
       `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${dayLabel}</span>`;
     wrap.appendChild(chip);
-
-    // ── Step count chip (only when PA data is available) ──
-    // Color-coded: grey (1-2) → amber (3) → red (4+)
-    // Tells Dan at a glance which email in his sequence this is.
-    if (stepCount > 0) {
-      const stepColor =
-        stepCount >= 4 ? '#dc2626' :   // red  — at/past the 4-email limit
-        stepCount === 3 ? '#d97706' :  // amber — one more before limit
-                          '#6b7280';   // grey  — early in sequence
-
-      const stepBg =
-        stepCount >= 4 ? '#fef2f2' :
-        stepCount === 3 ? '#fffbeb' :
-                          '#f9fafb';
-
-      const stepChip = document.createElement('span');
-      stepChip.title = `${stepCount} email${stepCount === 1 ? '' : 's'} sent`;
-      p(stepChip, 'display',       'inline-flex');
-      p(stepChip, 'align-items',   'center');
-      p(stepChip, 'gap',           '3px');
-      p(stepChip, 'background',    stepBg);
-      p(stepChip, 'border',        `1px solid ${stepCount >= 4 ? '#fecaca' : stepCount === 3 ? '#fde68a' : '#e5e7eb'}`);
-      p(stepChip, 'border-radius', '999px');
-      p(stepChip, 'padding',       '1px 7px 1px 6px');
-      p(stepChip, 'white-space',   'nowrap');
-      p(stepChip, 'line-height',   '18px');
-      p(stepChip, 'cursor',        'default');
-      stepChip.innerHTML =
-        `<span style="font-size:10px;line-height:1">✉</span>` +
-        `<span style="font-family:monospace;font-size:10px;font-weight:700;color:${stepColor}">${stepCount}</span>`;
-      wrap.appendChild(stepChip);
-    }
 
     // ── Reply indicator ──
     // Green ↩ chip when the contact has sent at least one reply (detected from inbound
@@ -1246,7 +1201,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.32',
+        version: '3.33',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1313,7 +1268,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.32 init on', location.hostname);
+    LOG('v3.33 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
@@ -1360,7 +1315,7 @@
       setTimeout(() => {
         LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
         scanEmailRows();
-      }, 1800);
+      }, 800); // reduced from 1800ms — instant cache means data is ready sooner
     });
   }
 
