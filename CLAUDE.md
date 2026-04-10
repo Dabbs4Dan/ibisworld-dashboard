@@ -684,14 +684,14 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v3.29
+**Version:** v3.30
 **Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, step count, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
 | File | Purpose |
 |---|---|
 | `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
-| `content.js` | DOM overlay v3.29. Injects row badges + folder badges into Outlook. No sidebar. |
+| `content.js` | DOM overlay v3.30. Injects row badges + folder badges into Outlook. No sidebar. |
 | `overlay.css` | Minimal CSS for badge classes (most styles applied inline with `!important` to beat Outlook) |
 | `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Also proxies cross-origin fetches for content scripts (FETCH_URL message). |
 | `bridge.js` | Content script on dashboard. Merges ALL 8 campaign stores → `chrome.storage.local.outreach_contacts_raw` |
@@ -722,7 +722,29 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 - ⚠️ **`toRecipients` can be semicolon-separated multi-recipient string** — `processEmailCache` splits on `;` before processing
 - ⚠️ **`toRecipients` is a plain string** (not an array) in Get emails (V3) output — `typeof check` required before `Array.isArray()`
 
-### DOM Overlay (content.js v3.29)
+### DOM Overlay (content.js v3.30)
+
+#### Name-based contact matching (v3.30 — CRITICAL REWRITE)
+- **Problem solved:** Date-based matching (`findEmailByDate()`) was the PRIMARY row-to-contact matching strategy. With 107+ contacts, date collisions caused wrong company names on most rows (e.g., all Workables rows showing "Tufts University" because one Tufts contact was emailed on the same day as other contacts). Step counts were also wrong because the PA cache count was for the wrong contact.
+- **New matching pipeline** in `findContactForRow(row, activeFolder, domDate)`:
+  1. **DOM email scan** (existing) — highest confidence, scans DOM attributes for `@` addresses
+  2. **Greeting name parse** (NEW) — `extractGreetingName(row)` parses "Hi/Hey/Hello [Name]" from preview text → `matchContactsByFirstName(name, folder)` matches against contacts. Tries folder-restricted first, then cross-folder fallback. Date tiebreaking for ambiguous first names.
+  3. **From name parse** (NEW) — `getNonDanFromNames(row)` extracts non-Dan sender names from the From field (for inbound/mixed threads like "Élise Doucet; Daniel Starr"). Tries full name match via `matchContactsByFullName()`, then first name.
+  4. **Date matching** (existing, DEMOTED to last resort) — only used when all name strategies fail
+- **`OWN_NAMES` Set** — filters Dan's own name from greeting parse to avoid self-matching on inbound replies where greeting says "Hi Daniel"
+- **`contactMapLoaded` flag** — on first contact map load, strips all badges and re-scans to ensure name matching runs (previously rows matched before map loaded kept wrong date-matched data)
+- **`findFromElement` fix** — now skips elements inside `.ibis-row-badges` to prevent matching our own injected badge text
+
+#### Recovery heartbeat (v3.30)
+- **Problem solved:** Outlook re-renders rows (virtual scrolling, SPA navigation), destroying injected badges. The 2-second rate limit on `scanEmailRows()` prevented immediate re-injection, leaving rows bare for seconds.
+- **Fix:** `setInterval` every 3.5s checks for `[role="option"]` rows missing `data-ibis-processed` → forces re-scan with `lastScanTime = 0` (bypasses rate limit). Staggered from 1.5s folder badge heartbeat.
+
+#### Helper functions (v3.30)
+- `extractGreetingName(row)` — parses `\b(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b` from `row.textContent`. Filters `GENERIC` set (There, All, Team, Everyone, Folks, Friend, Sir, Madam) + `OWN_NAMES` (daniel, dan, starr).
+- `getNonDanFromNames(row)` — uses `findFromElement(row)` to get From text, splits on `;`, filters out "Daniel Starr"
+- `matchContactsByFirstName(firstName, folder)` — iterates `contactMap`, optionally filtered to contacts whose `_folders` includes `folder`. `folder = null` for cross-folder fallback.
+- `matchContactsByFullName(fullName, folder)` — exact full-name match first, then falls back to first-name-only
+- `tiebreakByDate(candidates, rowDate)` — when multiple contacts share a first name, picks the one whose PA cache dates are closest to the row's DOM date (±1 day tolerance)
 
 #### Folder count model (v3.26+ — scan-only + pre-load)
 - **Source of truth:** `folderCounts[f]` is ONLY set when the extension physically scans that folder's DOM rows. Estimation from PA cache was removed in v3.26 because dashboard campaign membership ≠ Outlook folder location (a contact in ibis_samples may have their emails in the Workables Outlook folder).

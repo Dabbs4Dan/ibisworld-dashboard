@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.29
+// IBISWorld Outreach — DOM Overlay v3.30
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -15,6 +15,7 @@
 
   const OVERDUE_DAYS = 3;
   const OWN_DOMAIN   = 'ibisworld.com';
+  const OWN_NAMES    = new Set(['daniel', 'dan', 'starr']); // filter Dan's own name from greeting parse
 
   // Personal/free email domains — never derive a company name from these
   const PERSONAL_DOMAINS = new Set([
@@ -32,7 +33,7 @@
 
   // Bump this constant whenever a fresh start for folder counts is needed.
   // On version mismatch the persisted (potentially stale) counts are discarded.
-  const FC_VERSION = '3.29';
+  const FC_VERSION = '3.30';
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -51,6 +52,7 @@
   let scanning         = false;   // re-entry guard — prevents mutation feedback loops
   let emailCache       = {};      // email (lowercase) → { lastDate, count, dates[], hasReplied }
   let emailCacheLoaded = false;   // true once cache has been successfully populated
+  let contactMapLoaded = false;   // true once contact map has been loaded with data
   let cacheRetryCount  = 0;      // how many times loadEmailCache has been retried after failure
   let lastScanTime     = 0;      // timestamp of last completed scan — prevents scan spam
   let lastActiveFolder = null;   // tracks folder nav changes so we can strip stale badges
@@ -86,7 +88,26 @@
             domainContactMap[c.domain] = c.accountName;
           }
         });
-        LOG('Contact map:', Object.keys(contactMap).length, 'contacts,', Object.keys(domainContactMap).length, 'domains');
+        const mapSize = Object.keys(contactMap).length;
+        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'domains');
+
+        // On first load with data, strip stale badges and re-scan — ensures name-based
+        // matching runs even if rows were previously date-matched (wrong) before map loaded.
+        if (!contactMapLoaded && mapSize > 0) {
+          contactMapLoaded = true;
+          if (getActiveCampaignFolder()) {
+            LOG('Contact map first load — re-scanning rows for name matching');
+            document.querySelectorAll('[data-ibis-processed]').forEach(row => {
+              row.removeAttribute('data-ibis-processed');
+              row.removeAttribute('data-ibis-email');
+              row.removeAttribute('data-ibis-match-dom');
+              const badge = row.querySelector('.ibis-row-badges');
+              if (badge) badge.remove();
+            });
+            lastScanTime = 0;
+            scanEmailRows();
+          }
+        }
       } catch (_) {}
     });
   }
@@ -384,13 +405,95 @@
     return null;
   }
 
-  // ── Contact / company lookup ──────────────────────────────────────────────────
-  // For outgoing emails (From: Daniel Starr), we extract the recipient's first name
-  // from the email preview greeting ("Hey Thomas," / "Hi Dajin,") and match against
-  // the contact map. This is the most reliable approach for campaign folder emails.
+  // ── Contact / company lookup (v3.30 — multi-strategy matching pipeline) ──────
+  //
+  // Priority order:
+  //   1. DOM email scan — Outlook sometimes exposes recipient email in attributes
+  //   2. Greeting name parse — "Hi Naveen, ..." → match first name against contacts
+  //   3. From name parse — non-Dan sender names (inbound/mixed threads)
+  //   4. Returns null → scanEmailRows falls back to date matching (last resort)
+  //
+  // Name matching tries folder-restricted first, then cross-folder fallback.
+  // Date tiebreaking used when multiple contacts share the same first name.
 
-  function findContactForRow(row) {
-    // 1. Scan for non-ibisworld email addresses in element attributes
+  function extractGreetingName(row) {
+    // Dan's outbound emails consistently start with "Hi/Hey/Hello [Name], ..."
+    // Extract the first name from the preview text visible in the row.
+    const fullText = row.textContent || '';
+    const m = fullText.match(/\b(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b/);
+    if (!m) return null;
+    const name = m[1];
+    // Filter generic greetings and Dan's own name
+    const GENERIC = new Set(['There', 'All', 'Team', 'Everyone', 'Folks', 'Friend', 'Sir', 'Madam']);
+    if (GENERIC.has(name)) return null;
+    if (OWN_NAMES.has(name.toLowerCase())) return null;
+    return name;
+  }
+
+  function getNonDanFromNames(row) {
+    // For inbound/mixed threads, the From field shows non-Dan sender names.
+    // e.g., "Élise Doucet; Daniel Starr" → ["Élise Doucet"]
+    const fromEl = findFromElement(row);
+    if (!fromEl) return [];
+    const text = fromEl.textContent.trim();
+    return text.split(';')
+      .map(s => s.trim())
+      .filter(s => s.length >= 3 && !/\bdaniel\s*starr\b/i.test(s));
+  }
+
+  function matchContactsByFirstName(firstName, folder) {
+    // Find contacts whose first name matches, optionally restricted to a folder.
+    // folder = null means search ALL contacts (cross-folder fallback).
+    const results = [];
+    const lower = firstName.toLowerCase();
+    for (const [email, c] of Object.entries(contactMap)) {
+      if (folder && !c._folders?.includes(folder)) continue;
+      const cFirst = (c.name || '').split(/\s+/)[0].toLowerCase();
+      if (cFirst === lower) {
+        results.push({ email, contact: c, domain: c.domain || email.split('@')[1] || '' });
+      }
+    }
+    return results;
+  }
+
+  function matchContactsByFullName(fullName, folder) {
+    // Try exact full-name match, then fall back to first-name-only.
+    const results = [];
+    const lower = fullName.toLowerCase().trim();
+    for (const [email, c] of Object.entries(contactMap)) {
+      if (folder && !c._folders?.includes(folder)) continue;
+      if ((c.name || '').toLowerCase().trim() === lower) {
+        results.push({ email, contact: c, domain: c.domain || email.split('@')[1] || '' });
+      }
+    }
+    if (results.length > 0) return results;
+    // Fall back to first-name-only match
+    const firstName = fullName.split(/\s+/)[0];
+    return firstName && firstName.length >= 3 ? matchContactsByFirstName(firstName, folder) : [];
+  }
+
+  function tiebreakByDate(candidates, rowDate) {
+    // When multiple contacts match by name, use PA cache dates to pick the best one.
+    if (!rowDate || !emailCacheLoaded || candidates.length === 0) return null;
+    const rowDayMs = new Date(rowDate.getFullYear(), rowDate.getMonth(), rowDate.getDate()).getTime();
+    let best = null, bestDiff = Infinity;
+    for (const cand of candidates) {
+      const entry = emailCache[cand.email];
+      if (!entry?.dates) continue;
+      for (const d of entry.dates) {
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) continue;
+        const dtDayMs = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+        if (Math.abs(dtDayMs - rowDayMs) > 86400000) continue; // ±1 day tolerance
+        const diff = Math.abs(dt.getTime() - rowDate.getTime());
+        if (diff < bestDiff) { bestDiff = diff; best = cand; }
+      }
+    }
+    return best;
+  }
+
+  function findContactForRow(row, activeFolder, domDate) {
+    // ── Strategy 1: DOM email scan (highest confidence) ──
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
       for (const attr of ['title', 'aria-label', 'data-email', 'href']) {
         const val = el.getAttribute(attr);
@@ -400,15 +503,50 @@
         for (const email of emails) {
           const em = email.toLowerCase();
           if (!em.endsWith(OWN_DOMAIN) && !em.endsWith('.' + OWN_DOMAIN)) {
-            return { email: em, contact: contactMap[em] || null, domain: em.split('@')[1] };
+            return { email: em, contact: contactMap[em] || null, domain: em.split('@')[1], confidence: 'email' };
           }
         }
       }
     }
 
-    // First-name greeting fallback removed — too many false matches across contacts
-    // with the same first name. Accurate matching handled by date-based cache lookup.
-    return null;
+    if (Object.keys(contactMap).length === 0) return null;
+
+    // ── Strategy 2: Greeting name parse ("Hi Naveen, ...") ──
+    const greetingName = extractGreetingName(row);
+    if (greetingName) {
+      // Try folder-restricted first, then cross-folder fallback
+      let matches = matchContactsByFirstName(greetingName, activeFolder);
+      if (matches.length === 0) matches = matchContactsByFirstName(greetingName, null);
+      if (matches.length === 1) return { ...matches[0], confidence: 'greeting' };
+      if (matches.length > 1) {
+        const best = domDate ? tiebreakByDate(matches, domDate) : null;
+        if (best) return { ...best, confidence: 'greeting+date' };
+        return { ...matches[0], confidence: 'greeting' }; // first match as last resort
+      }
+    }
+
+    // ── Strategy 3: From name parse (non-Dan sender in inbound/mixed threads) ──
+    const senderNames = getNonDanFromNames(row);
+    for (const senderName of senderNames) {
+      // Try full name match first
+      let matches = matchContactsByFullName(senderName, activeFolder);
+      if (matches.length === 0) matches = matchContactsByFullName(senderName, null);
+      if (matches.length === 1) return { ...matches[0], confidence: 'sender' };
+
+      // Try first name only
+      const firstName = senderName.split(/\s+/)[0];
+      if (firstName && firstName.length >= 3) {
+        let fMatches = matchContactsByFirstName(firstName, activeFolder);
+        if (fMatches.length === 0) fMatches = matchContactsByFirstName(firstName, null);
+        if (fMatches.length === 1) return { ...fMatches[0], confidence: 'sender_first' };
+        if (fMatches.length > 1) {
+          const best = domDate ? tiebreakByDate(fMatches, domDate) : null;
+          if (best) return { ...best, confidence: 'sender_first+date' };
+        }
+      }
+    }
+
+    return null; // no match — scanEmailRows handles date fallback
   }
 
   // ── Active folder detection ───────────────────────────────────────────────────
@@ -654,41 +792,32 @@
         let storedEmail = row.dataset.ibisEmail || '';
         let emailMatchedViaDOM = row.dataset.ibisMatchDom === '1'; // true = high confidence
 
+        // ── Date resolution (computed early — needed for name tiebreaking) ──
+        const domDate = getDateFromRow(row);
+
         // ── Resolve email address ──
-        // Priority: stored (from prior scan) → DOM attrs → date-based cache match
+        // Priority: stored → DOM email → greeting name → From name → date fallback
         let cacheEntry = storedEmail ? emailCache[storedEmail] : null;
 
         if (!storedEmail) {
-          // Try DOM attribute scan first (most reliable when email is exposed)
-          const found = findContactForRow(row);
+          // Multi-strategy matching: DOM email → greeting parse → From name parse
+          const found = findContactForRow(row, activeFolder, domDate);
           if (found?.email) {
             storedEmail = found.email;
             cacheEntry = emailCache[storedEmail] || null;
-            emailMatchedViaDOM = true;
+            emailMatchedViaDOM = true; // all name-based matches are high confidence
+            if (!alreadyProcessed) LOG(`  Match [${found.confidence}]: ${storedEmail} → ${found.contact?.accountName || '(no account)'}`);
           }
         }
 
-        // ── Date resolution ──
-        // DOM date: Outlook's displayed date for this thread (date of LATEST email, always accurate).
-        // PA cache date: Dan's last *sent* date for this contact (only accurate when PA Sent Items is complete).
-        //
-        // Primary source: DOM date — always correct since Outlook renders it from real mail data.
-        // Fallback: PA cache date — used only when DOM date is unavailable.
-        //
-        // Rationale: PA Sent Items may miss follow-up emails (e.g. only the first filed copy of
-        // a thread gets captured). DOM date is never stale. The ↩ indicator already tells Dan
-        // when a contact replied, so DOM date (last thread activity) is the right staleness signal.
-        const domDate = getDateFromRow(row);
-
-        // Use date-based cache matching to identify the contact (for count + company bubble),
-        // but do NOT use the PA cache date for staleness — use DOM date for that.
+        // Last resort: date-only matching (lower confidence, may show wrong company)
         if (!storedEmail && emailCacheLoaded && domDate) {
-          // Match row to cache entry by date — prefer contacts in the active campaign folder.
           const matched = findEmailByDate(domDate, activeFolder);
           if (matched) {
             storedEmail = matched;
             cacheEntry = emailCache[matched];
             emailMatchedViaDOM = false; // date-matched = lower confidence
+            if (!alreadyProcessed) LOG(`  Match [date-fallback]: ${storedEmail}`);
           }
         }
 
@@ -941,6 +1070,7 @@
   function findFromElement(row) {
     const leaves = [...row.querySelectorAll('span, div, p')].filter(el => {
       if (el.childElementCount > 0) return false;
+      if (el.closest('.ibis-row-badges')) return false; // skip our own injected badges
       const t = el.textContent.trim();
       return t.length >= 4 && t.length <= 55 && !/^[A-Z]{1,4}$/.test(t);
     });
@@ -1001,7 +1131,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.29',
+        version: '3.30',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1068,7 +1198,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.29 init on', location.hostname);
+    LOG('v3.30 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
@@ -1087,6 +1217,18 @@
       setInterval(loadEmailCache, 2 * 60 * 60 * 1000);
       // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
       setInterval(updateFolderBadges, 1500);
+      // Recovery heartbeat — detect rows that lost their badges (Outlook re-render)
+      // and force a re-scan. Staggered from folder badge heartbeat to spread load.
+      setInterval(() => {
+        const af = getActiveCampaignFolder();
+        if (!af) return;
+        const rows = getEmailRows();
+        if (rows.length > 0 && rows.some(r => !r.dataset.ibisProcessed)) {
+          LOG('Recovery: unprocessed rows detected — re-scanning');
+          lastScanTime = 0; // bypass 2s rate limit for recovery
+          scanEmailRows();
+        }
+      }, 3500);
       new MutationObserver(onMutation).observe(document.body, { childList: true, subtree: true });
       setTimeout(() => {
         LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
