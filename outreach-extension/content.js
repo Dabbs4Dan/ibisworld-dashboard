@@ -430,29 +430,52 @@
     return null;
   }
 
-  // ── Contact / company lookup (v3.30 — multi-strategy matching pipeline) ──────
+  // ── Contact / company lookup (v3.31 — multi-strategy matching pipeline) ──────
   //
   // Priority order:
   //   1. DOM email scan — Outlook sometimes exposes recipient email in attributes
   //   2. Greeting name parse — "Hi Naveen, ..." → match first name against contacts
+  //   2b. Greeting name vs email cache addresses (for contacts not in dashboard)
   //   3. From name parse — non-Dan sender names (inbound/mixed threads)
-  //   4. Returns null → scanEmailRows falls back to date matching (last resort)
+  //   3b. From name vs email cache addresses
+  //   4. Returns null → row gets staleness-only badge (no company/step/reply)
   //
   // Name matching tries folder-restricted first, then cross-folder fallback.
   // Date tiebreaking used when multiple contacts share the same first name.
 
+  const GREETING_GENERIC = new Set(['There', 'All', 'Team', 'Everyone', 'Folks', 'Friend', 'Sir', 'Madam']);
+  const GREETING_RE = /\b(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b/;
+
   function extractGreetingName(row) {
     // Dan's outbound emails consistently start with "Hi/Hey/Hello [Name], ..."
     // Extract the first name from the preview text visible in the row.
+    //
+    // CRITICAL (v3.31): Search individual leaf text nodes, NOT row.textContent.
+    // Outlook's DOM concatenates sibling elements without spaces:
+    //   "IBISWorld Sample for Toast" + "Hi Pierre, I received..." = "ToastHi Pierre"
+    // The \b before "Hi" breaks in concatenated text (both t and H are word chars).
+    // But each leaf span's textContent has proper boundaries: "Hi Pierre, ..." starts
+    // at position 0 where \b matches correctly.
+    for (const el of row.querySelectorAll('*')) {
+      if (el.childElementCount > 0) continue;
+      if (el.closest('.ibis-row-badges')) continue;
+      const t = el.textContent || '';
+      if (t.length < 4 || t.length > 300) continue;
+      const m = t.match(GREETING_RE);
+      if (!m) continue;
+      const name = m[1];
+      if (GREETING_GENERIC.has(name) || OWN_NAMES.has(name.toLowerCase())) continue;
+      return name;
+    }
+    // Fallback: search full row text with relaxed pattern (no leading \b).
+    // Handles edge cases where preview text is in a container element, not a leaf.
     const fullText = row.textContent || '';
-    const m = fullText.match(/\b(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b/);
-    if (!m) return null;
-    const name = m[1];
-    // Filter generic greetings and Dan's own name
-    const GENERIC = new Set(['There', 'All', 'Team', 'Everyone', 'Folks', 'Friend', 'Sir', 'Madam']);
-    if (GENERIC.has(name)) return null;
-    if (OWN_NAMES.has(name.toLowerCase())) return null;
-    return name;
+    const m = fullText.match(/(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b/);
+    if (m) {
+      const name = m[1];
+      if (!GREETING_GENERIC.has(name) && !OWN_NAMES.has(name.toLowerCase())) return name;
+    }
+    return null;
   }
 
   function getNonDanFromNames(row) {
