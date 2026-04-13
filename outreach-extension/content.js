@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.35
+// IBISWorld Outreach — DOM Overlay v3.36
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -28,13 +28,12 @@
   // Add entries here as mismatches are discovered.
   const FAVICON_DOMAIN_OVERRIDES = {
     'lge.com':    'lg.com',           // LG Electronics staff email → LG website
-    'parker.com': 'parker.com',       // Parker Hannifin — explicit so Google fallback triggers cleanly
   };
 
-  // Direct favicon URL overrides — when DuckDuckGo + Google both fail for a domain,
-  // specify the exact favicon URL here. Checked FIRST before the DuckDuckGo cascade.
+  // Direct favicon URL overrides — when DuckDuckGo doesn't index a domain well,
+  // use Google Favicon API (most reliable, caches all major sites).
   const FAVICON_URL_OVERRIDES = {
-    'parker.com': 'https://www.parker.com/favicon.ico',
+    'parker.com': 'https://www.google.com/s2/favicons?domain=parker.com&sz=32',
   };
 
   // Bump this ONLY when counting methodology changes (not on every release).
@@ -231,22 +230,18 @@
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // Pre-load folder counts for non-visited folders
-    if (isFirstLoad && Object.keys(contactMap).length > 0) {
-      preloadFolderCounts();
-    }
+    // Pre-load folder counts on every fresh cache load (not just first)
+    preloadFolderCounts();
     updateDebugBadge('ok');
   }
 
   // ── Pre-load folder count estimates ──────────────────────────────────────────
   // Uses PA email cache + contactMap _folders to estimate overdue counts for folders
-  // not yet physically visited. Called from both processEmailCache AND loadContactMap
-  // (whichever fires second, once both data sources are available).
-  let _preloadDone = false;
+  // not yet physically visited. Called from processEmailCache AND loadContactMap.
+  // Runs on EVERY fresh cache load (not just once) so folder badges stay fresh
+  // when PA data updates. Updates ALL non-active folders (not just undefined ones).
   function preloadFolderCounts() {
-    if (_preloadDone) return;
     if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
-    _preloadDone = true;
 
     const activeFolder = getActiveCampaignFolder();
     const estimates = {};
@@ -261,7 +256,7 @@
       if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
     });
     CAMPAIGN_FOLDERS.forEach(f => {
-      if (f !== activeFolder && folderCounts[f] === undefined) {
+      if (f !== activeFolder) { // active folder always uses real DOM scan count
         folderCounts[f] = estimates[f];
       }
     });
@@ -1250,7 +1245,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.35',
+        version: '3.36',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1317,7 +1312,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.35 init on', location.hostname);
+    LOG('v3.36 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
@@ -1364,11 +1359,11 @@
       setTimeout(() => {
         LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
         scanEmailRows();
-      }, 800); // reduced from 1800ms — instant cache means data is ready sooner
+      }, 400); // fast — instant cache means data is ready immediately
     });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else setTimeout(init, 500);
+  else setTimeout(init, 200); // was 500ms — shaved for faster startup
 
 })();
