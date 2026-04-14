@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.36
+// IBISWorld Outreach — DOM Overlay v3.37
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -64,6 +64,7 @@
   let cacheNameMap     = {};     // firstName (lowercase) → [{email, domain, nameParts}] — derived from email cache addresses
   let lastScanTime     = 0;      // timestamp of last completed scan — prevents scan spam
   let lastActiveFolder = null;   // tracks folder nav changes so we can strip stale badges
+  let scannedFolders   = new Set(); // folders DOM-scanned this session — preload won't overwrite
 
   function ctxOk() {
     try { return !!chrome.runtime.id; } catch (_) { return false; }
@@ -165,13 +166,16 @@
     data.forEach(item => {
       // Handle both plain-string and Graph object format for from/toRecipients
       const fromObj = item.from;
-      const fromEmail = (
+      let fromRaw = (
         typeof fromObj === 'string' ? fromObj :
         (fromObj?.emailAddress?.address || fromObj?.address || '')
       ).toLowerCase().trim();
+      // Extract email from "Display Name <email@domain.com>" format (PA V3 returns plain strings)
+      const fromAngle = fromRaw.match(/<([^>@\s]+@[^>@\s]+)>/);
+      const fromEmail = (fromAngle ? fromAngle[1] : fromRaw).trim();
       // Inbound emails (FROM = contact) → mark hasReplied, don't count as a sent step
-      if (!fromEmail.endsWith('@' + OWN_DOMAIN)) {
-        // Inbound reply — mark hasReplied. Use '' not null so date comparisons work correctly.
+      if (fromEmail.includes('@') && !fromEmail.endsWith('@' + OWN_DOMAIN)) {
+        // Inbound reply — mark hasReplied on the clean email key so it matches sent entries.
         if (!map[fromEmail]) map[fromEmail] = { lastDate: '', count: 0, dates: [], hasReplied: true };
         else map[fromEmail].hasReplied = true;
         return;
@@ -256,9 +260,11 @@
       if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
     });
     CAMPAIGN_FOLDERS.forEach(f => {
-      if (f !== activeFolder) { // active folder always uses real DOM scan count
-        folderCounts[f] = estimates[f];
-      }
+      // Never overwrite the active folder (real DOM scan is authoritative) or any
+      // folder already DOM-scanned this session — estimates are always less accurate
+      // than real scans because they only have PA cache dates, not DOM dates.
+      if (f === activeFolder || scannedFolders.has(f)) return;
+      folderCounts[f] = estimates[f];
     });
     if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
     updateFolderBadges();
@@ -867,6 +873,9 @@
         if (badge) badge.remove();
       });
       lastActiveFolder = activeFolder;
+      // Trigger a background cache refresh on folder nav — ensures freshest PA data
+      // when Dan actually looks at a folder. Won't block the scan (async).
+      loadEmailCache();
     }
 
     const rows = getEmailRows();
@@ -970,6 +979,7 @@
     } finally {
       // Always reset scanning flag — prevents permanent lock if any exception occurs
       folderCounts[activeFolder] = overdueCount;
+      scannedFolders.add(activeFolder); // mark as DOM-scanned — preload won't overwrite
       if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
       updateFolderBadges();
       lastScanTime = Date.now();
@@ -1245,7 +1255,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.36',
+        version: '3.37',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1340,7 +1350,7 @@
       loadContactMap();
       setInterval(loadContactMap, 60_000);
       loadEmailCache();           // fetch fresh data from SharePoint (overwrites on success)
-      setInterval(loadEmailCache, 2 * 60 * 60 * 1000);
+      setInterval(loadEmailCache, 15 * 60 * 1000); // refresh every 15min (PA flow runs every 2h)
       // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
       setInterval(updateFolderBadges, 1500);
       // Recovery heartbeat — detect rows that lost their badges (Outlook re-render)
