@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.41
+// IBISWorld Outreach — DOM Overlay v3.42
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -40,7 +40,7 @@
   // On version mismatch the persisted (potentially stale) counts are discarded.
   // Bumping every release was causing all folder badges to disappear until
   // each folder was physically visited — defeating the pre-load system.
-  const FC_VERSION = 'v1';
+  const FC_VERSION = 'v2'; // bumped v3.41: clears stale preload estimates
 
   // Paste the OneDrive share URL for contact_activity.json here after PA flow
   // creates the file. See setup instructions in the repo.
@@ -104,8 +104,6 @@
         // matching runs even if rows were previously date-matched (wrong) before map loaded.
         if (!contactMapLoaded && mapSize > 0) {
           contactMapLoaded = true;
-          // Pre-load folder counts now that contactMap is available (instant cache may already be loaded)
-          preloadFolderCounts();
           if (getActiveCampaignFolder()) {
             LOG('Contact map first load — re-scanning rows for name matching');
             document.querySelectorAll('[data-ibis-processed]').forEach(row => {
@@ -694,6 +692,36 @@
               return { ...best, confidence: 'cache_sender+date' };
             }
           }
+        }
+      }
+    }
+
+    // ── Strategy 4: Broad text scan for any known contact first name ──
+    // When greeting/from strategies fail (e.g. latest message is an inbound reply
+    // so preview shows the contact's text, not Dan's "Hi [Name]"), scan the entire
+    // row text for ANY known contact first name. Folder-restricted first.
+    const rowText = stripAccents(row.textContent || '').toLowerCase();
+    if (rowText.length > 0) {
+      // Build candidate list from contactMap (folder-restricted first, then all)
+      for (const folderRestrict of [activeFolder, null]) {
+        for (const [email, c] of Object.entries(contactMap)) {
+          if (folderRestrict && !c._folders?.includes(folderRestrict)) continue;
+          const cName = c.name || '';
+          const firstName = stripAccents(cName.split(/\s+/)[0] || '').toLowerCase();
+          if (!firstName || firstName.length < 3 || OWN_NAMES.has(firstName)) continue;
+          // Check if the contact's first name appears as a whole word in the row
+          const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+          if (re.test(rowText)) {
+            return { email, contact: c, domain: email.split('@')[1] || '', confidence: 'text_scan' };
+          }
+        }
+      }
+      // Also try cacheNameMap for contacts not in dashboard campaigns
+      for (const [firstName, entries] of Object.entries(cacheNameMap)) {
+        if (firstName.length < 3 || OWN_NAMES.has(firstName)) continue;
+        const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+        if (re.test(rowText) && entries.length === 1) {
+          return _synthCacheResult(entries[0], 'cache_text_scan');
         }
       }
     }
