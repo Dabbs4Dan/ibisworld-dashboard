@@ -2748,6 +2748,7 @@ function getFiltered() {
   const sort = acctSortCol;
   let list = accounts.filter(a => {
     if (a._isSkeletonAccount) return false; // skeleton accounts only visible in Action tab
+    if (a._droppedFromCSV) return false;   // dropped-from-CSV accounts only visible in Action tab
     const aName = getField(a,'Account Name','AccountName');
     const name = aName.toLowerCase();
     if (q && !name.includes(q) && !getField(a,'Vertical').toLowerCase().includes(q)) return false;
@@ -2836,7 +2837,7 @@ function renderAll() {
     list.forEach(a => { if (!frozenSet.has(getField(a,'Account Name','AccountName'))) frozen.push(a); });
     list = frozen;
   }
-  const realAccounts = accounts.filter(a => !a._isSkeletonAccount);
+  const realAccounts = accounts.filter(a => !a._isSkeletonAccount && !a._droppedFromCSV);
   document.getElementById('acct-count-label').textContent = realAccounts.length ? `${list.length} of ${realAccounts.length} accounts` : '';
   updateAcctSortArrows();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
