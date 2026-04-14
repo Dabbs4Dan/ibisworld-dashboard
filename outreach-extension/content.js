@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.40
+// IBISWorld Outreach — DOM Overlay v3.41
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -174,11 +174,17 @@
       // Extract email from "Display Name <email@domain.com>" format (PA V3 returns plain strings)
       const fromAngle = fromRaw.match(/<([^>@\s]+@[^>@\s]+)>/);
       const fromEmail = (fromAngle ? fromAngle[1] : fromRaw).trim();
-      // Inbound emails (FROM = contact) → mark hasReplied, don't count as a sent step
+      // Inbound emails (FROM = contact) → mark hasReplied + update lastDate so
+      // staleness reflects the most recent email in either direction (not just outbound).
       if (fromEmail.includes('@') && !fromEmail.endsWith('@' + OWN_DOMAIN)) {
-        // Inbound reply — mark hasReplied on the clean email key so it matches sent entries.
-        if (!map[fromEmail]) map[fromEmail] = { lastDate: '', count: 0, dates: [], hasReplied: true };
-        else map[fromEmail].hasReplied = true;
+        const inDt = item.receivedDateTime || item.sentDateTime || item.date || '';
+        if (!map[fromEmail]) map[fromEmail] = { lastDate: inDt, count: 0, dates: [], hasReplied: true };
+        else {
+          map[fromEmail].hasReplied = true;
+          if (inDt && (!map[fromEmail].lastDate || inDt > map[fromEmail].lastDate)) {
+            map[fromEmail].lastDate = inDt;
+          }
+        }
         return;
       }
       const dt = item.receivedDateTime || item.sentDateTime || item.date;
@@ -202,10 +208,11 @@
         const angleMatch = raw.match(/<([^>@\s]+@[^>@\s]+)>/);
         const em = (angleMatch ? angleMatch[1] : raw).toLowerCase().trim();
         if (!em || !em.includes('@') || em.endsWith('@' + OWN_DOMAIN)) return;
-        // Secondary dedup: same recipient + same minute = same email in a different folder.
+        // Secondary dedup: same recipient + same hour = same email in a different folder.
         // Outlook assigns different item.id to campaign folder copy vs Sent Items copy,
-        // so seenIds misses these. Truncate datetime to minute to catch slight timestamp diffs.
-        const sendKey = em + '|' + (dt || '').slice(0, 16);
+        // so seenIds misses these. Truncate datetime to hour to catch timestamp diffs
+        // (Outlook can shift receivedDateTime by several minutes between folder copies).
+        const sendKey = em + '|' + (dt || '').slice(0, 13);
         if (seenSends.has(sendKey)) return;
         seenSends.add(sendKey);
         if (!map[em]) map[em] = { lastDate: dt, count: 0, dates: [] };
@@ -241,8 +248,9 @@
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // Pre-load folder counts on every fresh cache load (not just first)
-    preloadFolderCounts();
+    // Folder counts now come ONLY from actual DOM scans (persisted in ibis_folder_counts).
+    // preloadFolderCounts() removed — PA estimates were inaccurate because "in dashboard
+    // campaign" ≠ "has emails in Outlook folder", causing wrong badge counts on load.
     updateDebugBadge('ok');
   }
 
