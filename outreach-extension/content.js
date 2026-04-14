@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.39
+// IBISWorld Outreach — DOM Overlay v3.40
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -1018,18 +1018,14 @@
 
     // ── Staleness chip ──
     const dotColor =
-      days === 0          ? '#16a34a' :  // today   — green
-      days < OVERDUE_DAYS ? '#d97706' :  // 1-2d    — amber
-      days < 8            ? '#ea580c' :  // 3-7d    — orange
-      days < 14           ? '#dc2626' :  // 8-13d   — red
-                            '#9f1239';   // 14d+    — crimson
+      days <= 2 ? '#16a34a' :  // 0-2d  — green
+      days <= 5 ? '#d97706' :  // 3-5d  — yellow/amber
+                  '#dc2626';   // 6d+   — red
 
     const glowColor =
-      days === 0          ? 'rgba(22,163,74,0.45)'  :
-      days < OVERDUE_DAYS ? 'rgba(217,119,6,0.45)'  :
-      days < 8            ? 'rgba(234,88,12,0.45)'  :
-      days < 14           ? 'rgba(220,38,38,0.45)'  :
-                            'rgba(159,18,57,0.45)';
+      days <= 2 ? 'rgba(22,163,74,0.45)'  :
+      days <= 5 ? 'rgba(217,119,6,0.45)'  :
+                  'rgba(220,38,38,0.45)';
 
     const dayLabel = days === 0 ? 'today' : days + 'd';
     const tooltip  = `Last contact: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
@@ -1057,23 +1053,13 @@
     // Shows total emails sent to this contact (PA cache count). Gives Dan a quick
     // "how many times have I reached out to this person" signal.
     if (stepCount > 0) {
-      const stepColor =
-        stepCount >= 4 ? '#dc2626' :   // red  — heavy outreach
-        stepCount === 3 ? '#d97706' :  // amber — moderate
-                          '#6b7280';   // grey  — light
-
-      const stepBg =
-        stepCount >= 4 ? '#fef2f2' :
-        stepCount === 3 ? '#fffbeb' :
-                          '#f9fafb';
-
       const stepChip = document.createElement('span');
-      stepChip.title = `${stepCount} email${stepCount === 1 ? '' : 's'} sent to this contact`;
+      stepChip.title = `${stepCount} email${stepCount === 1 ? '' : 's'} sent to this contact (across all threads)`;
       p(stepChip, 'display',       'inline-flex');
       p(stepChip, 'align-items',   'center');
       p(stepChip, 'gap',           '3px');
-      p(stepChip, 'background',    stepBg);
-      p(stepChip, 'border',        `1px solid ${stepCount >= 4 ? '#fecaca' : stepCount === 3 ? '#fde68a' : '#e5e7eb'}`);
+      p(stepChip, 'background',    '#f9fafb');
+      p(stepChip, 'border',        '1px solid #e5e7eb');
       p(stepChip, 'border-radius', '999px');
       p(stepChip, 'padding',       '1px 7px 1px 6px');
       p(stepChip, 'white-space',   'nowrap');
@@ -1081,7 +1067,7 @@
       p(stepChip, 'cursor',        'default');
       stepChip.innerHTML =
         `<span style="font-size:10px;line-height:1">✉</span>` +
-        `<span style="font-family:monospace;font-size:10px;font-weight:700;color:${stepColor}">${stepCount}</span>`;
+        `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${stepCount}</span>`;
       wrap.appendChild(stepChip);
     }
 
