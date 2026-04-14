@@ -684,20 +684,20 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v3.30
+**Version:** v3.36
 **Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, step count, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
 | File | Purpose |
 |---|---|
 | `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
-| `content.js` | DOM overlay v3.30. Injects row badges + folder badges into Outlook. No sidebar. |
+| `content.js` | DOM overlay v3.36. Injects row badges + folder badges into Outlook. No sidebar. |
 | `overlay.css` | Minimal CSS for badge classes (most styles applied inline with `!important` to beat Outlook) |
 | `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Also proxies cross-origin fetches for content scripts (FETCH_URL message). |
 | `bridge.js` | Content script on dashboard. Merges ALL 8 campaign stores → `chrome.storage.local.outreach_contacts_raw` |
 | `popup.html` | Simple "IBISWorld Overlay Active ✓" popup — version shown dynamically |
 | `popup.js` | Reads `chrome.runtime.getManifest().version` and writes to `#ver` span |
-| `config.js` | `IBIS_CONFIG.OVERDUE_DAYS = 3` — staleness threshold |
+| `config.js` | `IBIS_CONFIG.OVERDUE_DAYS = 3` — reference config (content.js uses its own `OVERDUE_DAYS = 2`) |
 
 ### How data flows
 1. User opens dashboard → `bridge.js` merges all 8 campaign stores and pushes to `chrome.storage.local.outreach_contacts_raw`
@@ -709,6 +709,8 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 - `outreach_contacts_raw` — merged JSON of ALL 8 campaign contacts, written by bridge.js v1.4
 - `outreach_contacts_ts` — timestamp of last push
 - `ibis_folder_counts` — persisted folder overdue counts (JSON string `{folderName: count}`) — survives folder switches + page reloads
+- `ibis_fc_version` — folder count version tag ('v1'). Only bumped when counting methodology changes.
+- `ibis_email_cache_map` — persisted processed email cache for instant load on next startup (avoids 5-10s SharePoint wait)
 
 ### PA Flow: "IBISWorld Contact Activity Sync"
 - **Trigger:** Recurrence (every 2h)
@@ -722,54 +724,77 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 - ⚠️ **`toRecipients` can be semicolon-separated multi-recipient string** — `processEmailCache` splits on `;` before processing
 - ⚠️ **`toRecipients` is a plain string** (not an array) in Get emails (V3) output — `typeof check` required before `Array.isArray()`
 
-### DOM Overlay (content.js v3.30)
+### DOM Overlay (content.js v3.36)
 
-#### Name-based contact matching (v3.30 — CRITICAL REWRITE)
-- **Problem solved:** Date-based matching (`findEmailByDate()`) was the PRIMARY row-to-contact matching strategy. With 107+ contacts, date collisions caused wrong company names on most rows (e.g., all Workables rows showing "Tufts University" because one Tufts contact was emailed on the same day as other contacts). Step counts were also wrong because the PA cache count was for the wrong contact.
-- **New matching pipeline** in `findContactForRow(row, activeFolder, domDate)`:
-  1. **DOM email scan** (existing) — highest confidence, scans DOM attributes for `@` addresses
-  2. **Greeting name parse** (NEW) — `extractGreetingName(row)` parses "Hi/Hey/Hello [Name]" from preview text → `matchContactsByFirstName(name, folder)` matches against contacts. Tries folder-restricted first, then cross-folder fallback. Date tiebreaking for ambiguous first names.
-  3. **From name parse** (NEW) — `getNonDanFromNames(row)` extracts non-Dan sender names from the From field (for inbound/mixed threads like "Élise Doucet; Daniel Starr"). Tries full name match via `matchContactsByFullName()`, then first name.
-  4. **Date matching** (existing, DEMOTED to last resort) — only used when all name strategies fail
-- **`OWN_NAMES` Set** — filters Dan's own name from greeting parse to avoid self-matching on inbound replies where greeting says "Hi Daniel"
-- **`contactMapLoaded` flag** — on first contact map load, strips all badges and re-scans to ensure name matching runs (previously rows matched before map loaded kept wrong date-matched data)
-- **`findFromElement` fix** — now skips elements inside `.ibis-row-badges` to prevent matching our own injected badge text
+#### Name-based contact matching (v3.31 — CRITICAL REWRITE)
+- **Problem solved:** Date-based matching (`findEmailByDate()`) was the PRIMARY row-to-contact matching strategy. With 107+ contacts, date collisions caused wrong company names on most rows. Date-fallback matching fully REMOVED in v3.31 — name-based matching is the only strategy.
+- **Matching pipeline** in `findContactForRow(row, activeFolder, domDate)`:
+  1. **DOM email scan** — highest confidence, scans DOM attributes for `@` addresses
+  2. **Greeting name parse** — `extractGreetingName(row)` parses "Hi/Hey/Hello [Name]" from preview text → `matchContactsByFirstName(name, folder)` matches against contacts. Tries folder-restricted first, then cross-folder fallback. Date tiebreaking for ambiguous first names.
+  2b. **Greeting name vs cache** — `cacheNameMap` indexes email addresses by first name for contacts NOT in dashboard campaign stores (e.g. "ren.thomas@evergreen.edu" → firstName "ren"). Built by `buildCacheNameMap()`.
+  3. **From name parse** — `getNonDanFromNames(row)` extracts non-Dan sender names from the From field (for inbound/mixed threads like "Élise Doucet; Daniel Starr"). Tries full name match via `matchContactsByFullName()`, then first name.
+  3b. **From name vs cache** — same cacheNameMap fallback as 2b.
+  4. **Returns null** — row gets staleness-only badge (no company/step/reply). Date-fallback completely removed.
+- **`OWN_NAMES` Set** — filters Dan's own name from greeting parse
+- **`contactMapLoaded` flag** — on first contact map load, strips all badges and re-scans
+- **`stripAccents(s)`** (v3.31) — NFD normalization for matching accented names (Élise → Elise). Applied in all name matching functions.
+
+#### Greeting name parse fix (v3.31 — CRITICAL)
+- **Problem:** `row.textContent` concatenates sibling DOM elements WITHOUT spaces. "IBISWorld Sample for ToastHi Pierre" has no word boundary before "Hi" → regex fails.
+- **Fix:** `extractGreetingName(row)` now searches individual leaf DOM nodes via `row.querySelectorAll('*')` filtered by `childElementCount === 0`. Each leaf's textContent has proper boundaries.
+
+#### Instant cache loading (v3.31)
+- **Problem:** PA cache fetch from SharePoint takes 5-10s.
+- **Fix:** `processEmailCache()` persists processed `emailCache` map to `chrome.storage.local.ibis_email_cache_map`. Init loads it synchronously on startup for instant badges. Fresh data loads in background.
+
+#### Scan fast-path (v3.31)
+- When all rows already have `data-ibis-processed`, `scanEmailRows()` exits immediately — avoids redundant work logged as repeated "6 rows, 5 overdue".
 
 #### Recovery heartbeat (v3.30)
-- **Problem solved:** Outlook re-renders rows (virtual scrolling, SPA navigation), destroying injected badges. The 2-second rate limit on `scanEmailRows()` prevented immediate re-injection, leaving rows bare for seconds.
-- **Fix:** `setInterval` every 3.5s checks for `[role="option"]` rows missing `data-ibis-processed` → forces re-scan with `lastScanTime = 0` (bypasses rate limit). Staggered from 1.5s folder badge heartbeat.
+- `setInterval` every 3.5s checks for rows missing `data-ibis-processed` → forces re-scan. Staggered from 1.5s folder badge heartbeat.
 
-#### Helper functions (v3.30)
-- `extractGreetingName(row)` — parses `\b(?:Hi|Hey|Hello|Dear)\s+([A-Z][a-z]{2,20})\b` from `row.textContent`. Filters `GENERIC` set (There, All, Team, Everyone, Folks, Friend, Sir, Madam) + `OWN_NAMES` (daniel, dan, starr).
-- `getNonDanFromNames(row)` — uses `findFromElement(row)` to get From text, splits on `;`, filters out "Daniel Starr"
-- `matchContactsByFirstName(firstName, folder)` — iterates `contactMap`, optionally filtered to contacts whose `_folders` includes `folder`. `folder = null` for cross-folder fallback.
-- `matchContactsByFullName(fullName, folder)` — exact full-name match first, then falls back to first-name-only
-- `tiebreakByDate(candidates, rowDate)` — when multiple contacts share a first name, picks the one whose PA cache dates are closest to the row's DOM date (±1 day tolerance)
+#### Staleness date resolution (v3.34)
+- Uses the MORE RECENT of DOM date and PA cache date.
+- DOM date = when email was filed in the campaign folder (could be weeks old for the original outbound).
+- PA cache date = most recent email sent to this contact across all contexts.
+- "When did I last contact this person?" → the more recent date is always correct.
 
-#### Folder count model (v3.26+ — scan-only + pre-load)
-- **Source of truth:** `folderCounts[f]` is ONLY set when the extension physically scans that folder's DOM rows. Estimation from PA cache was removed in v3.26 because dashboard campaign membership ≠ Outlook folder location (a contact in ibis_samples may have their emails in the Workables Outlook folder).
-- **Pre-load on startup (v3.28):** On first cache load, estimates overdue counts for non-visited folders using real PA email dates + `_folders[0]` (primary dashboard campaign). With 107+ contacts this gives a useful approximation. Pre-loaded counts are only written to folders where `folderCounts[f] === undefined` (never scanned). Real scan overwrites when folder is visited.
-- **Empty folder reset (v3.25):** When `scanEmailRows()` finds 0 rows, resets `folderCounts[activeFolder] = 0`, persists, calls `updateFolderBadges()` immediately.
-- **Persistence:** `ibis_folder_counts` in chrome.storage.local. `FC_VERSION` bump clears all persisted counts on reload.
+#### Step count (v3.34)
+- PA cache total sent count per contact. Not per-thread, but gives "how many times have I emailed this person" signal.
+- Color coded: grey (1-2), amber (3), red (4+).
+- Outlook DOM thread count was tested but abandoned — it's a cross-folder conversation total (e.g. shows 10 when the folder thread only has 3). `getThreadCountFromDOM` removed in v3.33.
+
+#### Folder count model (v3.36)
+- **Source of truth:** `folderCounts[f]` set when extension physically scans that folder's DOM rows.
+- **Pre-load on every PA cache load** (v3.36): `preloadFolderCounts()` estimates overdue counts for all non-active folders using real PA email dates + `_folders[0]`. Runs on EVERY fresh cache load (not just first) so badges refresh automatically. Updates all non-active folders (not just undefined ones).
+- **Empty folder reset:** When `scanEmailRows()` finds 0 rows, resets `folderCounts[activeFolder] = 0`.
+- **Persistence:** `ibis_folder_counts` in chrome.storage.local. `FC_VERSION = 'v1'` — stable, only bumped when counting methodology changes (NOT on every release).
+- **Folder badge matching** (v3.34): Primary: aria-label exact match. Fallback: `textContent.includes(f)` with letter-suffix guard (prevents "Multithreads" matching "Multithread", but allows "Multithread2").
+- **OVERDUE_DAYS = 2** (v3.35, was 3). Day 1 = amber, Day 2+ = overdue (orange/red) and counted in folder badge.
 
 #### Folder-strict date matching (v3.29 — CRITICAL)
-- **Problem solved:** With 107+ contacts in the PA cache, date collisions are very common (many contacts emailed on the same day). The old "noFolderBest" fallback allowed untagged contacts (in Sent Items but not in any dashboard campaign) to match any folder row by date — producing completely wrong company bubbles (Gmail/Evergreen contacts in LG's 6QA row).
-- **Rule:** `findEmailByDate()` ONLY returns contacts whose `_folders` includes the active folder. If no such contact matches the date, returns null — shows staleness/step-count only, no company bubble. Never returns contacts from other folders or untagged contacts.
-- **Exception:** when `hasFolderData = false` (bridge hasn't pushed `_folders` data yet), falls back to `globalBest` for graceful degradation.
-- **±1 calendar day tolerance:** kept for the edge case where Outlook shows a time-string for <24h emails (parsed as "today") but PA cache has yesterday's date.
+- `findEmailByDate()` ONLY returns contacts whose `_folders` includes the active folder. Never returns untagged or cross-folder contacts.
+- ±1 calendar day tolerance for time-zone edge cases.
 
 #### bridge.js v1.4 — `_folder` → `_folders` array
 - Each contact now carries `_folders: string[]` — ALL campaign folders it belongs to (a contact in both Workables and Old Samples gets `_folders: ['Workables', 'Old Samples']`).
 - First-campaign-wins for `accountName`; all folders collected for matching.
 
 #### Row badges
-- **Staleness chip** — colored dot (green→amber→orange→red→crimson) + glow + "Nd" or "today". DOM date is primary (always accurate to Outlook thread state). PA cache `lastDate` used only as fallback when DOM can't parse a date.
-- **Step count** — envelope icon + count. Prefers Outlook DOM thread count (most accurate); falls back to PA cache count.
+- **Staleness chip** — colored dot (green→amber→orange→red→crimson) + glow + "Nd" or "today". Uses more recent of DOM date and PA cache date.
+- **Step count** — envelope icon + PA cache total sent count. Color coded: grey (1-2), amber (3), red (4+).
 - **Reply chip** — green `↩` shown when contact has replied (inbound email detected in PA data with `hasReplied: true`).
-- **Company bubble** — favicon + company name. Only shown when `findEmailByDate()` returns a folder-matched contact with a known `accountName` or domain. `FAVICON_DOMAIN_OVERRIDES`: `lge.com → lg.com`, `parker.com → parkerhannifin.com`.
+- **Company bubble** — favicon + company name. Only shown for name-matched contacts with a known `accountName` or domain. `FAVICON_DOMAIN_OVERRIDES`: `lge.com → lg.com`. `FAVICON_URL_OVERRIDES`: `parker.com → Google Favicon API`.
+
+#### Helper functions
+- `extractGreetingName(row)` — searches leaf DOM nodes for "Hi/Hey/Hello [Name]". Filters `GREETING_GENERIC` + `OWN_NAMES`. Uses `stripAccents()`.
+- `buildCacheNameMap()` — indexes email addresses by first name from PA cache for contacts not in dashboard campaigns.
+- `matchContactsByFirstName(firstName, folder)` / `matchContactsByFullName(fullName, folder)` — both use `stripAccents()`.
+- `tiebreakByDate(candidates, rowDate)` — picks candidate with PA cache dates closest to DOM date (±1 day).
+- `preloadFolderCounts()` — estimates overdue counts for non-active folders from PA cache.
 
 #### Key functions
-`scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `findEmailByDate()`, `injectRowBadges()`, `loadEmailCache()`, `processEmailCache()`, `normFolder()`, `getThreadCountFromDOM()`
+`scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `findEmailByDate()`, `injectRowBadges()`, `loadEmailCache()`, `processEmailCache()`, `normFolder()`, `buildCacheNameMap()`, `preloadFolderCounts()`
 
 #### Key implementation details
 - **`normFolder(text)`** — ⚠️ MUST use `\p{Extended_Pictographic}` NOT `\p{Emoji}` — `\p{Emoji}` includes ASCII digits 0–9, which strips "6" from "6QA".
@@ -1041,9 +1066,9 @@ When a new session begins, Claude Code should:
 | ✅ Done | Outreach Extension v3.9–v3.13 — bug fixes + reply indicator | **v3.9:** `normFolder` trailing-star fix for 6QA ☆, exact title matching to prevent Winback sub-folder bleed, manifest version bump + Google favicon host_permission. **v3.10–v3.11:** `FC_VERSION` system to auto-clear stale folder counts on version bump (fixed Winback showing poisoned count of 23). **v3.12:** `\p{Emoji}` → `\p{Extended_Pictographic}` in normFolder (critical: `\p{Emoji}` includes digits 0–9, was stripping "6" from "6QA" causing zero badges). `updateFolderBadges` fallback to `.includes()` textContent after aria-label-only matching broke all badges. **v3.13:** `↩` reply chip (green) when contact has replied. `FAVICON_DOMAIN_OVERRIDES` (`lge.com→lg.com` fixes LG grey placeholder). `hasReplied` null→'' fix (empty string so date comparisons work). "Name \<email\>" toRecipients parsing. `getThreadCountFromDOM` broadened. `PERSONAL_DOMAINS` Set. |
 | ✅ Done | Outreach Extension v3.14–v3.29 — PA data scarcity fix + folder-strict matching | **PA Compose union fix:** Sent Items step was returning data but NOT included in Compose `union()` expression — had been silently omitted since the step was added. Fix: added Sent Items as innermost union. Result: 10 contacts → 107 contacts, 20 emails → 270 emails. **KQL date filter removed:** `sent:>=` KQL on Sent Items returned 0 results silently; switched to Top:250 no filter. **Multi-recipient semicolon split (v3.27):** `toRecipients` can be `"a@x.com;b@x.com;c@x.com"` — split on `;` before processing. **Bridge v1.4:** each contact now carries `_folders: string[]` — all campaign folders it belongs to. **Folder-strict matching (v3.29 CRITICAL):** `findEmailByDate()` completely rewritten — with 107+ contacts date collisions are common. Old `noFolderBest` fallback allowed untagged contacts (Sent Items, not in any campaign) to match any folder row, causing scrambled company logos (Novo Nordisk appearing in LG's 6QA row). Fix: only return contacts whose `_folders.includes(activeFolder)`. **Scan-only folder count model (v3.26):** `refreshFolderCountsFromCache()` deleted — it falsely assumed dashboard campaign = Outlook folder. **Pre-load folder counts on startup (v3.28):** estimates overdue counts from PA cache on first load for unvisited folders. **Empty folder reset (v3.25):** 0 rows → badge resets to 0. **`FAVICON_DOMAIN_OVERRIDES` extended:** `parker.com → parkerhannifin.com`. |
 | ✅ Done | PA flow: Sent Items date filter (deprecated) | KQL `sent:>=` filter was silently returning 0 results — removed in this session. Sent Items now uses Top:250 with no filter. Top:500 times out. Note: the auto-rolling 90-day window approach is no longer active. |
-| 🔴 Next | Verify v3.29 scrambled logo fix | Dan needs to reload extension (↺ on chrome://extensions) + hard refresh Outlook, then navigate to 6QA to confirm only real 6QA contacts appear in company bubbles (Novo Nordisk / Gmail / Evergreen should no longer show). |
-| 🔴 Next | PA flow: tag emails with source folder | Currently `_folders[0]` (dashboard campaign primary) used as proxy for Outlook folder — imperfect (e.g. Elise in ibis_samples but emails in Workables Outlook folder). Real fix: PA flow should include a `sourceFolder` field on each email. Would also enable accurate pre-loaded folder counts for unvisited folders. |
-| ⚠️ Monitor | Outreach Extension: company bubble accuracy | Company bubble now only shows for folder-matched contacts (v3.29 strict). May show blank for contacts whose `_folders` doesn't include the current Outlook folder — these will show staleness/step count but no bubble. |
+| ✅ Done | Outreach Extension v3.30–v3.36 debugging pass | Name-based matching (cacheNameMap, accent normalization, leaf node greeting parse), date-fallback removal, instant cache loading, staleness fix (more-recent-of DOM/PA date), step count (PA cache total), folder badge fixes (subfolder bleed guard, live pre-load, OVERDUE_DAYS=2, stable FC_VERSION), Parker favicon (Google API). |
+| 🗺️ Future | PA flow: tag emails with source folder | Currently `_folders[0]` (dashboard campaign primary) used as proxy for Outlook folder — imperfect. Real fix: PA flow should include a `sourceFolder` field on each email. |
+| ⚠️ Monitor | Outreach Extension: company bubble accuracy | Company bubble only shows for name-matched contacts. Contacts not matchable by greeting/from/DOM-email get staleness-only badges (no bubble). |
 | 🗺️ Future | Outreach Extension: DOM scraper fallback | If Azure AD app registration isn't possible, build `scraper.js` content script that reads email list from Outlook DOM when user opens thread view. No API needed — reads rendered rows. Triggered on-click only (not background scan). |
 | 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
 | 🗺️ Future | Outreach Extension: Samples campaign | Define filter logic + contact list |
