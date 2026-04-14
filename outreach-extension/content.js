@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.42
+// IBISWorld Outreach — DOM Overlay v3.43
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -246,9 +246,9 @@
       lastScanTime = 0; // reset rate-limit so re-scan fires immediately (not blocked by 2s guard)
       scanEmailRows();
     }
-    // Folder counts now come ONLY from actual DOM scans (persisted in ibis_folder_counts).
-    // preloadFolderCounts() removed — PA estimates were inaccurate because "in dashboard
-    // campaign" ≠ "has emails in Outlook folder", causing wrong badge counts on load.
+    // Pre-load estimates for folders not yet DOM-scanned this session.
+    // scannedFolders protection ensures DOM-scanned results are never overwritten.
+    preloadFolderCounts();
     updateDebugBadge('ok');
   }
 
@@ -1010,19 +1010,32 @@
           ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
           : null;
 
-        // Step count: PA cache total sent to this contact. Not per-thread, but gives
-        // Dan a useful "how many times have I emailed this person" signal.
+        // Step count: unique DAYS Dan emailed this contact (deduped to day level).
+        // PA cache aggregates across all threads/folders, so raw count can be inflated
+        // by the same email appearing in multiple PA source arrays.
         const resolvedEmail = storedEmail || '';
-        const stepCount = resolvedEmail && emailCache[resolvedEmail] ? emailCache[resolvedEmail].count : 0;
+        const cacheData = resolvedEmail ? emailCache[resolvedEmail] : null;
+        let stepCount = 0;
+        if (cacheData?.dates?.length) {
+          const uniqueDays = new Set(cacheData.dates.map(d => (d || '').slice(0, 10)));
+          stepCount = uniqueDays.size;
+        }
+
+        // Reply detection: PA cache hasReplied OR DOM evidence (From field shows non-Dan name).
+        // PA flow only monitors campaign folders + Sent Items — inbound replies that stay in
+        // Inbox are invisible to PA. DOM From field is the reliable signal.
+        const domReply = getNonDanFromNames(row).length > 0;
+        const hasReplied = cacheData?.hasReplied || domReply;
+
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
-          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | paDate=${cacheEntry?.lastDate?.slice(0,10)||'none'} | steps=${stepCount} | days=${days}`);
+          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | paDate=${cacheEntry?.lastDate?.slice(0,10)||'none'} | steps=${stepCount} | replied=${hasReplied} | days=${days}`);
         }
 
         row.dataset.ibisProcessed = '1';
         if (resolvedEmail) row.dataset.ibisEmail = resolvedEmail;
         if (emailMatchedViaDOM) row.dataset.ibisMatchDom = '1';
-        injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM);
+        injectRowBadges(row, days, contactInfo, stepCount, emailMatchedViaDOM, hasReplied);
       });
     } catch (err) {
       LOG('Scan error (non-fatal):', err.message);
@@ -1040,7 +1053,7 @@
 
   // ── Row badge injection ───────────────────────────────────────────────────────
 
-  function injectRowBadges(row, days, contactInfo, stepCount = 0, highConfidence = false) {
+  function injectRowBadges(row, days, contactInfo, stepCount = 0, highConfidence = false, hasReplied = false) {
     const wrap = document.createElement('span');
     wrap.className = 'ibis-row-badges';
     p(wrap, 'display',        'inline-flex');
@@ -1108,10 +1121,10 @@
     }
 
     // ── Reply indicator ──
-    // Green ↩ chip when the contact has sent at least one reply (detected from inbound
-    // emails in PA cache that were filed into campaign folders).
-    const cacheEntry = contactInfo?.email ? emailCache[contactInfo.email] : null;
-    if (cacheEntry?.hasReplied) {
+    // Green ↩ chip when the contact has replied. Detected two ways:
+    // 1. PA cache hasReplied (inbound email in campaign folder)
+    // 2. DOM From field shows non-Dan name (works even if reply is in Inbox only)
+    if (hasReplied) {
       const replyChip = document.createElement('span');
       replyChip.title = 'Contact has replied';
       p(replyChip, 'display',       'inline-flex');
