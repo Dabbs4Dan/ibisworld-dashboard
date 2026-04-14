@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.37
+// IBISWorld Outreach — DOM Overlay v3.38
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -163,6 +163,7 @@
     }
     const map = {};
     const seenIds = new Set(); // deduplicate emails that appear in multiple folders
+    const seenSends = new Set(); // secondary dedup: recipient+minute catches same email with different IDs
     data.forEach(item => {
       // Handle both plain-string and Graph object format for from/toRecipients
       const fromObj = item.from;
@@ -201,6 +202,12 @@
         const angleMatch = raw.match(/<([^>@\s]+@[^>@\s]+)>/);
         const em = (angleMatch ? angleMatch[1] : raw).toLowerCase().trim();
         if (!em || !em.includes('@') || em.endsWith('@' + OWN_DOMAIN)) return;
+        // Secondary dedup: same recipient + same minute = same email in a different folder.
+        // Outlook assigns different item.id to campaign folder copy vs Sent Items copy,
+        // so seenIds misses these. Truncate datetime to minute to catch slight timestamp diffs.
+        const sendKey = em + '|' + (dt || '').slice(0, 16);
+        if (seenSends.has(sendKey)) return;
+        seenSends.add(sendKey);
         if (!map[em]) map[em] = { lastDate: dt, count: 0, dates: [] };
         if (!map[em].lastDate || dt > map[em].lastDate) map[em].lastDate = dt; // handle '' from inbound-first entries
         map[em].count++;
@@ -408,14 +415,19 @@
 
   function dateFromAriaLabel(label) {
     if (!label) return null;
+    // CRITICAL: day-of-week and date patterns MUST come BEFORE time-only.
+    // Outlook aria-labels contain "Mon 3:01 PM" — if time matches first, we return
+    // "today" instead of last Monday. Checking day/date first ensures "Mon" is parsed
+    // as the day-of-week, and time-only ("3:01 PM") is the last-resort = today.
     const patterns = [
-      /\d{1,2}:\d{2}\s*(AM|PM)/i,
       /\bToday\b/i,
       /\bYesterday\b/i,
       /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i,
+      /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/i,
+      /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/,
       /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s*\d{4})?\b/i,
       /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:,\s*\d{4})?\b/i,
-      /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/,
+      /\d{1,2}:\d{2}\s*(AM|PM)/i,
     ];
     for (const p of patterns) {
       const m = label.match(p);
@@ -1370,6 +1382,9 @@
         LOG('Initial scan — title:', document.title, '| email cache entries:', Object.keys(emailCache).length);
         scanEmailRows();
       }, 400); // fast — instant cache means data is ready immediately
+      // Fallback scans for slow Outlook SPA loads — title/treeitems may not exist at 400ms
+      setTimeout(() => { updateFolderBadges(); scanEmailRows(); }, 2000);
+      setTimeout(() => { updateFolderBadges(); scanEmailRows(); }, 5000);
     });
   }
 
