@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.38
+// IBISWorld Outreach — DOM Overlay v3.39
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -897,6 +897,7 @@
     // data-ibis-processed flags, so this fast path won't fire in those cases.
     if (rows.length > 0 && rows.every(r => r.dataset.ibisProcessed)) {
       lastScanTime = Date.now();
+      scannedFolders.add(activeFolder); // protect from preload overwrite
       return;
     }
     if (!rows.length) {
@@ -907,6 +908,7 @@
         updateFolderBadges();
         LOG(`"${activeFolder}": empty folder — badge reset to 0`);
       }
+      scannedFolders.add(activeFolder); // protect from preload overwrite
       lastScanTime = Date.now();
       return;
     }
