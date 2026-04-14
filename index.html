@@ -2721,7 +2721,7 @@ function detectChanges(old, newArr) {
 }
 
 function updateStats() {
-  const ra = accounts.filter(a => !a._isSkeletonAccount); // real accounts only (no skeletons)
+  const ra = accounts.filter(a => !a._isSkeletonAccount && !a._droppedFromCSV); // live territory only
   document.getElementById('stat-total').textContent = ra.length;
   document.getElementById('stat-tier1').textContent = ra.filter(a => getField(a,'Major Markets Tier') == '1').length;
   document.getElementById('stat-opps').textContent = ra.filter(a => parseFloat(getField(a,'# Core Opportunities')||0) > 0).length;
