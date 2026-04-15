@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.45
+// IBISWorld Outreach — DOM Overlay v3.46
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -745,36 +745,10 @@
   }
 
   // ── DOM reply indicator detection ─────────────────────────────────────────────
-  // Outlook Web shows reply/forward icons on email rows when the thread has been
-  // replied to or forwarded. This catches cases where From = "Daniel Starr" (Dan's
-  // latest outbound) but the contact replied earlier in the thread — the PA flow
-  // misses these replies if they landed in Inbox rather than a campaign folder.
-
-  function hasRowReplyIndicator(row) {
-    // 1. Row aria-label often contains "replied" / "forwarded" text
-    const aria = (row.getAttribute('aria-label') || '').toLowerCase();
-    if (/\brepl(y|ied|ies)\b|\bforward(ed)?\b/i.test(aria)) return true;
-
-    // 2. Fluent UI icon elements (data-icon-name="Reply" / "ReplyAll" / "Forward")
-    for (const el of row.querySelectorAll('[data-icon-name]')) {
-      const name = (el.getAttribute('data-icon-name') || '').toLowerCase();
-      if (/^(reply|replyall|forward)$/i.test(name)) return true;
-    }
-
-    // 3. SVG / role="img" elements with reply-related aria-label or title
-    for (const el of row.querySelectorAll('svg, [role="img"]')) {
-      const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
-      if (/\brepl(y|ied)\b|\bforward/i.test(label)) return true;
-    }
-
-    // 4. Outlook sometimes uses <i> with class names containing "Reply"
-    for (const el of row.querySelectorAll('i[class]')) {
-      const cls = el.className || '';
-      if (/reply|forward/i.test(cls)) return true;
-    }
-
-    return false;
-  }
+  // REMOVED in v3.46: hasRowReplyIndicator() was matching Outlook's Reply/Forward
+  // ACTION BUTTONS (present on every row) rather than reply STATUS indicators,
+  // causing all rows to falsely show the ↩ reply chip. Reply detection now relies
+  // solely on PA cache hasReplied + DOM From field (non-Dan sender names).
 
   // ── Active folder detection ───────────────────────────────────────────────────
 
@@ -1073,15 +1047,11 @@
           stepCount = uniqueDays.size;
         }
 
-        // Reply detection — three sources:
+        // Reply detection — two sources:
         // 1. PA cache hasReplied: inbound email filed in campaign folder
         // 2. DOM From field: row's From shows non-Dan sender name
-        // 3. DOM reply icon: Outlook shows reply/forward indicator on the row
-        //    (catches threads where Dan replied last but contact replied earlier —
-        //     PA misses if reply landed in Inbox, and From shows Dan not contact)
         const domReply = getNonDanFromNames(row).length > 0;
-        const rowReplyIcon = hasRowReplyIndicator(row);
-        const hasReplied = cacheData?.hasReplied || domReply || rowReplyIcon;
+        const hasReplied = cacheData?.hasReplied || domReply;
 
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
@@ -1421,7 +1391,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.45 init on', location.hostname);
+    LOG('v3.46 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
