@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.43
+// IBISWorld Outreach — DOM Overlay v3.44
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -255,8 +255,11 @@
   // ── Pre-load folder count estimates ──────────────────────────────────────────
   // Uses PA email cache + contactMap _folders to estimate overdue counts for folders
   // not yet physically visited. Called from processEmailCache AND loadContactMap.
-  // Runs on EVERY fresh cache load (not just once) so folder badges stay fresh
-  // when PA data updates. Updates ALL non-active folders (not just undefined ones).
+  // Estimates overdue counts for folders not yet DOM-scanned this session.
+  // ONLY fills folders with NO prior count (undefined). Persisted counts from
+  // previous session DOM scans are always more accurate than PA-based estimates
+  // (dashboard campaign ≠ Outlook folder — e.g. a contact in ibis_samples may
+  // have emails in the Workables Outlook folder, not Old Samples).
   function preloadFolderCounts() {
     if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
 
@@ -272,16 +275,21 @@
       const primaryFolder = c._folders[0];
       if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
     });
+    let filled = 0;
     CAMPAIGN_FOLDERS.forEach(f => {
-      // Never overwrite the active folder (real DOM scan is authoritative) or any
-      // folder already DOM-scanned this session — estimates are always less accurate
-      // than real scans because they only have PA cache dates, not DOM dates.
+      // Never overwrite the active folder, DOM-scanned folders, or folders that
+      // already have a persisted count from a previous session's real DOM scan.
+      // Estimates are always less accurate — only use them for truly unknown folders.
       if (f === activeFolder || scannedFolders.has(f)) return;
+      if (folderCounts[f] !== undefined) return; // trust persisted scan data
       folderCounts[f] = estimates[f];
+      filled++;
     });
-    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
-    updateFolderBadges();
-    LOG('Pre-loaded folder count estimates:', JSON.stringify(estimates));
+    if (filled > 0) {
+      if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
+      updateFolderBadges();
+    }
+    LOG('Pre-load estimates:', JSON.stringify(estimates), '| filled', filled, 'unknown folders');
   }
 
   // ── Cache name index ─────────────────────────────────────────────────────────
@@ -729,6 +737,38 @@
     return null; // no match — row gets staleness-only badge (no company/step/reply)
   }
 
+  // ── DOM reply indicator detection ─────────────────────────────────────────────
+  // Outlook Web shows reply/forward icons on email rows when the thread has been
+  // replied to or forwarded. This catches cases where From = "Daniel Starr" (Dan's
+  // latest outbound) but the contact replied earlier in the thread — the PA flow
+  // misses these replies if they landed in Inbox rather than a campaign folder.
+
+  function hasRowReplyIndicator(row) {
+    // 1. Row aria-label often contains "replied" / "forwarded" text
+    const aria = (row.getAttribute('aria-label') || '').toLowerCase();
+    if (/\brepl(y|ied|ies)\b|\bforward(ed)?\b/i.test(aria)) return true;
+
+    // 2. Fluent UI icon elements (data-icon-name="Reply" / "ReplyAll" / "Forward")
+    for (const el of row.querySelectorAll('[data-icon-name]')) {
+      const name = (el.getAttribute('data-icon-name') || '').toLowerCase();
+      if (/^(reply|replyall|forward)$/i.test(name)) return true;
+    }
+
+    // 3. SVG / role="img" elements with reply-related aria-label or title
+    for (const el of row.querySelectorAll('svg, [role="img"]')) {
+      const label = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+      if (/\brepl(y|ied)\b|\bforward/i.test(label)) return true;
+    }
+
+    // 4. Outlook sometimes uses <i> with class names containing "Reply"
+    for (const el of row.querySelectorAll('i[class]')) {
+      const cls = el.className || '';
+      if (/reply|forward/i.test(cls)) return true;
+    }
+
+    return false;
+  }
+
   // ── Active folder detection ───────────────────────────────────────────────────
 
   // Strip leading emoji/symbols so "🔥 6QA" → "6QA", "❄️ Winback" → "Winback"
@@ -1021,11 +1061,15 @@
           stepCount = uniqueDays.size;
         }
 
-        // Reply detection: PA cache hasReplied OR DOM evidence (From field shows non-Dan name).
-        // PA flow only monitors campaign folders + Sent Items — inbound replies that stay in
-        // Inbox are invisible to PA. DOM From field is the reliable signal.
+        // Reply detection — three sources:
+        // 1. PA cache hasReplied: inbound email filed in campaign folder
+        // 2. DOM From field: row's From shows non-Dan sender name
+        // 3. DOM reply icon: Outlook shows reply/forward indicator on the row
+        //    (catches threads where Dan replied last but contact replied earlier —
+        //     PA misses if reply landed in Inbox, and From shows Dan not contact)
         const domReply = getNonDanFromNames(row).length > 0;
-        const hasReplied = cacheData?.hasReplied || domReply;
+        const rowReplyIcon = hasRowReplyIndicator(row);
+        const hasReplied = cacheData?.hasReplied || domReply || rowReplyIcon;
 
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
@@ -1103,7 +1147,7 @@
     // "how many times have I reached out to this person" signal.
     if (stepCount > 0) {
       const stepChip = document.createElement('span');
-      stepChip.title = `${stepCount} email${stepCount === 1 ? '' : 's'} sent to this contact (across all threads)`;
+      stepChip.title = `${stepCount} unique day${stepCount === 1 ? '' : 's'} you emailed this contact (across all threads)`;
       p(stepChip, 'display',       'inline-flex');
       p(stepChip, 'align-items',   'center');
       p(stepChip, 'gap',           '3px');
@@ -1190,14 +1234,8 @@
           img.onerror = () => {
             if (!img.dataset.tried) {
               img.dataset.tried = '1';
-              img.src = `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
-              img.onerror = () => {
-                if (!img.dataset.tried2) {
-                  img.dataset.tried2 = '1';
-                  img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
-                  img.onerror = () => { img.style.display = 'none'; };
-                }
-              };
+              img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
+              img.onerror = () => { img.style.display = 'none'; };
             }
           };
           bubble.appendChild(img);
@@ -1304,7 +1342,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.37',
+        version: '3.44',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1371,7 +1409,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.36 init on', location.hostname);
+    LOG('v3.44 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
