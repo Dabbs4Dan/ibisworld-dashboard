@@ -168,6 +168,7 @@ Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Campaign
 - **Entry point:** ⚡ bolt button on any account row in the Accounts table. Toggling ⚡ sets `ibis_local[name].hasAction = true`. Toggle again to remove.
 - **Tabs nav:** `⚡ Action` is the first tab in the nav bar.
 - **Protection rule:** Accounts with `hasAction=true` are NEVER moved to the Dead tab on CSV re-upload. They re-enter `accounts[]` with `_droppedFromCSV:true` flag and show an orange "dropped from CSV" badge. They stay visible in Action forever unless Dan manually removes ⚡.
+- **Accounts tab exclusion:** `_droppedFromCSV:true` accounts are hidden from the Accounts tab — `getFiltered()` returns false, `updateStats()` excludes them, and the "N of M" count label excludes them. The Accounts tab is a pure live-territory view. Dropped accounts remain in `accounts[]` solely so the Action tab can render them.
 
 #### Action Table Columns (left → right)
 Company | Territory Dot | Opp | Stage | Action Headline | Next Date | Tier | Vertical | Active Client | Days Inactive | Campaigns | Priority
@@ -1092,3 +1093,4 @@ When a new session begins, Claude Code should:
 | ✅ Done | Action tab design pass (v33) | Camp cluster `flex-wrap:nowrap` (ovals no longer stack vertically). Controls bar chips now wrap naturally (removed nowrap from `#controls-action`). Campaigns `<th>` min-width:110px. Opp badge padding 7→8px. Territory dot size 7→8px. |
 | 🗺️ Future | Campaigns: Winbacks campaign | NOW DONE as ❄️ Winback (v33). |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented for any campaign except workables. |
+| ✅ Done | Dropped-from-CSV accounts hidden from Accounts tab | Bug fix: accounts with `hasAction=true` that were dropped from CSV were still appearing in Accounts tab with orange badge. Fixed: `getFiltered()`, `updateStats()`, and count label now all exclude `_droppedFromCSV:true` accounts. Accounts tab is now a pure live-territory view. Dropped accounts stay in `accounts[]` for Action tab only. |
