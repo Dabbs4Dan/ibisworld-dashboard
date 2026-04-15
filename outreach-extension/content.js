@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.44
+// IBISWorld Outreach — DOM Overlay v3.45
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -64,6 +64,7 @@
   let cacheNameMap     = {};     // firstName (lowercase) → [{email, domain, nameParts}] — derived from email cache addresses
   let lastScanTime     = 0;      // timestamp of last completed scan — prevents scan spam
   let lastActiveFolder = null;   // tracks folder nav changes so we can strip stale badges
+  let folderChangeTime = 0;     // timestamp of last folder nav — allows rapid re-scans for 5s
   let scannedFolders   = new Set(); // folders DOM-scanned this session — preload won't overwrite
 
   function ctxOk() {
@@ -213,6 +214,14 @@
         const sendKey = em + '|' + (dt || '').slice(0, 13);
         if (seenSends.has(sendKey)) return;
         seenSends.add(sendKey);
+        // Tertiary dedup: 2-hour rolling window catches midnight-edge duplicates.
+        // Same email in Sent Items (23:59 UTC) vs campaign folder (00:01 UTC) has
+        // different hours AND different calendar days — seenSends misses these.
+        // Check if any existing date for this recipient is within ±2 hours.
+        const dtMs = new Date(dt).getTime();
+        if (!isNaN(dtMs) && map[em]?.dates?.length > 0) {
+          if (map[em].dates.some(d => Math.abs(new Date(d).getTime() - dtMs) < 7200000)) return;
+        }
         if (!map[em]) map[em] = { lastDate: dt, count: 0, dates: [] };
         if (!map[em].lastDate || dt > map[em].lastDate) map[em].lastDate = dt; // handle '' from inbound-first entries
         map[em].count++;
@@ -254,12 +263,13 @@
 
   // ── Pre-load folder count estimates ──────────────────────────────────────────
   // Uses PA email cache + contactMap _folders to estimate overdue counts for folders
-  // not yet physically visited. Called from processEmailCache AND loadContactMap.
-  // Estimates overdue counts for folders not yet DOM-scanned this session.
-  // ONLY fills folders with NO prior count (undefined). Persisted counts from
-  // previous session DOM scans are always more accurate than PA-based estimates
-  // (dashboard campaign ≠ Outlook folder — e.g. a contact in ibis_samples may
-  // have emails in the Workables Outlook folder, not Old Samples).
+  // not yet physically visited. Called from processEmailCache on every fresh cache load.
+  //
+  // KEY LIMITATION: dashboard campaign ≠ Outlook folder. A contact in ibis_samples
+  // might have emails filed under Workables. To reduce false counts:
+  //   - Only count contacts with a SINGLE unambiguous folder assignment
+  //   - Multi-folder contacts are skipped (their Outlook folder is unknowable)
+  //   - Never overwrite active folder or DOM-scanned folders (real scans are truth)
   function preloadFolderCounts() {
     if (!emailCacheLoaded || Object.keys(contactMap).length === 0) return;
 
@@ -272,24 +282,21 @@
       if (days === null || days < OVERDUE_DAYS) return;
       const c = contactMap[email];
       if (!c?._folders?.length) return;
-      const primaryFolder = c._folders[0];
-      if (estimates[primaryFolder] !== undefined) estimates[primaryFolder]++;
+      // Only count contacts with a single unambiguous folder. Multi-folder contacts
+      // (e.g. in both Workables + Old Samples) could have emails in either folder —
+      // counting them toward _folders[0] inflates that folder's badge incorrectly.
+      if (c._folders.length > 1) return;
+      const folder = c._folders[0];
+      if (estimates[folder] !== undefined) estimates[folder]++;
     });
-    let filled = 0;
     CAMPAIGN_FOLDERS.forEach(f => {
-      // Never overwrite the active folder, DOM-scanned folders, or folders that
-      // already have a persisted count from a previous session's real DOM scan.
-      // Estimates are always less accurate — only use them for truly unknown folders.
+      // Never overwrite the active folder or any folder already DOM-scanned this session.
       if (f === activeFolder || scannedFolders.has(f)) return;
-      if (folderCounts[f] !== undefined) return; // trust persisted scan data
       folderCounts[f] = estimates[f];
-      filled++;
     });
-    if (filled > 0) {
-      if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
-      updateFolderBadges();
-    }
-    LOG('Pre-load estimates:', JSON.stringify(estimates), '| filled', filled, 'unknown folders');
+    if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
+    updateFolderBadges();
+    LOG('Pre-load estimates:', JSON.stringify(estimates));
   }
 
   // ── Cache name index ─────────────────────────────────────────────────────────
@@ -941,8 +948,12 @@
     // Rate-limit: don't scan more than once per 2 seconds.
     // Outlook's DOM mutates constantly (unread counts, animations) — without this guard
     // the debounce keeps resetting and we scan dozens of times per minute needlessly.
+    // EXCEPTION: for 5 seconds after a folder change, bypass the rate limit. Outlook's
+    // SPA loads email rows progressively — the first scan sees partial rows, and follow-up
+    // scans need to fire quickly to get the correct count as rows finish loading.
     const now = Date.now();
-    if (now - lastScanTime < 2000) return;
+    const recentFolderChange = (now - folderChangeTime) < 5000;
+    if (!recentFolderChange && now - lastScanTime < 2000) return;
 
     const activeFolder = getActiveCampaignFolder();
     if (!activeFolder) return; // silently skip — no log spam when on non-folder pages
@@ -961,6 +972,7 @@
         if (badge) badge.remove();
       });
       lastActiveFolder = activeFolder;
+      folderChangeTime = now; // enable 5s rapid-scan grace period
       // Trigger a background cache refresh on folder nav — ensures freshest PA data
       // when Dan actually looks at a folder. Won't block the scan (async).
       loadEmailCache();
@@ -1342,7 +1354,7 @@
     b.addEventListener('mouseleave', () => { b.style.opacity = '0.75'; });
     b.addEventListener('click', () => {
       const state = {
-        version: '3.44',
+        version: '3.45',
         url: location.href,
         title: document.title,
         activeFolder: getActiveCampaignFolder(),
@@ -1409,7 +1421,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.44 init on', location.hostname);
+    LOG('v3.45 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
