@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.47
+// IBISWorld Outreach — DOM Overlay v3.48
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -741,13 +741,56 @@
       }
     }
 
+    // ── Strategy 5: Date + domain correlation (PA-cache-only contacts) ──
+    // Last resort for contacts NOT in dashboard campaigns. If name matching fails
+    // (e.g. email is "ljones@allinial.com" but greeting says "Hey Lara"), try to
+    // correlate the email domain with company text visible in the row (subject/preview).
+    // Requires: ±1 day date match + domain text appears in row + exactly 1 candidate.
+    if (domDate && emailCacheLoaded && rowText.length > 0) {
+      const rowDayMs = new Date(domDate.getFullYear(), domDate.getMonth(), domDate.getDate()).getTime();
+      const candidates = [];
+      for (const [email, entry] of Object.entries(emailCache)) {
+        if (contactMap[email]) continue; // already tried via Strategies 1-4
+        if (!entry.dates?.length) continue;
+        // Check if any send date is within ±1 calendar day of the row date
+        const dateMatch = entry.dates.some(d => {
+          const dt = new Date(d);
+          if (isNaN(dt.getTime())) return false;
+          const dtDayMs = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+          return Math.abs(dtDayMs - rowDayMs) <= 86400000;
+        });
+        if (!dateMatch) continue;
+        // Check if the email domain (minus TLD) appears in the row text
+        const domain = email.split('@')[1] || '';
+        if (PERSONAL_DOMAINS.has(domain)) continue;
+        const domainBase = domain.split('.')[0].toLowerCase(); // "allinial" from "allinial.com"
+        if (domainBase.length >= 3 && rowText.includes(domainBase)) {
+          candidates.push({ email, domain, entry });
+        }
+      }
+      if (candidates.length === 1) {
+        const c = candidates[0];
+        const accountName = domainContactMap[c.domain] || domainToName(c.domain);
+        const local = c.email.split('@')[0];
+        const parts = local.split(/[._\-+]/).filter(p => p.length >= 2 && !/\d/.test(p));
+        const synthName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        LOG(`  Strategy 5 match: ${c.email} (domain "${c.domain}" found in row text)`);
+        return {
+          email: c.email,
+          contact: { accountName, domain: c.domain, name: synthName, _folders: [] },
+          domain: c.domain,
+          confidence: 'date_domain',
+        };
+      }
+    }
+
     return null; // no match — row gets staleness-only badge (no company/step/reply)
   }
 
   // ── DOM reply indicator detection ─────────────────────────────────────────────
-  // v3.47 removed the old hasRowReplyIndicator — it scanned child elements for
+  // v3.48 removed the old hasRowReplyIndicator — it scanned child elements for
   // "Reply"/"Forward" which matched Outlook's ACTION BUTTONS on every row.
-  // v3.47 restores a MUCH narrower check: only the row's own aria-label for
+  // v3.48 restores a MUCH narrower check: only the row's own aria-label for
   // PAST-TENSE status text ("replied"/"forwarded"). Action buttons use present
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
@@ -1403,7 +1446,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.47 init on', location.hostname);
+    LOG('v3.48 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
