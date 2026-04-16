@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.60
+// IBISWorld Outreach — DOM Overlay v3.61
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -671,16 +671,19 @@
     const greetingName = extractGreetingName(row);
     if (greetingName) {
       _diag.push(`S2:greeting="${greetingName}"`);
-      // Try folder-restricted first, then cross-folder fallback
-      let matches = matchContactsByFirstName(greetingName, activeFolder);
-      if (matches.length === 0) matches = matchContactsByFirstName(greetingName, null);
+      // Folder-restricted match only — cross-folder fallback removed (v3.61).
+      // Each contact carries _folders: [all campaigns they belong to], so a contact
+      // in Workables + 6QA matches either folder. If no folder match exists, the
+      // contact truly isn't in this folder's campaign — guessing via cross-folder
+      // often picked the wrong company (e.g. Todd at FIS row matching Todd at Michaels).
+      const matches = matchContactsByFirstName(greetingName, activeFolder);
       if (matches.length === 1) return { ...matches[0], confidence: 'greeting' };
       if (matches.length > 1) {
         const best = domDate ? tiebreakByDate(matches, domDate) : null;
         if (best) return { ...best, confidence: 'greeting+date' };
         return { ...matches[0], confidence: 'greeting' }; // first match as last resort
       }
-      _diag.push('S2:0-matches');
+      _diag.push('S2:0-folder-matches');
     } else {
       _diag.push('S2:no-greeting');
     }
@@ -719,16 +722,14 @@
     const senderNames = getNonDanFromNames(row);
     _diag.push(`S3:senders=${senderNames.length > 0 ? senderNames.join(',') : 'none'}`);
     for (const senderName of senderNames) {
-      // Try full name match first (contactMap)
-      let matches = matchContactsByFullName(senderName, activeFolder);
-      if (matches.length === 0) matches = matchContactsByFullName(senderName, null);
+      // Folder-restricted only (v3.61) — see Strategy 2 note above.
+      const matches = matchContactsByFullName(senderName, activeFolder);
       if (matches.length === 1) return { ...matches[0], confidence: 'sender' };
 
-      // Try first name only (contactMap)
+      // First name only (contactMap), still folder-restricted
       const firstName = senderName.split(/\s+/)[0];
       if (firstName && firstName.length >= 3) {
-        let fMatches = matchContactsByFirstName(firstName, activeFolder);
-        if (fMatches.length === 0) fMatches = matchContactsByFirstName(firstName, null);
+        const fMatches = matchContactsByFirstName(firstName, activeFolder);
         if (fMatches.length === 1) return { ...fMatches[0], confidence: 'sender_first' };
         if (fMatches.length > 1) {
           const best = domDate ? tiebreakByDate(fMatches, domDate) : null;
@@ -762,21 +763,19 @@
     // ── Strategy 4: Broad text scan for any known contact first name ──
     // When greeting/from strategies fail (e.g. latest message is an inbound reply
     // so preview shows the contact's text, not Dan's "Hi [Name]"), scan the entire
-    // row text for ANY known contact first name. Folder-restricted first.
+    // row text for ANY known contact first name. Folder-restricted only (v3.61):
+    // cross-folder matches picked the wrong company on ambiguous first names.
     const rowText = stripAccents(row.textContent || '').toLowerCase();
     if (rowText.length > 0) {
-      // Build candidate list from contactMap (folder-restricted first, then all)
-      for (const folderRestrict of [activeFolder, null]) {
-        for (const [email, c] of Object.entries(contactMap)) {
-          if (folderRestrict && !c._folders?.includes(folderRestrict)) continue;
-          const cName = c.name || '';
-          const firstName = stripAccents(cName.split(/\s+/)[0] || '').toLowerCase();
-          if (!firstName || firstName.length < 3 || OWN_NAMES.has(firstName)) continue;
-          // Check if the contact's first name appears as a whole word in the row
-          const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
-          if (re.test(rowText)) {
-            return { email, contact: c, domain: email.split('@')[1] || '', confidence: 'text_scan' };
-          }
+      for (const [email, c] of Object.entries(contactMap)) {
+        if (!c._folders?.includes(activeFolder)) continue;
+        const cName = c.name || '';
+        const firstName = stripAccents(cName.split(/\s+/)[0] || '').toLowerCase();
+        if (!firstName || firstName.length < 3 || OWN_NAMES.has(firstName)) continue;
+        // Check if the contact's first name appears as a whole word in the row
+        const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+        if (re.test(rowText)) {
+          return { email, contact: c, domain: email.split('@')[1] || '', confidence: 'text_scan' };
         }
       }
       // Also try cacheNameMap for contacts not in dashboard campaigns
@@ -1227,6 +1226,9 @@
           const uniqueDays = new Set(cacheData.dates.map(d => (d || '').slice(0, 10)));
           stepCount = uniqueDays.size;
         }
+        // v3.61: PA cache runs every 2h, so new contacts sent today won't be in it yet.
+        // The DOM row itself is proof of one sent email — show 1 instead of 0 until PA catches up.
+        if (stepCount === 0 && resolvedEmail && domDate) stepCount = 1;
 
         // Reply detection — three sources:
         // 1. PA cache hasReplied: inbound email filed in campaign folder
