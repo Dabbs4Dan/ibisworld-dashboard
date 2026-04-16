@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.61
+// IBISWorld Outreach — DOM Overlay v3.62
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -880,11 +880,20 @@
   }
 
   function getActiveCampaignFolder() {
-    // 1. Title: Outlook sets title to "FolderName - Mail - ..." — most reliable
-    //    Split on " - " and check only the first segment for exact match
+    // 1. Title: Outlook sets title to "FolderName - Mail - ..." — most reliable.
+    //    If the title names a specific folder that is NOT a campaign (Inbox, Sent Items,
+    //    Drafts, etc.), return null immediately. Outlook leaves stale aria-selected /
+    //    tabindex="0" on sidebar treeitems after the user navigates away from a campaign
+    //    folder, so falling through to tree-state detection would falsely report a
+    //    campaign folder when Dan is actually on Inbox. Trust the title.
     const titleSegment = document.title.split(/\s[–\-]\s/)[0].trim();
-    const fromTitle = exactFolderMatch(titleSegment);
-    if (fromTitle) return fromTitle;
+    if (titleSegment) {
+      const fromTitle = exactFolderMatch(titleSegment);
+      if (fromTitle) return fromTitle;
+      // Title names a specific, non-campaign view — we are not in a campaign folder.
+      // Only fall through when title is generic ("Mail", "Outlook") or empty.
+      if (!/^(mail|outlook)$/i.test(titleSegment)) return null;
+    }
 
     // 2. H1/heading (SPA sometimes lags on title update)
     for (const el of document.querySelectorAll('[role="heading"], h1, h2, h3')) {
@@ -908,14 +917,10 @@
       if (m) return m;
     }
 
-    // 4. Folder name heading in content area — Outlook renders the folder name
-    //    as a prominent text element (e.g. "❄ Winback ☆") that may not have
-    //    role="heading" or be an h1/h2/h3. Scan spans/divs near the top.
-    for (const el of document.querySelectorAll('[aria-label], [title]')) {
-      const text = el.getAttribute('aria-label') || el.getAttribute('title') || '';
-      const m = exactFolderMatch(text.split(',')[0].trim());
-      if (m) return m;
-    }
+    // Step 4 removed (v3.62) — its broad [aria-label]/[title] scan across the
+    // whole document was matching sidebar treeitem aria-labels ("❄️ Winback, 3 unread")
+    // even when the user was on Inbox. Badges appeared on every email in non-campaign
+    // folders as a result. Steps 1-3 are sufficient.
 
     return null;
   }
