@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.50
+// IBISWorld Outreach — DOM Overlay v3.51
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -34,6 +34,12 @@
   // use Google Favicon API (most reliable, caches all major sites).
   const FAVICON_URL_OVERRIDES = {
     'parker.com': 'https://www.google.com/s2/favicons?domain=parker.com&sz=32',
+  };
+
+  // Company name overrides — when the email domain doesn't match the real account name.
+  // domainToName("guckenheimer.com") → "Guckenheimer" but the real account is "ISS-Guckenheimer".
+  const COMPANY_NAME_OVERRIDES = {
+    'guckenheimer.com': 'ISS-Guckenheimer',
   };
 
   // Bump this ONLY when counting methodology changes (not on every release).
@@ -228,32 +234,24 @@
         map[em].dates.push(dt); // store all dates for row-to-contact matching
       });
     });
-    // Detect NEW contacts: fresh PA fetch may contain contacts not in the instant cache.
-    // If the cache grew, we must re-scan — stale rows may match the new contacts.
     const prevSize = Object.keys(emailCache).length;
-    const newSize = Object.keys(map).length;
-    const hasNewContacts = newSize > prevSize;
-    const isFirstLoad = !emailCacheLoaded && newSize > 0;
     emailCache = map;
     emailCacheLoaded = true;
     buildCacheNameMap(); // index email addresses by first name for greeting matching
     // Persist processed cache for instant load next session (avoids 5-10s SharePoint wait)
     if (ctxOk()) chrome.storage.local.set({ ibis_email_cache_map: map });
     const cacheKeys = Object.keys(emailCache);
-    LOG('Email cache loaded:', cacheKeys.length, 'contacts (was', prevSize, '— new contacts:', hasNewContacts, ')');
+    LOG('Email cache loaded:', cacheKeys.length, 'contacts (was', prevSize, ')');
     // Debug: log first 20 cache entries to verify
     cacheKeys.slice(0, 20).forEach(e => {
       const v = emailCache[e];
       LOG('  📧', e, '→', v.count + 'x, last:', v.lastDate ? v.lastDate.slice(0, 10) : 'none', v.hasReplied ? '↩replied' : '');
     });
     if (cacheKeys.length > 20) LOG(`  ... and ${cacheKeys.length - 20} more`);
-    // Debug: log cacheNameMap keys so we can verify name index
-    const nameKeys = Object.keys(cacheNameMap);
-    LOG('CacheNameMap:', nameKeys.length, 'names →', nameKeys.slice(0, 30).join(', '));
-    // Re-scan when cache has new data — either first-ever load or fresh PA fetch with
-    // new contacts. Without this, rows scanned against the instant cache (from previous
-    // session) never get re-evaluated when fresh PA data arrives with new contacts.
-    if ((isFirstLoad || hasNewContacts) && getActiveCampaignFolder()) {
+    // ALWAYS re-scan when fresh PA data arrives. The instant cache (from previous session)
+    // may be stale — new contacts, updated dates, new replies. Re-scanning is cheap
+    // (milliseconds for a few rows) and guarantees fresh data is always reflected.
+    if (getActiveCampaignFolder()) {
       document.querySelectorAll('[data-ibis-processed]').forEach(row => {
         row.removeAttribute('data-ibis-processed');
         row.removeAttribute('data-ibis-email');      // clear stale email match
@@ -818,9 +816,9 @@
   }
 
   // ── DOM reply indicator detection ─────────────────────────────────────────────
-  // v3.50 removed the old hasRowReplyIndicator — it scanned child elements for
+  // v3.51 removed the old hasRowReplyIndicator — it scanned child elements for
   // "Reply"/"Forward" which matched Outlook's ACTION BUTTONS on every row.
-  // v3.50 restores a MUCH narrower check: only the row's own aria-label for
+  // v3.51 restores a MUCH narrower check: only the row's own aria-label for
   // PAST-TENSE status text ("replied"/"forwarded"). Action buttons use present
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
@@ -1371,7 +1369,9 @@
 
   function domainToName(domain) {
     if (!domain) return '';
-    return domain.replace(/^www\./, '').split('.')[0]
+    const clean = domain.replace(/^www\./, '');
+    if (COMPANY_NAME_OVERRIDES[clean]) return COMPANY_NAME_OVERRIDES[clean];
+    return clean.split('.')[0]
       .replace(/[-_]/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase());
   }
@@ -1476,7 +1476,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.50 init on', location.hostname);
+    LOG('v3.51 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
