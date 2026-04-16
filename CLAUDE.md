@@ -685,17 +685,17 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v3.43
+**Version:** v3.60
 **Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, step count, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
 | File | Purpose |
 |---|---|
 | `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
-| `content.js` | DOM overlay v3.43. Injects row badges + folder badges into Outlook. No sidebar. |
+| `content.js` | DOM overlay v3.60. Injects row badges + folder badges into Outlook. No sidebar. |
 | `overlay.css` | Minimal CSS for badge classes (most styles applied inline with `!important` to beat Outlook) |
 | `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Also proxies cross-origin fetches for content scripts (FETCH_URL message). |
-| `bridge.js` | Content script on dashboard. Merges ALL 8 campaign stores → `chrome.storage.local.outreach_contacts_raw` |
+| `bridge.js` | Content script on dashboard (v1.5). Merges ALL 8 campaign stores → `outreach_contacts_raw` + pushes account names → `outreach_account_names` |
 | `popup.html` | Simple "IBISWorld Overlay Active ✓" popup — version shown dynamically |
 | `popup.js` | Reads `chrome.runtime.getManifest().version` and writes to `#ver` span |
 | `config.js` | `IBIS_CONFIG.OVERDUE_DAYS = 3` — reference config (content.js uses its own `OVERDUE_DAYS = 2`) |
@@ -707,8 +707,9 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 4. PA flow `IBISWorld Contact Activity Sync` writes `contact_activity.json` to OneDrive → extension fetches via background proxy → uses real sent dates + step counts
 
 ### Storage keys (chrome.storage.local)
-- `outreach_contacts_raw` — merged JSON of ALL 8 campaign contacts, written by bridge.js v1.4
+- `outreach_contacts_raw` — merged JSON of ALL 8 campaign contacts, written by bridge.js v1.5
 - `outreach_contacts_ts` — timestamp of last push
+- `outreach_account_names` — JSON map of all account names from `ibis_accounts` (bridge.js v1.5). Keys = lowercase account name, values = `{name, domain}`. Used by `accountNameMap` for DOM text company matching.
 - `ibis_folder_counts` — persisted folder overdue counts (JSON string `{folderName: count}`) — survives folder switches + page reloads
 - `ibis_fc_version` — folder count version tag ('v2'). Bumped when counting methodology changes (v2 cleared stale preload estimates).
 - `ibis_email_cache_map` — persisted processed email cache for instant load on next startup (avoids 5-10s SharePoint wait)
@@ -802,12 +803,19 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 - `matchContactsByFirstName(firstName, folder)` / `matchContactsByFullName(fullName, folder)` — both use `stripAccents()`.
 - `tiebreakByDate(candidates, rowDate)` — picks candidate with PA cache dates closest to DOM date (±1 day).
 - `preloadFolderCounts()` — estimates overdue counts for non-active folders from PA cache.
+- `findAccountNameInText(text)` (v3.52) — scans row text (subject/preview) for known account names from `accountNameMap`. Sorted longest-first to avoid partial matches. Returns `{name, domain}` or null.
+- `accountNameMap` (v3.53) — reverse lookup from lowercase account name → `{name, domain}`. Built from bridge's `outreach_account_names` (all 159 accounts from `ibis_accounts`) + supplemented by campaign contacts' `accountName` fields. Used by `findAccountNameInText()` for DOM text company matching.
+
+#### Domain-based cache fallback (v3.60)
+- When no email match exists (greeting name doesn't match email prefix), but `findAccountNameInText` finds a company name with a known domain, searches the PA email cache for any `@domain` email. Picks the most recently active email at that domain.
+- Provides step count + reply status + staleness date for contacts whose email can't be matched by name.
+- Example: greeting "Hey Lara" can't match `ljoseph@allinialglobal.com`, but subject contains "Allinial Global" (domain: `allinialglobal.com`) → finds the PA cache entry → shows step count = 1.
 
 #### Key functions
-`scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `findEmailByDate()`, `injectRowBadges()`, `loadEmailCache()`, `processEmailCache()`, `normFolder()`, `buildCacheNameMap()`, `preloadFolderCounts()`
+`scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `findEmailByDate()`, `injectRowBadges()`, `loadEmailCache()`, `processEmailCache()`, `normFolder()`, `buildCacheNameMap()`, `preloadFolderCounts()`, `findAccountNameInText()`, `loadContactMap()`
 
 #### Key implementation details
-- **`normFolder(text)`** — ⚠️ MUST use `\p{Extended_Pictographic}` NOT `\p{Emoji}` — `\p{Emoji}` includes ASCII digits 0–9, which strips "6" from "6QA".
+- **`normFolder(text)`** — ⚠️ MUST use `\p{Extended_Pictographic}` NOT `\p{Emoji}` — `\p{Emoji}` includes ASCII digits 0–9, which strips "6" from "6QA". Also strips `\p{Mn}` (nonspacing marks) + `\p{Cf}` (format chars) + explicit `\uFE0E\uFE0F` variation selectors. CRITICAL: ❄️ = U+2744 + U+FE0F — without stripping U+FE0F, the invisible char breaks exact matching (the Winback bug, fixed v3.59).
 - **`processEmailCache()`** — builds `emailCache` map: `{ email → { lastDate, count, dates[], hasReplied } }`. Splits `toRecipients` on `;` for multi-recipient emails. Inbound replies now update `lastDate` (v3.41) AND set `hasReplied:true`. `from` field parsing extracts email from angle brackets (v3.37). Hour-level `seenSends` dedup (v3.41) + `seenIds` dedup.
 - **`toRecipients` "Name \<email\>" parsing** — uses `/<([^>@\s]+@[^>@\s]+)>/` regex to extract address correctly.
 - **`PERSONAL_DOMAINS` Set** — free email domains excluded from company name guessing.
@@ -826,8 +834,9 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ```
 Folder names must match Outlook folder names exactly (no emoji prefix — title detection uses `document.title` which strips emoji).
 
-### bridge.js v1.4 — all 8 campaigns + `_folders` array
-Merges `ibis_opps`, `ibis_samples`, `ibis_6qa`, `ibis_churn`, `ibis_netnew`, `ibis_multithread`, `ibis_winback`, `ibis_powerback` into one flat contact map keyed by email. Each contact now carries `_folders: string[]` — ALL campaign folders it belongs to (a contact in both Workables and Old Samples gets `_folders: ['Workables', 'Old Samples']`). Used by `findEmailByDate()` for folder-strict date matching. Previously v1.3 only pushed `ibis_opps`; v1.4 pushes all 8 campaigns with multi-folder support.
+### bridge.js v1.5 — all 8 campaigns + `_folders` array + account names
+Merges `ibis_opps`, `ibis_samples`, `ibis_6qa`, `ibis_churn`, `ibis_netnew`, `ibis_multithread`, `ibis_winback`, `ibis_powerback` into one flat contact map keyed by email. Each contact now carries `_folders: string[]` — ALL campaign folders it belongs to (a contact in both Workables and Old Samples gets `_folders: ['Workables', 'Old Samples']`). Used by `findEmailByDate()` for folder-strict date matching.
+**v1.5 addition:** Also pushes `outreach_account_names` from `ibis_accounts` localStorage — a slim map `{accountNameLower: {name, domain}}` so content.js can find company names in email subject lines even when no campaign contact exists (the `accountNameMap` / `findAccountNameInText()` system).
 
 ### Manifest URL patterns (all Outlook variants covered)
 - `https://outlook.live.com/*`
@@ -1079,7 +1088,7 @@ When a new session begins, Claude Code should:
 | ✅ Done | Outreach Extension v3.30–v3.36 debugging pass | Name-based matching (cacheNameMap, accent normalization, leaf node greeting parse), date-fallback removal, instant cache loading, staleness fix (more-recent-of DOM/PA date), step count (PA cache total), folder badge fixes (subfolder bleed guard, live pre-load, OVERDUE_DAYS=2, stable FC_VERSION), Parker favicon (Google API). |
 | ✅ Done | Outreach Extension v3.37–v3.43 bug fix pass | Fixed: `from` field parsing for inbound reply detection (angle bracket extraction), `dateFromAriaLabel` pattern priority (day-of-week before time-only), step count double-counting (hour-level dedup + unique-day display), folder badge preload overwriting DOM-scanned counts (`scannedFolders` Set), inbound reply detection via DOM From field (PA flow misses Inbox replies), broad text scan Strategy 4 for matching contacts on reply rows. Simplified staleness to 3 tiers (green/yellow/red). Step count now black/white only. FC_VERSION bumped to v2. |
 | 🗺️ Future | PA flow: tag emails with source folder | Currently `_folders[0]` (dashboard campaign primary) used as proxy for Outlook folder — imperfect. Real fix: PA flow should include a `sourceFolder` field on each email. |
-| ⚠️ Monitor | Outreach Extension: company bubble accuracy | Company bubble only shows for name-matched contacts. Contacts not matchable by greeting/from/DOM-email get staleness-only badges (no bubble). |
+| ⚠️ Monitor | Outreach Extension: company bubble accuracy | Company bubble shows for name-matched contacts OR via DOM text fallback (`findAccountNameInText`). Step count available via domain-based cache fallback (v3.60). Contacts with no name match AND no account name in subject/preview get staleness-only badges. |
 | 🗺️ Future | Outreach Extension: DOM scraper fallback | If Azure AD app registration isn't possible, build `scraper.js` content script that reads email list from Outlook DOM when user opens thread view. No API needed — reads rendered rows. Triggered on-click only (not background scan). |
 | 🗺️ Future | Outreach Extension: Winbacks campaign | Define filter logic (churned accounts, lost stage contacts) + populate from ibis_opps/ibis_licenses |
 | 🗺️ Future | Outreach Extension: Samples campaign | Define filter logic + contact list |
@@ -1094,3 +1103,4 @@ When a new session begins, Claude Code should:
 | 🗺️ Future | Campaigns: Winbacks campaign | NOW DONE as ❄️ Winback (v33). |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented for any campaign except workables. |
 | ✅ Done | Dropped-from-CSV accounts hidden from Accounts tab | Bug fix: accounts with `hasAction=true` that were dropped from CSV were still appearing in Accounts tab with orange badge. Fixed: `getFiltered()`, `updateStats()`, and count label now all exclude `_droppedFromCSV:true` accounts. Accounts tab is now a pure live-territory view. Dropped accounts stay in `accounts[]` for Action tab only. |
+| ✅ Done | Outreach Extension v3.53–v3.60 — Winback fix + company bubble + domain fallback | **Root cause:** `❄️` = U+2744 + invisible U+FE0F variation selector. `normFolder()` stripped the snowflake but not the variation selector, so `"️ Winback" !== "Winback"` always failed. All other folder emoji (`😎🔥🌱🥶`) don't use variation selectors. **Fix (v3.59):** Added `\p{Mn}` + `\p{Cf}` + explicit `\uFE0E\uFE0F` to normFolder regex. **Also fixed:** `getActiveCampaignFolder()` broadened with `tabindex="0"` treeitem check (v3.57). **bridge.js v1.5:** pushes `outreach_account_names` from `ibis_accounts` so company bubble works for ALL territory accounts, not just campaign contacts. **`findAccountNameInText()` (v3.52):** DOM text fallback scans row text for known account names (catches subject lines like "Enhancements for Allinial Global"). **Domain-based cache fallback (v3.60):** when no email match exists but company domain is known, searches PA cache for any `@domain` email → provides step count + reply status. Diagnostic heartbeat added (v3.56) for future debugging. |
