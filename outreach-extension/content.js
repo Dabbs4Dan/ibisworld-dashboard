@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.49
+// IBISWorld Outreach — DOM Overlay v3.50
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -228,26 +228,32 @@
         map[em].dates.push(dt); // store all dates for row-to-contact matching
       });
     });
-    const isFirstLoad = !emailCacheLoaded && Object.keys(map).length > 0;
+    // Detect NEW contacts: fresh PA fetch may contain contacts not in the instant cache.
+    // If the cache grew, we must re-scan — stale rows may match the new contacts.
+    const prevSize = Object.keys(emailCache).length;
+    const newSize = Object.keys(map).length;
+    const hasNewContacts = newSize > prevSize;
+    const isFirstLoad = !emailCacheLoaded && newSize > 0;
     emailCache = map;
     emailCacheLoaded = true;
     buildCacheNameMap(); // index email addresses by first name for greeting matching
     // Persist processed cache for instant load next session (avoids 5-10s SharePoint wait)
     if (ctxOk()) chrome.storage.local.set({ ibis_email_cache_map: map });
     const cacheKeys = Object.keys(emailCache);
-    LOG('Email cache loaded:', cacheKeys.length, 'contacts');
-    // Debug: log ALL cache entries (not just 10) so we can verify specific contacts
-    cacheKeys.forEach(e => {
+    LOG('Email cache loaded:', cacheKeys.length, 'contacts (was', prevSize, '— new contacts:', hasNewContacts, ')');
+    // Debug: log first 20 cache entries to verify
+    cacheKeys.slice(0, 20).forEach(e => {
       const v = emailCache[e];
       LOG('  📧', e, '→', v.count + 'x, last:', v.lastDate ? v.lastDate.slice(0, 10) : 'none', v.hasReplied ? '↩replied' : '');
     });
+    if (cacheKeys.length > 20) LOG(`  ... and ${cacheKeys.length - 20} more`);
     // Debug: log cacheNameMap keys so we can verify name index
     const nameKeys = Object.keys(cacheNameMap);
     LOG('CacheNameMap:', nameKeys.length, 'names →', nameKeys.slice(0, 30).join(', '));
-    // Only strip + re-scan if currently inside a campaign folder.
-    // Without this guard, badges are deleted but scanEmailRows() exits early
-    // (no active folder), leaving rows permanently bare until next mutation.
-    if (isFirstLoad && getActiveCampaignFolder()) {
+    // Re-scan when cache has new data — either first-ever load or fresh PA fetch with
+    // new contacts. Without this, rows scanned against the instant cache (from previous
+    // session) never get re-evaluated when fresh PA data arrives with new contacts.
+    if ((isFirstLoad || hasNewContacts) && getActiveCampaignFolder()) {
       document.querySelectorAll('[data-ibis-processed]').forEach(row => {
         row.removeAttribute('data-ibis-processed');
         row.removeAttribute('data-ibis-email');      // clear stale email match
@@ -812,9 +818,9 @@
   }
 
   // ── DOM reply indicator detection ─────────────────────────────────────────────
-  // v3.49 removed the old hasRowReplyIndicator — it scanned child elements for
+  // v3.50 removed the old hasRowReplyIndicator — it scanned child elements for
   // "Reply"/"Forward" which matched Outlook's ACTION BUTTONS on every row.
-  // v3.49 restores a MUCH narrower check: only the row's own aria-label for
+  // v3.50 restores a MUCH narrower check: only the row's own aria-label for
   // PAST-TENSE status text ("replied"/"forwarded"). Action buttons use present
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
@@ -1470,7 +1476,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.49 init on', location.hostname);
+    LOG('v3.50 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
