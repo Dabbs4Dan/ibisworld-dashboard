@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.54
+// IBISWorld Outreach — DOM Overlay v3.55
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -911,7 +911,17 @@
     if (rows.length > 0) return rows;
     rows = [...document.querySelectorAll('[role="listitem"][aria-label]')];
     if (rows.length > 0) return rows;
-    return [...document.querySelectorAll('[data-convid]')];
+    rows = [...document.querySelectorAll('[data-convid]')];
+    if (rows.length > 0) return rows;
+    // v3.55: broader fallback — Outlook sometimes renders single-email folders
+    // without role="option" or data-convid. Look for rows with aria-label
+    // containing a date pattern (these are email rows, not headers/dividers).
+    rows = [...document.querySelectorAll('[role="treeitem"][aria-label], [role="row"][aria-label], [aria-label*="Daniel Starr"]')].filter(el => {
+      const label = el.getAttribute('aria-label') || '';
+      // Must look like an email row: contains a date/time reference
+      return /\b(AM|PM|today|yesterday|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i.test(label);
+    });
+    return rows;
   }
 
   // getThreadCountFromDOM REMOVED (v3.33) — Outlook's DOM thread count is the
@@ -1071,12 +1081,13 @@
       return;
     }
     if (!rows.length) {
+      // v3.55: always log when getEmailRows returns 0 — helps debug missing badges
+      LOG(`"${activeFolder}": 0 rows found by getEmailRows(). DOM check: option=${document.querySelectorAll('[role="option"]').length} listitem=${document.querySelectorAll('[role="listitem"]').length} convid=${document.querySelectorAll('[data-convid]').length}`);
       // Empty folder — reset badge count to 0 so stale counts don't persist
       if (emailCacheLoaded && activeFolder && folderCounts[activeFolder] !== 0) {
         folderCounts[activeFolder] = 0;
         if (ctxOk()) chrome.storage.local.set({ ibis_folder_counts: JSON.stringify(folderCounts), ibis_fc_version: FC_VERSION });
         updateFolderBadges();
-        LOG(`"${activeFolder}": empty folder — badge reset to 0`);
       }
       scannedFolders.add(activeFolder); // protect from preload overwrite
       lastScanTime = Date.now();
@@ -1544,7 +1555,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.54 init on', location.hostname);
+    LOG('v3.55 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
