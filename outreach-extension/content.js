@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.59
+// IBISWorld Outreach — DOM Overlay v3.60
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -1151,6 +1151,7 @@
         // the more recent date is always the right answer.
         // v3.32 tried DOM-only but that was wrong: Dajin showed 16d (original filed
         // email from 3/25) when Dan sent a follow-up 4d ago (4/6 in PA cache).
+        // v3.60: also check domain-fallback cache later and re-derive if needed.
         let date = domDate;
         if (storedEmail && cacheEntry?.lastDate) {
           const paDate = new Date(cacheEntry.lastDate);
@@ -1159,7 +1160,7 @@
           }
         }
 
-        const days = daysSince(date);
+        let days = daysSince(date);
 
         // Always count for the folder badge — even already-badged rows
         if (days !== null && days >= OVERDUE_DAYS) overdueCount++;
@@ -1178,11 +1179,49 @@
           ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
           : null;
 
+        // ── Domain-based cache fallback (v3.60) ──────────────────────────────────
+        // When no email match exists, try to find PA cache entries by company domain.
+        // e.g. greeting "Hey Lara" can't match email "ljoseph@allinialglobal.com",
+        // but findAccountNameInText finds "Allinial Global" (domain: allinialglobal.com)
+        // → search emailCache for any @allinialglobal.com → get step count + reply status.
+        let resolvedEmail = storedEmail || '';
+        let cacheData = resolvedEmail ? emailCache[resolvedEmail] : null;
+
+        if (!cacheData && !resolvedEmail) {
+          // Try to find company domain from row text
+          const rowText = row.textContent || '';
+          const acctHit = findAccountNameInText(rowText);
+          if (acctHit?.domain) {
+            // Search PA cache for any email at this domain
+            const domainSuffix = '@' + acctHit.domain;
+            const domainEmails = Object.keys(emailCache).filter(e => e.endsWith(domainSuffix));
+            if (domainEmails.length > 0) {
+              // Use the email with the most recent activity (most likely the right contact)
+              let bestEmail = domainEmails[0];
+              let bestDate = emailCache[domainEmails[0]].lastDate || '';
+              for (let i = 1; i < domainEmails.length; i++) {
+                const d = emailCache[domainEmails[i]].lastDate || '';
+                if (d > bestDate) { bestDate = d; bestEmail = domainEmails[i]; }
+              }
+              resolvedEmail = bestEmail;
+              cacheData = emailCache[bestEmail];
+              if (!alreadyProcessed) LOG(`  Domain fallback: "${acctHit.domain}" → ${bestEmail} (${domainEmails.length} at domain)`);
+            }
+          }
+        }
+
+        // If domain fallback found a cache entry, also update staleness date
+        if (cacheData?.lastDate && !storedEmail) {
+          const paDate = new Date(cacheData.lastDate);
+          if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
+            date = paDate;
+            days = daysSince(date);
+          }
+        }
+
         // Step count: unique DAYS Dan emailed this contact (deduped to day level).
         // PA cache aggregates across all threads/folders, so raw count can be inflated
         // by the same email appearing in multiple PA source arrays.
-        const resolvedEmail = storedEmail || '';
-        const cacheData = resolvedEmail ? emailCache[resolvedEmail] : null;
         let stepCount = 0;
         if (cacheData?.dates?.length) {
           const uniqueDays = new Set(cacheData.dates.map(d => (d || '').slice(0, 10)));
@@ -1572,7 +1611,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.59 init on', location.hostname);
+    LOG('v3.60 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
