@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.46
+// IBISWorld Outreach — DOM Overlay v3.47
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -745,10 +745,19 @@
   }
 
   // ── DOM reply indicator detection ─────────────────────────────────────────────
-  // REMOVED in v3.46: hasRowReplyIndicator() was matching Outlook's Reply/Forward
-  // ACTION BUTTONS (present on every row) rather than reply STATUS indicators,
-  // causing all rows to falsely show the ↩ reply chip. Reply detection now relies
-  // solely on PA cache hasReplied + DOM From field (non-Dan sender names).
+  // v3.47 removed the old hasRowReplyIndicator — it scanned child elements for
+  // "Reply"/"Forward" which matched Outlook's ACTION BUTTONS on every row.
+  // v3.47 restores a MUCH narrower check: only the row's own aria-label for
+  // PAST-TENSE status text ("replied"/"forwarded"). Action buttons use present
+  // tense ("Reply"/"Forward"), so past-tense matching is safe.
+
+  function hasRowReplyIndicator(row) {
+    const aria = (row.getAttribute('aria-label') || '');
+    // Past-tense ONLY — "replied" and "forwarded" are status indicators.
+    // "reply", "replies", "forward" are action verbs on buttons — do NOT match.
+    if (/\breplied\b|\bforwarded\b/i.test(aria)) return true;
+    return false;
+  }
 
   // ── Active folder detection ───────────────────────────────────────────────────
 
@@ -1047,11 +1056,14 @@
           stepCount = uniqueDays.size;
         }
 
-        // Reply detection — two sources:
+        // Reply detection — three sources:
         // 1. PA cache hasReplied: inbound email filed in campaign folder
         // 2. DOM From field: row's From shows non-Dan sender name
+        // 3. Row aria-label status: Outlook marks rows with "Replied"/"Forwarded"
+        //    (past tense only — safe from action button false positives)
         const domReply = getNonDanFromNames(row).length > 0;
-        const hasReplied = cacheData?.hasReplied || domReply;
+        const rowReplyIcon = hasRowReplyIndicator(row);
+        const hasReplied = cacheData?.hasReplied || domReply || rowReplyIcon;
 
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
@@ -1391,7 +1403,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.46 init on', location.hostname);
+    LOG('v3.47 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
