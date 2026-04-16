@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.57
+// IBISWorld Outreach — DOM Overlay v3.58
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -866,9 +866,12 @@
     // IMPORTANT: use \p{Extended_Pictographic} NOT \p{Emoji}.
     // \p{Emoji} includes ASCII digits 0-9 (because 1️⃣ etc. exist), which would strip
     // the "6" from "6QA". \p{Extended_Pictographic} only matches actual pictographic emoji.
+    // \p{Cf} = Format chars (variation selectors U+FE0F/U+FE0E, zero-width joiners, etc.)
+    // CRITICAL: ❄️ = U+2744 + U+FE0F. Without \p{Cf}, the invisible U+FE0F survives
+    // and breaks exact matching ("️ Winback" !== "Winback"). This was the Winback bug.
     return text
-      .replace(/^[\s\p{Extended_Pictographic}\p{So}\-–—★→✓•]+/u, '') // strip leading
-      .replace(/[\s\p{Extended_Pictographic}\p{So}\-–—★→✓•]+$/u, '') // strip trailing ☆ etc.
+      .replace(/^[\s\p{Extended_Pictographic}\p{So}\p{Cf}\-–—★→✓•]+/u, '') // strip leading
+      .replace(/[\s\p{Extended_Pictographic}\p{So}\p{Cf}\-–—★→✓•]+$/u, '') // strip trailing
       .trim();
   }
 
@@ -1569,7 +1572,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.57 init on', location.hostname);
+    LOG('v3.58 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
