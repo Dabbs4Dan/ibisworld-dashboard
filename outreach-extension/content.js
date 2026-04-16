@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.56
+// IBISWorld Outreach — DOM Overlay v3.57
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -891,16 +891,30 @@
     }
 
     // 3. Active treeitem — use aria-label first (most precise), then textContent
+    //    Check: aria-selected, aria-current, OR tabindex="0" (WAI-ARIA tree focus pattern —
+    //    the focused item in a tree gets tabindex="0" while others get tabindex="-1").
+    //    Some Outlook builds don't set aria-selected on folder treeitems at all.
     for (const item of document.querySelectorAll('[role="treeitem"]')) {
       const isActive = item.getAttribute('aria-selected') === 'true' ||
                        item.getAttribute('aria-current') === 'true'  ||
-                       item.getAttribute('aria-current') === 'page';
+                       item.getAttribute('aria-current') === 'page'  ||
+                       item.getAttribute('tabindex') === '0';
       if (!isActive) continue;
       // aria-label often = "FolderName, N unread" — take just the name part
       const label = (item.getAttribute('aria-label') || '').split(',')[0];
       const m = exactFolderMatch(label || item.textContent.trim());
       if (m) return m;
     }
+
+    // 4. Folder name heading in content area — Outlook renders the folder name
+    //    as a prominent text element (e.g. "❄ Winback ☆") that may not have
+    //    role="heading" or be an h1/h2/h3. Scan spans/divs near the top.
+    for (const el of document.querySelectorAll('[aria-label], [title]')) {
+      const text = el.getAttribute('aria-label') || el.getAttribute('title') || '';
+      const m = exactFolderMatch(text.split(',')[0].trim());
+      if (m) return m;
+    }
+
     return null;
   }
 
@@ -1555,7 +1569,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.56 init on', location.hostname);
+    LOG('v3.57 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
@@ -1590,14 +1604,22 @@
       // of scan state. Helps debug cases where scans silently skip (e.g. Winback).
       setInterval(() => {
         const title = document.title.split(/\s[–\-]\s/)[0].trim();
-        const norm = normFolder(title);
         const af = getActiveCampaignFolder();
         const rows = getEmailRows();
-        // Only log if we're on something that LOOKS like a campaign folder
-        // (title segment matches or is close to a known folder)
         const isCampaignish = af || CAMPAIGN_FOLDERS.some(f => title.toLowerCase().includes(f.toLowerCase()));
         if (isCampaignish || rows.length > 0) {
-          LOG(`🔍 Heartbeat: title="${title}" norm="${norm}" folder=${af || 'NULL'} rows=${rows.length} scanning=${scanning}`);
+          LOG(`🔍 Heartbeat: folder=${af || 'NULL'} rows=${rows.length} title="${title}"`);
+          // Extra debug when folder=NULL but rows exist (the Winback problem)
+          if (!af && rows.length > 0) {
+            const treeitems = [...document.querySelectorAll('[role="treeitem"]')];
+            const active = treeitems.filter(t =>
+              t.getAttribute('aria-selected') === 'true' ||
+              t.getAttribute('aria-current') === 'true' ||
+              t.getAttribute('tabindex') === '0'
+            );
+            LOG(`  🔍 Treeitems: ${treeitems.length} total, ${active.length} active. Active labels:`,
+              active.map(t => `"${(t.getAttribute('aria-label')||'').slice(0,40)}" tabindex=${t.getAttribute('tabindex')}`));
+          }
         }
       }, 10000);
       // Recovery heartbeat — detect rows that lost their badges (Outlook re-render)
