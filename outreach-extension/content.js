@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.55
+// IBISWorld Outreach — DOM Overlay v3.56
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -1555,7 +1555,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.55 init on', location.hostname);
+    LOG('v3.56 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
@@ -1586,6 +1586,20 @@
       setInterval(loadEmailCache, 15 * 60 * 1000); // refresh every 15min (PA flow runs every 2h)
       // Heartbeat keeps folder badges alive after Outlook re-renders the nav.
       setInterval(updateFolderBadges, 1500);
+      // Diagnostic heartbeat — logs folder detection + row count every 10s regardless
+      // of scan state. Helps debug cases where scans silently skip (e.g. Winback).
+      setInterval(() => {
+        const title = document.title.split(/\s[–\-]\s/)[0].trim();
+        const norm = normFolder(title);
+        const af = getActiveCampaignFolder();
+        const rows = getEmailRows();
+        // Only log if we're on something that LOOKS like a campaign folder
+        // (title segment matches or is close to a known folder)
+        const isCampaignish = af || CAMPAIGN_FOLDERS.some(f => title.toLowerCase().includes(f.toLowerCase()));
+        if (isCampaignish || rows.length > 0) {
+          LOG(`🔍 Heartbeat: title="${title}" norm="${norm}" folder=${af || 'NULL'} rows=${rows.length} scanning=${scanning}`);
+        }
+      }, 10000);
       // Recovery heartbeat — detect rows that lost their badges (Outlook re-render)
       // and force a re-scan. Staggered from folder badge heartbeat to spread load.
       // v3.54: Also checks for rows that have data-ibis-processed but NO badge HTML.
