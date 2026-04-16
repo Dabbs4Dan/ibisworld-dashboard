@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.48
+// IBISWorld Outreach — DOM Overlay v3.49
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -236,11 +236,14 @@
     if (ctxOk()) chrome.storage.local.set({ ibis_email_cache_map: map });
     const cacheKeys = Object.keys(emailCache);
     LOG('Email cache loaded:', cacheKeys.length, 'contacts');
-    // Debug: log top 10 entries so you can verify counts + dates in console
-    cacheKeys.slice(0, 10).forEach(e => {
+    // Debug: log ALL cache entries (not just 10) so we can verify specific contacts
+    cacheKeys.forEach(e => {
       const v = emailCache[e];
-      LOG('  >', e, '→', v.count + 'x, last:', v.lastDate ? v.lastDate.slice(0, 10) : 'none');
+      LOG('  📧', e, '→', v.count + 'x, last:', v.lastDate ? v.lastDate.slice(0, 10) : 'none', v.hasReplied ? '↩replied' : '');
     });
+    // Debug: log cacheNameMap keys so we can verify name index
+    const nameKeys = Object.keys(cacheNameMap);
+    LOG('CacheNameMap:', nameKeys.length, 'names →', nameKeys.slice(0, 30).join(', '));
     // Only strip + re-scan if currently inside a campaign folder.
     // Without this guard, badges are deleted but scanEmailRows() exits early
     // (no active folder), leaving rows permanently bare until next mutation.
@@ -610,6 +613,9 @@
   }
 
   function findContactForRow(row, activeFolder, domDate) {
+    // Diagnostic breadcrumbs — visible in F12 console when filtering [IBISWorld]
+    const _diag = [];
+
     // ── Strategy 1: DOM email scan (highest confidence) ──
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
       for (const attr of ['title', 'aria-label', 'data-email', 'href']) {
@@ -626,11 +632,13 @@
       }
     }
 
-    if (Object.keys(contactMap).length === 0) return null;
+    _diag.push('S1:no-dom-email');
+    if (Object.keys(contactMap).length === 0) { _diag.push('BAIL:contactMap-empty'); LOG('  ⛔ Match failed:', _diag.join(' → ')); return null; }
 
     // ── Strategy 2: Greeting name parse ("Hi Naveen, ...") ──
     const greetingName = extractGreetingName(row);
     if (greetingName) {
+      _diag.push(`S2:greeting="${greetingName}"`);
       // Try folder-restricted first, then cross-folder fallback
       let matches = matchContactsByFirstName(greetingName, activeFolder);
       if (matches.length === 0) matches = matchContactsByFirstName(greetingName, null);
@@ -640,13 +648,18 @@
         if (best) return { ...best, confidence: 'greeting+date' };
         return { ...matches[0], confidence: 'greeting' }; // first match as last resort
       }
+      _diag.push('S2:0-matches');
+    } else {
+      _diag.push('S2:no-greeting');
     }
 
     // ── Strategy 2b: Greeting name against email cache addresses ──
     // For contacts not in any dashboard campaign store but present in the PA email cache.
     // e.g. "Hi Ren" → cache has "ren.thomas@evergreen.edu" → match by first name "ren".
     if (greetingName && Object.keys(cacheNameMap).length > 0) {
-      const cacheMatches = cacheNameMap[stripAccents(greetingName).toLowerCase()] || [];
+      const lookupKey = stripAccents(greetingName).toLowerCase();
+      const cacheMatches = cacheNameMap[lookupKey] || [];
+      _diag.push(`S2b:cache-lookup="${lookupKey}" hits=${cacheMatches.length}`);
       if (cacheMatches.length === 1) {
         const cm = cacheMatches[0];
         return _synthCacheResult(cm, 'cache_name');
@@ -666,10 +679,13 @@
         // No date tiebreak possible — pick first
         return _synthCacheResult(cacheMatches[0], 'cache_name');
       }
+    } else if (greetingName) {
+      _diag.push('S2b:cacheNameMap-empty');
     }
 
     // ── Strategy 3: From name parse (non-Dan sender in inbound/mixed threads) ──
     const senderNames = getNonDanFromNames(row);
+    _diag.push(`S3:senders=${senderNames.length > 0 ? senderNames.join(',') : 'none'}`);
     for (const senderName of senderNames) {
       // Try full name match first (contactMap)
       let matches = matchContactsByFullName(senderName, activeFolder);
@@ -741,6 +757,8 @@
       }
     }
 
+    _diag.push('S4:no-text-match');
+
     // ── Strategy 5: Date + domain correlation (PA-cache-only contacts) ──
     // Last resort for contacts NOT in dashboard campaigns. If name matching fails
     // (e.g. email is "ljones@allinial.com" but greeting says "Hey Lara"), try to
@@ -749,6 +767,7 @@
     if (domDate && emailCacheLoaded && rowText.length > 0) {
       const rowDayMs = new Date(domDate.getFullYear(), domDate.getMonth(), domDate.getDate()).getTime();
       const candidates = [];
+      let dateMatchCount = 0;
       for (const [email, entry] of Object.entries(emailCache)) {
         if (contactMap[email]) continue; // already tried via Strategies 1-4
         if (!entry.dates?.length) continue;
@@ -760,6 +779,7 @@
           return Math.abs(dtDayMs - rowDayMs) <= 86400000;
         });
         if (!dateMatch) continue;
+        dateMatchCount++;
         // Check if the email domain (minus TLD) appears in the row text
         const domain = email.split('@')[1] || '';
         if (PERSONAL_DOMAINS.has(domain)) continue;
@@ -768,6 +788,7 @@
           candidates.push({ email, domain, entry });
         }
       }
+      _diag.push(`S5:dateHits=${dateMatchCount} domainHits=${candidates.length}`);
       if (candidates.length === 1) {
         const c = candidates[0];
         const accountName = domainContactMap[c.domain] || domainToName(c.domain);
@@ -782,15 +803,18 @@
           confidence: 'date_domain',
         };
       }
+    } else {
+      _diag.push(`S5:skip(date=${!!domDate} cache=${emailCacheLoaded} text=${rowText.length})`);
     }
 
+    LOG('  ⛔ Match failed:', _diag.join(' → '));
     return null; // no match — row gets staleness-only badge (no company/step/reply)
   }
 
   // ── DOM reply indicator detection ─────────────────────────────────────────────
-  // v3.48 removed the old hasRowReplyIndicator — it scanned child elements for
+  // v3.49 removed the old hasRowReplyIndicator — it scanned child elements for
   // "Reply"/"Forward" which matched Outlook's ACTION BUTTONS on every row.
-  // v3.48 restores a MUCH narrower check: only the row's own aria-label for
+  // v3.49 restores a MUCH narrower check: only the row's own aria-label for
   // PAST-TENSE status text ("replied"/"forwarded"). Action buttons use present
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
@@ -1446,7 +1470,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.48 init on', location.hostname);
+    LOG('v3.49 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
