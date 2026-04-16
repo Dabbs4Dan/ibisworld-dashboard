@@ -83,7 +83,7 @@
 
   function loadContactMap() {
     if (!ctxOk() || !chrome.storage) return;
-    chrome.storage.local.get(['outreach_contacts_raw'], (res) => {
+    chrome.storage.local.get(['outreach_contacts_raw', 'outreach_account_names'], (res) => {
       try {
         const raw = JSON.parse(res.outreach_contacts_raw || '{}');
         contactMap = {};
@@ -107,9 +107,17 @@
           }
         });
         // Build accountName → {name, domain} reverse lookup for DOM text fallback matching.
-        // When no contact is matched but the row subject contains "Allinial Global",
-        // this map lets us show the company bubble with the right favicon.
+        // Start with account names from the ACCOUNTS CSV (pushed by bridge v1.5).
+        // This is the key data source — it has ALL accounts in Dan's territory,
+        // even those without any campaign contacts.
         accountNameMap = {};
+        try {
+          const acctNames = JSON.parse(res.outreach_account_names || '{}');
+          Object.entries(acctNames).forEach(([key, val]) => {
+            if (val.name) accountNameMap[key] = val;
+          });
+        } catch (_) {}
+        // Layer on top: account names from campaign contacts (may have better domain info)
         Object.values(contactMap).forEach(c => {
           if (c.accountName) {
             const key = c.accountName.toLowerCase().trim();

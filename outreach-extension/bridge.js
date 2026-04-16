@@ -1,9 +1,11 @@
-// IBISWorld Outreach — dashboard bridge v1.4
+// IBISWorld Outreach — dashboard bridge v1.5
 // Runs as a content script on dabbs4dan.github.io/ibisworld-dashboard.
 // Merges contacts from ALL 8 campaign stores into outreach_contacts_raw
 // so the Outlook extension has the full contact map for company bubble matching.
 // v1.4: _folder (single string) → _folders (array) — a contact can belong to
 // multiple Outlook campaign folders simultaneously. content.js uses includes().
+// v1.5: Also pushes account names from ibis_accounts → outreach_account_names
+// so content.js can show company bubbles for accounts without campaign contacts.
 
 (function () {
   'use strict';
@@ -94,13 +96,49 @@
       console.log('[IBISWorld Bridge] Storage changed cross-tab — re-pushing.');
       pushContactsToExtension();
     }
+    if (e.key === 'ibis_accounts') {
+      console.log('[IBISWorld Bridge] Accounts changed cross-tab — re-pushing names.');
+      pushAccountNamesToExtension();
+    }
   });
+
+  // ── Push account names to extension (v1.5) ───────────────────────────────────
+  // ibis_accounts stores the raw CSV rows. Each has "Account Name" and "Website".
+  // We push a slim map: { accountNameLower: { name, domain } } so content.js can
+  // find company names in email subject lines even when no campaign contact exists.
+
+  function pushAccountNamesToExtension() {
+    try {
+      const raw = localStorage.getItem('ibis_accounts');
+      if (!raw) return;
+      const accounts = JSON.parse(raw);
+      if (!Array.isArray(accounts)) return;
+      const nameMap = {};
+      accounts.forEach(a => {
+        const name = (a['Account Name'] || a.accountName || a.name || '').trim();
+        if (!name) return;
+        // Extract domain from Website field (strip protocol + trailing slash)
+        let domain = (a['Website'] || a.website || '').trim()
+          .replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '').toLowerCase();
+        nameMap[name.toLowerCase()] = { name, domain };
+      });
+      chrome.storage.local.set({ outreach_account_names: JSON.stringify(nameMap) }, () => {
+        console.log(`[IBISWorld Bridge] Pushed ${Object.keys(nameMap).length} account names.`);
+      });
+    } catch (e) {
+      console.warn('[IBISWorld Bridge] Account names push failed:', e);
+    }
+  }
+
+  // Push accounts on load (alongside contacts)
+  pushAccountNamesToExtension();
 
   // Manual refresh from Outlook extension refresh button
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'IBIS_REFRESH_OPPS') {
       console.log('[IBISWorld Bridge] Refresh requested — re-pushing.');
       pushContactsToExtension();
+      pushAccountNamesToExtension();
     }
   });
 })();
