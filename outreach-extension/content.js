@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.51
+// IBISWorld Outreach — DOM Overlay v3.52
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -39,7 +39,8 @@
   // Company name overrides — when the email domain doesn't match the real account name.
   // domainToName("guckenheimer.com") → "Guckenheimer" but the real account is "ISS-Guckenheimer".
   const COMPANY_NAME_OVERRIDES = {
-    'guckenheimer.com': 'ISS-Guckenheimer',
+    'guckenheimer.com':  'ISS-Guckenheimer',
+    'us.issworld.com':   'ISS-Guckenheimer',
   };
 
   // Bump this ONLY when counting methodology changes (not on every release).
@@ -60,6 +61,7 @@
 
   let contactMap       = {};
   let domainContactMap = {}; // domain → accountName (built from contactMap for fallback lookup)
+  let accountNameMap   = {}; // accountName (lowercase) → { name (original case), domain } — for DOM text company matching
   let folderCounts     = {};
   let debounceTimer    = null;
   let scanning         = false;   // re-entry guard — prevents mutation feedback loops
@@ -104,8 +106,20 @@
             domainContactMap[c.domain] = c.accountName;
           }
         });
+        // Build accountName → {name, domain} reverse lookup for DOM text fallback matching.
+        // When no contact is matched but the row subject contains "Allinial Global",
+        // this map lets us show the company bubble with the right favicon.
+        accountNameMap = {};
+        Object.values(contactMap).forEach(c => {
+          if (c.accountName) {
+            const key = c.accountName.toLowerCase().trim();
+            if (!accountNameMap[key]) {
+              accountNameMap[key] = { name: c.accountName, domain: c.domain || '' };
+            }
+          }
+        });
         const mapSize = Object.keys(contactMap).length;
-        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'domains');
+        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'domains,', Object.keys(accountNameMap).length, 'accounts');
 
         // On first load with data, strip stale badges and re-scan — ensures name-based
         // matching runs even if rows were previously date-matched (wrong) before map loaded.
@@ -1252,66 +1266,77 @@
     }
 
     // ── Company bubble ──
-    // Show the company bubble when we have a reliable company name:
-    //   - contact.accountName: use it regardless of match confidence — this is the exact
-    //     name from the dashboard campaign store and is always correct for known contacts.
-    //   - Domain-guessed name: only for high-confidence (DOM email scan) matches, and only
-    //     for non-personal domains. Never guess from domain on date-matched rows — too many
-    //     false positives when different contacts share the same email date.
+    // Resolve the company name + favicon domain. Three tiers:
+    //   1. contactInfo exists → use contact's accountName / domain (highest confidence)
+    //   2. No contact match → scan row text (subject/preview) for a known dashboard account name
+    //   3. Neither → no company bubble
+    let companyName = '';
+    let faviconDomain = '';
+
     if (contactInfo) {
       const { contact, domain } = contactInfo;
       const isPersonalDomain = PERSONAL_DOMAINS.has(domain);
-      // Company name priority:
-      // 1. contactMap accountName (exact match from dashboard campaign store — most reliable)
-      // 2. domainContactMap lookup (another campaign contact shares the domain → same company)
-      // 3. domainToName() generic guess (only for high-confidence DOM-scanned emails, non-personal)
-      const companyName = contact?.accountName
+      companyName = contact?.accountName
         || (!isPersonalDomain && domainContactMap[domain])
         || (highConfidence && !isPersonalDomain ? domainToName(domain) : '')
         || '';
-      if (companyName) {
-        const bubble = document.createElement('span');
-        bubble.title = companyName;
-        p(bubble, 'display',       'inline-flex');
-        p(bubble, 'align-items',   'center');
-        p(bubble, 'gap',           '4px');
-        p(bubble, 'background',    '#f9fafb');
-        p(bubble, 'color',         '#374151');
-        p(bubble, 'border',        '1px solid #e5e7eb');
-        p(bubble, 'border-radius', '999px');
-        p(bubble, 'padding',       '1px 8px 1px 4px');
-        p(bubble, 'white-space',   'nowrap');
-        p(bubble, 'max-width',     '150px');
-        p(bubble, 'overflow',      'hidden');
-        p(bubble, 'line-height',   '18px');
-        p(bubble, 'font-size',     '10px');
-        p(bubble, 'font-weight',   '500');
-        p(bubble, 'font-family',   'sans-serif');
-
-        if (domain) {
-          const img = document.createElement('img');
-          // Use override domain for favicon when email domain ≠ company website domain
-          const faviconDomain = FAVICON_DOMAIN_OVERRIDES[domain] || domain;
-          // Favicon cascade: direct URL override → DuckDuckGo → Google → hide
-          const directUrl = FAVICON_URL_OVERRIDES[faviconDomain];
-          img.src = directUrl || `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
-          img.style.cssText = 'width:12px;height:12px;border-radius:2px;flex-shrink:0;object-fit:contain';
-          img.onerror = () => {
-            if (!img.dataset.tried) {
-              img.dataset.tried = '1';
-              img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
-              img.onerror = () => { img.style.display = 'none'; };
-            }
-          };
-          bubble.appendChild(img);
-        }
-
-        const nameEl = document.createElement('span');
-        nameEl.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0';
-        nameEl.textContent = companyName.length > 22 ? companyName.slice(0, 20) + '…' : companyName;
-        bubble.appendChild(nameEl);
-        wrap.appendChild(bubble);
+      if (companyName && domain) {
+        faviconDomain = FAVICON_DOMAIN_OVERRIDES[domain] || domain;
       }
+    }
+
+    // Fallback: scan row text for any known account name from the dashboard.
+    // This catches rows like "IBISWorld Enhancements for Allinial Global" where
+    // the contact is NOT in any campaign store and NOT in the PA email cache,
+    // but the company name is visible right in the subject line.
+    if (!companyName) {
+      const rowTextRaw = row.textContent || '';
+      const found = findAccountNameInText(rowTextRaw);
+      if (found) {
+        companyName = found.name;
+        faviconDomain = found.domain ? (FAVICON_DOMAIN_OVERRIDES[found.domain] || found.domain) : '';
+      }
+    }
+
+    if (companyName) {
+      const bubble = document.createElement('span');
+      bubble.title = companyName;
+      p(bubble, 'display',       'inline-flex');
+      p(bubble, 'align-items',   'center');
+      p(bubble, 'gap',           '4px');
+      p(bubble, 'background',    '#f9fafb');
+      p(bubble, 'color',         '#374151');
+      p(bubble, 'border',        '1px solid #e5e7eb');
+      p(bubble, 'border-radius', '999px');
+      p(bubble, 'padding',       '1px 8px 1px 4px');
+      p(bubble, 'white-space',   'nowrap');
+      p(bubble, 'max-width',     '150px');
+      p(bubble, 'overflow',      'hidden');
+      p(bubble, 'line-height',   '18px');
+      p(bubble, 'font-size',     '10px');
+      p(bubble, 'font-weight',   '500');
+      p(bubble, 'font-family',   'sans-serif');
+
+      if (faviconDomain) {
+        const img = document.createElement('img');
+        const directUrl = FAVICON_URL_OVERRIDES[faviconDomain];
+        img.src = directUrl || `https://icons.duckduckgo.com/ip3/${faviconDomain}.ico`;
+        img.style.cssText = 'width:12px;height:12px;border-radius:2px;flex-shrink:0;object-fit:contain';
+        img.onerror = () => {
+          if (!img.dataset.tried) {
+            img.dataset.tried = '1';
+            img.src = `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=16`;
+            img.onerror = () => { img.style.display = 'none'; };
+          }
+        };
+        bubble.appendChild(img);
+      }
+
+      const nameEl = document.createElement('span');
+      nameEl.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0';
+      nameEl.textContent = companyName.length > 22 ? companyName.slice(0, 20) + '…' : companyName;
+      bubble.appendChild(nameEl);
+      wrap.appendChild(bubble);
     }
 
     // ── Inject after the sender name ──
@@ -1374,6 +1399,27 @@
     return clean.split('.')[0]
       .replace(/[-_]/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // Find a known account name inside row text (subject/preview).
+  // Returns { name, domain } or null. Searches longest names first to prefer
+  // "Allinial Global" over a hypothetical "Allinial" or "Global".
+  // Skips very short names (< 4 chars) to avoid false matches on common words.
+  let _sortedAccountNames = null;
+  function findAccountNameInText(text) {
+    if (!text || Object.keys(accountNameMap).length === 0) return null;
+    // Cache sorted keys (longest first) — only rebuild when map changes
+    if (!_sortedAccountNames || _sortedAccountNames._size !== Object.keys(accountNameMap).length) {
+      _sortedAccountNames = Object.keys(accountNameMap).filter(k => k.length >= 4).sort((a, b) => b.length - a.length);
+      _sortedAccountNames._size = Object.keys(accountNameMap).length;
+    }
+    const lower = text.toLowerCase();
+    for (const key of _sortedAccountNames) {
+      if (lower.includes(key)) {
+        return accountNameMap[key];
+      }
+    }
+    return null;
   }
 
   function domainToColor(seed) {
