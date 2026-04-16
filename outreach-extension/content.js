@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.52
+// IBISWorld Outreach — DOM Overlay v3.54
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -1132,7 +1132,13 @@
 
         // Only inject badges once per row
         if (alreadyProcessed) return;
-        if (days === null) return;
+        // v3.54: NEVER skip a row silently. If date is null, still inject company bubble.
+        // Old code: `if (days === null) return` — caused zero badges on rows where
+        // date parsing failed, with no logging and no fallback. Now we continue and
+        // let injectRowBadges handle null days gracefully.
+        if (days === null && !alreadyProcessed) {
+          LOG('⚠️ Date parse failed for row — will still inject company bubble. aria-label:', (row.getAttribute('aria-label') || '').slice(0, 80));
+        }
 
         const contactInfo = storedEmail
           ? { email: storedEmail, contact: contactMap[storedEmail] || null, domain: storedEmail.split('@')[1] || '' }
@@ -1196,38 +1202,40 @@
     p(wrap, 'pointer-events', 'none');
     p(wrap, 'margin',         '0 8px');
 
-    // ── Staleness chip ──
-    const dotColor =
-      days <= 2 ? '#16a34a' :  // 0-2d  — green
-      days <= 5 ? '#d97706' :  // 3-5d  — yellow/amber
-                  '#dc2626';   // 6d+   — red
+    // ── Staleness chip (skip if days unknown) ──
+    if (days !== null) {
+      const dotColor =
+        days <= 2 ? '#16a34a' :  // 0-2d  — green
+        days <= 5 ? '#d97706' :  // 3-5d  — yellow/amber
+                    '#dc2626';   // 6d+   — red
 
-    const glowColor =
-      days <= 2 ? 'rgba(22,163,74,0.45)'  :
-      days <= 5 ? 'rgba(217,119,6,0.45)'  :
-                  'rgba(220,38,38,0.45)';
+      const glowColor =
+        days <= 2 ? 'rgba(22,163,74,0.45)'  :
+        days <= 5 ? 'rgba(217,119,6,0.45)'  :
+                    'rgba(220,38,38,0.45)';
 
-    const dayLabel = days === 0 ? 'today' : days + 'd';
-    const tooltip  = `Last contact: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
+      const dayLabel = days === 0 ? 'today' : days + 'd';
+      const tooltip  = `Last contact: ${days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago'}`;
 
-    const chip = document.createElement('span');
-    chip.title = tooltip;
-    p(chip, 'display',       'inline-flex');
-    p(chip, 'align-items',   'center');
-    p(chip, 'gap',           '4px');
-    p(chip, 'background',    '#ffffff');
-    p(chip, 'border',        '1px solid #e5e7eb');
-    p(chip, 'border-radius', '999px');
-    p(chip, 'padding',       '1px 7px 1px 5px');
-    p(chip, 'white-space',   'nowrap');
-    p(chip, 'line-height',   '18px');
-    p(chip, 'cursor',        'default');
+      const chip = document.createElement('span');
+      chip.title = tooltip;
+      p(chip, 'display',       'inline-flex');
+      p(chip, 'align-items',   'center');
+      p(chip, 'gap',           '4px');
+      p(chip, 'background',    '#ffffff');
+      p(chip, 'border',        '1px solid #e5e7eb');
+      p(chip, 'border-radius', '999px');
+      p(chip, 'padding',       '1px 7px 1px 5px');
+      p(chip, 'white-space',   'nowrap');
+      p(chip, 'line-height',   '18px');
+      p(chip, 'cursor',        'default');
 
-    chip.innerHTML =
-      `<span style="width:8px;height:8px;border-radius:50%;background:${dotColor};` +
-      `box-shadow:0 0 5px 2px ${glowColor};flex-shrink:0;display:inline-block"></span>` +
-      `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${dayLabel}</span>`;
-    wrap.appendChild(chip);
+      chip.innerHTML =
+        `<span style="width:8px;height:8px;border-radius:50%;background:${dotColor};` +
+        `box-shadow:0 0 5px 2px ${glowColor};flex-shrink:0;display:inline-block"></span>` +
+        `<span style="font-family:monospace;font-size:10px;font-weight:700;color:#374151">${dayLabel}</span>`;
+      wrap.appendChild(chip);
+    }
 
     // ── Step count chip ──
     // Shows total emails sent to this contact (PA cache count). Gives Dan a quick
@@ -1563,12 +1571,27 @@
       setInterval(updateFolderBadges, 1500);
       // Recovery heartbeat — detect rows that lost their badges (Outlook re-render)
       // and force a re-scan. Staggered from folder badge heartbeat to spread load.
+      // v3.54: Also checks for rows that have data-ibis-processed but NO badge HTML.
+      // Outlook re-renders can strip injected HTML while leaving data attributes.
       setInterval(() => {
         const af = getActiveCampaignFolder();
         if (!af) return;
         const rows = getEmailRows();
-        if (rows.length > 0 && rows.some(r => !r.dataset.ibisProcessed)) {
-          LOG('Recovery: unprocessed rows detected — re-scanning');
+        if (rows.length === 0) return;
+        const needsScan = rows.some(r =>
+          !r.dataset.ibisProcessed || // never processed
+          (r.dataset.ibisProcessed && !r.querySelector('.ibis-row-badges')) // processed but HTML gone
+        );
+        if (needsScan) {
+          // Strip stale processed flags from rows missing badge HTML
+          rows.forEach(r => {
+            if (r.dataset.ibisProcessed && !r.querySelector('.ibis-row-badges')) {
+              r.removeAttribute('data-ibis-processed');
+              r.removeAttribute('data-ibis-email');
+              r.removeAttribute('data-ibis-match-dom');
+            }
+          });
+          LOG('Recovery: rows missing badges — re-scanning');
           lastScanTime = 0; // bypass 2s rate limit for recovery
           scanEmailRows();
         }
