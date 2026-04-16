@@ -111,23 +111,29 @@
         // This is the key data source — it has ALL accounts in Dan's territory,
         // even those without any campaign contacts.
         accountNameMap = {};
+        let bridgeAcctCount = 0;
         try {
           const acctNames = JSON.parse(res.outreach_account_names || '{}');
           Object.entries(acctNames).forEach(([key, val]) => {
-            if (val.name) accountNameMap[key] = val;
+            if (val.name) { accountNameMap[key] = val; bridgeAcctCount++; }
           });
         } catch (_) {}
         // Layer on top: account names from campaign contacts (may have better domain info)
+        let contactAcctCount = 0;
         Object.values(contactMap).forEach(c => {
           if (c.accountName) {
             const key = c.accountName.toLowerCase().trim();
             if (!accountNameMap[key]) {
               accountNameMap[key] = { name: c.accountName, domain: c.domain || '' };
+              contactAcctCount++;
             }
           }
         });
         const mapSize = Object.keys(contactMap).length;
-        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'domains,', Object.keys(accountNameMap).length, 'accounts');
+        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'domains,', Object.keys(accountNameMap).length, 'accounts (bridge:', bridgeAcctCount, '+ contacts:', contactAcctCount + ')');
+        // Log whether "allinial global" is in the map (debugging specific issue)
+        const allinialCheck = accountNameMap['allinial global'];
+        LOG('Account name check: "allinial global" →', allinialCheck ? `✅ ${allinialCheck.name} (domain: ${allinialCheck.domain})` : '❌ NOT FOUND — open dashboard to push account names');
 
         // On first load with data, strip stale badges and re-scan — ensures name-based
         // matching runs even if rows were previously date-matched (wrong) before map loaded.
@@ -1538,7 +1544,7 @@
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.51 init on', location.hostname);
+    LOG('v3.54 init on', location.hostname);
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
