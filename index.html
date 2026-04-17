@@ -603,8 +603,6 @@
   .multithread-dot:hover { opacity:0.82; }
   .winback-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#be185d; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
   .winback-dot:hover { opacity:0.82; }
-  .powerback-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#0f766e; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .powerback-dot:hover { opacity:0.82; }
   /* Campaign cluster widget — compact ovals, scales to 8+ campaigns */
   .camp-cluster { display:inline-flex; align-items:center; gap:3px; flex-wrap:nowrap; }
   .camp-oval { display:inline-flex; align-items:center; justify-content:center; height:20px; min-width:24px; border-radius:999px; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; cursor:pointer; transition:opacity 150ms ease; white-space:nowrap; letter-spacing:0; }
@@ -1413,25 +1411,21 @@
     <div class="upload-menu-wrap">
       <button class="upload-btn" id="upload-menu-trigger" onclick="toggleUploadMenu(event)">↑ Upload CSV &nbsp;▾</button>
       <div id="upload-menu" class="hidden">
-        <button class="upload-menu-row" onclick="document.getElementById('file-input').click();closeUploadMenu()">
+        <button class="upload-menu-row" style="background:#fff5f5;" onclick="document.getElementById('file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">📋 Accounts CSV</span>
           <span class="upload-menu-dot" id="udot-accounts"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearAccountsData()" title="Clear">✕</span>
         </button>
-        <button class="upload-menu-row" onclick="document.getElementById('lic-file-input').click();closeUploadMenu()">
+        <button class="upload-menu-row" style="background:#fff5f5;" onclick="document.getElementById('lic-file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">🔑 Licenses CSV</span>
           <span class="upload-menu-dot" id="udot-licenses"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearLicensesData()" title="Clear">✕</span>
         </button>
+        <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
         <button class="upload-menu-row" onclick="document.getElementById('opp-file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">🎯 Workables CSV</span>
           <span class="upload-menu-dot" id="udot-opps"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearOppsData()" title="Clear">✕</span>
-        </button>
-        <button class="upload-menu-row" onclick="document.getElementById('samples-file-input').click();closeUploadMenu()">
-          <span class="upload-menu-label">🧪 Old Samples CSV</span>
-          <span class="upload-menu-dot" id="udot-samples"></span>
-          <span class="upload-menu-x" onclick="event.stopPropagation();clearSamplesData()" title="Clear">✕</span>
         </button>
         <button class="upload-menu-row" onclick="document.getElementById('sixqa-file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">🔥 6QA CSV</span>
@@ -1443,25 +1437,25 @@
           <span class="upload-menu-dot" id="udot-churn"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearChurnData()" title="Clear">✕</span>
         </button>
-        <button class="upload-menu-row" onclick="document.getElementById('netnew-file-input').click();closeUploadMenu()">
-          <span class="upload-menu-label">🌱 Net New CSV</span>
-          <span class="upload-menu-dot" id="udot-netnew"></span>
-          <span class="upload-menu-x" onclick="event.stopPropagation();clearNetnewData()" title="Clear">✕</span>
+        <button class="upload-menu-row" onclick="document.getElementById('winback-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">❄️ Winback CSV</span>
+          <span class="upload-menu-dot" id="udot-winback"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearWinbackData()" title="Clear">✕</span>
         </button>
         <button class="upload-menu-row" onclick="document.getElementById('multithread-file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">😎 Multithread CSV</span>
           <span class="upload-menu-dot" id="udot-multithread"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearMultithreadData()" title="Clear">✕</span>
         </button>
-        <button class="upload-menu-row" onclick="document.getElementById('winback-file-input').click();closeUploadMenu()">
-          <span class="upload-menu-label">❄️ Winback CSV</span>
-          <span class="upload-menu-dot" id="udot-winback"></span>
-          <span class="upload-menu-x" onclick="event.stopPropagation();clearWinbackData()" title="Clear">✕</span>
+        <button class="upload-menu-row" onclick="document.getElementById('samples-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🧪 Old Samples CSV</span>
+          <span class="upload-menu-dot" id="udot-samples"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearSamplesData()" title="Clear">✕</span>
         </button>
-        <button class="upload-menu-row" onclick="document.getElementById('powerback-file-input').click();closeUploadMenu()">
-          <span class="upload-menu-label">🥶 Powerback CSV</span>
-          <span class="upload-menu-dot" id="udot-powerback"></span>
-          <span class="upload-menu-x" onclick="event.stopPropagation();clearPowerbackData()" title="Clear">✕</span>
+        <button class="upload-menu-row" onclick="document.getElementById('netnew-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">🌱 Net New CSV</span>
+          <span class="upload-menu-dot" id="udot-netnew"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearNetnewData()" title="Clear">✕</span>
         </button>
         <button class="upload-menu-row" onclick="document.getElementById('alumni-file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">🎓 Alumni CSV</span>
@@ -1479,7 +1473,6 @@
     <input type="file" id="netnew-file-input" accept=".csv" onchange="handleNetnewCSV(event)" style="display:none;">
     <input type="file" id="multithread-file-input" accept=".csv" onchange="handleMultithreadCSV(event)" style="display:none;">
     <input type="file" id="winback-file-input" accept=".csv" onchange="handleWinbackCSV(event)" style="display:none;">
-    <input type="file" id="powerback-file-input" accept=".csv" onchange="handlePowerbackCSV(event)" style="display:none;">
     <input type="file" id="alumni-file-input" accept=".csv" onchange="handleAlumniCSV(event)" style="display:none;">
   </div>
 </div>
@@ -1679,10 +1672,6 @@
         <span>🎯 Workables</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-workables">0</span>
       </div>
-      <div class="campaign-selector-item" id="cmenu-samples" onclick="selectCampaignFromMenu('samples')">
-        <span>🧪 Old Samples</span>
-        <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
-      </div>
       <div class="campaign-selector-item" id="cmenu-sixqa" onclick="selectCampaignFromMenu('sixqa')">
         <span>🔥 6QA</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-sixqa">0</span>
@@ -1691,21 +1680,21 @@
         <span>🐣 Churn</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-churn">0</span>
       </div>
-      <div class="campaign-selector-item" id="cmenu-netnew" onclick="selectCampaignFromMenu('netnew')">
-        <span>🌱 Net New</span>
-        <span class="campaign-selector-count-badge" id="cmenu-count-netnew">0</span>
+      <div class="campaign-selector-item" id="cmenu-winback" onclick="selectCampaignFromMenu('winback')">
+        <span>❄️ Winback</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-winback">0</span>
       </div>
       <div class="campaign-selector-item" id="cmenu-multithread" onclick="selectCampaignFromMenu('multithread')">
         <span>😎 Multithread</span>
         <span class="campaign-selector-count-badge" id="cmenu-count-multithread">0</span>
       </div>
-      <div class="campaign-selector-item" id="cmenu-winback" onclick="selectCampaignFromMenu('winback')">
-        <span>❄️ Winback</span>
-        <span class="campaign-selector-count-badge" id="cmenu-count-winback">0</span>
+      <div class="campaign-selector-item" id="cmenu-samples" onclick="selectCampaignFromMenu('samples')">
+        <span>🧪 Old Samples</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-samples">0</span>
       </div>
-      <div class="campaign-selector-item" id="cmenu-powerback" onclick="selectCampaignFromMenu('powerback')">
-        <span>🥶 Powerback</span>
-        <span class="campaign-selector-count-badge" id="cmenu-count-powerback">0</span>
+      <div class="campaign-selector-item" id="cmenu-netnew" onclick="selectCampaignFromMenu('netnew')">
+        <span>🌱 Net New</span>
+        <span class="campaign-selector-count-badge" id="cmenu-count-netnew">0</span>
       </div>
       <div class="campaign-selector-item" id="cmenu-alumni" onclick="selectCampaignFromMenu('alumni')">
         <span>🎓 Alumni</span>
@@ -1780,13 +1769,6 @@
     <div class="stat-item">
       <div class="stat-label">Total Contacts</div>
       <div class="stat-value red" id="wbstat-total">—</div>
-    </div>
-  </div>
-  <!-- Powerback stats (shown when currentCampaign=powerback) -->
-  <div id="campaign-powerback-stats" style="display:none;">
-    <div class="stat-item">
-      <div class="stat-label">Total Contacts</div>
-      <div class="stat-value red" id="pbstat-total">—</div>
     </div>
   </div>
   <!-- Alumni stats (shown when currentCampaign=alumni) -->
@@ -1966,13 +1948,6 @@
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
       <input type="text" placeholder="Search Winback contacts..." id="winback-search-input" oninput="renderWinback()">
-    </div>
-  </div>
-  <!-- Powerback controls -->
-  <div id="controls-powerback-inner" class="hidden">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search Powerback contacts..." id="powerback-search-input" oninput="renderPowerback()">
     </div>
   </div>
   <!-- Alumni controls -->
@@ -2285,32 +2260,6 @@
       </div>
     </div>
   </div>
-  <div id="campaign-view-powerback" class="hidden">
-    <div id="powerback-empty-state" class="empty-state">
-      <div class="empty-icon">🥶</div>
-      <div class="empty-title">Upload your Powerback CSV to get started</div>
-      <div class="empty-desc">Export powerback contacts from Salesforce (Account Name, First Name, Last Name, Title, Mailing Country, Email, Last Activity), then click 🥶 Powerback CSV above.</div>
-      <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('powerback-file-input').click()">🥶 Upload Powerback CSV</button>
-    </div>
-    <div id="powerback-count-label" class="above-table-label" style="padding-left:24px;padding-right:24px;"></div>
-    <div id="powerback-table-wrap" class="opp-tbl-wrap hidden">
-      <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:24px;padding:0 4px 0 10px;"></th>
-            <th>Company</th>
-            <th>Name</th>
-            <th>Title</th>
-            <th>Days Inactive</th>
-            <th style="width:36px;"></th>
-          </tr>
-        </thead>
-        <tbody id="powerback-table-body"></tbody>
-      </table>
-      </div>
-    </div>
-  </div>
   <div id="campaign-view-alumni" class="hidden">
     <div id="alumni-empty-state" class="empty-state">
       <div class="empty-icon">🎓</div>
@@ -2462,11 +2411,11 @@ function _dbgLog(type, msg, data) {
   if (_dbg.log.length > 120) _dbg.log.pop();
 }
 // ─────────────────────────────────────────────────────────────────────────────
-let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadMultithreadContacts = [], deadWinbackContacts = [], deadPowerbackContacts = [], deadAlumniContacts = [], deadView = 'accounts';
+let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadMultithreadContacts = [], deadWinbackContacts = [], deadAlumniContacts = [], deadView = 'accounts';
 let csvStats = {};
 let _deadActionPending = null;
 let deadSeenKeys = new Set(); // tracks which dead items have been viewed
-let samples = {}, sixqa = {}, churn = {}, netnew = {}, multithread = {}, winback = {}, powerback = {}, alumni = {};
+let samples = {}, sixqa = {}, churn = {}, netnew = {}, multithread = {}, winback = {}, alumni = {};
 let sixqaActiveFilter = false;
 let actionHasOppFilter = false;
 let currentCampaign = 'workables';
@@ -2584,11 +2533,6 @@ function init() {
   if (Object.keys(winback).length > 0) {
     document.getElementById('winback-empty-state')?.classList.add('hidden');
     document.getElementById('winback-table-wrap')?.classList.remove('hidden');
-  }
-  loadPowerback();
-  if (Object.keys(powerback).length > 0) {
-    document.getElementById('powerback-empty-state')?.classList.add('hidden');
-    document.getElementById('powerback-table-wrap')?.classList.remove('hidden');
   }
   loadAlumni();
   if (Object.keys(alumni).length > 0) {
@@ -5177,7 +5121,6 @@ function renderAPHeader(acc, local, name) {
     Object.values(netnew).filter(o => normName(o.accountName) === _cn).length +
     Object.values(multithread).filter(o => normName(o.accountName) === _cn).length +
     Object.values(winback).filter(o => normName(o.accountName) === _cn).length +
-    Object.values(powerback).filter(o => normName(o.accountName) === _cn).length +
     Object.values(alumni).filter(o => normName(o.accountName) === _cn).length;
   const activeOppCount= Object.values(opps).filter(o => normName(o.accountName) === normName(name) && o.sfOpp).length;
   const prioOpt       = ACCT_PRIORITY_OPTS.find(o => o.key === (local.acctPriority || ''));
@@ -5636,14 +5579,6 @@ function reviveDeadContact(email, campaign) {
     delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
     winback[email] = contact;
     saveWinback();
-  } else if (campaign === 'powerback') {
-    const idx = deadPowerbackContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadPowerbackContacts[idx] };
-    deadPowerbackContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    powerback[email] = contact;
-    savePowerback();
   } else if (campaign === 'alumni') {
     const idx = deadAlumniContacts.findIndex(c => c.email === email);
     if (idx === -1) return;
@@ -6103,7 +6038,7 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_powerback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats'];
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -7252,10 +7187,6 @@ function getWinbackCount(name) {
   const n = normName(name);
   return Object.values(winback).filter(o => normName(o.accountName) === n).length;
 }
-function getPowerbackCount(name) {
-  const n = normName(name);
-  return Object.values(powerback).filter(o => normName(o.accountName) === n).length;
-}
 function getAlumniCount(name) {
   const n = normName(name);
   return Object.values(alumni).filter(o => normName(o.accountName) === n).length;
@@ -7411,81 +7342,6 @@ function deleteWinback(email) {
 }
 function clearWinbackData() { if (!confirm('Clear all Winback data?')) return; localStorage.removeItem('ibis_winback'); location.reload(); }
 
-// ── Powerback Campaign ────────────────────────────────────────────────────────
-function loadPowerback() {
-  try { const s = localStorage.getItem('ibis_powerback'); if (s) powerback = JSON.parse(s); } catch(e) { powerback = {}; }
-}
-function savePowerback() {
-  try { localStorage.setItem('ibis_powerback', JSON.stringify(powerback)); } catch(e) { console.warn('ibis_powerback save failed:', e); }
-}
-function handlePowerbackCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result);
-    const result = mergePowerback(newContacts);
-    savePowerback(); saveCsvStat('powerback', result.added, result.deadCount);
-    updateCampaignPillCounts(); updateUploadDots(); renderPowerback();
-    document.getElementById('powerback-empty-state')?.classList.add('hidden');
-    document.getElementById('powerback-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  reader.readAsText(file, 'latin1'); e.target.value = '';
-}
-function mergePowerback(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (powerback[c.email]) {
-      powerback[c.email].name = c.name; powerback[c.email].accountName = c.accountName;
-      powerback[c.email].title = c.title; powerback[c.email].country = c.country;
-      powerback[c.email].lastActivity = c.lastActivity; updated++;
-    } else { powerback[c.email] = { ...c, notes: '', dateAdded: today }; added++; }
-  });
-  if (Object.keys(powerback).length > newContacts.length) {
-    Object.keys(powerback).forEach(email => {
-      if (!newEmails.has(email)) {
-        if (!deadPowerbackContacts.some(d => d.email === email)) {
-          deadPowerbackContacts.push({ ...powerback[email], _deadSince: today, _campaign: 'powerback', _campaignLabel: '🥶 Powerback' }); deadCount++;
-        }
-        delete powerback[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-function renderPowerback() {
-  const q = (document.getElementById('powerback-search-input')?.value || '').toLowerCase();
-  const all = Object.values(powerback);
-  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
-  const countLabel = document.getElementById('powerback-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} powerback contacts` : '';
-  if (!all.length) { document.getElementById('powerback-empty-state')?.classList.remove('hidden'); document.getElementById('powerback-table-wrap')?.classList.add('hidden'); return; }
-  document.getElementById('powerback-empty-state')?.classList.add('hidden'); document.getElementById('powerback-table-wrap')?.classList.remove('hidden');
-  const tbody = document.getElementById('powerback-table-body'); if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deletePowerback('${escHtml(o.email)}')" title="Remove">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-function deletePowerback(email) {
-  const o = powerback[email]; if (!o) return;
-  if (!confirm(`Remove ${o.name||email} from Powerback?`)) return;
-  delete powerback[email]; savePowerback(); renderPowerback(); updateCampaignPillCounts();
-}
-function clearPowerbackData() { if (!confirm('Clear all Powerback data?')) return; localStorage.removeItem('ibis_powerback'); location.reload(); }
-
 // ── Alumni Campaign ───────────────────────────────────────────────────────────
 function loadAlumni() {
   try { const s = localStorage.getItem('ibis_alumni'); if (s) alumni = JSON.parse(s); } catch(e) { alumni = {}; }
@@ -7574,7 +7430,6 @@ function renderCampCluster(name) {
     { count: getNetnewCount(name),      bg:'#2563eb', type:'netnew'      },
     { count: getMultithreadCount(name), bg:'#92400e', type:'multithread' },
     { count: getWinbackCount(name),     bg:'#be185d', type:'winback'     },
-    { count: getPowerbackCount(name),   bg:'#0f766e', type:'powerback'   },
     { count: getAlumniCount(name),      bg:'#4f46e5', type:'alumni'      },
   ].filter(c => c.count > 0);
   if (!camps.length) return `<span style="color:var(--text-muted);font-size:12px;">—</span>`;
@@ -7590,12 +7445,6 @@ const CAMPAIGN_DEFS = {
     getCount: () => Object.values(opps).filter(o => !o.archived && o.stage !== 'DQ').length,
     onActivate: null,
   },
-  samples: {
-    emoji: '🧪',
-    label: 'Old Samples',
-    getCount: () => Object.values(samples).length,
-    onActivate: () => renderSamples(),
-  },
   sixqa: {
     emoji: '🔥',
     label: '6QA',
@@ -7608,11 +7457,11 @@ const CAMPAIGN_DEFS = {
     getCount: () => Object.values(churn).length,
     onActivate: () => renderChurn(),
   },
-  netnew: {
-    emoji: '🌱',
-    label: 'Net New',
-    getCount: () => Object.values(netnew).length,
-    onActivate: () => renderNetnew(),
+  winback: {
+    emoji: '❄️',
+    label: 'Winback',
+    getCount: () => Object.values(winback).length,
+    onActivate: () => renderWinback(),
   },
   multithread: {
     emoji: '😎',
@@ -7620,17 +7469,17 @@ const CAMPAIGN_DEFS = {
     getCount: () => Object.values(multithread).length,
     onActivate: () => renderMultithread(),
   },
-  winback: {
-    emoji: '❄️',
-    label: 'Winback',
-    getCount: () => Object.values(winback).length,
-    onActivate: () => renderWinback(),
+  samples: {
+    emoji: '🧪',
+    label: 'Old Samples',
+    getCount: () => Object.values(samples).length,
+    onActivate: () => renderSamples(),
   },
-  powerback: {
-    emoji: '🥶',
-    label: 'Powerback',
-    getCount: () => Object.values(powerback).length,
-    onActivate: () => renderPowerback(),
+  netnew: {
+    emoji: '🌱',
+    label: 'Net New',
+    getCount: () => Object.values(netnew).length,
+    onActivate: () => renderNetnew(),
   },
   alumni: {
     emoji: '🎓',
@@ -7669,9 +7518,6 @@ function updateCampaignPillCounts() {
   // Update Winback total stat element
   const wbtotal = document.getElementById('wbstat-total');
   if (wbtotal) wbtotal.textContent = CAMPAIGN_DEFS.winback.getCount() || '—';
-  // Update Powerback total stat element
-  const pbtotal = document.getElementById('pbstat-total');
-  if (pbtotal) pbtotal.textContent = CAMPAIGN_DEFS.powerback.getCount() || '—';
   // Update Alumni total stat element
   const altotal = document.getElementById('alstat-total');
   if (altotal) altotal.textContent = CAMPAIGN_DEFS.alumni.getCount() || '—';
@@ -7815,7 +7661,6 @@ function updateUploadDots() {
     netnew:      { storageKey: 'ibis_netnew',      dotId: 'udot-netnew'      },
     multithread: { storageKey: 'ibis_multithread', dotId: 'udot-multithread' },
     winback:     { storageKey: 'ibis_winback',     dotId: 'udot-winback'     },
-    powerback:   { storageKey: 'ibis_powerback',   dotId: 'udot-powerback'   },
     alumni:      { storageKey: 'ibis_alumni',      dotId: 'udot-alumni'      },
   };
   Object.entries(MAP).forEach(([csvKey, { storageKey, dotId }]) => {
@@ -7942,7 +7787,7 @@ function licKey(l) {
 
 function loadDead() {
   try {
-    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[],"netnewContacts":[],"multithreadContacts":[],"winbackContacts":[],"powerbackContacts":[]}');
+    const raw = JSON.parse(localStorage.getItem('ibis_dead') || '{"accounts":[],"licenses":[],"sampleContacts":[],"sixqaContacts":[],"workableContacts":[],"churnContacts":[],"netnewContacts":[],"multithreadContacts":[],"winbackContacts":[]}');
     deadAccounts = raw.accounts || [];
     deadLicenses = raw.licenses || [];
     deadSampleContacts = raw.sampleContacts || [];
@@ -7952,13 +7797,12 @@ function loadDead() {
     deadNetnewContacts = raw.netnewContacts || [];
     deadMultithreadContacts = raw.multithreadContacts || [];
     deadWinbackContacts = raw.winbackContacts || [];
-    deadPowerbackContacts = raw.powerbackContacts || [];
     deadAlumniContacts = raw.alumniContacts || [];
-  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; deadNetnewContacts = []; deadMultithreadContacts = []; deadWinbackContacts = []; deadPowerbackContacts = []; deadAlumniContacts = []; }
+  } catch(e) { deadAccounts = []; deadLicenses = []; deadSampleContacts = []; deadSixqaContacts = []; deadWorkableContacts = []; deadChurnContacts = []; deadNetnewContacts = []; deadMultithreadContacts = []; deadWinbackContacts = []; deadAlumniContacts = []; }
 }
 
 function saveDead() {
-  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts, netnewContacts: deadNetnewContacts, multithreadContacts: deadMultithreadContacts, winbackContacts: deadWinbackContacts, powerbackContacts: deadPowerbackContacts, alumniContacts: deadAlumniContacts })); }
+  try { localStorage.setItem('ibis_dead', JSON.stringify({ accounts: deadAccounts, licenses: deadLicenses, sampleContacts: deadSampleContacts, sixqaContacts: deadSixqaContacts, workableContacts: deadWorkableContacts, churnContacts: deadChurnContacts, netnewContacts: deadNetnewContacts, multithreadContacts: deadMultithreadContacts, winbackContacts: deadWinbackContacts, alumniContacts: deadAlumniContacts })); }
   catch(e) { console.warn('[ibis] Dead save failed:', e); }
 }
 
@@ -7981,7 +7825,6 @@ function markDeadAsSeen() {
   deadNetnewContacts.forEach(d => deadSeenKeys.add('nn|' + d.email));
   deadMultithreadContacts.forEach(d => deadSeenKeys.add('mt|' + d.email));
   deadWinbackContacts.forEach(d => deadSeenKeys.add('wb|' + d.email));
-  deadPowerbackContacts.forEach(d => deadSeenKeys.add('pb|' + d.email));
   deadAlumniContacts.forEach(d => deadSeenKeys.add('al|' + d.email));
   saveDeadSeen();
   updateDeadTabBadge();
@@ -7996,9 +7839,8 @@ function updateDeadTabBadge() {
   const unseenNetnew     = deadNetnewContacts.filter(d => !deadSeenKeys.has('nn|' + d.email)).length;
   const unseenMultithread = deadMultithreadContacts.filter(d => !deadSeenKeys.has('mt|' + d.email)).length;
   const unseenWinback    = deadWinbackContacts.filter(d => !deadSeenKeys.has('wb|' + d.email)).length;
-  const unseenPowerback  = deadPowerbackContacts.filter(d => !deadSeenKeys.has('pb|' + d.email)).length;
   const unseenAlumni     = deadAlumniContacts.filter(d => !deadSeenKeys.has('al|' + d.email)).length;
-  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn + unseenNetnew + unseenMultithread + unseenWinback + unseenPowerback + unseenAlumni;
+  const unseen = unseenAccts + unseenLics + unseenContacts + unseenSixqa + unseenWkbl + unseenChurn + unseenNetnew + unseenMultithread + unseenWinback + unseenAlumni;
   const badge = document.getElementById('dead-tab-badge');
   if (!badge) return;
   if (unseen > 0) { badge.textContent = unseen; badge.style.display = 'inline'; }
@@ -8017,7 +7859,7 @@ function renderDead() {
   const dsw = document.getElementById('dstat-warnings');
   if (dsa) dsa.textContent = deadAccounts.length;
   if (dsl) dsl.textContent = deadLicenses.length;
-  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length + deadWorkableContacts.length + deadChurnContacts.length + deadNetnewContacts.length + deadMultithreadContacts.length + deadWinbackContacts.length + deadPowerbackContacts.length + deadAlumniContacts.length;
+  const totalDeadContacts = deadSampleContacts.length + deadSixqaContacts.length + deadWorkableContacts.length + deadChurnContacts.length + deadNetnewContacts.length + deadMultithreadContacts.length + deadWinbackContacts.length + deadAlumniContacts.length;
   if (dsc) dsc.textContent = totalDeadContacts || '—';
   if (dsw) dsw.textContent = warnings || '—';
   // Update pill counts
@@ -8225,7 +8067,7 @@ function renderDeadContacts() {
   if (!body) return;
 
   const search = (document.getElementById('dead-search-input')?.value || '').toLowerCase().trim();
-  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts, ...deadNetnewContacts, ...deadMultithreadContacts, ...deadWinbackContacts, ...deadPowerbackContacts, ...deadAlumniContacts];
+  let list = [...deadWorkableContacts, ...deadSampleContacts, ...deadSixqaContacts, ...deadChurnContacts, ...deadNetnewContacts, ...deadMultithreadContacts, ...deadWinbackContacts, ...deadAlumniContacts];
   if (search) {
     list = list.filter(d =>
       (d.name||'').toLowerCase().includes(search) ||
@@ -8256,7 +8098,7 @@ function renderDeadContacts() {
       : res ? `<div class="td-logo"><img src="${res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${escHtml(d.accountName||'')}"></div>`
       : `<div class="td-logo"><img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${escHtml(d.accountName||'')}"></div>`;
     const camp = d._campaign || 'samples';
-    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;', netnew:'background:#dbeafe;color:#1e40af;', multithread:'background:#fef3c7;color:#92400e;', winback:'background:#fce7f3;color:#be185d;', powerback:'background:#ccfbf1;color:#0f766e;', alumni:'background:#eef2ff;color:#4338ca;' };
+    const campColors = { workables:'background:#ede9fe;color:#5b21b6;', samples:'background:#d1fae5;color:#065f46;', sixqa:'background:#cffafe;color:#0e7490;', churn:'background:#fed7aa;color:#c2410c;', netnew:'background:#dbeafe;color:#1e40af;', multithread:'background:#fef3c7;color:#92400e;', winback:'background:#fce7f3;color:#be185d;', alumni:'background:#eef2ff;color:#4338ca;' };
     const campBadge = `<span style="font-size:10px;${campColors[camp]||campColors.samples}border-radius:999px;padding:2px 8px;font-weight:600;white-space:nowrap;">${d._campaignLabel||'🧪 Old Sample'}</span>`;
     return `<tr>
       <td><div class="td-company">${logoHtml}<div><span class="td-name">${escHtml(d.accountName||'')}</span></div></div></td>
@@ -8300,10 +8142,6 @@ function openContactPreview(event, accountName, type) {
     contacts = Object.values(winback)
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
-  } else if (type === 'powerback') {
-    contacts = Object.values(powerback)
-      .filter(o => normName(o.accountName) === n)
-      .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   } else if (type === 'alumni') {
     contacts = Object.values(alumni)
       .filter(o => normName(o.accountName) === n)
@@ -8313,7 +8151,7 @@ function openContactPreview(event, accountName, type) {
       .filter(o => normName(o.accountName) === n)
       .map(o => ({ name: o.name || '', title: o.title || '', stage: '' }));
   }
-  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : type === 'netnew' ? '🌱 Net New' : type === 'multithread' ? '😎 Multithread' : type === 'winback' ? '❄️ Winback' : type === 'powerback' ? '🥶 Powerback' : type === 'alumni' ? '🎓 Alumni' : '🧪 Old Samples';
+  const label = type === 'workables' ? '🎯 Workables' : type === 'sixqa' ? '🔥 6QA' : type === 'churn' ? '🐣 Churn' : type === 'netnew' ? '🌱 Net New' : type === 'multithread' ? '😎 Multithread' : type === 'winback' ? '❄️ Winback' : type === 'alumni' ? '🎓 Alumni' : '🧪 Old Samples';
   let html = `<div class="cprev-header">${escHtml(label)} · ${escHtml(accountName)}</div>`;
   if (!contacts.length) {
     html += `<div class="cprev-empty">No contacts</div>`;
