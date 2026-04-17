@@ -685,14 +685,14 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v3.60
+**Version:** v3.63
 **Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, step count, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
 | File | Purpose |
 |---|---|
 | `manifest.json` | MV3. Runs on all Outlook URL variants + dabbs4dan.github.io |
-| `content.js` | DOM overlay v3.60. Injects row badges + folder badges into Outlook. No sidebar. |
+| `content.js` | DOM overlay v3.63. Injects row badges + folder badges into Outlook. Also handles `\bcc` snippet expansion in compose bodies. |
 | `overlay.css` | Minimal CSS for badge classes (most styles applied inline with `!important` to beat Outlook) |
 | `background.js` | Service worker. Generates red "I" icon via OffscreenCanvas. Also proxies cross-origin fetches for content scripts (FETCH_URL message). |
 | `bridge.js` | Content script on dashboard (v1.5). Merges ALL 8 campaign stores → `outreach_contacts_raw` + pushes account names → `outreach_account_names` |
@@ -810,6 +810,29 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 - When no email match exists (greeting name doesn't match email prefix), but `findAccountNameInText` finds a company name with a known domain, searches the PA email cache for any `@domain` email. Picks the most recently active email at that domain.
 - Provides step count + reply status + staleness date for contacts whose email can't be matched by name.
 - Example: greeting "Hey Lara" can't match `ljoseph@allinialglobal.com`, but subject contains "Allinial Global" (domain: `allinialglobal.com`) → finds the PA cache entry → shows step count = 1.
+
+#### Folder-restricted matching only (v3.61 — CRITICAL)
+- Cross-folder fallback in Strategies 2 (greeting), 3 (sender), and 4 (text scan) fully REMOVED.
+- **Rationale:** each contact's `_folders: string[]` already lists every campaign they belong to. If `_folders.includes(activeFolder)` is false, the contact genuinely isn't in this folder's campaign. Cross-folder "fallback" was just guessing — and the guess often picked the wrong company (e.g. Todd-at-FIS row wrongly matched Todd-at-Michaels from a different folder).
+- Unmatched rows now fall through to Strategy 5 (date+domain correlation in `scanEmailRows`) or show staleness-only badge. No more wrong company bubbles from cross-folder collisions.
+
+#### First-email step count (v3.61)
+- PA cache runs every 2h, so new contacts emailed *today* have 0 entries in the PA cache `dates[]` array. Step count was stuck at 0 until next PA sync.
+- Fix: `if (stepCount === 0 && resolvedEmail && domDate) stepCount = 1;` — the DOM row's existence in the folder proves at least one email was sent. Backfills to true count on next PA sync.
+
+#### Campaign-folder scoping (v3.62 — CRITICAL)
+- Old `getActiveCampaignFolder()` Step 4 scanned ALL `[aria-label]` / `[title]` elements in the document. Sidebar treeitems (e.g. `aria-label="❄️ Winback, 3 unread"`) kept matching even when the user was on Inbox → badges appeared on every email in every folder.
+- **Fix:** Step 4 removed. Step 1 (document title) now authoritative: if the title names a specific non-campaign view (Inbox, Sent Items, Drafts, Archive, etc.), return null immediately instead of falling through to stale tree-state detection (Outlook leaves `aria-selected`/`tabindex=0` on sidebar treeitems after the user navigates away).
+- Steps 1-3 cover all real cases. Extension now ONLY decorates rows inside the 7 campaign folders.
+
+#### Snippet expander (v3.63)
+- TextBlaze-style inline text expansion inside Outlook compose bodies (new mail, reply, reply all, forward).
+- **`SNIPPETS` array** — list of `{ trigger, action, value, toast }` objects. Extensible — add more triggers without changing matching logic.
+- **Current triggers:**
+  - `\bcc` → strips the trigger text, clicks the Bcc button if hidden, pastes the Salesforce email-to-case tracking address into the Bcc field, shows a toast confirmation.
+- **Flow:** `input` event listener (capture phase) on document → `isComposeBody(el)` check (walks up DOM looking for `aria-label="Message body"`) → match text-before-cursor against any snippet trigger → strip trigger + fire action.
+- **Key functions:** `setupSnippetExpander()`, `onSnippetInput()`, `isComposeBody()`, `fillBccField()`, `findBccInput()`, `findBccButton()`, `typeIntoBcc()`, `showSnippetToast()`.
+- **Selectors used** (may need adjustment if Outlook DOM changes): Bcc input = `[aria-label^="Bcc" i][role="combobox"]` / `[contenteditable="true"]` / `input`. Bcc button = any button/role=button with text or aria-label matching `/^bcc$/i` or `/show bcc/i`.
 
 #### Key functions
 `scanEmailRows()`, `updateFolderBadges()`, `getDateFromRow()`, `findContactForRow()`, `findEmailByDate()`, `injectRowBadges()`, `loadEmailCache()`, `processEmailCache()`, `normFolder()`, `buildCacheNameMap()`, `preloadFolderCounts()`, `findAccountNameInText()`, `loadContactMap()`
@@ -1104,3 +1127,7 @@ When a new session begins, Claude Code should:
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented for any campaign except workables. |
 | ✅ Done | Dropped-from-CSV accounts hidden from Accounts tab | Bug fix: accounts with `hasAction=true` that were dropped from CSV were still appearing in Accounts tab with orange badge. Fixed: `getFiltered()`, `updateStats()`, and count label now all exclude `_droppedFromCSV:true` accounts. Accounts tab is now a pure live-territory view. Dropped accounts stay in `accounts[]` for Action tab only. |
 | ✅ Done | Outreach Extension v3.53–v3.60 — Winback fix + company bubble + domain fallback | **Root cause:** `❄️` = U+2744 + invisible U+FE0F variation selector. `normFolder()` stripped the snowflake but not the variation selector, so `"️ Winback" !== "Winback"` always failed. All other folder emoji (`😎🔥🌱🥶`) don't use variation selectors. **Fix (v3.59):** Added `\p{Mn}` + `\p{Cf}` + explicit `\uFE0E\uFE0F` to normFolder regex. **Also fixed:** `getActiveCampaignFolder()` broadened with `tabindex="0"` treeitem check (v3.57). **bridge.js v1.5:** pushes `outreach_account_names` from `ibis_accounts` so company bubble works for ALL territory accounts, not just campaign contacts. **`findAccountNameInText()` (v3.52):** DOM text fallback scans row text for known account names (catches subject lines like "Enhancements for Allinial Global"). **Domain-based cache fallback (v3.60):** when no email match exists but company domain is known, searches PA cache for any `@domain` email → provides step count + reply status. Diagnostic heartbeat added (v3.56) for future debugging. |
+| ✅ Done | Outreach Extension v3.61 — cross-folder company bleed fix + first-email step count | **Bug 1:** Cross-folder greeting match picked wrong company when contact wasn't in the active folder's dashboard campaign (Todd-at-FIS row matched Todd-at-Michaels). **Fix:** removed cross-folder fallback in Strategies 2/3/4. Contacts carry `_folders: [all campaigns]` so folder-restricted match catches all legitimate cases; cross-folder was guessing. **Bug 2:** Step count stuck at 0 for new contacts until next PA sync (PA runs every 2h). **Fix:** if `stepCount === 0 && resolvedEmail && domDate`, bump to 1 — DOM row in the folder is proof of one sent email. |
+| ✅ Done | Outreach Extension v3.62 — scope badges to campaign folders only | **Root cause:** `getActiveCampaignFolder()` Step 4 scanned every `[aria-label]`/`[title]` element in the document, matching sidebar treeitems like "❄️ Winback, 3 unread" even when the user was on Inbox. Badges appeared on every email everywhere. **Fix:** Step 4 removed. Step 1 hardened: if document title names a specific non-campaign view (Inbox/Sent Items/Drafts/etc.), return null immediately instead of falling through to stale tree-state detection (Outlook leaves `aria-selected`/`tabindex=0` on sidebar treeitems after navigating away). Extension now only decorates rows inside the 7 campaign folders. |
+| ✅ Done | Outreach Extension v3.63 — `\bcc` snippet expander | TextBlaze-style inline expansion. Type `\bcc` anywhere in a compose body (new mail/reply/forward) → trigger text strips, Bcc field opens if hidden, Salesforce email-to-case tracking address pastes into Bcc, toast confirms. `SNIPPETS` array in content.js is extensible — add more triggers (e.g. `\sig`, `\cal`) by appending one entry. |
+| 🗺️ Future | More snippet triggers | `SNIPPETS` array is ready for growth — next likely additions: signature block, calendar booking link, "thanks and regards" closer, pricing blurb. |
