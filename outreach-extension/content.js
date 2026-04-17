@@ -1,5 +1,5 @@
 // =============================================================================
-// IBISWorld Outreach — DOM Overlay v3.62
+// IBISWorld Outreach — DOM Overlay v3.63
 // =============================================================================
 // Feature A — Folder badge: orange count on campaign folders, grey "0" when clear.
 // Feature B — Row badges: staleness dot + days + company bubble (from greeting).
@@ -1614,11 +1614,157 @@
     }, 300);
   }
 
+  // ── Snippet expander: type \bcc in a compose body to auto-fill SF tracking BCC ──
+  // TextBlaze-style inline expansion. Listens for \bcc to be typed anywhere inside
+  // Outlook's compose body (new mail, reply, reply all, forward). On trigger:
+  //   1. strip the \bcc text from the body
+  //   2. reveal the Bcc field if hidden (click the Bcc button)
+  //   3. paste the Salesforce tracking email into the Bcc field
+  //   4. show a tiny confirmation toast
+
+  const SNIPPETS = [
+    {
+      trigger: '\\bcc',
+      action: 'bcc',
+      value: 'emailtosalesforce@e-31xr03o6bqi0zcimio4fskam1idu09g5ladz2bybhm20zxe763.5j-72rmueam.usa652.le.salesforce.com',
+      toast: 'SF tracking BCC added ✓',
+    },
+  ];
+
+  function setupSnippetExpander() {
+    document.addEventListener('input', onSnippetInput, true);
+  }
+
+  function onSnippetInput(ev) {
+    const el = ev.target;
+    if (!el || !el.isContentEditable) return;
+    if (!isComposeBody(el)) return;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    // Read text from start of compose body up to the cursor
+    const range = sel.getRangeAt(0).cloneRange();
+    try { range.setStart(el, 0); } catch (_) { return; }
+    const beforeCursor = range.toString();
+
+    // Match any registered snippet trigger
+    const match = SNIPPETS.find(s => beforeCursor.endsWith(s.trigger));
+    if (!match) return;
+
+    // Strip the trigger text from the compose body
+    for (let i = 0; i < match.trigger.length; i++) {
+      document.execCommand('delete', false, null);
+    }
+
+    // Fire the snippet action
+    if (match.action === 'bcc') {
+      fillBccField(match.value, match.toast);
+    }
+  }
+
+  function isComposeBody(el) {
+    // Outlook marks the compose body with aria-label "Message body" (new mail, reply, forward).
+    // Walk up the DOM from the edited element in case the event fires on a child span.
+    let node = el;
+    while (node && node !== document.body) {
+      const label = (node.getAttribute && node.getAttribute('aria-label') || '').toLowerCase();
+      if (/message\s?body/.test(label)) return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function fillBccField(email, toastMsg) {
+    const existing = findBccInput();
+    if (existing) {
+      typeIntoBcc(existing, email);
+      showSnippetToast(toastMsg);
+      return;
+    }
+
+    const btn = findBccButton();
+    if (!btn) {
+      showSnippetToast('⚠️ Bcc button not found');
+      return;
+    }
+    btn.click();
+
+    // Wait up to ~1s for the Bcc field to appear after the button click
+    let tries = 0;
+    const poll = setInterval(() => {
+      const input = findBccInput();
+      if (input) {
+        clearInterval(poll);
+        typeIntoBcc(input, email);
+        showSnippetToast(toastMsg);
+      } else if (++tries > 20) {
+        clearInterval(poll);
+        showSnippetToast('⚠️ Could not open Bcc field');
+      }
+    }, 50);
+  }
+
+  function findBccInput() {
+    // Outlook's Bcc field is usually a people-picker combobox or a plain input.
+    const selectors = [
+      '[aria-label^="Bcc" i][role="combobox"]',
+      '[aria-label^="Bcc" i][contenteditable="true"]',
+      'input[aria-label^="Bcc" i]',
+      '[aria-label="Bcc" i]',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function findBccButton() {
+    return [...document.querySelectorAll('button, [role="button"]')].find(b => {
+      const t = (b.textContent || '').trim();
+      const a = b.getAttribute('aria-label') || '';
+      return /^bcc$/i.test(t) || /^bcc$/i.test(a) || /show bcc/i.test(a);
+    }) || null;
+  }
+
+  function typeIntoBcc(input, email) {
+    input.focus();
+    if (input.tagName === 'INPUT') {
+      const proto = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      proto && proto.set && proto.set.call(input, email);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      document.execCommand('insertText', false, email);
+    }
+    // Commit the entry — people-pickers typically accept Enter or Tab to lock in the address
+    const kd = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true };
+    input.dispatchEvent(new KeyboardEvent('keydown', kd));
+    input.dispatchEvent(new KeyboardEvent('keyup', kd));
+  }
+
+  function showSnippetToast(msg) {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText =
+      'position:fixed;bottom:24px;right:24px;background:#111827;color:#fff;' +
+      'padding:10px 16px;border-radius:999px;font:500 13px "DM Sans",sans-serif;' +
+      'box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:999999;pointer-events:none;' +
+      'opacity:0;transition:opacity 180ms ease';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 250);
+    }, 2200);
+  }
+
   // ── Init ──────────────────────────────────────────────────────────────────────
 
   function init() {
     if (!ctxOk()) return;
-    LOG('v3.60 init on', location.hostname);
+    LOG('v3.63 init on', location.hostname);
+    setupSnippetExpander();
 
     // IMPORTANT: seed folderCounts from storage FIRST, then start all async data loads.
     // Counts are restored from the previous session's DOM scans. They are never estimated
