@@ -50,7 +50,7 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 
 ---
 
-## CURRENT STATE — v33 (stable)
+## CURRENT STATE — v34 (stable)
 
 ### Five tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -582,6 +582,191 @@ License Start Date, License End Date
 
 1. **Active US Industry → PIQ**: If `_type === 'US'` AND `_active === true`, reclassify to PIQ. No active US Industry clients exist in Dan's territory — these are actually US Procurement accounts.
 2. **Churned US trial → TRIAL**: If `_type === 'US'` AND `_active === false` AND `_acv === 0` AND Opportunity Name contains "trial", reclassify to TRIAL. These are $0 churned US Industry rows that are actually expired trials.
+
+---
+
+## ADDING A NEW CAMPAIGN — CHECKLIST
+
+When adding a new campaign (e.g. `foo` with emoji 🆕, colors bg `#xxx`, text `#yyy`, badge `#zzz`), touch these locations in order:
+
+### 1. State variables (near line 2409)
+```js
+let samples = {}, ..., powerback = {}, alumni = {}, foo = {};
+let deadAlumniContacts = [], deadFooContacts = [], ...
+```
+
+### 2. Init / page load (near line 2528)
+```js
+loadFoo();
+if (Object.keys(foo).length > 0) {
+  document.getElementById('foo-empty-state')?.classList.add('hidden');
+  document.getElementById('foo-table-wrap')?.classList.remove('hidden');
+}
+```
+
+### 3. Account page — `renderAPHeader` contactCount (near line 5107)
+```js
++ Object.values(foo).filter(o => normName(o.accountName) === _cn).length;
+```
+
+### 4. Account page — `renderAPCampaigns` (near line 5212)
+- Add `const fooContacts = Object.values(foo).filter(...)`
+- Add `fooContacts.length` to the empty-state guard
+- Add a column block inside `cols.push(...)` with correct header colors
+
+### 5. ALL_STORAGE_KEYS (near line 6024)
+```js
+'ibis_foo'  // add to the array
+```
+
+### 6. Count helper (near line 7193, with other getXCount functions)
+```js
+function getFooCount(name) {
+  const n = normName(name);
+  return Object.values(foo).filter(o => normName(o.accountName) === n).length;
+}
+```
+
+### 7. Full campaign function block (after `clearPowerbackData`/`clearAlumniData`)
+Seven functions following the exact pattern:
+`loadFoo()` · `saveFoo()` · `handleFooCSV()` · `mergeFoo()` · `renderFoo()` · `deleteFoo()` · `clearFooData()`
+- `handleFooCSV`: calls `parseOppsCSV`, `mergeFoo`, `saveFoo`, `saveCsvStat('foo',...)`, `updateCampaignPillCounts`, `updateUploadDots`, `renderFoo`, `showOppToast`, `checkStorageSize`
+- `mergeFoo`: additive merge + dead detection with guard (`length > newContacts.length`), duplicate check, `saveDead()` + `updateDeadTabBadge()`
+- `renderFoo`: search filter, show/hide empty-state + table-wrap, render `<tbody id="foo-table-body">` rows with territory dot + logo + name + title + days + delete button
+
+### 8. `renderCampCluster` (near line 7434)
+```js
+{ count: getFooCount(name), bg:'#hex', type:'foo' },
+```
+
+### 9. `CAMPAIGN_DEFS` (near line 7583)
+```js
+foo: { emoji:'🆕', label:'Foo', getCount: () => Object.values(foo).length, onActivate: () => renderFoo() },
+```
+
+### 10. `updateCampaignPillCounts` (near line 7640) — only if the campaign has its own named stat element
+```js
+const foototal = document.getElementById('footstat-total');
+if (foototal) foototal.textContent = CAMPAIGN_DEFS.foo.getCount() || '—';
+```
+*(Dropdown count badges are data-driven via `Object.keys(CAMPAIGN_DEFS)` — no code change needed there.)*
+
+### 11. `updateUploadDots` MAP (near line 7645)
+```js
+foo: { storageKey: 'ibis_foo', dotId: 'udot-foo' },
+```
+
+### 12. `loadDead` (near line 7781)
+```js
+deadFooContacts = raw.fooContacts || [];
+// Also add to the catch fallback array
+```
+
+### 13. `saveDead` (near line 7786)
+```js
+// Add fooContacts: deadFooContacts to the JSON object
+```
+
+### 14. `markDeadAsSeen` (near line 7800)
+```js
+deadFooContacts.forEach(d => deadSeenKeys.add('fo|' + d.email));
+```
+*(Use a unique 2-letter prefix not already taken: wk/sc/6q/ch/nn/mt/wb/pb/al)*
+
+### 15. `updateDeadTabBadge` (near line 7813)
+```js
+const unseenFoo = deadFooContacts.filter(d => !deadSeenKeys.has('fo|' + d.email)).length;
+// Add + unseenFoo to the unseen total
+```
+
+### 16. `totalDeadContacts` in `renderDead` (near line 7843)
+```js
++ deadFooContacts.length
+```
+
+### 17. `renderDeadContacts` — list + campColors (near line 8051 and 8082)
+```js
+// list: add ...deadFooContacts
+// campColors: foo: 'background:#xxx;color:#yyy;'
+```
+
+### 18. `openContactPreview` — type handler + label (near line 8126 and 8289)
+```js
+} else if (type === 'foo') {
+  contacts = Object.values(foo).filter(...).map(...);
+}
+// label ternary: ... : type === 'foo' ? '🆕 Foo' : ...
+```
+
+### 19. `reviveDeadContact` (near line 5565)
+```js
+} else if (campaign === 'foo') {
+  const idx = deadFooContacts.findIndex(c => c.email === email);
+  if (idx === -1) return;
+  const contact = { ...deadFooContacts[idx] };
+  deadFooContacts.splice(idx, 1);
+  delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
+  foo[email] = contact;
+  saveFoo();
+}
+```
+
+### 20. HTML — campaign view panel (in `#content-campaigns`, after last campaign div)
+```html
+<div id="campaign-view-foo" class="hidden">
+  <div id="foo-empty-state" class="empty-state">...</div>
+  <div id="foo-count-label" class="above-table-label" ...></div>
+  <div id="foo-table-wrap" class="opp-tbl-wrap hidden">
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>Company</th><th>Name</th><th>Title</th><th>Days Inactive</th><th></th></tr></thead>
+      <tbody id="foo-table-body"></tbody>
+    </table></div>
+  </div>
+</div>
+```
+
+### 21. HTML — campaign controls (in controls bar, after last `-inner` div)
+```html
+<div id="controls-foo-inner" class="hidden">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search Foo contacts..." id="foo-search-input" oninput="renderFoo()">
+  </div>
+</div>
+```
+
+### 22. HTML — campaign dropdown menu item (in `#campaign-selector-menu`)
+```html
+<div class="campaign-selector-item" id="cmenu-foo" onclick="selectCampaignFromMenu('foo')">
+  <span>🆕 Foo</span>
+  <span class="campaign-selector-count-badge" id="cmenu-count-foo">0</span>
+</div>
+```
+
+### 23. HTML — campaign stats bar div (after last `campaign-X-stats` div)
+```html
+<div id="campaign-foo-stats" style="display:none;">
+  <div class="stat-item">
+    <div class="stat-label">Total Contacts</div>
+    <div class="stat-value red" id="footstat-total">—</div>
+  </div>
+</div>
+```
+
+### 24. HTML — upload menu button + hidden file input
+```html
+<!-- In upload menu -->
+<button class="upload-menu-row" onclick="document.getElementById('foo-file-input').click();closeUploadMenu()">
+  <span class="upload-menu-label">🆕 Foo CSV</span>
+  <span class="upload-menu-dot" id="udot-foo"></span>
+  <span class="upload-menu-x" onclick="event.stopPropagation();clearFooData()" title="Clear">✕</span>
+</button>
+<!-- Hidden file input block -->
+<input type="file" id="foo-file-input" accept=".csv" onchange="handleFooCSV(event)" style="display:none;">
+```
+
+### 25. Extension — bridge.js
+Add `ibis_foo` to the merged contacts loop in `bridge.js` so the extension picks up the contacts.
 
 ---
 
@@ -1121,6 +1306,8 @@ When a new session begins, Claude Code should:
 | ✅ Done | Slash command worktree fix | `/end-session` Step 4b now deletes project history entry FIRST (before git worktree remove) so it's always gone even when session is inside the worktree. `/start-session` now auto-runs full cleanup (remove + branch delete + history delete) when stale worktrees are detected from the main folder. |
 | ✅ Done | Action tab: Has Opp filter chip + opp sort (v33) | `💼 Has Opp` chip in Action controls bar. `actionHasOppFilter` bool + `toggleActionHasOppFilter()`. Filters to `hasActiveOpp(name) || hasAnyContactOpp(name)`. Opp column header now sortable (`setActionSortCol('opp')`), sort tracked at `#axsort-opp`. |
 | ✅ Done | 3 new campaigns: Multithread / Winback / Powerback (v33) | 😎 Multithread (amber), ❄️ Winback (rose), 🥶 Powerback (teal). All have full function stacks, upload CSV rows, dead contact wiring, CAMPAIGN_DEFS entries. Same schema as all other campaigns. |
+| ✅ Done | Alumni campaign (v34) | 🎓 Alumni (indigo `#4f46e5`/`#eef2ff`/`#c7d2fe`). For contacts who were IBISWorld users at a prior company and are now at an account in Dan's book. Same CSV schema. Full function stack, dead wiring, revive, account page panel, campaign cluster oval. Also fixed Multithread/Winback/Powerback missing from campaign dropdown selector. |
+| ✅ Done | Campaign addition checklist (v34) | 25-step checklist added to CLAUDE.md under `## ADDING A NEW CAMPAIGN`. Covers all JS + HTML touch points in order. |
 | ✅ Done | Universal campaign cluster widget (v33) | `renderCampCluster(name)` — compact oval pills for all 8 campaigns. `.camp-oval` CSS. Replaced 3 separate columns (Workables/Samples/6QA) in Accounts table with one unified Campaigns column. Used in Accounts table, Action table, Account page header. Each oval clickable for preview. |
 | ✅ Done | Action tab design pass (v33) | Camp cluster `flex-wrap:nowrap` (ovals no longer stack vertically). Controls bar chips now wrap naturally (removed nowrap from `#controls-action`). Campaigns `<th>` min-width:110px. Opp badge padding 7→8px. Territory dot size 7→8px. |
 | 🗺️ Future | Campaigns: Winbacks campaign | NOW DONE as ❄️ Winback (v33). |
