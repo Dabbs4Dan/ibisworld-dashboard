@@ -720,31 +720,45 @@
       const lookupKey = stripAccents(greetingName).toLowerCase();
       const cacheMatches = cacheNameMap[lookupKey] || [];
       _diag.push(`S2b:cache-lookup="${lookupKey}" hits=${cacheMatches.length}`);
+      // Helper: require positive text confirmation for cacheNameMap results.
+      // Unlike contactMap results (which are confirmed by being in a campaign folder),
+      // cacheNameMap entries are unvetted PA cache emails. We must verify the synthesized
+      // company name or domain root actually appears in the row text to avoid wrong company
+      // names (e.g. "Angela" in cache has domain nisa.com → "Nisa" appearing on a Medline row).
+      const _s2bTextLow = (row.textContent || '').toLowerCase();
+      function _s2bConfirmed(res) {
+        // Always trust a positive hint match first
+        if (_textHint && _hintOk(res.contact?.accountName, res.domain)) return true;
+        // Require company name root or domain root to appear in row text
+        const acctRoot = (res.contact?.accountName || '').split(/[\s\-]/)[0].toLowerCase();
+        const domRoot  = (res.domain || '').split('.')[0].toLowerCase();
+        return (acctRoot.length >= 4 && _s2bTextLow.includes(acctRoot)) ||
+               (domRoot.length  >= 4 && _s2bTextLow.includes(domRoot));
+      }
       if (cacheMatches.length === 1) {
         const cm = cacheMatches[0];
         const res = _synthCacheResult(cm, 'cache_name');
-        if (_hintOk(res.contact?.accountName, res.domain)) return res;
-        _diag.push(`S2b:hint-mismatch(${res.contact?.accountName}≠${_textHint?.name})`);
+        if (_s2bConfirmed(res)) return res;
+        _diag.push(`S2b:unconfirmed(${res.contact?.accountName}≠text)`);
       } else if (cacheMatches.length > 1) {
-        // Filter candidates to hint-compatible matches before tiebreaking
-        const hintCMs = cacheMatches.filter(cm => {
-          const res = _synthCacheResult(cm, 'cache_name');
-          return _hintOk(res.contact?.accountName, res.domain);
-        });
-        const pool = hintCMs.length > 0 ? hintCMs : cacheMatches; // fall back to all if hint filters everything
-        const candidates = pool.map(cm => ({
-          email: cm.email,
-          contact: { accountName: '', domain: cm.domain, name: '', _folders: [] },
-          domain: cm.domain,
-        }));
-        const best = domDate ? tiebreakByDate(candidates, domDate) : null;
-        if (best) {
-          const isP = PERSONAL_DOMAINS.has(best.domain);
-          best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
-          return { ...best, confidence: 'cache_name+date' };
+        // Filter candidates to text-confirmed matches before tiebreaking
+        const confirmedCMs = cacheMatches.filter(cm => _s2bConfirmed(_synthCacheResult(cm, 'cache_name')));
+        const pool = confirmedCMs.length > 0 ? confirmedCMs : []; // no fallback — don't guess from unconfirmed pool
+        if (pool.length > 0) {
+          const candidates = pool.map(cm => ({
+            email: cm.email,
+            contact: { accountName: '', domain: cm.domain, name: '', _folders: [] },
+            domain: cm.domain,
+          }));
+          const best = domDate ? tiebreakByDate(candidates, domDate) : null;
+          if (best) {
+            const isP = PERSONAL_DOMAINS.has(best.domain);
+            best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
+            return { ...best, confidence: 'cache_name+date' };
+          }
+          return _synthCacheResult(pool[0], 'cache_name');
         }
-        const res0 = _synthCacheResult(pool[0], 'cache_name');
-        if (_hintOk(res0.contact?.accountName, res0.domain)) return res0;
+        _diag.push(`S2b:multi-unconfirmed(${cacheMatches.length})`);
       }
     } else if (greetingName) {
       _diag.push('S2b:cacheNameMap-empty');
@@ -882,11 +896,12 @@
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
   function hasRowReplyIndicator(row) {
-    const aria = (row.getAttribute('aria-label') || '');
-    // Past-tense "replied" only — means the contact replied and Dan wrote back.
-    // "forwarded" is intentionally excluded: it means DAN forwarded the email
-    // (e.g. to the Salesforce BCC tracking address), NOT that the contact replied.
-    if (/\breplied\b/i.test(aria)) return true;
+    // Disabled: Outlook marks the row aria-label as "replied" when DAN replies
+    // within the thread (e.g. a follow-up sequence), NOT when the contact replies.
+    // This caused false ↩ chips on every multi-step outreach thread.
+    // Reply detection now comes exclusively from:
+    //   • PA cache hasReplied (inbound email from contact filed in campaign folder)
+    //   • getNonDanFromNames (contact's name appears in the From field)
     return false;
   }
 
@@ -1266,7 +1281,7 @@
         }
         // v3.61: PA cache runs every 2h, so new contacts sent today won't be in it yet.
         // The DOM row itself is proof of one sent email — show 1 instead of 0 until PA catches up.
-        if (stepCount === 0 && resolvedEmail && domDate) stepCount = 1;
+        if (stepCount === 0 && resolvedEmail && date) stepCount = 1;
 
         // Reply detection — three sources:
         // 1. PA cache hasReplied: inbound email filed in campaign folder
@@ -1410,7 +1425,13 @@
         || (highConfidence && !isPersonalDomain ? domainToName(domain) : '')
         || '';
       if (companyName && domain) {
-        faviconDomain = FAVICON_DOMAIN_OVERRIDES[domain] || domain;
+        // Prefer the canonical domain from accountNameMap (the dashboard's ibis_accounts).
+        // This ensures two contacts at the same company (e.g. ISS-Guckenheimer) but with
+        // different subsidiary email domains always resolve to the same favicon.
+        const acctEntry = accountNameMap[companyName.toLowerCase()];
+        const preferredDomain = (acctEntry?.domain && !PERSONAL_DOMAINS.has(acctEntry.domain))
+          ? acctEntry.domain : domain;
+        faviconDomain = FAVICON_DOMAIN_OVERRIDES[preferredDomain] || preferredDomain;
       }
     }
 
