@@ -725,11 +725,18 @@
       // cacheNameMap entries are unvetted PA cache emails. We must verify the synthesized
       // company name or domain root actually appears in the row text to avoid wrong company
       // names (e.g. "Angela" in cache has domain nisa.com → "Nisa" appearing on a Medline row).
+      // v3.66: When _textHint is set (a known dashboard account name appears in the row
+      // subject/preview), it's AUTHORITATIVE — only accept cacheNameMap matches that
+      // agree with it. Don't fall back to "root appears in row text" because on
+      // re-scans row.textContent already contains our own injected badge text,
+      // which creates circular self-validation (the whole Medline→Nisa bug).
       const _s2bTextLow = (row.textContent || '').toLowerCase();
       function _s2bConfirmed(res) {
-        // Always trust a positive hint match first
-        if (_textHint && _hintOk(res.contact?.accountName, res.domain)) return true;
-        // Require company name root or domain root to appear in row text
+        if (_textHint) {
+          // Hint wins — either it agrees (accept) or disagrees (reject definitively).
+          return _hintOk(res.contact?.accountName, res.domain);
+        }
+        // No hint: require company name root or domain root to appear in row text.
         const acctRoot = (res.contact?.accountName || '').split(/[\s\-]/)[0].toLowerCase();
         const domRoot  = (res.domain || '').split('.')[0].toLowerCase();
         return (acctRoot.length >= 4 && _s2bTextLow.includes(acctRoot)) ||
@@ -896,12 +903,17 @@
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
   function hasRowReplyIndicator(row) {
-    // Disabled: Outlook marks the row aria-label as "replied" when DAN replies
-    // within the thread (e.g. a follow-up sequence), NOT when the contact replies.
-    // This caused false ↩ chips on every multi-step outreach thread.
-    // Reply detection now comes exclusively from:
-    //   • PA cache hasReplied (inbound email from contact filed in campaign folder)
-    //   • getNonDanFromNames (contact's name appears in the From field)
+    // v3.66: Outlook's row aria-label uses "replied" in TWO cases:
+    //   • "You replied" / "You forwarded"  = Dan's own action (IGNORE)
+    //   • "[Name] replied" / bare "replied" = contact replied (MARK)
+    // Strategy: strip every "You replied …"/"You forwarded …" fragment first,
+    // then check what remains. Recovers reply detection for threads where the
+    // contact's reply is in Inbox (PA cache misses it) and Dan's later follow-up
+    // made Dan the most-recent sender (getNonDanFromNames also fails).
+    const aria = (row.getAttribute('aria-label') || '');
+    if (!aria) return false;
+    const stripped = aria.replace(/\byou\s+(replied|forwarded)[^.,;]*/gi, '');
+    if (/\breplied\b/i.test(stripped)) return true;
     return false;
   }
 
