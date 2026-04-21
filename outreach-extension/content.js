@@ -641,9 +641,15 @@
   }
 
   // Build a synthetic contactInfo result for a cache-only match (contact not in dashboard campaigns).
+  // v3.69: returns null when the domain or synthesized account name contains our own brand —
+  // every outreach subject has "IBISWorld" in it, so any cacheNameMap entry on an ibisworld-variant
+  // domain would otherwise paint that row with a misleading "Ibisworld" company bubble (Yuyu/eBay bug).
   function _synthCacheResult(cm, confidence) {
+    const dLow = (cm.domain || '').toLowerCase();
+    if (dLow.includes('ibisworld')) return null;
     const isPersonal = PERSONAL_DOMAINS.has(cm.domain);
     const accountName = !isPersonal ? (domainContactMap[cm.domain] || domainToName(cm.domain)) : '';
+    if ((accountName || '').toLowerCase().includes('ibisworld')) return null;
     const synthName = cm.nameParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
     return {
       email: cm.email,
@@ -753,11 +759,16 @@
       if (cacheMatches.length === 1) {
         const cm = cacheMatches[0];
         const res = _synthCacheResult(cm, 'cache_name');
-        if (_s2bConfirmed(res)) return res;
-        _diag.push(`S2b:unconfirmed(${res.contact?.accountName}≠text)`);
+        if (res && _s2bConfirmed(res)) return res;
+        if (!res) _diag.push('S2b:brand-leak-rejected');
+        else _diag.push(`S2b:unconfirmed(${res.contact?.accountName}≠text)`);
       } else if (cacheMatches.length > 1) {
-        // Filter candidates to text-confirmed matches before tiebreaking
-        const confirmedCMs = cacheMatches.filter(cm => _s2bConfirmed(_synthCacheResult(cm, 'cache_name')));
+        // Filter candidates to text-confirmed matches before tiebreaking.
+        // Also drops brand-leak candidates (_synthCacheResult returns null for those).
+        const confirmedCMs = cacheMatches.filter(cm => {
+          const r = _synthCacheResult(cm, 'cache_name');
+          return r && _s2bConfirmed(r);
+        });
         const pool = confirmedCMs.length > 0 ? confirmedCMs : []; // no fallback — don't guess from unconfirmed pool
         if (pool.length > 0) {
           const candidates = pool.map(cm => ({
@@ -771,7 +782,8 @@
             best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
             return { ...best, confidence: 'cache_name+date' };
           }
-          return _synthCacheResult(pool[0], 'cache_name');
+          const r = _synthCacheResult(pool[0], 'cache_name');
+          if (r) return r;
         }
         _diag.push(`S2b:multi-unconfirmed(${cacheMatches.length})`);
       }
@@ -803,18 +815,25 @@
         const lower = firstName.toLowerCase();
         if (!OWN_NAMES.has(lower)) {
           const cacheMatches = cacheNameMap[lower] || [];
-          if (cacheMatches.length === 1) return _synthCacheResult(cacheMatches[0], 'cache_sender');
+          if (cacheMatches.length === 1) {
+            const r = _synthCacheResult(cacheMatches[0], 'cache_sender');
+            if (r) return r;
+          }
           if (cacheMatches.length > 1 && domDate) {
-            const candidates = cacheMatches.map(cm => ({
-              email: cm.email,
-              contact: { accountName: '', domain: cm.domain, name: senderName, _folders: [] },
-              domain: cm.domain,
-            }));
-            const best = tiebreakByDate(candidates, domDate);
-            if (best) {
-              const isP = PERSONAL_DOMAINS.has(best.domain);
-              best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
-              return { ...best, confidence: 'cache_sender+date' };
+            // Drop brand-leak candidates (domain contains 'ibisworld')
+            const cleanCMs = cacheMatches.filter(cm => !(cm.domain || '').toLowerCase().includes('ibisworld'));
+            if (cleanCMs.length > 0) {
+              const candidates = cleanCMs.map(cm => ({
+                email: cm.email,
+                contact: { accountName: '', domain: cm.domain, name: senderName, _folders: [] },
+                domain: cm.domain,
+              }));
+              const best = tiebreakByDate(candidates, domDate);
+              if (best) {
+                const isP = PERSONAL_DOMAINS.has(best.domain);
+                best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
+                return { ...best, confidence: 'cache_sender+date' };
+              }
             }
           }
         }
@@ -839,12 +858,14 @@
           return { email, contact: c, domain: email.split('@')[1] || '', confidence: 'text_scan' };
         }
       }
-      // Also try cacheNameMap for contacts not in dashboard campaigns
+      // Also try cacheNameMap for contacts not in dashboard campaigns.
+      // _synthCacheResult returns null for brand-leak candidates — skip those.
       for (const [firstName, entries] of Object.entries(cacheNameMap)) {
         if (firstName.length < 3 || OWN_NAMES.has(firstName)) continue;
         const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
         if (re.test(rowText) && entries.length === 1) {
-          return _synthCacheResult(entries[0], 'cache_text_scan');
+          const r = _synthCacheResult(entries[0], 'cache_text_scan');
+          if (r) return r;
         }
       }
     }
@@ -1304,14 +1325,25 @@
         // The DOM row itself is proof of one sent email — show 1 instead of 0 until PA catches up.
         if (stepCount === 0 && resolvedEmail && date) stepCount = 1;
 
-        // Reply detection — three sources:
-        // 1. PA cache hasReplied: inbound email filed in campaign folder
-        // 2. DOM From field: row's From shows non-Dan sender name
-        // 3. Row aria-label status: Outlook marks rows with "Replied"/"Forwarded"
-        //    (past tense only — safe from action button false positives)
+        // Reply detection (v3.69) — PA-cache-first, with DOM fallback:
+        //
+        // When we HAVE a PA cache entry for this contact, PA is authoritative.
+        // PA has actually read the email bodies in monitored folders + Sent Items.
+        // It knows who sent which email. That's real-world data — trust it and
+        // ignore the aria-label noise (which triggers on Dan's own follow-ups).
+        //   hasReplied := cacheData.hasReplied  OR  contact is current From
+        //
+        // When we DON'T have a PA cache entry (contact isn't in any monitored
+        // folder yet), we fall back to ALL DOM signals — aria-label included —
+        // because we have no other source of truth for that contact.
+        //   hasReplied := contact is current From  OR  aria-label says replied
         const domReply = getNonDanFromNames(row).length > 0;
-        const rowReplyIcon = hasRowReplyIndicator(row);
-        const hasReplied = cacheData?.hasReplied || domReply || rowReplyIcon;
+        let hasReplied;
+        if (cacheData) {
+          hasReplied = !!cacheData.hasReplied || domReply;
+        } else {
+          hasReplied = domReply || hasRowReplyIndicator(row);
+        }
 
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
