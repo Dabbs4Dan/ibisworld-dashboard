@@ -903,17 +903,14 @@
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
   function hasRowReplyIndicator(row) {
-    // v3.66: Outlook's row aria-label uses "replied" in TWO cases:
-    //   • "You replied" / "You forwarded"  = Dan's own action (IGNORE)
-    //   • "[Name] replied" / bare "replied" = contact replied (MARK)
-    // Strategy: strip every "You replied …"/"You forwarded …" fragment first,
-    // then check what remains. Recovers reply detection for threads where the
-    // contact's reply is in Inbox (PA cache misses it) and Dan's later follow-up
-    // made Dan the most-recent sender (getNonDanFromNames also fails).
-    const aria = (row.getAttribute('aria-label') || '');
-    if (!aria) return false;
-    const stripped = aria.replace(/\byou\s+(replied|forwarded)[^.,;]*/gi, '');
-    if (/\breplied\b/i.test(stripped)) return true;
+    // v3.67: DOM aria-label is unreliable for reply detection — Outlook uses
+    // "replied" generically for thread activity (including Dan's own
+    // follow-ups). Both v3.63 and v3.66 heuristics produced false positives.
+    // Reply detection now comes exclusively from:
+    //   • PA cache hasReplied — inbound filed in a monitored folder
+    //   • getNonDanFromNames — contact is the most recent sender
+    // Replies that live in Inbox (which PA doesn't scan) will not be marked
+    // until the PA flow is extended to scan Inbox.
     return false;
   }
 
