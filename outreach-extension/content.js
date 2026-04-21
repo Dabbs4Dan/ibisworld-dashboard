@@ -732,6 +732,14 @@
       // which creates circular self-validation (the whole Medline→Nisa bug).
       const _s2bTextLow = (row.textContent || '').toLowerCase();
       function _s2bConfirmed(res) {
+        // v3.68: Never accept a match that synthesizes to our own brand.
+        // Every outreach subject contains "IBISWorld" (e.g. "Revisiting IBISWorld for eBay"),
+        // so cacheNameMap entries whose domain is an ibisworld-variant (subdomain,
+        // hyphenated, etc.) would otherwise pass root-in-text confirmation and
+        // paint the row with an "Ibisworld" company bubble. Hard-reject brand matches.
+        const anLow = (res.contact?.accountName || '').toLowerCase();
+        const dLow  = (res.domain || '').toLowerCase();
+        if (anLow.includes('ibisworld') || dLow.includes('ibisworld')) return false;
         if (_textHint) {
           // Hint wins — either it agrees (accept) or disagrees (reject definitively).
           return _hintOk(res.contact?.accountName, res.domain);
@@ -903,14 +911,18 @@
   // tense ("Reply"/"Forward"), so past-tense matching is safe.
 
   function hasRowReplyIndicator(row) {
-    // v3.67: DOM aria-label is unreliable for reply detection — Outlook uses
-    // "replied" generically for thread activity (including Dan's own
-    // follow-ups). Both v3.63 and v3.66 heuristics produced false positives.
-    // Reply detection now comes exclusively from:
-    //   • PA cache hasReplied — inbound filed in a monitored folder
-    //   • getNonDanFromNames — contact is the most recent sender
-    // Replies that live in Inbox (which PA doesn't scan) will not be marked
-    // until the PA flow is extended to scan Inbox.
+    // v3.68: Restore aria-label reply detection with "You replied/forwarded" strip.
+    // Full disable (v3.67) suppressed too many real replies. Balance chosen here:
+    // strip Dan's own action phrases, then check remaining aria text for "replied".
+    // Outlook's aria varies across row states — some Dan-only threads may still slip
+    // through as false positives; that's better than missing contact replies outright.
+    // The real fix is extending PA flow to monitor Inbox.
+    const aria = (row.getAttribute('aria-label') || '');
+    if (!aria) return false;
+    // Remove every "you replied …" / "you forwarded …" phrase before matching.
+    // Trailing context stops at ., , ; or end-of-string.
+    const stripped = aria.replace(/\byou\s+(replied|forwarded)[^.,;]*/gi, '');
+    if (/\breplied\b/i.test(stripped)) return true;
     return false;
   }
 
