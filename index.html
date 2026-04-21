@@ -977,6 +977,7 @@
   .acct-priority-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-priority-opt:last-child { margin-bottom:0; }
   .acct-priority-opt:hover { filter:brightness(0.94); }
+  .apr-quickwinner { background:#1e3a8a; color:#ffffff; }
   .apr-legendary { background:#fef3c7; color:#92400e; }
   .apr-veryrare  { background:#ede9fe; color:#5b21b6; }
   .apr-rare      { background:#dbeafe; color:#1e40af; }
@@ -2822,7 +2823,7 @@ function getFiltered() {
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
-    if (sort==='acctPriority') { const ord={legendary:0,veryrare:1,rare:2,uncommon:3,common:4,'':5}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??5)-(ord[bp]??5)); }
+    if (sort==='acctPriority') { const ord={quickwinner:0,legendary:1,veryrare:2,rare:3,uncommon:4,common:5,'':6}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??6)-(ord[bp]??6)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*((hasActiveOpp(an)?1:0)-(hasActiveOpp(bn)?1:0)); }
     return 0;
@@ -4305,18 +4306,19 @@ function toggleStatusCol() {
 
 // Account Priority custom dropdown — stored in ibis_local[name].acctPriority
 const ACCT_PRIORITY_OPTS = [
-  { key:'legendary', label:'💎 Legendary', cls:'apr-legendary' },
-  { key:'veryrare',  label:'⭐ Very Rare',  cls:'apr-veryrare' },
-  { key:'rare',      label:'🔨 Rare',       cls:'apr-rare' },
-  { key:'uncommon',  label:'⛏ Uncommon',   cls:'apr-uncommon' },
-  { key:'common',    label:'🪵 Common',     cls:'apr-common' },
-  { key:'',          label:'—',             cls:'apr-none' },
+  { key:'quickwinner', label:'⚡ Quick Winner', cls:'apr-quickwinner' },
+  { key:'legendary',   label:'💎 Legendary',   cls:'apr-legendary' },
+  { key:'veryrare',    label:'⭐ Very Rare',   cls:'apr-veryrare' },
+  { key:'rare',        label:'🔨 Rare',        cls:'apr-rare' },
+  { key:'uncommon',    label:'⛏ Uncommon',    cls:'apr-uncommon' },
+  { key:'common',      label:'🪵 Common',      cls:'apr-common' },
+  { key:'',            label:'—',              cls:'apr-none' },
 ];
 
 function renderAcctPrioritySelect(name) {
   const priority = (localData[name]?.acctPriority) || '';
   const safeId = 'apw-' + name.replace(/[^a-z0-9]/gi,'_');
-  const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS[5];
+  const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS.find(o => o.key === '');
   return `<div class="acct-priority-wrap" id="${safeId}" data-acct-name="${escHtml(name)}" onclick="event.stopPropagation()">
     <button class="acct-priority-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctPriorityPortal('${safeId}',this)">${cur.label}</button>
   </div>`;
@@ -4353,7 +4355,7 @@ function applyPortalPriority(priority) {
   localStorage.setItem('ibis_local', JSON.stringify(localData));
   const wrap = document.getElementById(id);
   if (wrap) {
-    const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS[5];
+    const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS.find(o => o.key === '');
     const trigger = wrap.querySelector('.acct-priority-trigger');
     if (trigger) { trigger.className = 'acct-priority-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
   }
@@ -5126,7 +5128,7 @@ function renderAPHeader(acc, local, name) {
   const prioOpt       = ACCT_PRIORITY_OPTS.find(o => o.key === (local.acctPriority || ''));
 
   // Priority badge with color bubble
-  const PRIO_COLORS = { legendary:'background:#fef3c7;color:#92400e;', veryrare:'background:#ede9fe;color:#5b21b6;', rare:'background:#dbeafe;color:#1e40af;', uncommon:'background:#d1fae5;color:#065f46;', common:'background:#f3f4f6;color:#4b5563;' };
+  const PRIO_COLORS = { quickwinner:'background:#1e3a8a;color:#ffffff;', legendary:'background:#fef3c7;color:#92400e;', veryrare:'background:#ede9fe;color:#5b21b6;', rare:'background:#dbeafe;color:#1e40af;', uncommon:'background:#d1fae5;color:#065f46;', common:'background:#f3f4f6;color:#4b5563;' };
   const prioBadgeEl = (prioOpt && prioOpt.key)
     ? `<span style="display:inline-flex;align-items:center;${PRIO_COLORS[prioOpt.key]||''}border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">${prioOpt.label}</span>`
     : '<span style="color:var(--text-muted);">—</span>';
@@ -5780,7 +5782,7 @@ function renderAction() {
       case 'sentiment':   av = al.sentiment?.score ?? -1; bv = bl.sentiment?.score ?? -1; break;
       case 'workables':   av = getWorkableCount(a.name); bv = getWorkableCount(b.name); break;
       case 'acctStatus':  av = ['keep','monitor','drop',''].indexOf(al.acctStatus||''); bv = ['keep','monitor','drop',''].indexOf(bl.acctStatus||''); break;
-      case 'acctPriority':{ const pm={legendary:0,veryrare:1,rare:2,uncommon:3,common:4}; av=pm[al.acctPriority]??99; bv=pm[bl.acctPriority]??99; break; }
+      case 'acctPriority':{ const pm={quickwinner:0,legendary:1,veryrare:2,rare:3,uncommon:4,common:5}; av=pm[al.acctPriority]??99; bv=pm[bl.acctPriority]??99; break; }
       case 'nextdate': {
         const da = al.actionNextDate ? new Date(al.actionNextDate).getTime() : null;
         const db = bl.actionNextDate ? new Date(bl.actionNextDate).getTime() : null;
