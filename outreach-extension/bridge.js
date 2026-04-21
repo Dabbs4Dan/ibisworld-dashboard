@@ -20,7 +20,7 @@
     { key: 'ibis_netnew',      label: 'Net New',      folder: 'Net New'     },
     { key: 'ibis_multithread', label: 'Multithread',  folder: 'Multithread' },
     { key: 'ibis_winback',     label: 'Winback',      folder: 'Winback'     },
-    { key: 'ibis_powerback',   label: 'Powerback',    folder: null          }, // no Outlook folder yet
+    { key: 'ibis_alumni',      label: 'Alumni',       folder: null          }, // no Outlook folder yet
   ];
 
   function pushContactsToExtension() {

@@ -186,6 +186,12 @@
     });
   }
 
+  // Salesforce email-to-case tracking addresses (e.g. emailtosalesforce@...salesforce.com).
+  // Forwarding to these is an admin action — never count as a step or reply signal.
+  function isSFTrackingEmail(email) {
+    return /\.salesforce\.com$/i.test(email) || /^emailtosalesforce@/i.test(email);
+  }
+
   function processEmailCache(data) {
     if (!Array.isArray(data)) return;
     // Debug: log first item's from/toRecipients shape to confirm field format
@@ -209,7 +215,7 @@
       const fromEmail = (fromAngle ? fromAngle[1] : fromRaw).trim();
       // Inbound emails (FROM = contact) → mark hasReplied + update lastDate so
       // staleness reflects the most recent email in either direction (not just outbound).
-      if (fromEmail.includes('@') && !fromEmail.endsWith('@' + OWN_DOMAIN)) {
+      if (fromEmail.includes('@') && !fromEmail.endsWith('@' + OWN_DOMAIN) && !isSFTrackingEmail(fromEmail)) {
         const inDt = item.receivedDateTime || item.sentDateTime || item.date || '';
         if (!map[fromEmail]) map[fromEmail] = { lastDate: inDt, count: 0, dates: [], hasReplied: true };
         else {
@@ -241,6 +247,9 @@
         const angleMatch = raw.match(/<([^>@\s]+@[^>@\s]+)>/);
         const em = (angleMatch ? angleMatch[1] : raw).toLowerCase().trim();
         if (!em || !em.includes('@') || em.endsWith('@' + OWN_DOMAIN)) return;
+        // Skip Salesforce email-to-case BCC tracking addresses — forwarding to these
+        // should never count as an outreach step or pollute the step count.
+        if (isSFTrackingEmail(em)) return;
         // Secondary dedup: same recipient + same hour = same email in a different folder.
         // Outlook assigns different item.id to campaign folder copy vs Sent Items copy,
         // so seenIds misses these. Truncate datetime to hour to catch timestamp diffs
@@ -648,6 +657,20 @@
     // Diagnostic breadcrumbs — visible in F12 console when filtering [IBISWorld]
     const _diag = [];
 
+    // Pre-compute: does the row subject/preview name a specific account?
+    // e.g. "Revisiting IBISWorld for Medline" → { name:'Medline', domain:'medline.com' }
+    // Used to reject name-based matches that disagree with the clearly-named company
+    // (prevents "Hi Angela" matching Angela-at-Nisa when subject says Medline).
+    const _textHint = findAccountNameInText(row.textContent || '');
+    function _hintOk(acctName, domain) {
+      if (!_textHint || !acctName) return true; // no constraint → always ok
+      const h = _textHint.name.toLowerCase();
+      const a = acctName.toLowerCase();
+      // Pass if names overlap (one contains the other) or domain matches hint
+      return a.includes(h) || h.includes(a) ||
+             (domain && (domain === _textHint.domain || domain.includes(h.split(' ')[0])));
+    }
+
     // ── Strategy 1: DOM email scan (highest confidence) ──
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
       for (const attr of ['title', 'aria-label', 'data-email', 'href']) {
@@ -677,12 +700,14 @@
       // contact truly isn't in this folder's campaign — guessing via cross-folder
       // often picked the wrong company (e.g. Todd at FIS row matching Todd at Michaels).
       const matches = matchContactsByFirstName(greetingName, activeFolder);
-      if (matches.length === 1) return { ...matches[0], confidence: 'greeting' };
-      if (matches.length > 1) {
-        const best = domDate ? tiebreakByDate(matches, domDate) : null;
+      const hintMatches = matches.filter(m => _hintOk(m.contact?.accountName, m.domain));
+      if (hintMatches.length === 1) return { ...hintMatches[0], confidence: 'greeting' };
+      if (hintMatches.length > 1) {
+        const best = domDate ? tiebreakByDate(hintMatches, domDate) : null;
         if (best) return { ...best, confidence: 'greeting+date' };
-        return { ...matches[0], confidence: 'greeting' }; // first match as last resort
+        return { ...hintMatches[0], confidence: 'greeting' };
       }
+      if (matches.length > hintMatches.length) _diag.push(`S2:hint-filtered-${matches.length - hintMatches.length}`);
       _diag.push('S2:0-folder-matches');
     } else {
       _diag.push('S2:no-greeting');
@@ -697,10 +722,17 @@
       _diag.push(`S2b:cache-lookup="${lookupKey}" hits=${cacheMatches.length}`);
       if (cacheMatches.length === 1) {
         const cm = cacheMatches[0];
-        return _synthCacheResult(cm, 'cache_name');
-      }
-      if (cacheMatches.length > 1) {
-        const candidates = cacheMatches.map(cm => ({
+        const res = _synthCacheResult(cm, 'cache_name');
+        if (_hintOk(res.contact?.accountName, res.domain)) return res;
+        _diag.push(`S2b:hint-mismatch(${res.contact?.accountName}≠${_textHint?.name})`);
+      } else if (cacheMatches.length > 1) {
+        // Filter candidates to hint-compatible matches before tiebreaking
+        const hintCMs = cacheMatches.filter(cm => {
+          const res = _synthCacheResult(cm, 'cache_name');
+          return _hintOk(res.contact?.accountName, res.domain);
+        });
+        const pool = hintCMs.length > 0 ? hintCMs : cacheMatches; // fall back to all if hint filters everything
+        const candidates = pool.map(cm => ({
           email: cm.email,
           contact: { accountName: '', domain: cm.domain, name: '', _folders: [] },
           domain: cm.domain,
@@ -711,8 +743,8 @@
           best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
           return { ...best, confidence: 'cache_name+date' };
         }
-        // No date tiebreak possible — pick first
-        return _synthCacheResult(cacheMatches[0], 'cache_name');
+        const res0 = _synthCacheResult(pool[0], 'cache_name');
+        if (_hintOk(res0.contact?.accountName, res0.domain)) return res0;
       }
     } else if (greetingName) {
       _diag.push('S2b:cacheNameMap-empty');
@@ -851,9 +883,10 @@
 
   function hasRowReplyIndicator(row) {
     const aria = (row.getAttribute('aria-label') || '');
-    // Past-tense ONLY — "replied" and "forwarded" are status indicators.
-    // "reply", "replies", "forward" are action verbs on buttons — do NOT match.
-    if (/\breplied\b|\bforwarded\b/i.test(aria)) return true;
+    // Past-tense "replied" only — means the contact replied and Dan wrote back.
+    // "forwarded" is intentionally excluded: it means DAN forwarded the email
+    // (e.g. to the Salesforce BCC tracking address), NOT that the contact replied.
+    if (/\breplied\b/i.test(aria)) return true;
     return false;
   }
 
