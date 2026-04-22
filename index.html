@@ -986,6 +986,7 @@
   .apr-none      { background:#f3f4f6; color:#9ca3af; }
 
   /* Priority filter chip active states */
+  .chip-quickwinner.active { background:#1e3a8a; border-color:#1e3a8a; color:#ffffff; }
   .chip-legendary.active { background:#fef3c7; border-color:#fcd34d; color:#92400e; }
   .chip-veryrare.active  { background:#ede9fe; border-color:#c4b5fd; color:#5b21b6; }
   .chip-rare.active      { background:#dbeafe; border-color:#93c5fd; color:#1e40af; }
@@ -1867,6 +1868,7 @@
     <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
     <button class="chip chip-action" onclick="toggleChip(this,'HAS_ACTION')" data-flag="HAS_ACTION">⚡ In Action</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
+    <button class="chip chip-quickwinner" onclick="toggleChip(this,'PRIO_QUICKWINNER')" data-flag="PRIO_QUICKWINNER">⚡ Quick Winner</button>
     <button class="chip chip-legendary" onclick="toggleChip(this,'PRIO_LEGENDARY')" data-flag="PRIO_LEGENDARY">💎 Legendary</button>
     <button class="chip chip-veryrare" onclick="toggleChip(this,'PRIO_VERYRARE')" data-flag="PRIO_VERYRARE">⭐ Very Rare</button>
     <button class="chip chip-rare" onclick="toggleChip(this,'PRIO_RARE')" data-flag="PRIO_RARE">🔨 Rare</button>
@@ -2779,9 +2781,9 @@ function getFiltered() {
         if (!statusFs.some(f => map[f] === acctStatus)) return false;
       }
       // Priority group — OR within
-      const prioFs = ['PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON'].filter(f => activeFlags.has(f));
+      const prioFs = ['PRIO_QUICKWINNER','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON'].filter(f => activeFlags.has(f));
       if (prioFs.length) {
-        const map = {PRIO_LEGENDARY:'legendary',PRIO_VERYRARE:'veryrare',PRIO_RARE:'rare',PRIO_UNCOMMON:'uncommon'};
+        const map = {PRIO_QUICKWINNER:'quickwinner',PRIO_LEGENDARY:'legendary',PRIO_VERYRARE:'veryrare',PRIO_RARE:'rare',PRIO_UNCOMMON:'uncommon'};
         if (!prioFs.some(f => map[f] === acctPriority)) return false;
       }
       // Stage group — OR within (clickable badge filter)
@@ -2796,7 +2798,7 @@ function getFiltered() {
       // In Action — standalone
       if (activeFlags.has('HAS_ACTION') && !localData[aName]?.hasAction) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','PRIO_QUICKWINNER','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
