@@ -34,6 +34,7 @@
   // use Google Favicon API (most reliable, caches all major sites).
   const FAVICON_URL_OVERRIDES = {
     'parker.com': 'https://www.google.com/s2/favicons?domain=parker.com&sz=32',
+    'csx.com':    'https://www.google.com/s2/favicons?domain=csx.com&sz=32',
   };
 
   // Company name overrides — when the email domain doesn't match the real account name.
@@ -733,6 +734,29 @@
              (domain && (domain === _textHint.domain || domain.includes(h.split(' ')[0])));
     }
 
+    // v3.71: Hoisted out of Strategy 2b so every cacheNameMap-origin match
+    // (Strategies 2b, 3b, 4) runs through the SAME text-confirmation gate.
+    // Strategy 4's cacheNameMap branch was previously bypassing this check,
+    // which was the Medline→Nisa leak path: Angela-at-Nisa existed in PA
+    // cache, Strategy 2 fell through (Angela not in Churns contactMap),
+    // Strategy 2b rejected Nisa correctly, but Strategy 4 then accepted it.
+    const _rowTextLow = (row.textContent || '').toLowerCase();
+    function _confirmCacheMatch(res) {
+      if (!res) return false;
+      // Never accept our own brand (Yuyu/eBay fix)
+      const anLow = (res.contact?.accountName || '').toLowerCase();
+      const dLow  = (res.domain || '').toLowerCase();
+      if (anLow.includes('ibisworld') || dLow.includes('ibisworld')) return false;
+      // When _textHint is set (a known dashboard account name is in the row),
+      // it's authoritative — only accept cacheNameMap matches that agree with it.
+      if (_textHint) return _hintOk(res.contact?.accountName, res.domain);
+      // No hint: require synthesized company root OR domain root to appear in row text
+      const acctRoot = (res.contact?.accountName || '').split(/[\s\-]/)[0].toLowerCase();
+      const domRoot  = (res.domain || '').split('.')[0].toLowerCase();
+      return (acctRoot.length >= 4 && _rowTextLow.includes(acctRoot)) ||
+             (domRoot.length  >= 4 && _rowTextLow.includes(domRoot));
+    }
+
     // ── Strategy 1: DOM email scan (highest confidence) ──
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
       for (const attr of ['title', 'aria-label', 'data-email', 'href']) {
@@ -782,40 +806,12 @@
       const lookupKey = stripAccents(greetingName).toLowerCase();
       const cacheMatches = cacheNameMap[lookupKey] || [];
       _diag.push(`S2b:cache-lookup="${lookupKey}" hits=${cacheMatches.length}`);
-      // Helper: require positive text confirmation for cacheNameMap results.
-      // Unlike contactMap results (which are confirmed by being in a campaign folder),
-      // cacheNameMap entries are unvetted PA cache emails. We must verify the synthesized
-      // company name or domain root actually appears in the row text to avoid wrong company
-      // names (e.g. "Angela" in cache has domain nisa.com → "Nisa" appearing on a Medline row).
-      // v3.66: When _textHint is set (a known dashboard account name appears in the row
-      // subject/preview), it's AUTHORITATIVE — only accept cacheNameMap matches that
-      // agree with it. Don't fall back to "root appears in row text" because on
-      // re-scans row.textContent already contains our own injected badge text,
-      // which creates circular self-validation (the whole Medline→Nisa bug).
-      const _s2bTextLow = (row.textContent || '').toLowerCase();
-      function _s2bConfirmed(res) {
-        // v3.68: Never accept a match that synthesizes to our own brand.
-        // Every outreach subject contains "IBISWorld" (e.g. "Revisiting IBISWorld for eBay"),
-        // so cacheNameMap entries whose domain is an ibisworld-variant (subdomain,
-        // hyphenated, etc.) would otherwise pass root-in-text confirmation and
-        // paint the row with an "Ibisworld" company bubble. Hard-reject brand matches.
-        const anLow = (res.contact?.accountName || '').toLowerCase();
-        const dLow  = (res.domain || '').toLowerCase();
-        if (anLow.includes('ibisworld') || dLow.includes('ibisworld')) return false;
-        if (_textHint) {
-          // Hint wins — either it agrees (accept) or disagrees (reject definitively).
-          return _hintOk(res.contact?.accountName, res.domain);
-        }
-        // No hint: require company name root or domain root to appear in row text.
-        const acctRoot = (res.contact?.accountName || '').split(/[\s\-]/)[0].toLowerCase();
-        const domRoot  = (res.domain || '').split('.')[0].toLowerCase();
-        return (acctRoot.length >= 4 && _s2bTextLow.includes(acctRoot)) ||
-               (domRoot.length  >= 4 && _s2bTextLow.includes(domRoot));
-      }
+      // Text confirmation for cacheNameMap results uses the hoisted
+      // _confirmCacheMatch helper (shared with Strategy 4).
       if (cacheMatches.length === 1) {
         const cm = cacheMatches[0];
         const res = _synthCacheResult(cm, 'cache_name');
-        if (res && _s2bConfirmed(res)) return res;
+        if (res && _confirmCacheMatch(res)) return res;
         if (!res) _diag.push('S2b:brand-leak-rejected');
         else _diag.push(`S2b:unconfirmed(${res.contact?.accountName}≠text)`);
       } else if (cacheMatches.length > 1) {
@@ -823,7 +819,7 @@
         // Also drops brand-leak candidates (_synthCacheResult returns null for those).
         const confirmedCMs = cacheMatches.filter(cm => {
           const r = _synthCacheResult(cm, 'cache_name');
-          return r && _s2bConfirmed(r);
+          return r && _confirmCacheMatch(r);
         });
         const pool = confirmedCMs.length > 0 ? confirmedCMs : []; // no fallback — don't guess from unconfirmed pool
         if (pool.length > 0) {
@@ -873,7 +869,7 @@
           const cacheMatches = cacheNameMap[lower] || [];
           if (cacheMatches.length === 1) {
             const r = _synthCacheResult(cacheMatches[0], 'cache_sender');
-            if (r) return r;
+            if (r && _confirmCacheMatch(r)) return r;
           }
           if (cacheMatches.length > 1 && domDate) {
             // Drop brand-leak candidates (domain contains 'ibisworld')
@@ -915,13 +911,14 @@
         }
       }
       // Also try cacheNameMap for contacts not in dashboard campaigns.
-      // _synthCacheResult returns null for brand-leak candidates — skip those.
+      // v3.71: funnel through _confirmCacheMatch — was previously the only
+      // cache-origin strategy bypassing the text-hint gate (Medline→Nisa leak).
       for (const [firstName, entries] of Object.entries(cacheNameMap)) {
         if (firstName.length < 3 || OWN_NAMES.has(firstName)) continue;
         const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
         if (re.test(rowText) && entries.length === 1) {
           const r = _synthCacheResult(entries[0], 'cache_text_scan');
-          if (r) return r;
+          if (r && _confirmCacheMatch(r)) return r;
         }
       }
     }
@@ -1674,6 +1671,15 @@
   // "Allinial Global" over a hypothetical "Allinial" or "Global".
   // Skips very short names (< 4 chars) to avoid false matches on common words.
   let _sortedAccountNames = null;
+  // Generic corporate suffixes / fillers that should NOT anchor a match on their own.
+  // e.g. "Industries" alone in a subject must not resolve to "Medline Industries Inc."
+  const _ACCT_STOP_WORDS = new Set([
+    'inc','corp','ltd','llc','limited','company','corporation','group','holdings',
+    'international','global','industries','services','solutions','systems','technologies',
+    'enterprises','partners','partnership','associates','ventures','holding','plc','ag',
+    'sa','co','the','and','for','of','n.a.','na','usa','us','america','american',
+  ]);
+
   function findAccountNameInText(text) {
     if (!text || Object.keys(accountNameMap).length === 0) return null;
     // Cache sorted keys (longest first) — only rebuild when map changes
@@ -1682,12 +1688,34 @@
       _sortedAccountNames._size = Object.keys(accountNameMap).length;
     }
     const lower = text.toLowerCase();
+
+    // Pass 1: full-key substring match (fast, unambiguous when the dashboard name
+    // matches verbatim — e.g. "eBay" key in text "Revisiting IBISWorld for eBay").
     for (const key of _sortedAccountNames) {
-      if (lower.includes(key)) {
-        return accountNameMap[key];
+      if (lower.includes(key)) return accountNameMap[key];
+    }
+
+    // v3.71: Pass 2 — significant-word match for multi-word keys. Dashboards often
+    // store full legal names ("Medline Industries Inc.") while subjects use the short
+    // form ("Medline"). Build an anchor = the longest non-stop-word token (≥4 chars)
+    // from each key; if that anchor appears as a whole word in the text, match.
+    // Longest anchor wins so specific brand words beat generic ones.
+    let bestHit = null;
+    let bestLen = 0;
+    for (const key of _sortedAccountNames) {
+      const tokens = key.split(/[\s\-&.,'/]+/)
+        .map(t => t.replace(/[^a-z0-9]/g, ''))
+        .filter(t => t.length >= 4 && !_ACCT_STOP_WORDS.has(t));
+      if (tokens.length === 0) continue;
+      tokens.sort((a, b) => b.length - a.length);
+      const anchor = tokens[0];
+      const re = new RegExp('\\b' + anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+      if (re.test(lower) && anchor.length > bestLen) {
+        bestHit = accountNameMap[key];
+        bestLen = anchor.length;
       }
     }
-    return null;
+    return bestHit;
   }
 
   function domainToColor(seed) {
