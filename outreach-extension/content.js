@@ -165,11 +165,17 @@
   function loadEmailCache() {
     if (!CONTACT_ACTIVITY_URL || !ctxOk()) return;
     updateDebugBadge('loading');
+    // v3.70: cache-buster defeats SharePoint's CDN serving us a stale copy of
+    // contact_activity.json. PA updates the file every 2h; without this, the
+    // browser / SharePoint cache can hold an older version for hours after PA
+    // has written new data, so recent sends never reach the extension.
+    const bust = `cb=${Date.now()}`;
+    const url  = CONTACT_ACTIVITY_URL + (CONTACT_ACTIVITY_URL.includes('?') ? '&' : '?') + bust;
     // Route through background service worker to bypass CORS restrictions.
     // Chrome MV3 service workers can be inactive — if the SW is starting up when
     // sendMessage is called, the response may never arrive. We retry up to 3 times
     // with exponential back-off to handle a sleeping SW gracefully.
-    chrome.runtime.sendMessage({ type: 'FETCH_URL', url: CONTACT_ACTIVITY_URL }, (res) => {
+    chrome.runtime.sendMessage({ type: 'FETCH_URL', url }, (res) => {
       if (chrome.runtime.lastError || !res || !res.ok) {
         const errMsg = chrome.runtime.lastError?.message || res?.error || 'no response';
         LOG('Email cache fetch failed:', errMsg, '| retry:', cacheRetryCount);
@@ -478,53 +484,103 @@
     return Math.max(0, Math.floor((todayMidnight - dateMidnight) / 86400000));
   }
 
-  function dateFromAriaLabel(label) {
-    if (!label) return null;
-    // CRITICAL: day-of-week and date patterns MUST come BEFORE time-only.
-    // Outlook aria-labels contain "Mon 3:01 PM" — if time matches first, we return
-    // "today" instead of last Monday. Checking day/date first ensures "Mon" is parsed
-    // as the day-of-week, and time-only ("3:01 PM") is the last-resort = today.
+  // v3.70: extract ALL date tokens in order, return a de-duped array of Date objects.
+  // Outlook's row aria-label often contains multiple dates for the same conversation
+  // (e.g. "Thu 4/16/2026 1:25 PM ... You replied Tue 4/21/2026 12:21 PM"). The older
+  // first-match approach returned 4/16 → staleness badge showed 6d when the real
+  // latest activity was 4/21 (1d).
+  //
+  // Priority is still preserved: specific dates (MM/DD, "Apr 16") win over
+  // day-of-week ("Mon"), which wins over bare times ("3:01 PM" = today).
+  // We collect in priority order and dedupe by ISO day.
+  function dateListFromAriaLabel(label) {
+    if (!label) return [];
     const patterns = [
-      /\bToday\b/i,
-      /\bYesterday\b/i,
-      /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i,
-      /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/i,
-      /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/,
-      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s*\d{4})?\b/i,
-      /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:,\s*\d{4})?\b/i,
-      /\d{1,2}:\d{2}\s*(AM|PM)/i,
+      { re: /\bToday\b/gi },
+      { re: /\bYesterday\b/gi },
+      { re: /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s*\d{4})?\b/gi },
+      { re: /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:,\s*\d{4})?\b/gi },
+      { re: /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g },
+      { re: /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/gi },
+      { re: /\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/gi },
+      { re: /\d{1,2}:\d{2}\s*(AM|PM)/gi },
     ];
-    for (const p of patterns) {
-      const m = label.match(p);
-      if (m) { const d = parseOutlookDate(m[0]); if (d) return d; }
+    const seen = new Set();
+    const out  = [];
+    for (const { re } of patterns) {
+      const matches = label.match(re) || [];
+      for (const m of matches) {
+        const d = parseOutlookDate(m);
+        if (!d || isNaN(d.getTime())) continue;
+        const key = d.toISOString().slice(0, 10);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(d);
+      }
     }
-    return null;
+    return out;
+  }
+
+  function dateFromAriaLabel(label) {
+    const list = dateListFromAriaLabel(label);
+    if (list.length === 0) return null;
+    // Most recent wins — Outlook's label may start with the thread's origin date
+    // but include the latest activity later; we want latest activity.
+    return list.reduce((a, b) => (a > b ? a : b));
   }
 
   // ── Date extraction from a row ────────────────────────────────────────────────
   // Centralised so we can call it for BOTH counting and badge injection.
 
-  function getDateFromRow(row) {
-    // 1. aria-label (most reliable)
-    let date = dateFromAriaLabel(row.getAttribute('aria-label') || '');
-    if (date) return date;
-    // 2. <time> element
-    const timeEl = row.querySelector('time');
-    if (timeEl) {
-      const dt = timeEl.getAttribute('datetime');
-      date = dt ? new Date(dt) : null;
-      if (!date || isNaN(date.getTime())) date = parseOutlookDate(timeEl.textContent.trim());
-      if (date && !isNaN(date.getTime())) return date;
+  // v3.70: collect every date we can find in the row — aria-label, <time> elements,
+  // sub-element aria-labels, short span text. De-duped by ISO calendar day.
+  // Used both for staleness (pick max = most recent activity) and as a
+  // step-count floor (PA cache may be stale; DOM is realtime).
+  function getAllDatesFromRow(row) {
+    const seen = new Set();
+    const out  = [];
+    const push = (d) => {
+      if (!d || isNaN(d.getTime())) return;
+      const key = d.toISOString().slice(0, 10);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(d);
+    };
+    // 1. Row-level aria-label — may contain multiple date tokens
+    for (const d of dateListFromAriaLabel(row.getAttribute('aria-label') || '')) push(d);
+    // 2. Every <time> element (each message in an expanded conversation can have one)
+    for (const el of row.querySelectorAll('time')) {
+      const dt = el.getAttribute('datetime');
+      if (dt) push(new Date(dt));
+      else push(parseOutlookDate((el.textContent || '').trim()));
     }
-    // 3. Short text spans (date-like strings)
+    // 3. Nested aria-labels (e.g. Outlook icon elements with "Replied Tue 4/21" labels)
+    for (const el of row.querySelectorAll('[aria-label]')) {
+      if (el === row) continue;
+      for (const d of dateListFromAriaLabel(el.getAttribute('aria-label') || '')) push(d);
+    }
+    // 4. Short leaf span text (catches visible date chips Outlook renders as bare text)
     for (const el of [...row.querySelectorAll('span')].filter(e => e.childElementCount === 0)) {
-      const t = el.textContent.trim();
-      if (t.length > 0 && t.length < 20) {
-        date = parseOutlookDate(t);
-        if (date) return date;
-      }
+      const t = (el.textContent || '').trim();
+      if (t.length > 0 && t.length < 20) push(parseOutlookDate(t));
     }
-    return null;
+    return out;
+  }
+
+  function getDateFromRow(row) {
+    const list = getAllDatesFromRow(row);
+    if (list.length === 0) return null;
+    return list.reduce((a, b) => (a > b ? a : b));
+  }
+
+  // Thread-size hint from row aria-label: "2 items", "5 messages", "with 3".
+  // Returns 0 when nothing parseable found.
+  function getThreadCountFromAria(row) {
+    const aria = (row.getAttribute('aria-label') || '');
+    if (!aria) return 0;
+    const m = aria.match(/\b(\d+)\s*(items?|messages?|emails?|conversations?)\b/i)
+           || aria.match(/\bwith\s+(\d+)\s+/i);
+    return m ? parseInt(m[1], 10) : 0;
   }
 
   // ── Contact / company lookup (v3.31 — multi-strategy matching pipeline) ──────
@@ -1321,8 +1377,17 @@
           const uniqueDays = new Set(cacheData.dates.map(d => (d || '').slice(0, 10)));
           stepCount = uniqueDays.size;
         }
-        // v3.61: PA cache runs every 2h, so new contacts sent today won't be in it yet.
-        // The DOM row itself is proof of one sent email — show 1 instead of 0 until PA catches up.
+        // v3.70: DOM truth floors — PA syncs every 2h, so fresh activity is invisible
+        // to PA until next run. The row DOM is realtime. Use whatever DOM evidence
+        // exceeds the PA count as a floor, never let PA staleness pull us below truth.
+        //   • domDates.length = distinct date tokens in row (captures "replied Tue 4/21")
+        //   • aria thread-count = "N messages" phrasing when present
+        const domDates    = getAllDatesFromRow(row);
+        const ariaThread  = getThreadCountFromAria(row);
+        const domFloor    = Math.max(domDates.length, ariaThread);
+        if (domFloor > stepCount) stepCount = domFloor;
+        // v3.61: even when PA has nothing and DOM shows no explicit count, the row
+        // itself proves one send happened.
         if (stepCount === 0 && resolvedEmail && date) stepCount = 1;
 
         // Reply detection (v3.69) — PA-cache-first, with DOM fallback:
