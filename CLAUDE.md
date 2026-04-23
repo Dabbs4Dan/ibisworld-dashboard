@@ -50,7 +50,7 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 
 ---
 
-## CURRENT STATE — v34 (stable)
+## CURRENT STATE — v35 (stable)
 
 ### Five tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -94,9 +94,11 @@ Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Campaign
 - Closes on click-outside and on scroll
 - **Collapsible column** — toggle button (`‹`/`›`) is a visible grey pill in the `<th>`. Collapsed state shrinks to 28px strip (not zero) showing only the expand button; `td` cells get `background:#f9fafb` as visual cue. `<span class="status-col-label">` wraps text so it hides independently from the button. CSS class `table.status-col-collapsed` controls all collapsed states.
 
-#### Priority Column (new in v26)
-- Per-account dropdown with 5 rarity tiers (Minecraft-style item rarity):
-  - 💎 **Legendary** (gold) · ⭐ **Very Rare** (purple) · 🔨 **Rare** (blue) · ⛏ **Uncommon** (green) · 🪵 **Common** (grey) · dash (unset)
+#### Priority Column (new in v26, extended v35)
+- Per-account dropdown with 6 tiers (5 rarity + Quick Winner top tier):
+  - ⚡ **Quick Winner** (navy #1e3a8a / white — v35) · 💎 **Legendary** (gold) · ⭐ **Very Rare** (purple) · 🔨 **Rare** (blue) · ⛏ **Uncommon** (green) · 🪵 **Common** (grey) · dash (unset)
+- Quick Winner sorts first (value 0), then legendary/veryrare/rare/uncommon/common (1–5)
+- `ACCT_PRIORITY_OPTS[5]` hard-coded index fallback replaced with `.find(o => o.key === '')` — future tier additions can't break the `—` reset option
 - Stored in `ibis_local[name].acctPriority` — same prune protection as `acctStatus`
 - **Portal dropdown** — `<div id="acct-priority-portal">` at `<body>` level, `z-index:9501`. Same architecture as status portal. `openAcctPriorityPortal(id, triggerBtn)` / `applyPortalPriority(prio)` mirror status pattern exactly.
 - Filter chips: 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon in the top filter bar
@@ -120,8 +122,8 @@ Status | Priority | Company | Opp | Vertical | Tier | Revenue | Score | Campaign
 - `getActiveLicBadges(name)` — returns coloured badge spans or empty string
 - Grey dash if no active license — renamed from "Licenses" to "Active Client"
 
-#### Filter Chips (v23 — replaced old Hot/Opp/Winback/Watching set; updated v26)
-- ✓ Keep · 👁 Monitor · ✗ Drop · 🟢 Active License · 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon
+#### Filter Chips (v23 — replaced old Hot/Opp/Winback/Watching set; updated v26, v35)
+- ✓ Keep · 👁 Monitor · ✗ Drop · 🟢 Active License · 💼 Active Opp · 🎯 Has Workables · ⚡ In Action · ⚡ Quick Winner · 💎 Legendary · ⭐ Very Rare · 🔨 Rare · ⛏ Uncommon
 - **OR-within-group / AND-between-group logic** (v26): chips in the same category are OR; chips from different categories are AND
   - e.g. Legendary + Very Rare = shows **either** (previously showed nothing)
   - e.g. Keep + Legendary = shows Keep accounts that are **also** Legendary
@@ -870,7 +872,7 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
-**Version:** v3.63
+**Version:** v3.71
 **Purpose:** DOM overlay injected into Outlook Web — shows staleness dots, days-since badge, step count, and company bubble directly on each email row + folder badge counts on campaign folders.
 
 ### Files
@@ -1318,3 +1320,9 @@ When a new session begins, Claude Code should:
 | ✅ Done | Outreach Extension v3.62 — scope badges to campaign folders only | **Root cause:** `getActiveCampaignFolder()` Step 4 scanned every `[aria-label]`/`[title]` element in the document, matching sidebar treeitems like "❄️ Winback, 3 unread" even when the user was on Inbox. Badges appeared on every email everywhere. **Fix:** Step 4 removed. Step 1 hardened: if document title names a specific non-campaign view (Inbox/Sent Items/Drafts/etc.), return null immediately instead of falling through to stale tree-state detection (Outlook leaves `aria-selected`/`tabindex=0` on sidebar treeitems after navigating away). Extension now only decorates rows inside the 7 campaign folders. |
 | ✅ Done | Outreach Extension v3.63 — `\bcc` snippet expander | TextBlaze-style inline expansion. Type `\bcc` anywhere in a compose body (new mail/reply/forward) → trigger text strips, Bcc field opens if hidden, Salesforce email-to-case tracking address pastes into Bcc, toast confirms. `SNIPPETS` array in content.js is extensible — add more triggers (e.g. `\sig`, `\cal`) by appending one entry. |
 | 🗺️ Future | More snippet triggers | `SNIPPETS` array is ready for growth — next likely additions: signature block, calendar booking link, "thanks and regards" closer, pricing blurb. |
+| ✅ Done | ⚡ Quick Winner priority tier (v35) | New top-priority tier on Accounts table dropdown. Navy (`#1e3a8a`) + white text. Sorts above Legendary (value 0 vs 1). Includes filter chip in the priority-chip row. `ACCT_PRIORITY_OPTS[5]` hard-coded index replaced with key-based `.find()` to survive future tier additions. Touches: CSS `.apr-quickwinner`, `ACCT_PRIORITY_OPTS`, `PRIO_COLORS`, 2 sort maps (Accounts + Action), filter chip + `PRIO_QUICKWINNER` flag in `prioFs` + `knownFlags` + `map`. |
+| ✅ Done | Outreach Extension v3.64 — SF BCC tracking filter | `isSFTrackingEmail()` helper rejects `emailtosalesforce@*.salesforce.com` addresses in both inbound and outbound PA cache processing. Salesforce BCC tracking email no longer inflates step counts or triggers false replies. |
+| ✅ Done | Outreach Extension v3.65–v3.68 — iterative reply detection tuning | Series of attempts to fix false-reply chips on Dan's follow-up threads (Parker Hannifin, Medline, Univision). v3.65 stripped "forwarded" from aria match. v3.66 added "You replied/forwarded" phrase strip. v3.67 full disable (over-corrected). v3.68 restored with phrase strip. Also added `domain.includes('ibisworld')` rejection in Strategy 2b (Yuyu/eBay brand leak). Ultimately superseded by v3.69. |
+| ✅ Done | Outreach Extension v3.69 — PA-first reply detection + universal brand guard | When `cacheData` exists for the matched contact, PA is authoritative: `hasReplied = cacheData.hasReplied \|\| domReply`, aria-label IGNORED (eliminates false positives from Dan's own follow-ups). When no cache entry, fall back to `domReply \|\| hasRowReplyIndicator` (best-effort). Brand-leak rejection moved INSIDE `_synthCacheResult` — returns null when domain or synthesized name contains `ibisworld`. Every caller (S2b/S3b/S4) null-guards consistently. |
+| ✅ Done | Outreach Extension v3.70 — DOM truth layer + PA cache-buster | `dateFromAriaLabel` now collects ALL date tokens (priority-ordered, deduped by ISO day) and returns the MOST RECENT — fixes rows where Outlook's aria packs "Thu 4/16 ... You replied Tue 4/21" and we were grabbing the origin date. `getAllDatesFromRow()` gathers from aria + `<time>` + nested aria-labels + leaf spans. Step count floor = `max(PA-unique-days, DOM-date-count, ariaThreadCount, 1)` — PA staleness can never pull step count below realtime DOM truth. `getThreadCountFromAria()` parses "N messages" / "N items" as additional floor. `loadEmailCache()` URL gets `?cb=<timestamp>` to defeat SharePoint CDN serving stale `contact_activity.json`. |
+| ✅ Done | Outreach Extension v3.71 — short-form account matching + unified cache gate + CSX logo | `findAccountNameInText` now has a 2nd pass: for multi-word account-map keys ("Medline Industries Inc."), extract the longest non-stopword ≥4 chars as an **anchor** and whole-word-match it in text. Fixes the root cause of Medline→Nisa: `_textHint` was null because subjects use short form ("Medline") vs dashboard long form. Stop-word list: inc/corp/ltd/industries/holdings/global/etc. **Hoisted cache confirmation gate:** `_confirmCacheMatch()` extracted to top of `findContactForRow`. Strategies 2b, 3b, 4 all funnel through it. Previously S4's cacheNameMap branch bypassed the gate — that was the leak path. Brand-check + text-hint check unified in one helper. **CSX logo fix:** added `csx.com` to `FAVICON_URL_OVERRIDES` (DDG serves broken icon; Google S2 API renders the real logo). |
