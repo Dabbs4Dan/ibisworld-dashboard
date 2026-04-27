@@ -1464,6 +1464,15 @@
           <span class="upload-menu-dot" id="udot-alumni"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearAlumniData()" title="Clear">✕</span>
         </button>
+        <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
+        <button class="upload-menu-row" onclick="exportLocalBackup();closeUploadMenu()" style="color:#16a34a;">
+          <span class="upload-menu-label">💾 Backup Markup</span>
+          <span style="font-size:10px;color:#9ca3af;font-family:'DM Mono',monospace;margin-left:auto;padding-right:8px;">export JSON</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('local-restore-input').click();closeUploadMenu()" style="color:#2563eb;">
+          <span class="upload-menu-label">📥 Restore Markup</span>
+          <span style="font-size:10px;color:#9ca3af;font-family:'DM Mono',monospace;margin-left:auto;padding-right:8px;">import JSON</span>
+        </button>
       </div>
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
@@ -1476,6 +1485,7 @@
     <input type="file" id="multithread-file-input" accept=".csv" onchange="handleMultithreadCSV(event)" style="display:none;">
     <input type="file" id="winback-file-input" accept=".csv" onchange="handleWinbackCSV(event)" style="display:none;">
     <input type="file" id="alumni-file-input" accept=".csv" onchange="handleAlumniCSV(event)" style="display:none;">
+    <input type="file" id="local-restore-input" accept=".json" onchange="handleLocalRestore(event)" style="display:none;">
   </div>
 </div>
 
@@ -7600,6 +7610,67 @@ function toggleUploadMenu(e) {
 }
 function closeUploadMenu() {
   document.getElementById('upload-menu')?.classList.add('hidden');
+}
+
+function exportLocalBackup() {
+  const backup = {
+    _version: 1,
+    _exported: new Date().toISOString(),
+    ibis_local: JSON.parse(localStorage.getItem('ibis_local') || '{}'),
+    ibis_dead:  JSON.parse(localStorage.getItem('ibis_dead')  || '{}'),
+    ibis_sort:  JSON.parse(localStorage.getItem('ibis_sort')  || '{}'),
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href     = url;
+  a.download = `ibis-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showOppToast(`💾 Backup saved — ibis-backup-${date}.json`);
+}
+
+function handleLocalRestore(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if (!backup.ibis_local) { alert('Invalid backup file — missing ibis_local data.'); return; }
+
+      // Merge ibis_local: restore user markup fields onto current entries
+      const current = JSON.parse(localStorage.getItem('ibis_local') || '{}');
+      const USER_FIELDS = ['hasAction','acctStatus','acctPriority','acctActionStage',
+        'actionHeadline','actionNextDate','actionNotes','actionKeyContact','accountPlan','acctOpp','acctOppAmt','acctOppClose'];
+      Object.entries(backup.ibis_local).forEach(([name, bval]) => {
+        if (!current[name]) current[name] = {};
+        USER_FIELDS.forEach(f => { if (bval[f] !== undefined) current[name][f] = bval[f]; });
+      });
+      localStorage.setItem('ibis_local', JSON.stringify(current));
+      localData = current;
+
+      // Restore dead + sort wholesale (no current data to preserve)
+      if (backup.ibis_dead) localStorage.setItem('ibis_dead', JSON.stringify(backup.ibis_dead));
+      if (backup.ibis_sort) localStorage.setItem('ibis_sort', JSON.stringify(backup.ibis_sort));
+
+      // Reload all derived state and re-render
+      loadDead();
+      restoreSortPref();
+      syncAllWorkablesToAction();
+      renderAll();
+      renderAction();
+      renderDead();
+      updateDeadTabBadge();
+      const exported = backup._exported ? new Date(backup._exported).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'unknown date';
+      showOppToast(`✅ Markup restored from backup (${exported})`);
+    } catch(err) {
+      alert('Failed to restore backup: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
 }
 function loadCsvStats() {
   try { csvStats = JSON.parse(localStorage.getItem('ibis_csv_stats') || '{}'); } catch(e) { csvStats = {}; }
