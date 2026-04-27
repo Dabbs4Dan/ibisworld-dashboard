@@ -1,6 +1,15 @@
 Run the start-of-session orientation:
 
-0. **WORKTREE CHECK — run this FIRST, before anything else**
+0a. **PORTABILITY CHECK — run this before anything else**
+
+    Run: `ls ~/.claude/projects/` (Mac) or check `C:\Users\[name]\.claude\projects\` (Windows)
+
+    - If this appears to be a **new or different machine** (no memory files found for this project, or the project path hash looks unfamiliar) → note it to Dan:
+      > "⚠️ Looks like a fresh machine or new Claude Code install — no local memory files found. That's fine: CLAUDE.md has everything needed, including all behavioral rules. I'll read it now and be fully oriented."
+    - If memory files exist → ✅ normal session, continue below.
+    - Either way: **CLAUDE.md is the source of truth. Memory files are a local optimisation, not a requirement.**
+
+0b. **WORKTREE CHECK**
 
    Run: `git worktree list`
 

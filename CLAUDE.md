@@ -1135,11 +1135,38 @@ Power Automate is available because Dan is employed at IBISWorld. **If Dan leave
 - **Claude Code handles all git** — `git add index.html` → commit → push after every completed task. Dan never needs to run git manually.
 - Commit messages should be short and plain English (not technical)
 - Always confirm: commit hash + "live in ~30 seconds"
+- **Git identity (must be set on any new machine):**
+  ```
+  git config --global user.email "daniestarr67@gmail.com"
+  git config --global user.name "Dan Starr"
+  ```
 
 ### Vibe check
 - Dan should always feel like he knows what's happening
 - If the dashboard looks worse after a change, that's a failure — visual quality always matters
 - When in doubt: simpler, cleaner, faster
+
+---
+
+## CLAUDE BEHAVIORAL RULES
+*Accumulated from real sessions. These are corrections and confirmations that must carry forward — Claude should not need to relearn these.*
+
+### /check-session exchange counting
+When `/check-session` runs, check if a session summary / compaction block exists at the top of the conversation. If yes, this is a continuation window — the prior session's exchanges must be included in the count. A compaction summary typically represents 30–60 prior exchanges. Never say "🟢 You're good" when a compacted summary exists at conversation start unless fewer than 5 new exchanges have happened since.
+
+### Don't run ahead after context compression
+After a context compression event, the session summary may list pending tasks. Do NOT auto-execute them. Read the summary for orientation, then either continue the exact last in-progress task (if obviously mid-step) or ask Dan what he wants to do next. Auto-launching a multi-step workflow like `/end-session` without explicit instruction is presumptuous.
+
+### Iterative architectural fixes — never blanket toggles
+Dan's stated principle: *"Put in hard work — don't turn stuff off or revert to old systems. Apply fixes that are true, unique, iterative, pushing a new version systematic — the way we improve the version with this fix should ideally cascade and catch other ones that are broken."*
+- Never full-disable a feature to make a symptom go away — find the real discriminator
+- Never revert to a prior version when iteration hits a dead end — keep improving forward
+- Each fix should cascade: the underlying improvement should catch other latent bugs in the same class
+- Bump the version with each meaningful fix so versions are discrete, meaningful steps
+- Red flags to avoid: "let's just disable X", reverting whole functions, shipping the same narrow patch twice in different places instead of extracting a shared helper
+
+### Worktree detection and merge discipline
+At every session start, run `git worktree list`. If the current path contains `.claude/worktrees/`, warn Dan immediately and ensure all commits are followed by merge+push to main. If stale worktrees appear from the main folder, auto-clean all three steps: `git worktree remove --force`, `git branch -d`, `rm -rf` the project history entry. Never confirm something is "live" without verifying it was pushed to main specifically. At `/end-session`, delete the worktree project history entry FIRST before attempting `git worktree remove`.
 
 ---
 
@@ -1174,6 +1201,36 @@ When a new session begins, Claude Code should:
 - ✅ All changes committed and pushed to main
 - ✅ CLAUDE.md reflects current state of the codebase
 - ✅ Any unfinished work is noted below under Open Items
+
+---
+
+## PORTABILITY & DISASTER RECOVERY
+*This project must be able to survive losing the work Windows machine. Everything critical lives in GitHub.*
+
+### What's safe (in GitHub — always recoverable)
+- `index.html` — the entire dashboard
+- `CLAUDE.md` — project brain, behavioral rules, architecture, open items
+- `DESIGN.md` — full design system
+- `.claude/commands/` — all slash commands
+- `outreach-extension/` — all Chrome extension files
+- `cloudflare-worker.js`
+
+### What's NOT in GitHub (must be rebuilt)
+- **Browser localStorage** — all account data, notes, priorities, action stages, campaign contacts, revenue cache. This is the biggest risk. If the machine dies, all of Dan's data must be re-uploaded from Salesforce CSVs. The code survives; the data doesn't.
+- **Claude memory files** (`~/.claude/projects/.../memory/`) — behavioral guidance files. Now mirrored into the `CLAUDE BEHAVIORAL RULES` section above, so CLAUDE.md is self-sufficient. Memory files are a local performance optimisation, not a requirement.
+- **`.claude/settings.local.json`** — two local node-validation permissions. Recreate on new machine by allowing those commands when Claude Code prompts.
+
+### Emergency setup on a new machine
+Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
+1. Clone: `git clone https://github.com/Dabbs4Dan/ibisworld-dashboard`
+2. Set git identity (see Git workflow section above)
+3. Open Claude Code from the cloned folder
+4. Run `/start-session` — CLAUDE.md has everything
+5. Re-upload all CSVs from Salesforce to rebuild data
+6. Load extension: Chrome → `chrome://extensions` → Developer mode → Load unpacked → `outreach-extension/`
+
+### Architectural rule
+**This project must primarily live online in GitHub.** Nothing important should exist only on a local machine. When adding new files, features, or config — ask: "would this survive a machine wipe?" If not, get it into the repo.
 
 ---
 
