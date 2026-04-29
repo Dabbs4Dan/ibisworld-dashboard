@@ -61,8 +61,9 @@
   const LOG = (...a) => console.log('[IBISWorld]', ...a);
 
   let contactMap       = {};
-  let domainContactMap = {}; // domain → accountName (built from contactMap for fallback lookup)
+  let domainContactMap = {}; // domain → accountName (built from contactMap — campaign contacts only)
   let accountNameMap   = {}; // accountName (lowercase) → { name (original case), domain } — for DOM text company matching
+  let domainAccountMap = {}; // domain → { name } — built from accountNameMap (accounts CSV), works WITHOUT campaign data (v3.72)
   let folderCounts     = {};
   let debounceTimer    = null;
   let scanning         = false;   // re-entry guard — prevents mutation feedback loops
@@ -130,8 +131,18 @@
             }
           }
         });
+        // v3.72: Build domain → account reverse lookup from accountNameMap.
+        // This is the architectural fix: works WITHOUT any campaign CSV data.
+        // PA cache resolves email → domain; this maps domain → canonical account name.
+        // Keyed by lowercase domain. Skips empty domains (accounts with no Website field).
+        domainAccountMap = {};
+        Object.values(accountNameMap).forEach(v => {
+          if (v.domain && !domainAccountMap[v.domain]) {
+            domainAccountMap[v.domain] = { name: v.name };
+          }
+        });
         const mapSize = Object.keys(contactMap).length;
-        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'domains,', Object.keys(accountNameMap).length, 'accounts (bridge:', bridgeAcctCount, '+ contacts:', contactAcctCount + ')');
+        LOG('Contact map:', mapSize, 'contacts,', Object.keys(domainContactMap).length, 'campaign-domains,', Object.keys(accountNameMap).length, 'accounts,', Object.keys(domainAccountMap).length, 'territory-domains (bridge:', bridgeAcctCount, '+ contacts:', contactAcctCount + ')');
         // Log whether "allinial global" is in the map (debugging specific issue)
         const allinialCheck = accountNameMap['allinial global'];
         LOG('Account name check: "allinial global" →', allinialCheck ? `✅ ${allinialCheck.name} (domain: ${allinialCheck.domain})` : '❌ NOT FOUND — open dashboard to push account names');
@@ -705,7 +716,11 @@
     const dLow = (cm.domain || '').toLowerCase();
     if (dLow.includes('ibisworld')) return null;
     const isPersonal = PERSONAL_DOMAINS.has(cm.domain);
-    const accountName = !isPersonal ? (domainContactMap[cm.domain] || domainToName(cm.domain)) : '';
+    // v3.72: Prefer canonical account name from accounts CSV (domainAccountMap),
+    // then campaign-derived (domainContactMap), then string-transform fallback.
+    const accountName = !isPersonal
+      ? (domainAccountMap[cm.domain]?.name || domainContactMap[cm.domain] || domainToName(cm.domain))
+      : '';
     if ((accountName || '').toLowerCase().includes('ibisworld')) return null;
     const synthName = cm.nameParts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
     return {
@@ -750,7 +765,14 @@
       // When _textHint is set (a known dashboard account name is in the row),
       // it's authoritative — only accept cacheNameMap matches that agree with it.
       if (_textHint) return _hintOk(res.contact?.accountName, res.domain);
-      // No hint: require synthesized company root OR domain root to appear in row text
+      // v3.72: If the resolved domain belongs to a known territory account
+      // (from the accounts CSV, no campaign data needed), the domain match IS
+      // the confirmation. This handles the Univision/Jose case: subject says
+      // "Revisiting IBISWorld this Spring" (no company name in text) but
+      // jose@univision.com resolves to a known territory account → trust it.
+      // Safe because Medline/Nisa-style ambiguity already gated by _textHint above.
+      if (res.domain && domainAccountMap[res.domain]) return true;
+      // No hint, unknown domain: require synthesized company root OR domain root in row text
       const acctRoot = (res.contact?.accountName || '').split(/[\s\-]/)[0].toLowerCase();
       const domRoot  = (res.domain || '').split('.')[0].toLowerCase();
       return (acctRoot.length >= 4 && _rowTextLow.includes(acctRoot)) ||
@@ -774,7 +796,14 @@
     }
 
     _diag.push('S1:no-dom-email');
-    if (Object.keys(contactMap).length === 0) { _diag.push('BAIL:contactMap-empty'); LOG('  ⛔ Match failed:', _diag.join(' → ')); return null; }
+    // v3.72: Removed the contactMap-empty bail. Strategies 2b/3b/4-cache/5 work off
+    // PA cache + accountNameMap (accounts CSV) and don't need campaign contact data.
+    // Bailing here meant the extension was useless without campaign CSVs uploaded —
+    // exactly the over-architecting Dan flagged. Only bail if BOTH data sources are
+    // unavailable (no campaign contacts AND no PA email cache).
+    if (Object.keys(contactMap).length === 0 && Object.keys(emailCache).length === 0) {
+      _diag.push('BAIL:both-empty'); LOG('  ⛔ Match failed:', _diag.join(' → ')); return null;
+    }
 
     // ── Strategy 2: Greeting name parse ("Hi Naveen, ...") ──
     const greetingName = extractGreetingName(row);
@@ -831,7 +860,7 @@
           const best = domDate ? tiebreakByDate(candidates, domDate) : null;
           if (best) {
             const isP = PERSONAL_DOMAINS.has(best.domain);
-            best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
+            best.contact.accountName = !isP ? (domainAccountMap[best.domain]?.name || domainContactMap[best.domain] || domainToName(best.domain)) : '';
             return { ...best, confidence: 'cache_name+date' };
           }
           const r = _synthCacheResult(pool[0], 'cache_name');
@@ -883,7 +912,7 @@
               const best = tiebreakByDate(candidates, domDate);
               if (best) {
                 const isP = PERSONAL_DOMAINS.has(best.domain);
-                best.contact.accountName = !isP ? (domainContactMap[best.domain] || domainToName(best.domain)) : '';
+                best.contact.accountName = !isP ? (domainAccountMap[best.domain]?.name || domainContactMap[best.domain] || domainToName(best.domain)) : '';
                 return { ...best, confidence: 'cache_sender+date' };
               }
             }
@@ -957,7 +986,7 @@
       _diag.push(`S5:dateHits=${dateMatchCount} domainHits=${candidates.length}`);
       if (candidates.length === 1) {
         const c = candidates[0];
-        const accountName = domainContactMap[c.domain] || domainToName(c.domain);
+        const accountName = domainAccountMap[c.domain]?.name || domainContactMap[c.domain] || domainToName(c.domain);
         const local = c.email.split('@')[0];
         const parts = local.split(/[._\-+]/).filter(p => p.length >= 2 && !/\d/.test(p));
         const synthName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
