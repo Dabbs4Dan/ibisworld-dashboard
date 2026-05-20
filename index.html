@@ -9578,9 +9578,16 @@ function renderClientRevenueCell(name) {
   const rev = getClientCompanyRevenue(name);
   if (!rev) return `<span style="color:var(--text-muted);font-size:11px;font-style:italic;">looking up…</span>`;
   const label = (rev.label || '').replace(/^USD\s+/, '$');
-  const src = rev.source === 'claude' || rev.source === 'seed' ? '<span class="rev-badge verified" title="AI-verified">✅</span>'
-            : rev.source === 'stale' ? '<span class="rev-badge stale" title="Stale Salesforce value">⚠️</span>'
-            : '';
+  const yr = rev.year ? ` ${rev.year}` : '';
+  let src = '';
+  if (rev.source === 'claude' || rev.source === 'seed' || rev.source === 'wikidata')
+    src = `<span class="rev-badge verified" title="Source: ${rev.source}${yr}">✅</span>`;
+  else if (rev.source === 'wiki-infobox')
+    src = `<span class="rev-badge verified" title="Source: Wikipedia infobox${yr}" style="background:#dbeafe;color:#1e40af;">📋</span>`;
+  else if (rev.source === 'wiki-extract')
+    src = `<span class="rev-badge" title="Source: Wikipedia article text${yr}" style="background:#fef3c7;color:#92400e;">📄</span>`;
+  else if (rev.source === 'stale')
+    src = '<span class="rev-badge stale" title="Stale Salesforce value">⚠️</span>';
   return `<span class="revenue-val">${escHtml(label || '—')}</span> ${src}`;
 }
 
@@ -9623,37 +9630,122 @@ function cleanCompanyName(name) {
     .trim();
 }
 
-async function fetchRevenueFromWikidata(name) {
-  const clean = cleanCompanyName(name);
-  if (!clean) return null;
+/* ─── Multi-source revenue chain (all browser-side, no backend) ──────────
+   1) Wikidata P2139 (structured, highest confidence)
+   2) Wikipedia infobox `| revenue =` wikitext line (high confidence)
+   3) Wikipedia extract regex scan ("revenue of $X billion", high recall)
+   Single Wikipedia summary fetch up front; chain stops at the first hit.
+   ─────────────────────────────────────────────────────────────────────── */
 
-  let entityId = null;
-  // Step 1: get the Wikipedia page summary to extract the wikibase_item ID
-  try {
-    const r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(clean));
-    if (r.ok) {
-      const j = await r.json();
-      entityId = j.wikibase_item || null;
+// Common currency symbols/codes → USD multiplier
+const CURRENCY_SYMBOLS = [
+  { rx: /^(?:US\$|\$|US?D\b|USD)/i,        code: 'USD', rate: 1     },
+  { rx: /^(?:€|EUR\b|EUR)/i,               code: 'EUR', rate: 1.08  },
+  { rx: /^(?:£|GBP\b|GBP)/i,               code: 'GBP', rate: 1.27  },
+  { rx: /^(?:¥|JPY\b|JPY)/i,               code: 'JPY', rate: 0.0067 },
+  { rx: /^(?:CN¥|RMB|CNY\b|元)/i,          code: 'CNY', rate: 0.14  },
+  { rx: /^(?:CAD\b|C\$|CA\$)/i,            code: 'CAD', rate: 0.74  },
+  { rx: /^(?:AUD\b|A\$|AU\$)/i,            code: 'AUD', rate: 0.66  },
+  { rx: /^(?:CHF\b|Fr\.?)/i,               code: 'CHF', rate: 1.13  },
+  { rx: /^(?:₹|INR\b|Rs\.?)/i,             code: 'INR', rate: 0.012 },
+  { rx: /^(?:₩|KRW\b)/i,                   code: 'KRW', rate: 0.00072},
+  { rx: /^(?:HK\$|HKD\b)/i,                code: 'HKD', rate: 0.13  },
+  { rx: /^(?:R\$|BRL\b)/i,                 code: 'BRL', rate: 0.19  },
+];
+
+// Scale multipliers
+const SCALE_MULT = {
+  trillion: 1e12, tn: 1e12, t: 1e12,
+  billion:  1e9,  bn: 1e9,  b: 1e9,
+  million:  1e6,  mn: 1e6,  m: 1e6,
+  thousand: 1e3,  k: 1e3,
+  crore: 1e7,   // Indian: 1 crore = 10M
+  lakh:  1e5,   // Indian: 1 lakh = 100K (rarely seen for revenue but cover it)
+};
+
+// Parse a number-with-scale-and-currency phrase (extracted by upstream regex)
+function parseAmountPhrase(currencyStr, numStr, scaleStr) {
+  const num = parseFloat((numStr || '').replace(/,/g, ''));
+  if (!isFinite(num) || num <= 0) return null;
+  // Currency: try to match the prefix
+  let cur = { code: 'USD', rate: 1 };
+  const cs = (currencyStr || '').trim();
+  if (cs) {
+    for (const c of CURRENCY_SYMBOLS) {
+      if (c.rx.test(cs)) { cur = c; break; }
     }
-  } catch { /* network or 404, fall through */ }
-
-  // Step 2: if direct summary failed, try the Wikipedia search API
-  if (!entityId) {
-    try {
-      const sr = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srsearch=' + encodeURIComponent(clean));
-      if (sr.ok) {
-        const sj = await sr.json();
-        const top = sj.query?.search?.[0]?.title;
-        if (top) {
-          const r2 = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(top));
-          if (r2.ok) entityId = (await r2.json()).wikibase_item || null;
-        }
-      }
-    } catch {}
   }
-  if (!entityId) return null;
+  // Scale: lowercase, strip punctuation
+  const sk = (scaleStr || '').trim().toLowerCase().replace(/[.,]/g,'');
+  const mult = SCALE_MULT[sk] || 1;
+  const usd = num * mult * cur.rate;
+  if (!isFinite(usd) || usd <= 0) return null;
+  return { raw: usd, origCurrency: cur.code };
+}
 
-  // Step 3: fetch Wikidata claims, pull P2139 (revenue) with P585 (year)
+// Scan free text for "$13.5 billion" / "USD 13B" / "revenue of $5 million" patterns.
+// Returns first plausible revenue + year if found. Filters out obvious non-revenue
+// matches (market cap, valuation, etc.) by requiring "revenue"/"sales"/"turnover"
+// nearby OR by context-free patterns like "Annual revenue: $X" / "revenue of $X".
+function parseRevenueFromText(text) {
+  if (!text) return null;
+  // Pattern A: "revenue of $X (billion|million)" / "revenue: $X B"
+  const ptnA = /\b(?:annual\s+)?(?:revenue|sales|turnover)(?:\s+of|s?\s+(?:were|was|totalled|totaled|reached|hit|reported|posted|amounted\s+to|stood\s+at|came\s+to|generated)|\s*[:=]\s*)\s*((?:US\$|\$|€|£|¥|CN¥|HK\$|C\$|A\$|R\$|₹|₩)|(?:US\s*D|USD|EUR|GBP|JPY|CNY|CAD|AUD|CHF|INR|HKD|BRL|RMB|Rs\.?)\s+)?\s*([\d.,]+)\s*(trillion|billion|million|thousand|crore|lakh|tn|bn|mn|[BMT])\b/i;
+  let m = text.match(ptnA);
+  if (m) {
+    const amt = parseAmountPhrase(m[1], m[2], m[3]);
+    if (amt) {
+      const ym = text.match(/\b(20[12]\d)\b/);
+      return { ...amt, year: ym ? parseInt(ym[1]) : null };
+    }
+  }
+  // Pattern B: "posted $X billion in revenue" / "reported $X B in sales"
+  const ptnB = /((?:US\$|\$|€|£|¥|CN¥|HK\$|C\$|A\$|R\$|₹|₩)|(?:US\s*D|USD|EUR|GBP|JPY|CNY|CAD|AUD|CHF|INR|HKD|BRL|RMB|Rs\.?)\s+)\s*([\d.,]+)\s*(trillion|billion|million|thousand|crore|lakh|tn|bn|mn|[BMT])\s+(?:in\s+(?:annual\s+)?(?:revenue|sales|turnover))/i;
+  m = text.match(ptnB);
+  if (m) {
+    const amt = parseAmountPhrase(m[1], m[2], m[3]);
+    if (amt) {
+      const ym = text.match(/\b(20[12]\d)\b/);
+      return { ...amt, year: ym ? parseInt(ym[1]) : null };
+    }
+  }
+  return null;
+}
+
+// Parse an infobox `| revenue = ` line from Wikipedia wikitext.
+// Handles {{Increase}}/{{Decrease}}/{{Steady}}, [[wikilinks]], &nbsp;, <ref> tags,
+// HTML comments, references, and (YYYY) year qualifiers.
+function parseRevenueFromInfobox(wikitext) {
+  if (!wikitext) return null;
+  // Find the revenue line — case-insensitive
+  const line = wikitext.match(/\|\s*revenue\s*=\s*([^\n|]+)/i);
+  if (!line) return null;
+  let val = line[1];
+  // Strip <ref>...</ref> and <ref ... />
+  val = val.replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, '').replace(/<ref[^>]*\/>/gi, '');
+  // Strip HTML comments
+  val = val.replace(/<!--[\s\S]*?-->/g, '');
+  // Strip templates {{Increase}}, {{Profit}}, {{Decrease}}, {{nowrap|...}}, etc — keep template payloads
+  val = val.replace(/\{\{(?:Increase|Decrease|Steady|Profit|Loss|IncreaseNegative|DecreasePositive|Negative|Positive)\}\}/gi, '');
+  val = val.replace(/\{\{nowrap\|([^}]*)\}\}/gi, '$1');
+  val = val.replace(/\{\{[^{}]+\}\}/g, ''); // catch-all for remaining simple templates
+  // Strip wikilinks [[Foo|Bar]] → Bar, [[Foo]] → Foo
+  val = val.replace(/\[\[(?:[^\]|]+\|)?([^\]]+)\]\]/g, '$1');
+  // Strip &nbsp; → space
+  val = val.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#160;/g, ' ');
+  // Strip stray HTML tags
+  val = val.replace(/<[^>]+>/g, '');
+  // Now extract: currency + number + scale, optional year
+  const m = val.match(/((?:US\$|\$|€|£|¥|CN¥|HK\$|C\$|A\$|R\$|₹|₩)|(?:US\s*D|USD|EUR|GBP|JPY|CNY|CAD|AUD|CHF|INR|HKD|BRL|RMB|Rs\.?)\s+)?\s*([\d][\d.,]*)\s*(trillion|billion|million|thousand|crore|lakh|tn|bn|mn|[BMT])?\b/i);
+  if (!m) return null;
+  const amt = parseAmountPhrase(m[1], m[2], m[3]);
+  if (!amt) return null;
+  const ym = val.match(/\((?:FY\s*)?(\d{4})\)/) || val.match(/\b(20[12]\d)\b/);
+  return { ...amt, year: ym ? parseInt(ym[1]) : null };
+}
+
+// Try Wikidata P2139 given an already-resolved entityId. Returns {raw, label, year, origCurrency} or null.
+async function tryWikidataRevenue(entityId) {
   try {
     const ent = await fetch('https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=' + entityId + '&format=json&origin=*');
     if (!ent.ok) return null;
@@ -9668,7 +9760,7 @@ async function fetchRevenueFromWikidata(name) {
       const unitUrl = c.mainsnak?.datavalue?.value?.unit || '';
       const unitQ = (unitUrl.match(/Q\d+/) || [''])[0];
       const cur = WD_CURRENCY_USD[unitQ];
-      if (!cur) continue; // unknown currency — skip
+      if (!cur) continue;
       let year = null;
       for (const qual of (c.qualifiers?.P585 || [])) {
         const t = qual.datavalue?.value?.time;
@@ -9679,14 +9771,90 @@ async function fetchRevenueFromWikidata(name) {
       }
     }
     if (!best || !isFinite(best.usd) || best.usd <= 0) return null;
-    return {
-      raw: best.usd,
-      label: fmtRevenueLabel(best.usd),
-      source: 'wikidata',
-      year: best.year || null,
-      origCurrency: best.currency
-    };
+    return { raw: best.usd, year: best.year || null, origCurrency: best.currency };
   } catch { return null; }
+}
+
+// Fetch raw Wikipedia wikitext for a page title and parse its infobox revenue line.
+async function tryInfoboxRevenue(pageTitle) {
+  try {
+    const url = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=revisions&rvprop=content&rvslots=main&titles=' + encodeURIComponent(pageTitle);
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const pages = j.query?.pages || {};
+    const first = Object.values(pages)[0];
+    const wikitext = first?.revisions?.[0]?.slots?.main?.['*'] || first?.revisions?.[0]?.['*'];
+    if (!wikitext) return null;
+    return parseRevenueFromInfobox(wikitext);
+  } catch { return null; }
+}
+
+// Main orchestrator: try Wikidata → infobox → extract. Shares 1 Wikipedia summary fetch.
+async function fetchRevenueFromWikidata(name) {
+  const clean = cleanCompanyName(name);
+  if (!clean) return null;
+
+  let entityId = null, extract = null, pageTitle = null;
+
+  // Stage 1: Wikipedia summary (gives entityId + extract + canonical title in one shot)
+  const trySummary = async (q) => {
+    try {
+      const r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(q));
+      if (!r.ok) return false;
+      const j = await r.json();
+      // Disambiguation page — fail and let search find a better target
+      if (j.type === 'disambiguation') return false;
+      entityId  = j.wikibase_item || null;
+      extract   = j.extract || null;
+      pageTitle = j.titles?.canonical || j.title || q;
+      return !!(entityId || extract);
+    } catch { return false; }
+  };
+
+  let got = await trySummary(clean);
+  // Stage 1b: try search with " (company)" disambiguation if direct slug failed/disambig
+  if (!got) {
+    try {
+      const sr = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=3&srsearch=' + encodeURIComponent(clean + ' company'));
+      if (sr.ok) {
+        const sj = await sr.json();
+        const candidates = (sj.query?.search || []).map(x => x.title);
+        for (const t of candidates) {
+          if (await trySummary(t)) { got = true; break; }
+        }
+      }
+    } catch {}
+  }
+
+  // Stage 2: Wikidata structured revenue
+  if (entityId) {
+    const wd = await tryWikidataRevenue(entityId);
+    if (wd) return {
+      raw: wd.raw, label: fmtRevenueLabel(wd.raw),
+      source: 'wikidata', year: wd.year, origCurrency: wd.origCurrency
+    };
+  }
+
+  // Stage 3: Wikipedia infobox `| revenue = ` line
+  if (pageTitle) {
+    const ib = await tryInfoboxRevenue(pageTitle);
+    if (ib && ib.raw > 0) return {
+      raw: ib.raw, label: fmtRevenueLabel(ib.raw),
+      source: 'wiki-infobox', year: ib.year, origCurrency: ib.origCurrency
+    };
+  }
+
+  // Stage 4: Regex scan of the Wikipedia extract text
+  if (extract) {
+    const ex = parseRevenueFromText(extract);
+    if (ex && ex.raw > 0) return {
+      raw: ex.raw, label: fmtRevenueLabel(ex.raw),
+      source: 'wiki-extract', year: ex.year, origCurrency: ex.origCurrency
+    };
+  }
+
+  return null;
 }
 
 // Dedicated queue runner for Wikidata revenue lookups on the Client Insights page.
