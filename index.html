@@ -675,6 +675,8 @@
   .cli-cross-amt.procurement { color:#1e40af; }
   .cli-cross-amt.total       { color:var(--text-primary); font-weight:700; font-size:13px; }
   .cli-cross-row-header { font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; padding:8px 18px; background:#fafafa; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; }
+  /* Subsection header inside an insight card (e.g. "Top 25 Industry-only clients") */
+  .ins-subsection-header { font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; padding:14px 18px 8px; border-top:1px solid var(--border); margin-top:6px; background:#fafafa; }
   /* Optional revenue $ column on by-vertical rows */
   .ins-row-revenue { flex:0 0 130px; font-family:'DM Mono',monospace; font-size:12px; font-weight:600; color:var(--text-primary); text-align:right; }
   /* ─── CSV loading overlay (large files) ─────────────────────────────── */
@@ -2662,6 +2664,8 @@
             <span class="ins-card-sub">Active Industry licenses (Admin Client: Licensing Department is not "Procurement")</span>
           </header>
           <div id="cli-industry-list" class="ins-list"></div>
+          <div class="ins-subsection-header">Top 25 Industry-only clients <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px;">(no Procurement license)</span></div>
+          <div id="cli-industry-standalone-list" class="ins-list"></div>
         </section>
         <section class="ins-card">
           <header class="ins-card-header">
@@ -2669,6 +2673,8 @@
             <span class="ins-card-sub">Active PIQ licenses (Admin Client: Licensing Department = "Procurement")</span>
           </header>
           <div id="cli-procurement-list" class="ins-list"></div>
+          <div class="ins-subsection-header">Top 25 Procurement-only clients <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;margin-left:6px;">(no Industry license)</span></div>
+          <div id="cli-procurement-standalone-list" class="ins-list"></div>
         </section>
         <section class="ins-card">
           <header class="ins-card-header">
@@ -9517,7 +9523,51 @@ function renderClientInsights() {
 
   renderVerticalBreakdown('cli-industry-list',   industry,   '#92400e');
   renderVerticalBreakdown('cli-procurement-list', procurement, '#1e40af');
+  renderStandaloneTop25('cli-industry-standalone-list',    active, 'industry',    '#92400e');
+  renderStandaloneTop25('cli-procurement-standalone-list', active, 'procurement', '#1e40af');
   renderCrossProductTop25(active);
+}
+
+// Top 25 accounts that have ONLY the given product type (not both).
+// kind = 'industry' | 'procurement'
+function renderStandaloneTop25(containerId, active, kind, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const byAcct = {};
+  active.forEach(r => {
+    const k = normName(r.a);
+    if (!byAcct[k]) byAcct[k] = { display:r.a, industry:0, procurement:0, verts:{} };
+    if (isProcurementDept(r.d)) byAcct[k].procurement += (r.$||0);
+    else                         byAcct[k].industry    += (r.$||0);
+    const v = r.v || '— No vertical';
+    byAcct[k].verts[v] = (byAcct[k].verts[v] || 0) + 1;
+  });
+  // Standalone = has the requested product but NOT the other
+  const standalone = Object.values(byAcct)
+    .filter(a => kind === 'industry' ? (a.industry > 0 && a.procurement === 0) : (a.procurement > 0 && a.industry === 0))
+    .map(a => ({ ...a, amt: kind === 'industry' ? a.industry : a.procurement, vert: Object.entries(a.verts).sort((x,y)=>y[1]-x[1])[0][0] }))
+    .sort((a,b) => b.amt - a.amt)
+    .slice(0, 25);
+  if (!standalone.length) {
+    el.innerHTML = `<div style="padding:16px 18px;color:var(--text-muted);font-size:13px;">No standalone ${kind} clients found.</div>`;
+    return;
+  }
+  const header = `<div class="cli-cross-row-header">
+    <div class="cli-cross-rank">#</div>
+    <div class="cli-cross-name">Account</div>
+    <div class="cli-cross-vert" style="flex:0 0 160px;">Vertical</div>
+    <div class="cli-cross-amt total">Annualized $</div>
+  </div>`;
+  const rows = standalone.map((a, i) => {
+    const bg = (typeof VERT_COLORS !== 'undefined' && VERT_COLORS[a.vert]) || '#f3f4f6';
+    return `<div class="cli-cross-row">
+      <div class="cli-cross-rank">${i+1}</div>
+      <div class="cli-cross-name">${escHtml(a.display)}</div>
+      <div class="cli-cross-vert" style="flex:0 0 160px;"><span class="ins-row-vert-pill" style="background:${bg};">${escHtml(a.vert)}</span></div>
+      <div class="cli-cross-amt total" style="color:${accentColor};">${formatBigUSD(a.amt)}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = header + rows;
 }
 
 function setStatVal(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
