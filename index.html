@@ -618,8 +618,8 @@
   .grp-owner-pill.grp-pill-christian { background:#2563eb; }
   .grp-owner-pill.grp-pill-embry     { background:#059669; }
   .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
-  /* Overlap pills — full coloured owner pills shown next to company name when account is shared */
-  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:4px; margin-left:10px; vertical-align:middle; flex-wrap:wrap; }
+  /* Overlap pills — full coloured owner pills shown in the Account Owner cell when account is shared */
+  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:4px; margin-left:6px; vertical-align:middle; flex-wrap:wrap; }
   .grp-overlap-pill { font-size:10px; padding:2px 8px; }
   /* Owner filter chip colors when active */
   .chip.grp-owner-chip { border:1px solid var(--border); }
@@ -7781,12 +7781,20 @@ function closeUploadMenu() {
 
 function exportLocalBackup() {
   const backup = {
-    _version: 1,
+    _version: 2,
     _exported: new Date().toISOString(),
     ibis_local: JSON.parse(localStorage.getItem('ibis_local') || '{}'),
     ibis_dead:  JSON.parse(localStorage.getItem('ibis_dead')  || '{}'),
     ibis_sort:  JSON.parse(localStorage.getItem('ibis_sort')  || '{}'),
   };
+  // Include all Group tab data (raw CSV blobs per rep — accounts + licenses)
+  ['dan','christian','embry','anthony'].forEach(o => {
+    ['accounts','licenses'].forEach(kind => {
+      const key = 'ibis_group_' + o + '_' + kind;
+      const val = localStorage.getItem(key);
+      if (val) backup[key] = JSON.parse(val);
+    });
+  });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -7822,6 +7830,21 @@ function handleLocalRestore(event) {
       // Restore dead + sort wholesale (no current data to preserve)
       if (backup.ibis_dead) localStorage.setItem('ibis_dead', JSON.stringify(backup.ibis_dead));
       if (backup.ibis_sort) localStorage.setItem('ibis_sort', JSON.stringify(backup.ibis_sort));
+
+      // Restore Group tab data wholesale (raw CSV blobs)
+      let groupRestored = 0;
+      ['dan','christian','embry','anthony'].forEach(o => {
+        ['accounts','licenses'].forEach(kind => {
+          const key = 'ibis_group_' + o + '_' + kind;
+          if (backup[key]) { localStorage.setItem(key, JSON.stringify(backup[key])); groupRestored++; }
+        });
+      });
+      if (groupRestored && typeof loadGroupData === 'function') {
+        loadGroupData();
+        if (typeof updateGroupUploadDots === 'function') updateGroupUploadDots();
+        if (typeof populateGroupVerticals === 'function') populateGroupVerticals();
+        if (typeof renderGroup === 'function' && mainView === 'group') renderGroup();
+      }
 
       // Reload all derived state and re-render
       loadDead();
@@ -9020,19 +9043,19 @@ function renderGroupRow(r) {
     : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
   const revInfo = getRevDisplay(a);
   const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-  // Overlap pills — full coloured owner pills shown to the right of the company name
+  // Overlap pills — full coloured owner pills shown next to the row owner pill (Account Owner cell)
   const bubbles = r.overlap.map(o => `<span class="grp-owner-pill grp-pill-${o} grp-overlap-pill" title="${GROUP_OWNER_LABEL[o]} also owns this account">${GROUP_OWNER_LABEL[o]}</span>`).join('');
-  const bubbleBlock = bubbles ? `<span class="grp-overlap-bubbles">${bubbles}</span>` : '';
+  const overlapBlock = bubbles ? `<span class="grp-overlap-bubbles">${bubbles}</span>` : '';
   const sentBadge = (typeof renderSentimentBadge === 'function') ? renderSentimentBadge(name) : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
   const isMulti = r.overlap.length > 0;
   const activeLics = getGroupActiveLicBadges(name, r.owner);
   return `<tr class="${isMulti?'grp-row-multi':''}">
-    <td><span class="grp-owner-pill grp-pill-${r.owner}">${GROUP_OWNER_LABEL[r.owner]}</span></td>
+    <td><span class="grp-owner-pill grp-pill-${r.owner}">${GROUP_OWNER_LABEL[r.owner]}</span>${overlapBlock}</td>
     <td>
       <div class="td-company">
         <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
         <div>
-          <span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${bubbleBlock}
+          <span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>
           ${(local.desc||sub)?`<div class="td-sub-vert">${local.desc||sub}</div>`:''}
         </div>
       </div>
