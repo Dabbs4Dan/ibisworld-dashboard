@@ -619,8 +619,10 @@
   .grp-owner-pill.grp-pill-embry     { background:#059669; }
   .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
   /* Overlap pills — full coloured owner pills shown in the Account Owner cell when account is shared */
-  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:4px; margin-left:6px; vertical-align:middle; flex-wrap:wrap; }
-  .grp-overlap-pill { font-size:10px; padding:2px 8px; }
+  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:4px; margin-left:6px; vertical-align:middle; flex-wrap:nowrap; }
+  .grp-overlap-pill { font-size:10px; padding:2px 8px; white-space:nowrap; }
+  /* Owner cell — never let the rep pill + overlap pills wrap onto multiple lines */
+  #grp-table tbody td:first-child { white-space:nowrap; }
   /* Owner filter chip colors when active */
   .chip.grp-owner-chip { border:1px solid var(--border); }
   .chip.grp-chip-dan.active       { background:#C8102E; color:#fff; border-color:#C8102E; }
