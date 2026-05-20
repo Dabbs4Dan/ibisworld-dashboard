@@ -634,6 +634,31 @@
   #grp-table tbody tr.grp-row-multi:hover { background:#fef3c7; }
   /* Group upload menu — same DNA as #upload-menu */
   #group-upload-menu { position:absolute; top:100%; right:0; margin-top:6px; min-width:240px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); padding:6px 0; z-index:9800; }
+  /* ─── INSIGHTS TAB ─────────────────────────────────────────────────── */
+  .ins-cards { display:flex; flex-direction:column; gap:16px; padding:16px 24px; }
+  .ins-card { background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.04); overflow:hidden; }
+  .ins-card-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .ins-card-title { margin:0; font-size:15px; font-weight:600; color:var(--text-primary); font-family:'DM Sans',sans-serif; }
+  .ins-card-sub { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; font-weight:500; }
+  .ins-list { padding:6px 0; }
+  .ins-row { display:flex; align-items:center; gap:12px; padding:10px 18px; border-bottom:1px solid #f3f4f6; }
+  .ins-row:last-child { border-bottom:none; }
+  .ins-row-label { flex:0 0 200px; font-size:13px; font-weight:600; color:var(--text-primary); font-family:'DM Sans',sans-serif; }
+  .ins-row-vert-pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; color:#374151; }
+  .ins-row-total { flex:0 0 60px; font-family:'DM Mono',monospace; font-size:14px; font-weight:700; color:var(--text-primary); text-align:right; }
+  .ins-row-bar { flex:1 1 auto; height:10px; background:#f3f4f6; border-radius:999px; overflow:hidden; display:flex; min-width:120px; max-width:240px; }
+  .ins-row-bar-seg { height:100%; }
+  .ins-row-bar-seg.dan       { background:#C8102E; }
+  .ins-row-bar-seg.christian { background:#2563eb; }
+  .ins-row-bar-seg.embry     { background:#059669; }
+  .ins-row-bar-seg.anthony   { background:#7c3aed; }
+  .ins-row-pills { display:flex; flex-wrap:wrap; gap:4px; flex:1 1 auto; justify-content:flex-end; }
+  .ins-row-pill { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; color:#fff; font-family:'DM Sans',sans-serif; }
+  .ins-row-pill.dan       { background:#C8102E; }
+  .ins-row-pill.christian { background:#2563eb; }
+  .ins-row-pill.embry     { background:#059669; }
+  .ins-row-pill.anthony   { background:#7c3aed; }
+  .ins-row-pill-count { font-family:'DM Mono',monospace; opacity:0.9; }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1585,6 +1610,7 @@
     <button class="vnav-btn" id="vnav-campaigns" onclick="setMainView('campaigns')">📣 Campaigns</button>
     <button class="vnav-btn" id="vnav-dead" onclick="setMainView('dead')">💀 Dead <span id="dead-tab-badge" style="display:none;background:#f97316;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;font-weight:700;"></span></button>
     <button class="vnav-btn" id="vnav-group" onclick="setMainView('group')">👥 Group</button>
+    <button class="vnav-btn" id="vnav-insights" onclick="setMainView('insights')">📊 Insights</button>
   </div>
 </div>
 
@@ -2551,6 +2577,34 @@
           <tbody id="grp-table-body"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- INSIGHTS STATS BAR -->
+<div class="stats-bar hidden" id="stats-insights">
+  <div class="stat-item"><div class="stat-label">Total Group Accounts</div><div class="stat-value" id="ins-stat-total">—</div></div>
+  <div class="stat-item"><div class="stat-label">Unique Accounts</div><div class="stat-value" id="ins-stat-unique">—</div></div>
+  <div class="stat-item"><div class="stat-label">Verticals Covered</div><div class="stat-value" id="ins-stat-verticals">—</div></div>
+</div>
+
+<!-- INSIGHTS CONTENT -->
+<div id="content-insights" class="hidden">
+  <div class="content">
+    <div id="ins-empty-state" class="empty-state">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">No group data loaded yet</div>
+      <div class="empty-desc">Upload at least one rep's CSV under <strong>👥 Group CSV</strong> to populate insights.</div>
+    </div>
+    <div id="ins-cards" class="ins-cards hidden">
+      <!-- Insight 1: Accounts by Vertical -->
+      <section class="ins-card">
+        <header class="ins-card-header">
+          <h3 class="ins-card-title">Accounts by Vertical</h3>
+          <span class="ins-card-sub">Total per vertical, with per-rep breakdown</span>
+        </header>
+        <div id="ins-vertical-list" class="ins-list"></div>
+      </section>
     </div>
   </div>
 </div>
@@ -6182,7 +6236,7 @@ function renderActionCards(rows) {
 function setMainView(v) {
   document.getElementById('content-account-page')?.classList.add('hidden');
   mainView = v;
-  ['action','accounts','licenses','campaigns','dead','group'].forEach(tab => {
+  ['action','accounts','licenses','campaigns','dead','group','insights'].forEach(tab => {
     const active = v === tab;
     document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
     document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
@@ -6193,6 +6247,7 @@ function setMainView(v) {
   if (v === 'campaigns') { setCampaign(currentCampaign); }
   if (v === 'action') { renderAction(); }
   if (v === 'group') { renderGroup(); }
+  if (v === 'insights') { renderInsights(); }
 }
 
 
@@ -9082,6 +9137,90 @@ function renderGroupRow(r) {
   populateGroupVerticals();
   // Kick off shared-cache enrichment for any group accounts already on disk
   GROUP_OWNERS.forEach(o => { if (groupAccounts[o].length) autoQueueGroupEnrichment(o); });
+})();
+
+/* ════════════════════════════════════════════════════════════════════════════
+   INSIGHTS TAB — plain-view stats compiled from groupAccounts
+   Designed as a stack of insight cards (one section each) — easy to extend.
+   ════════════════════════════════════════════════════════════════════════════ */
+function renderInsights() {
+  // Empty state
+  const totalRows = GROUP_OWNERS.reduce((s,o) => s + (groupAccounts[o]?.length || 0), 0);
+  if (totalRows === 0) {
+    document.getElementById('ins-empty-state')?.classList.remove('hidden');
+    document.getElementById('ins-cards')?.classList.add('hidden');
+    ['total','unique','verticals'].forEach(k => { const el = document.getElementById('ins-stat-' + k); if (el) el.textContent = '—'; });
+    return;
+  }
+  document.getElementById('ins-empty-state')?.classList.add('hidden');
+  document.getElementById('ins-cards')?.classList.remove('hidden');
+
+  // ── Build aggregates ────────────────────────────────────────────────
+  // Vertical → { total, byOwner:{dan,christian,embry,anthony}, ownedAccts:Set<normName> for unique count }
+  // Also: unique account names across whole group
+  const byVertical = {};
+  const uniqueAccts = new Set();
+  GROUP_OWNERS.forEach(o => (groupAccounts[o] || []).forEach(a => {
+    const name = getField(a, 'Account Name', 'AccountName');
+    if (!name) return;
+    uniqueAccts.add(normName(name));
+    const v = getTrueVertical(a) || '— No vertical';
+    if (!byVertical[v]) byVertical[v] = { total:0, byOwner:{dan:0,christian:0,embry:0,anthony:0} };
+    byVertical[v].total++;
+    byVertical[v].byOwner[o]++;
+  }));
+
+  // Update stats bar
+  const setStat = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setStat('ins-stat-total', totalRows);
+  setStat('ins-stat-unique', uniqueAccts.size);
+  setStat('ins-stat-verticals', Object.keys(byVertical).length);
+
+  // ── Render: Accounts by Vertical ────────────────────────────────────
+  const sortedVerts = Object.entries(byVertical).sort((a,b) => b[1].total - a[1].total);
+  const maxTotal = sortedVerts.length ? sortedVerts[0][1].total : 1;
+  const list = document.getElementById('ins-vertical-list');
+  if (list) {
+    list.innerHTML = sortedVerts.map(([vert, data]) => {
+      // Pull the vertical's background color from VERT_COLORS if it exists; fall back to neutral grey
+      const bg = (typeof VERT_COLORS !== 'undefined' && VERT_COLORS[vert]) || '#f3f4f6';
+      // Per-rep pills only for reps with >0 in this vertical, ordered Dan → Christian → Embry → Anthony
+      const pills = GROUP_OWNERS
+        .filter(o => data.byOwner[o] > 0)
+        .map(o => `<span class="ins-row-pill ${o}">${GROUP_OWNER_LABEL[o]} <span class="ins-row-pill-count">${data.byOwner[o]}</span></span>`)
+        .join('');
+      // Proportional stacked bar showing rep mix for this vertical
+      const barSegs = GROUP_OWNERS
+        .filter(o => data.byOwner[o] > 0)
+        .map(o => `<span class="ins-row-bar-seg ${o}" style="width:${(data.byOwner[o]/data.total*100).toFixed(1)}%;" title="${GROUP_OWNER_LABEL[o]}: ${data.byOwner[o]}"></span>`)
+        .join('');
+      return `<div class="ins-row">
+        <div class="ins-row-label"><span class="ins-row-vert-pill" style="background:${bg};">${escHtml(vert)}</span></div>
+        <div class="ins-row-total">${data.total}</div>
+        <div class="ins-row-bar">${barSegs}</div>
+        <div class="ins-row-pills">${pills}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// Hook: re-render insights after any group upload (only if tab is visible)
+(function hookInsightsRefresh(){
+  const _handleGroupAcct = handleGroupAccountsCSV;
+  const _handleGroupLic  = handleGroupLicensesCSV;
+  window.handleGroupAccountsCSV = function(owner, e) {
+    _handleGroupAcct(owner, e);
+    if (mainView === 'insights') setTimeout(renderInsights, 50);
+  };
+  window.handleGroupLicensesCSV = function(owner, e) {
+    _handleGroupLic(owner, e);
+    if (mainView === 'insights') setTimeout(renderInsights, 50);
+  };
+  const _clearGroup = clearGroupData;
+  window.clearGroupData = function(owner, kind) {
+    _clearGroup(owner, kind);
+    if (mainView === 'insights') renderInsights();
+  };
 })();
 // ─────────────────────────────────────────────────────────────────────────────
 </script>
