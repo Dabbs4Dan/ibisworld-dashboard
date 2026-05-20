@@ -618,13 +618,9 @@
   .grp-owner-pill.grp-pill-christian { background:#2563eb; }
   .grp-owner-pill.grp-pill-embry     { background:#059669; }
   .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
-  /* Overlap bubble — small initial circle for additional owners next to company name */
-  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:3px; margin-left:8px; vertical-align:middle; }
-  .grp-overlap-bubble { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; box-shadow:0 0 0 2px #fff; }
-  .grp-overlap-bubble.grp-bub-dan       { background:#C8102E; }
-  .grp-overlap-bubble.grp-bub-christian { background:#2563eb; }
-  .grp-overlap-bubble.grp-bub-embry     { background:#059669; }
-  .grp-overlap-bubble.grp-bub-anthony   { background:#7c3aed; }
+  /* Overlap pills — full coloured owner pills shown next to company name when account is shared */
+  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:4px; margin-left:10px; vertical-align:middle; flex-wrap:wrap; }
+  .grp-overlap-pill { font-size:10px; padding:2px 8px; }
   /* Owner filter chip colors when active */
   .chip.grp-owner-chip { border:1px solid var(--border); }
   .chip.grp-chip-dan.active       { background:#C8102E; color:#fff; border-color:#C8102E; }
@@ -8619,7 +8615,7 @@ let groupOwnerFilter   = new Set();   // empty = show all owners
 let groupTierFilters   = new Set();
 let groupMultiOwnerOn  = false;
 let groupActiveLicOn   = false;
-let groupSortCol = 'tier';
+let groupSortCol = 'owner'; // default: cluster by owner (Dan → Christian → Embry → Anthony)
 let groupSortDir = 'asc';
 const GRP_SORT_DEFAULT_DIR = { owner:'asc', vertical:'asc', tier:'asc', revenue:'desc', sentiment:'desc', usClient:'desc', activeClient:'desc', licenses:'desc', intent:'desc', days:'desc' };
 
@@ -9024,8 +9020,8 @@ function renderGroupRow(r) {
     : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
   const revInfo = getRevDisplay(a);
   const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-  // Overlap bubbles
-  const bubbles = r.overlap.map(o => `<span class="grp-overlap-bubble grp-bub-${o}" title="${GROUP_OWNER_LABEL[o]} also owns this">${GROUP_OWNER_INITIAL[o]}</span>`).join('');
+  // Overlap pills — full coloured owner pills shown to the right of the company name
+  const bubbles = r.overlap.map(o => `<span class="grp-owner-pill grp-pill-${o} grp-overlap-pill" title="${GROUP_OWNER_LABEL[o]} also owns this account">${GROUP_OWNER_LABEL[o]}</span>`).join('');
   const bubbleBlock = bubbles ? `<span class="grp-overlap-bubbles">${bubbles}</span>` : '';
   const sentBadge = (typeof renderSentimentBadge === 'function') ? renderSentimentBadge(name) : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
   const isMulti = r.overlap.length > 0;
