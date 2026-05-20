@@ -677,6 +677,13 @@
   .cli-cross-row-header { font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; padding:8px 18px; background:#fafafa; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; }
   /* Optional revenue $ column on by-vertical rows */
   .ins-row-revenue { flex:0 0 130px; font-family:'DM Mono',monospace; font-size:12px; font-weight:600; color:var(--text-primary); text-align:right; }
+  /* ─── CSV loading overlay (large files) ─────────────────────────────── */
+  #csv-loading-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:9999; display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 200ms ease; }
+  #csv-loading-overlay.show { opacity:1; pointer-events:auto; }
+  .csv-loading-card { background:#fff; border-radius:12px; padding:28px 36px; box-shadow:0 8px 24px rgba(0,0,0,0.18); display:flex; align-items:center; gap:18px; min-width:260px; }
+  .csv-loading-spinner { width:24px; height:24px; border:3px solid #e5e7eb; border-top-color:var(--ibis-red); border-radius:50%; animation:csv-spin 0.7s linear infinite; flex-shrink:0; }
+  .csv-loading-msg { font-size:13px; font-weight:500; color:var(--text-primary); font-family:'DM Sans',sans-serif; }
+  @keyframes csv-spin { to { transform:rotate(360deg); } }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -9367,46 +9374,93 @@ function formatBigUSD(n) {
   return '$' + Math.round(n);
 }
 
+// Dedicated parser for Client Insights CSV. Doesn't filter on "Account Name"
+// (this CSV uses "Account" — the shared parseCSV would silently return 0 rows).
+function parseClientCSV(text) {
+  text = text.replace(/^﻿/, '').normalize('NFC');
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
+  const today = new Date();
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i]);
+    if (vals.length < 2) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (vals[idx]||'').trim().replace(/^"|"$/g,''); });
+    const acct = (obj['Account'] || obj['Admin Client: Client Name'] || '').trim();
+    if (!acct) continue;
+    const dept = (obj['Admin Client: Licensing Department'] || '').trim();
+    const vert = (obj['Admin Client: Vertical'] || '').trim();
+    const amt  = parseAnnAmount(obj['Annualized Amount']);
+    const endStr = obj['License End Date'] || '';
+    const end = parseDate(endStr);
+    out.push({
+      a: acct,
+      d: dept,
+      v: vert,
+      $: amt,
+      e: end ? end.toISOString().slice(0,10) : '',
+      act: end ? end > today : true
+    });
+  }
+  return out;
+}
+
 function handleClientInsightsCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  showCsvLoadingOverlay(`Loading ${file.name}… (${Math.round(file.size/1024)} KB)`);
   const reader = new FileReader();
   reader.onload = ev => {
-    const raw = parseCSV(ev.target.result);
-    // Slim each row down to just the columns we need
-    // Column names (from screenshots):
-    //   Account
-    //   Admin Client: Licensing Department
-    //   Admin Client: Vertical
-    //   Annualized Amount  (formatted "USD 123,456.78")
-    //   License End Date   (M/D/YYYY)
-    const today = new Date();
-    clientLicenses = raw.map(r => {
-      const acct = r['Account'] || r['Admin Client: Client Name'] || '';
-      const dept = r['Admin Client: Licensing Department'] || '';
-      const vert = r['Admin Client: Vertical'] || '';
-      const amt  = parseAnnAmount(r['Annualized Amount']);
-      const endStr = r['License End Date'] || '';
-      const end = parseDate(endStr); // existing helper handles M/D/YYYY + YYYY-MM-DD
-      const active = end ? end > today : true; // default to active if no end date
-      return {
-        a: acct.trim(),
-        d: dept.trim(),
-        v: vert.trim(),
-        $: amt,
-        e: end ? end.toISOString().slice(0,10) : '',
-        act: active
-      };
-    }).filter(r => r.a); // drop rows missing account name
-    saveClientLicenses();
-    updateClientInsightsDot();
-    document.getElementById('cli-empty-state')?.classList.add('hidden');
-    document.getElementById('cli-cards')?.classList.remove('hidden');
-    if (mainView === 'insights' && insightsSubtab === 'client') renderClientInsights();
-    showOppToast(`✅ Client Insights loaded — ${clientLicenses.length} licenses`);
-    checkStorageSize();
+    // Defer parsing one frame so the loading overlay actually paints before we block the UI
+    requestAnimationFrame(() => {
+      try {
+        const t0 = performance.now();
+        clientLicenses = parseClientCSV(ev.target.result);
+        const elapsed = Math.round(performance.now() - t0);
+        console.log(`[client-insights] parsed ${clientLicenses.length} licenses in ${elapsed}ms`);
+        saveClientLicenses();
+        updateClientInsightsDot();
+        document.getElementById('cli-empty-state')?.classList.add('hidden');
+        document.getElementById('cli-cards')?.classList.remove('hidden');
+        if (mainView === 'insights' && insightsSubtab === 'client') renderClientInsights();
+        hideCsvLoadingOverlay();
+        if (clientLicenses.length === 0) {
+          showOppToast('⚠️ 0 rows parsed — check the CSV format (expected an "Account" column)');
+        } else {
+          showOppToast(`✅ Client Insights loaded — ${clientLicenses.length.toLocaleString()} licenses · ${elapsed}ms`);
+        }
+        checkStorageSize();
+      } catch(err) {
+        hideCsvLoadingOverlay();
+        console.error('[client-insights] parse failed', err);
+        alert('Failed to parse the CSV: ' + err.message);
+      }
+    });
   };
+  reader.onerror = () => { hideCsvLoadingOverlay(); alert('Failed to read the file.'); };
   reader.readAsText(file, 'latin1');
   e.target.value = '';
+}
+
+// Lightweight loading overlay used during CSV parsing
+function showCsvLoadingOverlay(msg) {
+  let o = document.getElementById('csv-loading-overlay');
+  if (!o) {
+    o = document.createElement('div');
+    o.id = 'csv-loading-overlay';
+    o.innerHTML = `
+      <div class="csv-loading-card">
+        <div class="csv-loading-spinner"></div>
+        <div class="csv-loading-msg" id="csv-loading-msg">Loading…</div>
+      </div>`;
+    document.body.appendChild(o);
+  }
+  document.getElementById('csv-loading-msg').textContent = msg || 'Loading…';
+  o.classList.add('show');
+}
+function hideCsvLoadingOverlay() {
+  document.getElementById('csv-loading-overlay')?.classList.remove('show');
 }
 
 function clearClientInsightsData() {
