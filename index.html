@@ -9528,6 +9528,77 @@ function renderClientInsights() {
   renderCrossProductTop25(active);
 }
 
+/* ─── Company-revenue lookup for Client Insights top-25 lists ──────────────
+   Reuses the existing localData[name].rev cache + the Claude/Worker pipeline.
+   Account names in the Active Client Report (e.g. "KPMG", "Microsoft") may or
+   may not match an existing entry — we try exact, then a case-insensitive scan.
+   ─────────────────────────────────────────────────────────────────────────── */
+let _normLocalDataIndex = null;
+function _buildNormLocalIndex() {
+  _normLocalDataIndex = {};
+  Object.keys(localData).forEach(k => { _normLocalDataIndex[normName(k)] = k; });
+}
+function getClientCompanyRevenue(name) {
+  if (!name) return null;
+  // Exact key match
+  if (localData[name]?.rev) return { ...localData[name].rev, key: name };
+  // Case-insensitive scan (rebuild index lazily — invalidated whenever a new
+  // enrichment lands; cheap to recompute since localData isn't huge).
+  if (!_normLocalDataIndex) _buildNormLocalIndex();
+  const k = _normLocalDataIndex[normName(name)];
+  if (k && localData[k]?.rev) return { ...localData[k].rev, key: k };
+  return null;
+}
+
+function renderClientRevenueCell(name) {
+  const rev = getClientCompanyRevenue(name);
+  if (!rev) return `<span style="color:var(--text-muted);font-size:11px;font-style:italic;">looking up…</span>`;
+  const label = (rev.label || '').replace(/^USD\s+/, '$');
+  const src = rev.source === 'claude' || rev.source === 'seed' ? '<span class="rev-badge verified" title="AI-verified">✅</span>'
+            : rev.source === 'stale' ? '<span class="rev-badge stale" title="Stale Salesforce value">⚠️</span>'
+            : '';
+  return `<span class="revenue-val">${escHtml(label || '—')}</span> ${src}`;
+}
+
+// Queue Claude enrichment for the given account names (top-25 lists).
+// Forces priority so they jump ahead of any background enrichment in flight.
+function queueClientInsightsRevenue(names) {
+  if (typeof queueClaudeEnrich !== 'function') return;
+  const seen = new Set();
+  names.forEach(n => {
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    // Only queue if we don't already have a high-quality value
+    const rev = getClientCompanyRevenue(n);
+    if (rev && (rev.source === 'claude' || rev.source === 'seed')) return;
+    queueClaudeEnrich(n, true);
+  });
+}
+
+// Hook: whenever the dashboard's debouncedRenderAll fires (enrichment progress
+// or new data), also refresh the Client Insights subpage if it's visible.
+(function hookClientInsightsRefresh(){
+  if (typeof debouncedRenderAll !== 'function') return;
+  const _orig = debouncedRenderAll;
+  window.debouncedRenderAll = function() {
+    _orig.apply(this, arguments);
+    _normLocalDataIndex = null; // invalidate cache after any enrichment
+    if (mainView === 'insights' && insightsSubtab === 'client') {
+      // Only re-render the top-25 sections (cheap) — not the whole client view
+      _refreshClientTopLists();
+    }
+  };
+})();
+
+// Lightweight partial re-render of just the top-25 lists (called after enrichment)
+function _refreshClientTopLists() {
+  if (!clientLicenses.length) return;
+  const active = clientLicenses.filter(r => r.act);
+  renderStandaloneTop25('cli-industry-standalone-list',    active, 'industry',    '#92400e');
+  renderStandaloneTop25('cli-procurement-standalone-list', active, 'procurement', '#1e40af');
+  renderCrossProductTop25(active);
+}
+
 // Top 25 accounts that have ONLY the given product type (not both).
 // kind = 'industry' | 'procurement'
 function renderStandaloneTop25(containerId, active, kind, accentColor) {
@@ -9556,6 +9627,7 @@ function renderStandaloneTop25(containerId, active, kind, accentColor) {
     <div class="cli-cross-rank">#</div>
     <div class="cli-cross-name">Account</div>
     <div class="cli-cross-vert" style="flex:0 0 160px;">Vertical</div>
+    <div class="cli-cross-amt" style="flex:0 0 130px;">Company Revenue</div>
     <div class="cli-cross-amt total">Annualized $</div>
   </div>`;
   const rows = standalone.map((a, i) => {
@@ -9564,10 +9636,13 @@ function renderStandaloneTop25(containerId, active, kind, accentColor) {
       <div class="cli-cross-rank">${i+1}</div>
       <div class="cli-cross-name">${escHtml(a.display)}</div>
       <div class="cli-cross-vert" style="flex:0 0 160px;"><span class="ins-row-vert-pill" style="background:${bg};">${escHtml(a.vert)}</span></div>
+      <div class="cli-cross-amt" style="flex:0 0 130px;color:var(--text-secondary);">${renderClientRevenueCell(a.display)}</div>
       <div class="cli-cross-amt total" style="color:${accentColor};">${formatBigUSD(a.amt)}</div>
     </div>`;
   }).join('');
   el.innerHTML = header + rows;
+  // Queue revenue enrichment for any names that don't have it yet
+  queueClientInsightsRevenue(standalone.map(a => a.display));
 }
 
 function setStatVal(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
@@ -9629,6 +9704,7 @@ function renderCrossProductTop25(active) {
     <div class="cli-cross-rank">#</div>
     <div class="cli-cross-name">Account</div>
     <div class="cli-cross-vert" style="flex:0 0 160px;">Vertical</div>
+    <div class="cli-cross-amt" style="flex:0 0 130px;">Company Revenue</div>
     <div class="cli-cross-amt industry">Industry $</div>
     <div class="cli-cross-amt procurement">Procurement $</div>
     <div class="cli-cross-amt total">Combined $</div>
@@ -9639,12 +9715,15 @@ function renderCrossProductTop25(active) {
       <div class="cli-cross-rank">${i+1}</div>
       <div class="cli-cross-name">${escHtml(a.display)}</div>
       <div class="cli-cross-vert" style="flex:0 0 160px;"><span class="ins-row-vert-pill" style="background:${bg};">${escHtml(a.vert)}</span></div>
+      <div class="cli-cross-amt" style="flex:0 0 130px;color:var(--text-secondary);">${renderClientRevenueCell(a.display)}</div>
       <div class="cli-cross-amt industry">${formatBigUSD(a.industry)}</div>
       <div class="cli-cross-amt procurement">${formatBigUSD(a.procurement)}</div>
       <div class="cli-cross-amt total">${formatBigUSD(a.total)}</div>
     </div>`;
   }).join('');
   el.innerHTML = header + rows;
+  // Queue revenue enrichment for any cross-product accounts that don't have it yet
+  queueClientInsightsRevenue(both.map(a => a.display));
 }
 
 /* ─── Repurpose stats bar when switching back to Group subpage ─────────── */
