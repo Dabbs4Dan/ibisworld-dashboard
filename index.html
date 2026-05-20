@@ -7837,30 +7837,38 @@ function closeUploadMenu() {
 }
 
 function exportLocalBackup() {
+  // v3 backup = full snapshot of EVERY key in ALL_STORAGE_KEYS.
+  // Includes raw CSV uploads (accounts/licenses/campaigns/group), all markup, dead, sort prefs, csv stats.
+  // Restoring a v3 file = total dashboard state at backup time.
   const backup = {
-    _version: 2,
+    _version: 3,
     _exported: new Date().toISOString(),
-    ibis_local: JSON.parse(localStorage.getItem('ibis_local') || '{}'),
-    ibis_dead:  JSON.parse(localStorage.getItem('ibis_dead')  || '{}'),
-    ibis_sort:  JSON.parse(localStorage.getItem('ibis_sort')  || '{}'),
+    _keys: [],
   };
-  // Include all Group tab data (raw CSV blobs per rep — accounts + licenses)
-  ['dan','christian','embry','anthony'].forEach(o => {
-    ['accounts','licenses'].forEach(kind => {
-      const key = 'ibis_group_' + o + '_' + kind;
-      const val = localStorage.getItem(key);
-      if (val) backup[key] = JSON.parse(val);
-    });
+  let captured = 0;
+  ALL_STORAGE_KEYS.forEach(key => {
+    const val = localStorage.getItem(key);
+    if (val == null) return;
+    try {
+      // Try to parse — if it's JSON, store as object (smaller + readable)
+      backup[key] = JSON.parse(val);
+    } catch(e) {
+      // Plain string (e.g. ibis_updated is a date string)
+      backup[key] = val;
+    }
+    backup._keys.push(key);
+    captured++;
   });
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   const date = new Date().toISOString().slice(0, 10);
+  const sizeKB = Math.round(blob.size / 1024);
   a.href     = url;
   a.download = `ibis-backup-${date}.json`;
   a.click();
   URL.revokeObjectURL(url);
-  showOppToast(`💾 Backup saved — ibis-backup-${date}.json`);
+  showOppToast(`💾 Backup saved — ${captured} data sets · ${sizeKB} KB`);
 }
 
 function handleLocalRestore(event) {
@@ -7871,39 +7879,70 @@ function handleLocalRestore(event) {
   reader.onload = e => {
     try {
       const backup = JSON.parse(e.target.result);
-      if (!backup.ibis_local) { alert('Invalid backup file — missing ibis_local data.'); return; }
+      if (!backup.ibis_local && !backup._version) { alert('Invalid backup file — no recognizable data.'); return; }
+      const ver = backup._version || 1;
+      // Big restore = destructive on raw CSV data. Confirm if v3 (full snapshot).
+      if (ver >= 3) {
+        const exported = backup._exported ? new Date(backup._exported).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'unknown date';
+        if (!confirm(`Restore FULL snapshot from ${exported}?\n\nThis replaces ALL current data (accounts, licenses, campaigns, group, markup) with the backup contents. Fresh enrichment data (revenue/desc/sentiment) on accounts also present in the backup will be preserved.\n\nClick OK to proceed.`)) return;
+      }
 
-      // Merge ibis_local: restore user markup fields onto current entries
+      // 1) ibis_local — always smart-merge so we preserve fresh enrichment (revenue/desc/sentiment)
+      //    on accounts that exist in both current and backup. User markup fields always win from backup.
       const current = JSON.parse(localStorage.getItem('ibis_local') || '{}');
       const USER_FIELDS = ['hasAction','acctStatus','acctPriority','acctActionStage',
-        'actionHeadline','actionNextDate','actionNotes','actionKeyContact','accountPlan','acctOpp','acctOppAmt','acctOppClose'];
-      Object.entries(backup.ibis_local).forEach(([name, bval]) => {
-        if (!current[name]) current[name] = {};
-        USER_FIELDS.forEach(f => { if (bval[f] !== undefined) current[name][f] = bval[f]; });
-      });
-      localStorage.setItem('ibis_local', JSON.stringify(current));
-      localData = current;
-
-      // Restore dead + sort wholesale (no current data to preserve)
-      if (backup.ibis_dead) localStorage.setItem('ibis_dead', JSON.stringify(backup.ibis_dead));
-      if (backup.ibis_sort) localStorage.setItem('ibis_sort', JSON.stringify(backup.ibis_sort));
-
-      // Restore Group tab data wholesale (raw CSV blobs)
-      let groupRestored = 0;
-      ['dan','christian','embry','anthony'].forEach(o => {
-        ['accounts','licenses'].forEach(kind => {
-          const key = 'ibis_group_' + o + '_' + kind;
-          if (backup[key]) { localStorage.setItem(key, JSON.stringify(backup[key])); groupRestored++; }
+        'actionHeadline','actionNextDate','actionNotes','actionKeyContact','accountPlan','acctOpp','acctOppAmt','acctOppClose','flags','notes','_lastSeen'];
+      if (backup.ibis_local) {
+        Object.entries(backup.ibis_local).forEach(([name, bval]) => {
+          if (!current[name]) current[name] = {};
+          USER_FIELDS.forEach(f => { if (bval[f] !== undefined) current[name][f] = bval[f]; });
+          // Also restore enrichment if current entry lacks it (filling gaps, not overwriting fresher data)
+          ['rev','desc','descV','sentiment'].forEach(f => {
+            if (bval[f] !== undefined && current[name][f] === undefined) current[name][f] = bval[f];
+          });
         });
-      });
-      if (groupRestored && typeof loadGroupData === 'function') {
+        localStorage.setItem('ibis_local', JSON.stringify(current));
+        localData = current;
+      }
+
+      // 2) v3 = full snapshot: wholesale restore every other ALL_STORAGE_KEYS entry from backup.
+      //    v1/v2 = legacy backups: only restore the limited set they captured.
+      let restoredKeys = 1; // counted ibis_local already
+      if (ver >= 3) {
+        ALL_STORAGE_KEYS.forEach(key => {
+          if (key === 'ibis_local') return; // already handled above
+          if (backup[key] === undefined) return;
+          const val = typeof backup[key] === 'string' ? backup[key] : JSON.stringify(backup[key]);
+          localStorage.setItem(key, val);
+          restoredKeys++;
+        });
+      } else {
+        // Legacy v1/v2 fields
+        if (backup.ibis_dead) { localStorage.setItem('ibis_dead', JSON.stringify(backup.ibis_dead)); restoredKeys++; }
+        if (backup.ibis_sort) { localStorage.setItem('ibis_sort', JSON.stringify(backup.ibis_sort)); restoredKeys++; }
+        ['dan','christian','embry','anthony'].forEach(o => {
+          ['accounts','licenses'].forEach(kind => {
+            const key = 'ibis_group_' + o + '_' + kind;
+            if (backup[key]) { localStorage.setItem(key, JSON.stringify(backup[key])); restoredKeys++; }
+          });
+        });
+      }
+
+      // 3) For v3 with full CSV data restored, the cleanest re-init is a page reload.
+      //    The dashboard's init() will pick up every key fresh. For v1/v2 we re-render in place.
+      const exported = backup._exported ? new Date(backup._exported).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'unknown date';
+      if (ver >= 3) {
+        showOppToast(`✅ Full snapshot restored (${exported}) · ${restoredKeys} keys · reloading…`);
+        setTimeout(() => location.reload(), 800);
+        return;
+      }
+      // v1/v2 in-place re-render path
+      if (typeof loadGroupData === 'function') {
         loadGroupData();
         if (typeof updateGroupUploadDots === 'function') updateGroupUploadDots();
         if (typeof populateGroupVerticals === 'function') populateGroupVerticals();
         if (typeof renderGroup === 'function' && mainView === 'group') renderGroup();
       }
-
-      // Reload all derived state and re-render
       loadDead();
       restoreSortPref();
       syncAllWorkablesToAction();
@@ -7911,7 +7950,6 @@ function handleLocalRestore(event) {
       renderAction();
       renderDead();
       updateDeadTabBadge();
-      const exported = backup._exported ? new Date(backup._exported).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'unknown date';
       showOppToast(`✅ Markup restored from backup (${exported})`);
     } catch(err) {
       alert('Failed to restore backup: ' + err.message);
