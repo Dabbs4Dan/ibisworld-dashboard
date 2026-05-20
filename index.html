@@ -610,6 +610,32 @@
   .sixqa-terr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; display:inline-block; }
   .sixqa-terr-dot.in-csv { background:#16a34a; }
   .sixqa-terr-dot.dropped { background:#d1d5db; }
+  /* ─── GROUP TAB ─────────────────────────────────────────────────────── */
+  /* Owner color palette: Dan=red, Christian=blue, Embry=green, Anthony=purple */
+  .grp-owner-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; flex-shrink:0; }
+  .grp-owner-pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; color:#fff; font-family:'DM Sans',sans-serif; letter-spacing:0.2px; white-space:nowrap; }
+  .grp-owner-pill.grp-pill-dan       { background:#C8102E; }
+  .grp-owner-pill.grp-pill-christian { background:#2563eb; }
+  .grp-owner-pill.grp-pill-embry     { background:#059669; }
+  .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
+  /* Overlap bubble — small initial circle for additional owners next to company name */
+  .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:3px; margin-left:8px; vertical-align:middle; }
+  .grp-overlap-bubble { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; box-shadow:0 0 0 2px #fff; }
+  .grp-overlap-bubble.grp-bub-dan       { background:#C8102E; }
+  .grp-overlap-bubble.grp-bub-christian { background:#2563eb; }
+  .grp-overlap-bubble.grp-bub-embry     { background:#059669; }
+  .grp-overlap-bubble.grp-bub-anthony   { background:#7c3aed; }
+  /* Owner filter chip colors when active */
+  .chip.grp-owner-chip { border:1px solid var(--border); }
+  .chip.grp-chip-dan.active       { background:#C8102E; color:#fff; border-color:#C8102E; }
+  .chip.grp-chip-christian.active { background:#2563eb; color:#fff; border-color:#2563eb; }
+  .chip.grp-chip-embry.active     { background:#059669; color:#fff; border-color:#059669; }
+  .chip.grp-chip-anthony.active   { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+  /* Multi-owner row subtle highlight */
+  #grp-table tbody tr.grp-row-multi { background:#fffbeb; }
+  #grp-table tbody tr.grp-row-multi:hover { background:#fef3c7; }
+  /* Group upload menu — same DNA as #upload-menu */
+  #group-upload-menu { position:absolute; top:100%; right:0; margin-top:6px; min-width:240px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); padding:6px 0; z-index:9800; }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1410,6 +1436,62 @@
     <span class="header-title">Account Dashboard · Daniel Starr · US Major Markets</span>
   </div>
     <div class="header-right">
+    <div class="upload-menu-wrap" style="margin-right:8px;">
+      <button class="upload-btn" id="group-upload-menu-trigger" onclick="toggleGroupUploadMenu(event)" style="background:#4338ca;">👥 Group CSV &nbsp;▾</button>
+      <div id="group-upload-menu" class="hidden">
+        <div style="padding:4px 12px;font-size:10px;font-weight:600;letter-spacing:0.5px;color:var(--text-muted);text-transform:uppercase;">Accounts</div>
+        <button class="upload-menu-row" onclick="document.getElementById('group-dan-acct-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#C8102E;"></span>
+          <span class="upload-menu-label">Dan · Accounts</span>
+          <span class="upload-menu-dot" id="udot-group-dan-acct"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('dan','accounts')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('group-christian-acct-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#2563eb;"></span>
+          <span class="upload-menu-label">Christian · Accounts</span>
+          <span class="upload-menu-dot" id="udot-group-christian-acct"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('christian','accounts')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('group-embry-acct-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#059669;"></span>
+          <span class="upload-menu-label">Embry · Accounts</span>
+          <span class="upload-menu-dot" id="udot-group-embry-acct"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('embry','accounts')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('group-anthony-acct-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#7c3aed;"></span>
+          <span class="upload-menu-label">Anthony · Accounts</span>
+          <span class="upload-menu-dot" id="udot-group-anthony-acct"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('anthony','accounts')" title="Clear">✕</span>
+        </button>
+        <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
+        <div style="padding:4px 12px;font-size:10px;font-weight:600;letter-spacing:0.5px;color:var(--text-muted);text-transform:uppercase;">Licenses</div>
+        <button class="upload-menu-row" onclick="document.getElementById('group-dan-lic-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#C8102E;"></span>
+          <span class="upload-menu-label">Dan · Licenses</span>
+          <span class="upload-menu-dot" id="udot-group-dan-lic"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('dan','licenses')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('group-christian-lic-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#2563eb;"></span>
+          <span class="upload-menu-label">Christian · Licenses</span>
+          <span class="upload-menu-dot" id="udot-group-christian-lic"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('christian','licenses')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('group-embry-lic-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#059669;"></span>
+          <span class="upload-menu-label">Embry · Licenses</span>
+          <span class="upload-menu-dot" id="udot-group-embry-lic"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('embry','licenses')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('group-anthony-lic-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#7c3aed;"></span>
+          <span class="upload-menu-label">Anthony · Licenses</span>
+          <span class="upload-menu-dot" id="udot-group-anthony-lic"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('anthony','licenses')" title="Clear">✕</span>
+        </button>
+      </div>
+    </div>
     <div class="upload-menu-wrap">
       <button class="upload-btn" id="upload-menu-trigger" onclick="toggleUploadMenu(event)">↑ Upload CSV &nbsp;▾</button>
       <div id="upload-menu" class="hidden">
@@ -1486,6 +1568,14 @@
     <input type="file" id="winback-file-input" accept=".csv" onchange="handleWinbackCSV(event)" style="display:none;">
     <input type="file" id="alumni-file-input" accept=".csv" onchange="handleAlumniCSV(event)" style="display:none;">
     <input type="file" id="local-restore-input" accept=".json" onchange="handleLocalRestore(event)" style="display:none;">
+    <input type="file" id="group-dan-acct-input"       accept=".csv" onchange="handleGroupAccountsCSV('dan',event)"       style="display:none;">
+    <input type="file" id="group-christian-acct-input" accept=".csv" onchange="handleGroupAccountsCSV('christian',event)" style="display:none;">
+    <input type="file" id="group-embry-acct-input"     accept=".csv" onchange="handleGroupAccountsCSV('embry',event)"     style="display:none;">
+    <input type="file" id="group-anthony-acct-input"   accept=".csv" onchange="handleGroupAccountsCSV('anthony',event)"   style="display:none;">
+    <input type="file" id="group-dan-lic-input"        accept=".csv" onchange="handleGroupLicensesCSV('dan',event)"       style="display:none;">
+    <input type="file" id="group-christian-lic-input"  accept=".csv" onchange="handleGroupLicensesCSV('christian',event)" style="display:none;">
+    <input type="file" id="group-embry-lic-input"      accept=".csv" onchange="handleGroupLicensesCSV('embry',event)"     style="display:none;">
+    <input type="file" id="group-anthony-lic-input"    accept=".csv" onchange="handleGroupLicensesCSV('anthony',event)"   style="display:none;">
   </div>
 </div>
 
@@ -1496,6 +1586,7 @@
     <button class="vnav-btn" id="vnav-licenses" onclick="setMainView('licenses')">🔑 Licenses</button>
     <button class="vnav-btn" id="vnav-campaigns" onclick="setMainView('campaigns')">📣 Campaigns</button>
     <button class="vnav-btn" id="vnav-dead" onclick="setMainView('dead')">💀 Dead <span id="dead-tab-badge" style="display:none;background:#f97316;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;font-weight:700;"></span></button>
+    <button class="vnav-btn" id="vnav-group" onclick="setMainView('group')">👥 Group</button>
   </div>
 </div>
 
@@ -2383,6 +2474,83 @@
             </tr>
           </thead>
           <tbody id="dead-contacts-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GROUP STATS BAR -->
+<div class="stats-bar hidden" id="stats-group">
+  <div class="stat-item"><div class="stat-label">Total Rows</div><div class="stat-value" id="grp-stat-total">—</div></div>
+  <div class="stat-item"><div class="stat-label">Unique Accounts</div><div class="stat-value" id="grp-stat-unique">—</div></div>
+  <div class="stat-item"><div class="stat-label">Overlap Accounts</div><div class="stat-value" id="grp-stat-overlap">—</div></div>
+  <div class="stat-item"><div class="stat-label"><span class="grp-owner-dot" style="background:#C8102E;"></span> Dan</div><div class="stat-value" id="grp-stat-dan">—</div></div>
+  <div class="stat-item"><div class="stat-label"><span class="grp-owner-dot" style="background:#2563eb;"></span> Christian</div><div class="stat-value" id="grp-stat-christian">—</div></div>
+  <div class="stat-item"><div class="stat-label"><span class="grp-owner-dot" style="background:#059669;"></span> Embry</div><div class="stat-value" id="grp-stat-embry">—</div></div>
+  <div class="stat-item"><div class="stat-label"><span class="grp-owner-dot" style="background:#7c3aed;"></span> Anthony</div><div class="stat-value" id="grp-stat-anthony">—</div></div>
+</div>
+
+<!-- GROUP CONTROLS -->
+<div class="controls hidden" id="controls-group">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search accounts or vertical..." id="grp-search-input" oninput="renderGroup()">
+  </div>
+  <select id="grp-vertical-filter" class="vertical-filter" onchange="renderGroup()"><option value="">All Verticals</option></select>
+  <div class="filter-chips" id="group-filter-chips">
+    <button class="chip grp-owner-chip grp-chip-dan"       id="grp-owner-chip-dan"       onclick="toggleGroupOwnerFilter('dan')">Dan</button>
+    <button class="chip grp-owner-chip grp-chip-christian" id="grp-owner-chip-christian" onclick="toggleGroupOwnerFilter('christian')">Christian</button>
+    <button class="chip grp-owner-chip grp-chip-embry"     id="grp-owner-chip-embry"     onclick="toggleGroupOwnerFilter('embry')">Embry</button>
+    <button class="chip grp-owner-chip grp-chip-anthony"   id="grp-owner-chip-anthony"   onclick="toggleGroupOwnerFilter('anthony')">Anthony</button>
+    <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
+    <button class="chip" id="grp-filter-multiowner" onclick="toggleGroupMultiOwnerFilter()" title="Show only accounts owned by 2+ reps">🔁 Multi-Owner</button>
+    <button class="chip" id="grp-filter-activelic"  onclick="toggleGroupActiveLicFilter()"  title="Only accounts with an active PIQ or INTL license">🟢 Active License</button>
+  </div>
+</div>
+
+<!-- GROUP CONTENT -->
+<div id="content-group" class="hidden">
+  <div class="content">
+    <div id="grp-empty-state" class="empty-state">
+      <div class="empty-icon">👥</div>
+      <div class="empty-title">Upload a teammate's CSV to begin</div>
+      <div class="empty-desc">Click <strong>👥 Group CSV</strong> in the top right and upload an Accounts CSV under any rep's name (Dan, Christian, Embry, or Anthony). License CSVs can be uploaded the same way to enable the Active Client column.</div>
+    </div>
+    <div id="grp-count-label" class="above-table-label"></div>
+    <div id="grp-table-view" class="hidden">
+      <div class="table-wrap">
+        <table id="grp-table">
+          <thead>
+            <tr>
+              <th onclick="setGrpSortCol('owner')" style="cursor:pointer;min-width:110px;">Account Owner <span class="acct-sort-arrow" id="gsort-owner"></span></th>
+              <th>Company</th>
+              <th onclick="setGrpSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="gsort-vertical"></span></th>
+              <th style="cursor:pointer;position:relative;" id="gth-tier">
+                <div class="lic-th-inner">
+                  <span onclick="setGrpSortCol('tier')">Tier <span class="acct-sort-arrow" id="gsort-tier"></span></span>
+                  <button class="lic-filter-trigger" id="gtfbtn-tier" onclick="toggleGroupTierDropdown(event)" title="Filter by tier">▾</button>
+                </div>
+                <div class="lic-dropdown hidden" id="grp-dropdown-tier">
+                  <label><input type="checkbox" value="1" onchange="applyGroupTierFilter()"> Tier 1</label>
+                  <label><input type="checkbox" value="2" onchange="applyGroupTierFilter()"> Tier 2</label>
+                  <label><input type="checkbox" value="3" onchange="applyGroupTierFilter()"> Tier 3</label>
+                  <label><input type="checkbox" value="4" onchange="applyGroupTierFilter()"> Tier 4</label>
+                  <label><input type="checkbox" value=""  onchange="applyGroupTierFilter()"> — (No tier)</label>
+                  <div class="lic-dropdown-actions"><button onclick="clearGroupTierFilter()">Clear</button></div>
+                </div>
+              </th>
+              <th onclick="setGrpSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="gsort-revenue"></span></th>
+              <th onclick="setGrpSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="gsort-sentiment"></span></th>
+              <th onclick="setGrpSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="gsort-usClient"></span></th>
+              <th onclick="setGrpSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="gsort-activeClient"></span></th>
+              <th onclick="setGrpSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="gsort-licenses"></span></th>
+              <th>Stage</th>
+              <th onclick="setGrpSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="gsort-intent"></span></th>
+              <th onclick="setGrpSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="gsort-days"></span></th>
+            </tr>
+          </thead>
+          <tbody id="grp-table-body"></tbody>
         </table>
       </div>
     </div>
@@ -6016,7 +6184,7 @@ function renderActionCards(rows) {
 function setMainView(v) {
   document.getElementById('content-account-page')?.classList.add('hidden');
   mainView = v;
-  ['action','accounts','licenses','campaigns','dead'].forEach(tab => {
+  ['action','accounts','licenses','campaigns','dead','group'].forEach(tab => {
     const active = v === tab;
     document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
     document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
@@ -6026,6 +6194,7 @@ function setMainView(v) {
   if (v === 'dead') { renderDead(); markDeadAsSeen(); }
   if (v === 'campaigns') { setCampaign(currentCampaign); }
   if (v === 'action') { renderAction(); }
+  if (v === 'group') { renderGroup(); }
 }
 
 
@@ -6052,7 +6221,9 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats'];
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats',
+  'ibis_group_dan_accounts','ibis_group_christian_accounts','ibis_group_embry_accounts','ibis_group_anthony_accounts',
+  'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -8422,6 +8593,475 @@ function copyDebugReport() {
     .then(() => alert('✅ Debug report copied to clipboard — paste it to Claude!'))
     .catch(() => alert('Copy failed — try again'));
 }
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   GROUP TAB — 4-rep enterprise overlap view
+   Storage: ibis_group_{dan|christian|embry|anthony}_accounts
+            ibis_group_{dan|christian|embry|anthony}_licenses
+   Data lives in isolation from personal accounts/licenses. Shares logo +
+   ibis_local revenue/desc/sentiment cache so enrichment benefits both tabs.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+const GROUP_OWNERS = ['dan','christian','embry','anthony'];
+const GROUP_OWNER_LABEL = { dan:'Dan', christian:'Christian', embry:'Embry', anthony:'Anthony' };
+const GROUP_OWNER_INITIAL = { dan:'D', christian:'C', embry:'E', anthony:'A' };
+const GROUP_OWNER_COLOR = { dan:'#C8102E', christian:'#2563eb', embry:'#059669', anthony:'#7c3aed' };
+
+// One bucket per owner. Accounts = raw row objects (same shape as SF CSV).
+// Licenses = decoded rows (same shape parseLicenseCSV emits).
+let groupAccounts = { dan: [], christian: [], embry: [], anthony: [] };
+let groupLicenses = { dan: [], christian: [], embry: [], anthony: [] };
+
+// UI state
+let groupOwnerFilter   = new Set();   // empty = show all owners
+let groupTierFilters   = new Set();
+let groupMultiOwnerOn  = false;
+let groupActiveLicOn   = false;
+let groupSortCol = 'tier';
+let groupSortDir = 'asc';
+const GRP_SORT_DEFAULT_DIR = { owner:'asc', vertical:'asc', tier:'asc', revenue:'desc', sentiment:'desc', usClient:'desc', activeClient:'desc', licenses:'desc', intent:'desc', days:'desc' };
+
+/* ─── Storage ────────────────────────────────────────────────────────────── */
+function grpAcctKey(owner) { return 'ibis_group_' + owner + '_accounts'; }
+function grpLicKey(owner)  { return 'ibis_group_' + owner + '_licenses'; }
+
+function loadGroupData() {
+  GROUP_OWNERS.forEach(o => {
+    try { const s = localStorage.getItem(grpAcctKey(o)); groupAccounts[o] = s ? JSON.parse(s) : []; }
+    catch(e) { console.error('[group] failed to load', o, 'accounts', e); groupAccounts[o] = []; }
+    try {
+      const s = localStorage.getItem(grpLicKey(o));
+      const raw = s ? JSON.parse(s) : [];
+      const today = new Date();
+      groupLicenses[o] = raw.map(l => {
+        l._endDate   = l._endDate   ? new Date(l._endDate)   : null;
+        l._startDate = l._startDate ? new Date(l._startDate) : null;
+        l._active = l._endDate ? l._endDate > today : false;
+        if (!l._active && l._endDate) {
+          const yr = l._endDate.getFullYear();
+          l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
+        } else { l._churnTier = l._active ? 'active' : 'dead'; }
+        applyLicenseRules(l);
+        return l;
+      });
+    } catch(e) { console.error('[group] failed to load', o, 'licenses', e); groupLicenses[o] = []; }
+  });
+}
+
+function saveGroupAccounts(owner) {
+  try { localStorage.setItem(grpAcctKey(owner), JSON.stringify(groupAccounts[owner])); }
+  catch(e) { console.warn('[group] save accounts failed', owner, e); }
+}
+function saveGroupLicenses(owner) {
+  const slim = groupLicenses[owner].map(l => ({
+    _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
+    _type: l._type, _acv: l._acv, _currency: l._currency,
+    _endDate:   l._endDate   ? l._endDate.toISOString()   : null,
+    _startDate: l._startDate ? l._startDate.toISOString() : null,
+    _active: l._active, _churnTier: l._churnTier,
+    _confirmedProcurement: l._confirmedProcurement || false
+  }));
+  try { localStorage.setItem(grpLicKey(owner), JSON.stringify(slim)); }
+  catch(e) { console.warn('[group] save licenses failed', owner, e); }
+}
+
+/* ─── Upload menu toggle ─────────────────────────────────────────────────── */
+function toggleGroupUploadMenu(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('group-upload-menu');
+  if (!m) return;
+  m.classList.toggle('hidden');
+  // Close the other menu if it's open
+  document.getElementById('upload-menu')?.classList.add('hidden');
+}
+function closeGroupUploadMenu() {
+  document.getElementById('group-upload-menu')?.classList.add('hidden');
+}
+// Close on outside-click — piggyback on existing document listener
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('group-upload-menu');
+  const t = document.getElementById('group-upload-menu-trigger');
+  if (!m || m.classList.contains('hidden')) return;
+  if (m.contains(e.target) || (t && t.contains(e.target))) return;
+  m.classList.add('hidden');
+});
+
+/* ─── Upload handlers ────────────────────────────────────────────────────── */
+function handleGroupAccountsCSV(owner, e) {
+  const file = e.target.files[0]; if (!file) return;
+  if (!GROUP_OWNERS.includes(owner)) { console.warn('[group] unknown owner', owner); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const rows = parseCSV(ev.target.result);
+    groupAccounts[owner] = rows;
+    saveGroupAccounts(owner);
+    updateGroupUploadDots();
+    autoQueueGroupEnrichment(owner);
+    document.getElementById('grp-empty-state')?.classList.add('hidden');
+    document.getElementById('grp-table-view')?.classList.remove('hidden');
+    populateGroupVerticals();
+    if (mainView === 'group') renderGroup();
+    showGroupToast(`✅ ${GROUP_OWNER_LABEL[owner]} · ${rows.length} accounts loaded`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function handleGroupLicensesCSV(owner, e) {
+  const file = e.target.files[0]; if (!file) return;
+  if (!GROUP_OWNERS.includes(owner)) { console.warn('[group] unknown owner', owner); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    groupLicenses[owner] = parseLicenseCSV(ev.target.result);
+    saveGroupLicenses(owner);
+    updateGroupUploadDots();
+    if (mainView === 'group') renderGroup();
+    showGroupToast(`✅ ${GROUP_OWNER_LABEL[owner]} · ${groupLicenses[owner].length} licenses loaded`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function clearGroupData(owner, kind) {
+  if (!GROUP_OWNERS.includes(owner)) return;
+  const label = GROUP_OWNER_LABEL[owner] + ' ' + (kind === 'licenses' ? 'licenses' : 'accounts');
+  if (!confirm(`Clear ${label}?`)) return;
+  if (kind === 'licenses') {
+    groupLicenses[owner] = [];
+    localStorage.removeItem(grpLicKey(owner));
+  } else {
+    groupAccounts[owner] = [];
+    localStorage.removeItem(grpAcctKey(owner));
+  }
+  updateGroupUploadDots();
+  if (mainView === 'group') renderGroup();
+}
+
+function updateGroupUploadDots() {
+  GROUP_OWNERS.forEach(o => {
+    const aDot = document.getElementById('udot-group-' + o + '-acct');
+    const lDot = document.getElementById('udot-group-' + o + '-lic');
+    if (aDot) {
+      const n = groupAccounts[o].length;
+      aDot.textContent = n ? n + ' rows' : '';
+      aDot.className = 'upload-menu-dot' + (n ? ' has-date' : '');
+    }
+    if (lDot) {
+      const n = groupLicenses[o].length;
+      lDot.textContent = n ? n + ' rows' : '';
+      lDot.className = 'upload-menu-dot' + (n ? ' has-date' : '');
+    }
+  });
+}
+
+function showGroupToast(msg) {
+  // Reuse the existing opp-toast element for consistency
+  const t = document.getElementById('opp-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ─── Enrichment cascade ──────────────────────────────────────────────────
+   Group accounts share ibis_local cache (revenue/desc/sentiment). If an
+   account is already enriched (from personal upload OR another rep), it
+   uses the cached value. Otherwise we push it through the same queues.
+   ───────────────────────────────────────────────────────────────────────── */
+function autoQueueGroupEnrichment(owner) {
+  const list = groupAccounts[owner] || [];
+  // Tier-1 first within this rep's batch
+  const t1 = list.filter(a => getField(a,'Major Markets Tier') == '1');
+  const rest = list.filter(a => getField(a,'Major Markets Tier') != '1');
+  [...t1, ...rest].forEach(a => {
+    const n = getField(a, 'Account Name', 'AccountName');
+    if (!n) return;
+    queueClaudeEnrich(n);
+    queueDescEnrich(n);
+    queueSentEnrich(n);
+  });
+}
+
+/* ─── Per-owner license helpers (mirror personal versions) ─────────────── */
+function getGroupActiveLicBadges(name, owner) {
+  const lics = groupLicenses[owner] || [];
+  if (!lics.length) return '';
+  const n = normName(name);
+  const acctLics = lics.filter(l => normName(l._name) === n);
+  const out = [];
+  const activePIQ = acctLics.filter(l => l._type === 'PIQ' && l._active);
+  if (activePIQ.length) {
+    const acv = activePIQ.reduce((s,l) => s + (l._acv||0), 0);
+    out.push(`<span class="alb alb-piq">🔵 PIQ${acv>0?' · '+formatACV(acv):''}</span>`);
+  }
+  const activeINTL = acctLics.filter(l => l._type === 'INTL' && l._active);
+  if (activeINTL.length) {
+    const acv = activeINTL.reduce((s,l) => s + (l._acv||0), 0);
+    out.push(`<span class="alb alb-intl">🌍 INTL${acv>0?' · '+formatACV(acv):''}</span>`);
+  }
+  return out.join('');
+}
+function hasGroupUSLicense(name, owner) {
+  const lics = groupLicenses[owner] || [];
+  const n = normName(name);
+  return lics.some(l => normName(l._name) === n && l._type === 'US');
+}
+function getGroupLicCount(name, owner) {
+  const lics = groupLicenses[owner] || [];
+  const n = normName(name);
+  return lics.filter(l => normName(l._name) === n).length;
+}
+
+/* ─── Filter / sort toggles ──────────────────────────────────────────────── */
+function toggleGroupOwnerFilter(owner) {
+  if (!GROUP_OWNERS.includes(owner)) return;
+  if (groupOwnerFilter.has(owner)) groupOwnerFilter.delete(owner);
+  else groupOwnerFilter.add(owner);
+  document.getElementById('grp-owner-chip-' + owner)?.classList.toggle('active', groupOwnerFilter.has(owner));
+  renderGroup();
+}
+function toggleGroupMultiOwnerFilter() {
+  groupMultiOwnerOn = !groupMultiOwnerOn;
+  document.getElementById('grp-filter-multiowner')?.classList.toggle('active', groupMultiOwnerOn);
+  renderGroup();
+}
+function toggleGroupActiveLicFilter() {
+  groupActiveLicOn = !groupActiveLicOn;
+  document.getElementById('grp-filter-activelic')?.classList.toggle('active', groupActiveLicOn);
+  renderGroup();
+}
+function toggleGroupTierDropdown(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('grp-dropdown-tier')?.classList.toggle('hidden');
+}
+function applyGroupTierFilter() {
+  const boxes = document.querySelectorAll('#grp-dropdown-tier input[type="checkbox"]');
+  groupTierFilters.clear();
+  boxes.forEach(b => { if (b.checked) groupTierFilters.add(b.value); });
+  document.getElementById('gth-tier')?.classList.toggle('lic-filter-active', groupTierFilters.size > 0);
+  renderGroup();
+}
+function clearGroupTierFilter() {
+  document.querySelectorAll('#grp-dropdown-tier input[type="checkbox"]').forEach(b => b.checked = false);
+  groupTierFilters.clear();
+  document.getElementById('gth-tier')?.classList.remove('lic-filter-active');
+  document.getElementById('grp-dropdown-tier')?.classList.add('hidden');
+  renderGroup();
+}
+// Close tier dropdown on outside click
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('grp-dropdown-tier');
+  const btn = document.getElementById('gtfbtn-tier');
+  if (!dd || dd.classList.contains('hidden')) return;
+  if (dd.contains(e.target) || (btn && btn.contains(e.target))) return;
+  dd.classList.add('hidden');
+});
+
+function setGrpSortCol(col) {
+  if (groupSortCol === col) {
+    groupSortDir = groupSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    groupSortCol = col;
+    groupSortDir = GRP_SORT_DEFAULT_DIR[col] || 'desc';
+  }
+  renderGroup();
+}
+function updateGroupSortArrows() {
+  ['owner','vertical','tier','revenue','sentiment','usClient','activeClient','licenses','intent','days'].forEach(c => {
+    const el = document.getElementById('gsort-' + c);
+    if (!el) return;
+    if (c === groupSortCol) { el.textContent = groupSortDir === 'asc' ? ' ↑' : ' ↓'; el.className = 'acct-sort-arrow acct-sort-active'; }
+    else { el.textContent = ''; el.className = 'acct-sort-arrow'; }
+  });
+}
+
+/* ─── Vertical filter ────────────────────────────────────────────────────── */
+function populateGroupVerticals() {
+  const sel = document.getElementById('grp-vertical-filter');
+  if (!sel) return;
+  const cur = sel.value;
+  const set = new Set();
+  GROUP_OWNERS.forEach(o => groupAccounts[o].forEach(a => {
+    const v = getTrueVertical(a);
+    if (v) set.add(v);
+  }));
+  const opts = [...set].sort();
+  sel.innerHTML = '<option value="">All Verticals</option>' + opts.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+  if (opts.includes(cur)) sel.value = cur;
+}
+
+/* ─── Render ─────────────────────────────────────────────────────────────── */
+function buildGroupRows() {
+  // Build one row per (owner × account). Compute overlap owners for each row.
+  // Overlap = set of OTHER owners (within currently-displayed filter) who also have this account.
+  const all = [];
+  GROUP_OWNERS.forEach(o => groupAccounts[o].forEach(a => {
+    all.push({ acc: a, owner: o, name: getField(a,'Account Name','AccountName'), norm: normName(getField(a,'Account Name','AccountName')) });
+  }));
+  // Index: account-name (normalised) -> Set of owners
+  const ownersByAcct = {};
+  all.forEach(r => { if (!ownersByAcct[r.norm]) ownersByAcct[r.norm] = new Set(); ownersByAcct[r.norm].add(r.owner); });
+  all.forEach(r => {
+    r.allOwners = ownersByAcct[r.norm]; // Set of all owners who have this account
+    r.overlap = [...r.allOwners].filter(o => o !== r.owner); // other owners
+  });
+  return all;
+}
+
+function getFilteredGroupRows() {
+  const q = (document.getElementById('grp-search-input')?.value || '').toLowerCase().trim();
+  const vert = document.getElementById('grp-vertical-filter')?.value || '';
+  let list = buildGroupRows();
+  list = list.filter(r => {
+    if (!r.name) return false;
+    if (groupOwnerFilter.size > 0 && !groupOwnerFilter.has(r.owner)) return false;
+    if (groupMultiOwnerOn && r.overlap.length === 0) return false;
+    if (q) {
+      const v = getField(r.acc, 'Vertical').toLowerCase();
+      const sv = getField(r.acc, 'Sub-Vertical').toLowerCase();
+      if (!r.name.toLowerCase().includes(q) && !v.includes(q) && !sv.includes(q)) return false;
+    }
+    if (vert && getTrueVertical(r.acc) !== vert) return false;
+    if (groupTierFilters.size > 0) {
+      const t = getField(r.acc,'Major Markets Tier') || '';
+      if (!groupTierFilters.has(t)) return false;
+    }
+    if (groupActiveLicOn && !getGroupActiveLicBadges(r.name, r.owner)) return false;
+    return true;
+  });
+  // Sort
+  const d = groupSortDir === 'asc' ? 1 : -1;
+  const ownerOrder = { dan:0, christian:1, embry:2, anthony:3 };
+  list.sort((a,b) => {
+    const c = groupSortCol;
+    if (c === 'owner')    return d * ((ownerOrder[a.owner]??9) - (ownerOrder[b.owner]??9));
+    if (c === 'vertical') return d * getTrueVertical(a.acc).localeCompare(getTrueVertical(b.acc));
+    if (c === 'tier')     return d * (parseFloat(getField(a.acc,'Major Markets Tier')||9) - parseFloat(getField(b.acc,'Major Markets Tier')||9));
+    if (c === 'revenue')  { const ra = getRevDisplay(a.acc)?.raw || 0; const rb = getRevDisplay(b.acc)?.raw || 0; return d * (ra - rb); }
+    if (c === 'sentiment'){ const sa = (typeof getSentiment === 'function' ? getSentiment(a.name)?.score : null) ?? -1; const sb = (typeof getSentiment === 'function' ? getSentiment(b.name)?.score : null) ?? -1; return d * (sa - sb); }
+    if (c === 'intent')   return d * (parseFloat(getField(a.acc,'6sense Account Intent Score NA')||0) - parseFloat(getField(b.acc,'6sense Account Intent Score NA')||0));
+    if (c === 'days')     return d * (parseFloat(getField(a.acc,'US Days Since Last Activity')||0) - parseFloat(getField(b.acc,'US Days Since Last Activity')||0));
+    if (c === 'licenses') return d * (getGroupLicCount(a.name, a.owner) - getGroupLicCount(b.name, b.owner));
+    if (c === 'usClient') return d * ((hasGroupUSLicense(a.name,a.owner)?1:0) - (hasGroupUSLicense(b.name,b.owner)?1:0));
+    if (c === 'activeClient') return d * ((getGroupActiveLicBadges(a.name,a.owner)?1:0) - (getGroupActiveLicBadges(b.name,b.owner)?1:0));
+    return 0;
+  });
+  return list;
+}
+
+function renderGroup() {
+  // Empty state
+  const totalAccounts = GROUP_OWNERS.reduce((s,o) => s + groupAccounts[o].length, 0);
+  if (totalAccounts === 0) {
+    document.getElementById('grp-empty-state')?.classList.remove('hidden');
+    document.getElementById('grp-table-view')?.classList.add('hidden');
+    updateGroupStats([], {});
+    return;
+  }
+  document.getElementById('grp-empty-state')?.classList.add('hidden');
+  document.getElementById('grp-table-view')?.classList.remove('hidden');
+
+  const rows = getFilteredGroupRows();
+  const tbody = document.getElementById('grp-table-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(r => renderGroupRow(r)).join('');
+  }
+  // Count label
+  const totalRows = GROUP_OWNERS.reduce((s,o) => s + groupAccounts[o].length, 0);
+  const cl = document.getElementById('grp-count-label');
+  if (cl) cl.textContent = `${rows.length} of ${totalRows} rows`;
+  updateGroupStats(rows, buildOwnersByAcct());
+  updateGroupSortArrows();
+}
+
+function buildOwnersByAcct() {
+  const idx = {};
+  GROUP_OWNERS.forEach(o => groupAccounts[o].forEach(a => {
+    const n = normName(getField(a,'Account Name','AccountName'));
+    if (!idx[n]) idx[n] = new Set();
+    idx[n].add(o);
+  }));
+  return idx;
+}
+
+function updateGroupStats(filteredRows, ownersByAcct) {
+  GROUP_OWNERS.forEach(o => {
+    const el = document.getElementById('grp-stat-' + o);
+    if (el) el.textContent = groupAccounts[o].length || '—';
+  });
+  const totalEl = document.getElementById('grp-stat-total');
+  if (totalEl) totalEl.textContent = GROUP_OWNERS.reduce((s,o) => s + groupAccounts[o].length, 0) || '—';
+  const uniqueCount = Object.keys(ownersByAcct || {}).length;
+  const uEl = document.getElementById('grp-stat-unique');
+  if (uEl) uEl.textContent = uniqueCount || '—';
+  const overlapCount = Object.values(ownersByAcct || {}).filter(s => s.size > 1).length;
+  const oEl = document.getElementById('grp-stat-overlap');
+  if (oEl) oEl.textContent = overlapCount || '—';
+}
+
+function renderGroupRow(r) {
+  const a = r.acc;
+  const name = r.name;
+  const tier = getField(a,'Major Markets Tier');
+  const days = getField(a,'US Days Since Last Activity');
+  const intent = getField(a,'6sense Account Intent Score NA');
+  const stage = getField(a,'6sense Account Buying Stage NA');
+  const sub = getField(a,'Sub-Vertical');
+  const local = localData[name] || {};
+  const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
+  const domain = getLogoDomain(a);
+  const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const _res = domain && logoResolved[domain];
+  const tdLogoHtml = !domain ? initials
+    : _res === '__initials__' ? initials
+    : _res ? `<img src="${_res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${name}">`
+    : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
+  const revInfo = getRevDisplay(a);
+  const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  // Overlap bubbles
+  const bubbles = r.overlap.map(o => `<span class="grp-overlap-bubble grp-bub-${o}" title="${GROUP_OWNER_LABEL[o]} also owns this">${GROUP_OWNER_INITIAL[o]}</span>`).join('');
+  const bubbleBlock = bubbles ? `<span class="grp-overlap-bubbles">${bubbles}</span>` : '';
+  const sentBadge = (typeof renderSentimentBadge === 'function') ? renderSentimentBadge(name) : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  const isMulti = r.overlap.length > 0;
+  const activeLics = getGroupActiveLicBadges(name, r.owner);
+  return `<tr class="${isMulti?'grp-row-multi':''}">
+    <td><span class="grp-owner-pill grp-pill-${r.owner}">${GROUP_OWNER_LABEL[r.owner]}</span></td>
+    <td>
+      <div class="td-company">
+        <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
+        <div>
+          <span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${bubbleBlock}
+          ${(local.desc||sub)?`<div class="td-sub-vert">${local.desc||sub}</div>`:''}
+        </div>
+      </div>
+    </td>
+    <td>${vertBubble(a)}</td>
+    <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
+    <td style="white-space:nowrap;">${revCell}</td>
+    <td style="text-align:center;">${sentBadge}</td>
+    <td style="text-align:center;">${hasGroupUSLicense(name, r.owner)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+    <td>${activeLics||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+    <td style="font-family:'DM Mono',monospace;">${getGroupLicCount(name, r.owner)||'—'}</td>
+    <td><span class="stage-tag ${stageClass(stage)}">${stage||'—'}</span></td>
+    <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
+    <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
+  </tr>`;
+}
+
+/* ─── Init hook — patch the existing init() instead of overwriting it ─── */
+(function bootGroup(){
+  loadGroupData();
+  updateGroupUploadDots();
+  populateGroupVerticals();
+  // Kick off shared-cache enrichment for any group accounts already on disk
+  GROUP_OWNERS.forEach(o => { if (groupAccounts[o].length) autoQueueGroupEnrichment(o); });
+})();
 // ─────────────────────────────────────────────────────────────────────────────
 </script>
 </body>
