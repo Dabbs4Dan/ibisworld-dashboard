@@ -9560,19 +9560,185 @@ function renderClientRevenueCell(name) {
   return `<span class="revenue-val">${escHtml(label || '—')}</span> ${src}`;
 }
 
-// Queue Claude enrichment for the given account names (top-25 lists).
-// Forces priority so they jump ahead of any background enrichment in flight.
+/* ─── Wikidata company-revenue fetcher — no backend, no auth ───────────────
+   Uses Wikipedia search → Wikidata entity → P2139 (total revenue) with P585
+   (year qualifier). Picks the most recent year. Converts major currencies to
+   USD using a fixed approximation table — fine for display purposes.
+   This is the same data source the dashboard's sentiment pipeline already uses
+   (revHistory), but here we cache the most recent figure as a primary revenue.
+   ─────────────────────────────────────────────────────────────────────────── */
+const WD_CURRENCY_USD = {
+  Q4917:  { code: 'USD', rate: 1     },  // US dollar
+  Q4916:  { code: 'EUR', rate: 1.08  },  // Euro
+  Q25224: { code: 'GBP', rate: 1.27  },  // Pound sterling
+  Q8146:  { code: 'JPY', rate: 0.0067 }, // Japanese yen
+  Q39099: { code: 'CNY', rate: 0.14  },  // Renminbi
+  Q1104069:{ code: 'CAD', rate: 0.74 },  // Canadian dollar
+  Q254:   { code: 'AUD', rate: 0.66  },  // Australian dollar
+  Q40970: { code: 'CHF', rate: 1.13  },  // Swiss franc
+  Q1573250:{ code: 'INR', rate: 0.012 }, // Indian rupee
+  Q200999:{ code: 'KRW', rate: 0.00072},
+  Q11366: { code: 'HKD', rate: 0.13  },
+  Q200050:{ code: 'BRL', rate: 0.19  },
+};
+
+function fmtRevenueLabel(usd) {
+  if (!isFinite(usd) || usd <= 0) return null;
+  if (usd >= 1e12) return 'USD ' + (usd/1e12).toFixed(1) + 'T';
+  if (usd >= 1e9)  return 'USD ' + (usd/1e9).toFixed(1)  + 'B';
+  if (usd >= 1e6)  return 'USD ' + (usd/1e6).toFixed(1)  + 'M';
+  if (usd >= 1e3)  return 'USD ' + (usd/1e3).toFixed(0)  + 'K';
+  return 'USD ' + Math.round(usd);
+}
+
+// Strip common suffixes that confuse Wikipedia search ("KPMG LLP" → "KPMG")
+function cleanCompanyName(name) {
+  return String(name).trim()
+    .replace(/,?\s+(Inc\.?|LLC\.?|Corp(oration)?\.?|Ltd\.?|Co\.?|Limited|LLP\.?|PLC\.?|S\.A\.?|N\.V\.?|GmbH|AG)$/gi, '')
+    .replace(/\s+&\s+/g, ' and ')
+    .trim();
+}
+
+async function fetchRevenueFromWikidata(name) {
+  const clean = cleanCompanyName(name);
+  if (!clean) return null;
+
+  let entityId = null;
+  // Step 1: get the Wikipedia page summary to extract the wikibase_item ID
+  try {
+    const r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(clean));
+    if (r.ok) {
+      const j = await r.json();
+      entityId = j.wikibase_item || null;
+    }
+  } catch { /* network or 404, fall through */ }
+
+  // Step 2: if direct summary failed, try the Wikipedia search API
+  if (!entityId) {
+    try {
+      const sr = await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srsearch=' + encodeURIComponent(clean));
+      if (sr.ok) {
+        const sj = await sr.json();
+        const top = sj.query?.search?.[0]?.title;
+        if (top) {
+          const r2 = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(top));
+          if (r2.ok) entityId = (await r2.json()).wikibase_item || null;
+        }
+      }
+    } catch {}
+  }
+  if (!entityId) return null;
+
+  // Step 3: fetch Wikidata claims, pull P2139 (revenue) with P585 (year)
+  try {
+    const ent = await fetch('https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=' + entityId + '&format=json&origin=*');
+    if (!ent.ok) return null;
+    const claims = (await ent.json()).claims || {};
+    const revClaims = claims.P2139;
+    if (!revClaims || !revClaims.length) return null;
+    let best = null;
+    for (const c of revClaims) {
+      const amtStr = c.mainsnak?.datavalue?.value?.amount;
+      if (!amtStr) continue;
+      const amount = parseFloat(amtStr);
+      const unitUrl = c.mainsnak?.datavalue?.value?.unit || '';
+      const unitQ = (unitUrl.match(/Q\d+/) || [''])[0];
+      const cur = WD_CURRENCY_USD[unitQ];
+      if (!cur) continue; // unknown currency — skip
+      let year = null;
+      for (const qual of (c.qualifiers?.P585 || [])) {
+        const t = qual.datavalue?.value?.time;
+        if (t) { year = parseInt(t.slice(1, 5)); break; }
+      }
+      if (!best || (year || 0) > (best.year || 0)) {
+        best = { amount, currency: cur.code, year, usd: amount * cur.rate };
+      }
+    }
+    if (!best || !isFinite(best.usd) || best.usd <= 0) return null;
+    return {
+      raw: best.usd,
+      label: fmtRevenueLabel(best.usd),
+      source: 'wikidata',
+      year: best.year || null,
+      origCurrency: best.currency
+    };
+  } catch { return null; }
+}
+
+// Dedicated queue runner for Wikidata revenue lookups on the Client Insights page.
+// 350ms between requests (Wikipedia/Wikidata are tolerant but be polite).
+const wdRevQueue = [];
+let wdRevRunning = false;
+let wdRevCompleted = 0;
+let wdRevTotal = 0;
+
 function queueClientInsightsRevenue(names) {
-  if (typeof queueClaudeEnrich !== 'function') return;
   const seen = new Set();
+  let added = 0;
   names.forEach(n => {
     if (!n || seen.has(n)) return;
     seen.add(n);
-    // Only queue if we don't already have a high-quality value
     const rev = getClientCompanyRevenue(n);
-    if (rev && (rev.source === 'claude' || rev.source === 'seed')) return;
-    queueClaudeEnrich(n, true);
+    // Skip if we already have a real value (seed, wikidata, or claude)
+    if (rev && rev.raw > 0 && rev.source !== 'stale') return;
+    // Avoid re-queueing if already pending or recently tried
+    if (wdRevQueue.includes(n)) return;
+    if (localData[n]?.rev?._wdTried) return; // tried this session, no result — don't retry
+    wdRevQueue.push(n);
+    added++;
   });
+  if (added > 0) {
+    wdRevTotal += added;
+    if (!wdRevRunning) runWdRevQueue();
+  }
+}
+
+async function runWdRevQueue() {
+  wdRevRunning = true;
+  showWdProgress();
+  while (wdRevQueue.length) {
+    const name = wdRevQueue.shift();
+    try {
+      const result = await fetchRevenueFromWikidata(name);
+      if (!localData[name]) localData[name] = {};
+      if (result) {
+        localData[name].rev = { raw: result.raw, label: result.label, source: 'wikidata', year: result.year };
+      } else {
+        // Negative cache — don't retry this name during this session
+        localData[name].rev = { raw: 0, label: '—', source: 'none', _wdTried: true };
+      }
+      try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
+      _normLocalDataIndex = null;
+    } catch(e) { console.warn('[wd-rev] failed', name, e); }
+    wdRevCompleted++;
+    showWdProgress();
+    if (mainView === 'insights' && insightsSubtab === 'client') _refreshClientTopLists();
+    await new Promise(r => setTimeout(r, 350));
+  }
+  wdRevRunning = false;
+  wdRevCompleted = 0;
+  wdRevTotal = 0;
+  hideWdProgress();
+  if (mainView === 'insights' && insightsSubtab === 'client') _refreshClientTopLists();
+}
+
+function showWdProgress() {
+  let b = document.getElementById('wd-rev-progress');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'wd-rev-progress';
+    b.style.cssText = "position:fixed;bottom:16px;right:16px;background:#0891b2;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);";
+    document.body.appendChild(b);
+  }
+  const remaining = wdRevQueue.length;
+  b.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block;">🔄</span> Looking up company revenues from Wikidata… <strong>${remaining}</strong> left`;
+}
+function hideWdProgress() {
+  const b = document.getElementById('wd-rev-progress');
+  if (!b) return;
+  b.innerHTML = '✅ Revenue lookup complete';
+  b.style.background = '#065f46';
+  setTimeout(() => b.remove(), 2500);
 }
 
 // Hook: whenever the dashboard's debouncedRenderAll fires (enrichment progress
