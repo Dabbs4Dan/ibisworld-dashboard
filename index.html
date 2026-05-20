@@ -6356,7 +6356,8 @@ function clearLicensesData() {
 const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats',
   'ibis_group_dan_accounts','ibis_group_christian_accounts','ibis_group_embry_accounts','ibis_group_anthony_accounts',
   'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses',
-  'ibis_client_licenses'];
+  'ibis_client_licenses',
+  'ibis_client_revenue'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -6379,7 +6380,9 @@ function checkStorageSize() {
 }
 
 function clearEnrichmentCache() {
-  // Remove only revenue data — preserve flags and notes
+  // Remove ibis_local revenue cache only.
+  // PROTECTED — never touched: ibis_client_revenue (Wikidata company revenues
+  // looked up via Client Insights), all markup, all CSV data, all group data.
   Object.keys(localData).forEach(name => {
     if (localData[name]?.rev) delete localData[name].rev;
   });
@@ -9533,6 +9536,25 @@ function renderClientInsights() {
    Account names in the Active Client Report (e.g. "KPMG", "Microsoft") may or
    may not match an existing entry — we try exact, then a case-insensitive scan.
    ─────────────────────────────────────────────────────────────────────────── */
+/* ─── Client revenue cache — its own protected localStorage key ───────────
+   Lives in ibis_client_revenue (separate from ibis_local) so the dashboard's
+   "Clear Cache" button can never wipe revenues that took real lookups to
+   build. Keyed by normName(company) so name variations match.
+   Schema: { [normName]: { raw, label, source, year, ts } }
+   ─────────────────────────────────────────────────────────────────────────── */
+let clientRevCache = {};
+function loadClientRevCache() {
+  try { clientRevCache = JSON.parse(localStorage.getItem('ibis_client_revenue') || '{}'); }
+  catch(e) { console.error('[client-rev] load failed', e); clientRevCache = {}; }
+}
+function saveClientRevCache() {
+  try { localStorage.setItem('ibis_client_revenue', JSON.stringify(clientRevCache)); }
+  catch(e) { console.warn('[client-rev] save failed', e); }
+}
+// In-memory only — negative cache for "Wikidata had nothing for this name
+// in this session". Never persisted; a fresh page load gets a fresh shot.
+const wdTriedThisSession = new Set();
+
 let _normLocalDataIndex = null;
 function _buildNormLocalIndex() {
   _normLocalDataIndex = {};
@@ -9540,13 +9562,15 @@ function _buildNormLocalIndex() {
 }
 function getClientCompanyRevenue(name) {
   if (!name) return null;
-  // Exact key match
-  if (localData[name]?.rev) return { ...localData[name].rev, key: name };
-  // Case-insensitive scan (rebuild index lazily — invalidated whenever a new
-  // enrichment lands; cheap to recompute since localData isn't huge).
+  // 1) PROTECTED cache first (survives Clear Cache and Chrome storage pressure)
+  const cached = clientRevCache[normName(name)];
+  if (cached && cached.raw > 0) return { ...cached };
+  // 2) Fall back to the shared ibis_local cache so accounts already enriched
+  //    via the Accounts/Group flow get surfaced here too.
+  if (localData[name]?.rev?.raw > 0) return { ...localData[name].rev, key: name };
   if (!_normLocalDataIndex) _buildNormLocalIndex();
   const k = _normLocalDataIndex[normName(name)];
-  if (k && localData[k]?.rev) return { ...localData[k].rev, key: k };
+  if (k && localData[k]?.rev?.raw > 0) return { ...localData[k].rev, key: k };
   return null;
 }
 
@@ -9678,12 +9702,12 @@ function queueClientInsightsRevenue(names) {
   names.forEach(n => {
     if (!n || seen.has(n)) return;
     seen.add(n);
+    // Already have a real value (from protected cache OR shared cache) — skip
     const rev = getClientCompanyRevenue(n);
-    // Skip if we already have a real value (seed, wikidata, or claude)
     if (rev && rev.raw > 0 && rev.source !== 'stale') return;
-    // Avoid re-queueing if already pending or recently tried
+    // Already in queue OR tried this session with no result — skip
     if (wdRevQueue.includes(n)) return;
-    if (localData[n]?.rev?._wdTried) return; // tried this session, no result — don't retry
+    if (wdTriedThisSession.has(normName(n))) return;
     wdRevQueue.push(n);
     added++;
   });
@@ -9696,24 +9720,50 @@ function queueClientInsightsRevenue(names) {
 async function runWdRevQueue() {
   wdRevRunning = true;
   showWdProgress();
+  let saveBatch = 0;
   while (wdRevQueue.length) {
     const name = wdRevQueue.shift();
+    const nk = normName(name);
     try {
       const result = await fetchRevenueFromWikidata(name);
-      if (!localData[name]) localData[name] = {};
-      if (result) {
-        localData[name].rev = { raw: result.raw, label: result.label, source: 'wikidata', year: result.year };
+      if (result && result.raw > 0) {
+        // Write to PROTECTED cache — survives Clear Cache + storage pressure
+        clientRevCache[nk] = {
+          raw: result.raw,
+          label: result.label,
+          source: 'wikidata',
+          year: result.year,
+          ts: Date.now()
+        };
+        // Also opportunistically populate the shared ibis_local cache so the
+        // Accounts/Group tabs benefit too — but only if there's nothing there
+        // already (don't overwrite higher-quality data like seed table).
+        if (!localData[name]) localData[name] = {};
+        if (!localData[name].rev || localData[name].rev.raw === 0) {
+          localData[name].rev = { raw: result.raw, label: result.label, source: 'wikidata', year: result.year };
+        }
+        saveBatch++;
+        // Persist every 5 results or last one — minimize repeated stringify of localData
+        if (saveBatch >= 5 || wdRevQueue.length === 0) {
+          saveClientRevCache();
+          try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
+          saveBatch = 0;
+        }
+        _normLocalDataIndex = null;
       } else {
-        // Negative cache — don't retry this name during this session
-        localData[name].rev = { raw: 0, label: '—', source: 'none', _wdTried: true };
+        // In-memory negative cache only — don't pollute persistent storage with misses
+        wdTriedThisSession.add(nk);
       }
-      try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
-      _normLocalDataIndex = null;
-    } catch(e) { console.warn('[wd-rev] failed', name, e); }
+    } catch(e) { console.warn('[wd-rev] failed', name, e); wdTriedThisSession.add(nk); }
     wdRevCompleted++;
     showWdProgress();
     if (mainView === 'insights' && insightsSubtab === 'client') _refreshClientTopLists();
     await new Promise(r => setTimeout(r, 350));
+  }
+  // Final flush
+  if (saveBatch > 0) {
+    saveClientRevCache();
+    try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
   }
   wdRevRunning = false;
   wdRevCompleted = 0;
@@ -9902,11 +9952,15 @@ window.renderInsights = function() {
 /* ─── Init ───────────────────────────────────────────────────────────────── */
 (function bootClientInsights(){
   loadClientLicenses();
+  loadClientRevCache();
   updateClientInsightsDot();
   if (clientLicenses.length) {
     document.getElementById('cli-empty-state')?.classList.add('hidden');
     document.getElementById('cli-cards')?.classList.remove('hidden');
   }
+  // Log on init how many revenues are cached so we always know our coverage
+  const cachedCount = Object.keys(clientRevCache).length;
+  if (cachedCount) console.log(`[client-rev] loaded ${cachedCount} cached company revenues from ibis_client_revenue (protected from Clear Cache)`);
 })();
 // ─────────────────────────────────────────────────────────────────────────────
 </script>
