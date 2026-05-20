@@ -659,6 +659,24 @@
   .ins-row-pill.embry     { background:#059669; }
   .ins-row-pill.anthony   { background:#7c3aed; }
   .ins-row-pill-count { font-family:'DM Mono',monospace; opacity:0.9; }
+  /* Insights sub-tab switcher (Group Accounts / Client Insights) */
+  .ins-subtabs { display:flex; gap:4px; padding:10px 24px 0; background:transparent; border-bottom:1px solid var(--border); }
+  .ins-subtab { background:transparent; border:none; padding:8px 16px; font-size:13px; font-weight:600; color:var(--text-muted); cursor:pointer; font-family:'DM Sans',sans-serif; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color 150ms ease, border-color 150ms ease; }
+  .ins-subtab:hover { color:var(--text-primary); }
+  .ins-subtab.active { color:var(--ibis-red); border-bottom-color:var(--ibis-red); }
+  /* Client Insights — cross-product row (account name + 3 $ values) */
+  .cli-cross-row { display:flex; align-items:center; gap:14px; padding:10px 18px; border-bottom:1px solid #f3f4f6; }
+  .cli-cross-row:last-child { border-bottom:none; }
+  .cli-cross-rank { flex:0 0 28px; font-family:'DM Mono',monospace; font-size:13px; font-weight:700; color:var(--text-muted); text-align:right; }
+  .cli-cross-name { flex:1 1 auto; font-size:13px; font-weight:600; color:var(--text-primary); font-family:'DM Sans',sans-serif; min-width:140px; }
+  .cli-cross-vert { flex:0 0 auto; }
+  .cli-cross-amt  { flex:0 0 140px; font-family:'DM Mono',monospace; font-size:12px; text-align:right; }
+  .cli-cross-amt.industry    { color:#92400e; }
+  .cli-cross-amt.procurement { color:#1e40af; }
+  .cli-cross-amt.total       { color:var(--text-primary); font-weight:700; font-size:13px; }
+  .cli-cross-row-header { font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; padding:8px 18px; background:#fafafa; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; }
+  /* Optional revenue $ column on by-vertical rows */
+  .ins-row-revenue { flex:0 0 130px; font-family:'DM Mono',monospace; font-size:12px; font-weight:600; color:var(--text-primary); text-align:right; }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1513,6 +1531,14 @@
           <span class="upload-menu-dot" id="udot-group-anthony-lic"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearGroupData('anthony','licenses')" title="Clear">✕</span>
         </button>
+        <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
+        <div style="padding:4px 12px;font-size:10px;font-weight:600;letter-spacing:0.5px;color:var(--text-muted);text-transform:uppercase;">Client Insights</div>
+        <button class="upload-menu-row" onclick="document.getElementById('client-insights-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#0891b2;"></span>
+          <span class="upload-menu-label">Active Client Report</span>
+          <span class="upload-menu-dot" id="udot-client-insights"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearClientInsightsData()" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <div class="upload-menu-wrap">
@@ -1599,6 +1625,7 @@
     <input type="file" id="group-christian-lic-input"  accept=".csv" onchange="handleGroupLicensesCSV('christian',event)" style="display:none;">
     <input type="file" id="group-embry-lic-input"      accept=".csv" onchange="handleGroupLicensesCSV('embry',event)"     style="display:none;">
     <input type="file" id="group-anthony-lic-input"    accept=".csv" onchange="handleGroupLicensesCSV('anthony',event)"   style="display:none;">
+    <input type="file" id="client-insights-input"      accept=".csv" onchange="handleClientInsightsCSV(event)"            style="display:none;">
   </div>
 </div>
 
@@ -2583,28 +2610,67 @@
 
 <!-- INSIGHTS STATS BAR -->
 <div class="stats-bar hidden" id="stats-insights">
-  <div class="stat-item"><div class="stat-label">Total Group Accounts</div><div class="stat-value" id="ins-stat-total">—</div></div>
-  <div class="stat-item"><div class="stat-label">Unique Accounts</div><div class="stat-value" id="ins-stat-unique">—</div></div>
-  <div class="stat-item"><div class="stat-label">Verticals Covered</div><div class="stat-value" id="ins-stat-verticals">—</div></div>
+  <div class="stat-item"><div class="stat-label" id="ins-stat-1-label">Total Group Accounts</div><div class="stat-value" id="ins-stat-1">—</div></div>
+  <div class="stat-item"><div class="stat-label" id="ins-stat-2-label">Unique Accounts</div><div class="stat-value" id="ins-stat-2">—</div></div>
+  <div class="stat-item"><div class="stat-label" id="ins-stat-3-label">Verticals Covered</div><div class="stat-value" id="ins-stat-3">—</div></div>
 </div>
 
 <!-- INSIGHTS CONTENT -->
 <div id="content-insights" class="hidden">
+  <!-- Sub-tab switcher -->
+  <div class="ins-subtabs">
+    <button class="ins-subtab active" id="ins-subtab-group"  onclick="setInsightsSubtab('group')">📋 Group Accounts</button>
+    <button class="ins-subtab"        id="ins-subtab-client" onclick="setInsightsSubtab('client')">🔑 Client Insights</button>
+  </div>
   <div class="content">
-    <div id="ins-empty-state" class="empty-state">
-      <div class="empty-icon">📊</div>
-      <div class="empty-title">No group data loaded yet</div>
-      <div class="empty-desc">Upload at least one rep's CSV under <strong>👥 Group CSV</strong> to populate insights.</div>
+    <!-- Group Accounts subpage -->
+    <div id="ins-page-group">
+      <div id="ins-empty-state" class="empty-state">
+        <div class="empty-icon">📊</div>
+        <div class="empty-title">No group data loaded yet</div>
+        <div class="empty-desc">Upload at least one rep's CSV under <strong>👥 Group CSV</strong> to populate insights.</div>
+      </div>
+      <div id="ins-cards" class="ins-cards hidden">
+        <section class="ins-card">
+          <header class="ins-card-header">
+            <h3 class="ins-card-title">Accounts by Vertical</h3>
+            <span class="ins-card-sub">Total per vertical, with per-rep breakdown</span>
+          </header>
+          <div id="ins-vertical-list" class="ins-list"></div>
+        </section>
+      </div>
     </div>
-    <div id="ins-cards" class="ins-cards hidden">
-      <!-- Insight 1: Accounts by Vertical -->
-      <section class="ins-card">
-        <header class="ins-card-header">
-          <h3 class="ins-card-title">Accounts by Vertical</h3>
-          <span class="ins-card-sub">Total per vertical, with per-rep breakdown</span>
-        </header>
-        <div id="ins-vertical-list" class="ins-list"></div>
-      </section>
+
+    <!-- Client Insights subpage -->
+    <div id="ins-page-client" class="hidden">
+      <div id="cli-empty-state" class="empty-state">
+        <div class="empty-icon">🔑</div>
+        <div class="empty-title">No client license data loaded yet</div>
+        <div class="empty-desc">Upload the <strong>Active Client Report</strong> CSV under <strong>👥 Group CSV → Client Insights</strong> to populate.</div>
+      </div>
+      <div id="cli-cards" class="ins-cards hidden">
+        <section class="ins-card">
+          <header class="ins-card-header">
+            <h3 class="ins-card-title">🏛 Industry · Licenses by Vertical</h3>
+            <span class="ins-card-sub">Active Industry licenses (Admin Client: Licensing Department is not "Procurement")</span>
+          </header>
+          <div id="cli-industry-list" class="ins-list"></div>
+        </section>
+        <section class="ins-card">
+          <header class="ins-card-header">
+            <h3 class="ins-card-title">🔷 Procurement · Licenses by Vertical</h3>
+            <span class="ins-card-sub">Active PIQ licenses (Admin Client: Licensing Department = "Procurement")</span>
+          </header>
+          <div id="cli-procurement-list" class="ins-list"></div>
+        </section>
+        <section class="ins-card">
+          <header class="ins-card-header">
+            <h3 class="ins-card-title">💎 Top 25 · Cross-Product Clients</h3>
+            <span class="ins-card-sub">Accounts holding BOTH an active Industry AND Procurement license · ranked by combined Annualized Amount</span>
+          </header>
+          <div id="cli-cross-list" class="ins-list"></div>
+        </section>
+      </div>
     </div>
   </div>
 </div>
@@ -6276,7 +6342,8 @@ function clearLicensesData() {
 // Single source of truth for all localStorage keys used by the dashboard
 const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats',
   'ibis_group_dan_accounts','ibis_group_christian_accounts','ibis_group_embry_accounts','ibis_group_anthony_accounts',
-  'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses'];
+  'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses',
+  'ibis_client_licenses'];
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -9259,6 +9326,238 @@ function renderInsights() {
     _clearGroup(owner, kind);
     if (mainView === 'insights') renderInsights();
   };
+})();
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CLIENT INSIGHTS — derived from the Active Client Report CSV (whole IBIS book)
+   Storage: ibis_client_licenses — slim rows only (account, dept, vertical, $)
+   ════════════════════════════════════════════════════════════════════════════ */
+let clientLicenses = [];
+let insightsSubtab = 'group'; // 'group' | 'client'
+
+function loadClientLicenses() {
+  try {
+    const s = localStorage.getItem('ibis_client_licenses');
+    clientLicenses = s ? JSON.parse(s) : [];
+  } catch(e) { console.error('[client-insights] load failed', e); clientLicenses = []; }
+}
+
+function saveClientLicenses() {
+  try { localStorage.setItem('ibis_client_licenses', JSON.stringify(clientLicenses)); }
+  catch(e) { console.warn('[client-insights] save failed', e); }
+}
+
+// Parse "USD 627,267.27" → 627267.27. Also handles "$1,234.56" and bare numbers.
+function parseAnnAmount(str) {
+  if (!str) return 0;
+  const cleaned = String(str).replace(/[A-Za-z$,\s]/g, '');
+  const n = parseFloat(cleaned);
+  return isFinite(n) ? n : 0;
+}
+
+function isProcurementDept(dept) {
+  return String(dept || '').trim().toLowerCase() === 'procurement';
+}
+
+function formatBigUSD(n) {
+  if (!n || !isFinite(n)) return '$0';
+  if (n >= 1e9) return '$' + (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(1) + 'K';
+  return '$' + Math.round(n);
+}
+
+function handleClientInsightsCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const raw = parseCSV(ev.target.result);
+    // Slim each row down to just the columns we need
+    // Column names (from screenshots):
+    //   Account
+    //   Admin Client: Licensing Department
+    //   Admin Client: Vertical
+    //   Annualized Amount  (formatted "USD 123,456.78")
+    //   License End Date   (M/D/YYYY)
+    const today = new Date();
+    clientLicenses = raw.map(r => {
+      const acct = r['Account'] || r['Admin Client: Client Name'] || '';
+      const dept = r['Admin Client: Licensing Department'] || '';
+      const vert = r['Admin Client: Vertical'] || '';
+      const amt  = parseAnnAmount(r['Annualized Amount']);
+      const endStr = r['License End Date'] || '';
+      const end = parseDate(endStr); // existing helper handles M/D/YYYY + YYYY-MM-DD
+      const active = end ? end > today : true; // default to active if no end date
+      return {
+        a: acct.trim(),
+        d: dept.trim(),
+        v: vert.trim(),
+        $: amt,
+        e: end ? end.toISOString().slice(0,10) : '',
+        act: active
+      };
+    }).filter(r => r.a); // drop rows missing account name
+    saveClientLicenses();
+    updateClientInsightsDot();
+    document.getElementById('cli-empty-state')?.classList.add('hidden');
+    document.getElementById('cli-cards')?.classList.remove('hidden');
+    if (mainView === 'insights' && insightsSubtab === 'client') renderClientInsights();
+    showOppToast(`✅ Client Insights loaded — ${clientLicenses.length} licenses`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+
+function clearClientInsightsData() {
+  if (!confirm('Clear the Active Client Report data?')) return;
+  clientLicenses = [];
+  localStorage.removeItem('ibis_client_licenses');
+  updateClientInsightsDot();
+  if (mainView === 'insights' && insightsSubtab === 'client') renderClientInsights();
+}
+
+function updateClientInsightsDot() {
+  const dot = document.getElementById('udot-client-insights');
+  if (!dot) return;
+  const n = clientLicenses.length;
+  dot.textContent = n ? n + ' rows' : '';
+  dot.className = 'upload-menu-dot' + (n ? ' has-date' : '');
+}
+
+/* ─── Sub-tab switching inside Insights ──────────────────────────────────── */
+function setInsightsSubtab(which) {
+  insightsSubtab = which;
+  document.getElementById('ins-subtab-group')?.classList.toggle('active', which === 'group');
+  document.getElementById('ins-subtab-client')?.classList.toggle('active', which === 'client');
+  document.getElementById('ins-page-group')?.classList.toggle('hidden', which !== 'group');
+  document.getElementById('ins-page-client')?.classList.toggle('hidden', which !== 'client');
+  if (which === 'group') renderInsights();
+  else renderClientInsights();
+}
+
+/* ─── Render Client Insights ─────────────────────────────────────────────── */
+function renderClientInsights() {
+  // Stats bar — repurpose the 3 generic slots for client view context
+  setInsStatLabels('Active Licenses', 'Total Annualized $', 'Unique Accounts');
+  if (!clientLicenses.length) {
+    document.getElementById('cli-empty-state')?.classList.remove('hidden');
+    document.getElementById('cli-cards')?.classList.add('hidden');
+    setStatVal('ins-stat-1','—'); setStatVal('ins-stat-2','—'); setStatVal('ins-stat-3','—');
+    return;
+  }
+  document.getElementById('cli-empty-state')?.classList.add('hidden');
+  document.getElementById('cli-cards')?.classList.remove('hidden');
+
+  // Only count active rows for all aggregates
+  const active = clientLicenses.filter(r => r.act);
+  const totalRevenue = active.reduce((s,r) => s + (r.$||0), 0);
+  const uniqueAccts = new Set(active.map(r => normName(r.a))).size;
+  setStatVal('ins-stat-1', active.length.toLocaleString());
+  setStatVal('ins-stat-2', formatBigUSD(totalRevenue));
+  setStatVal('ins-stat-3', uniqueAccts.toLocaleString());
+
+  // Bucket each row → industry vs procurement
+  const industry   = active.filter(r => !isProcurementDept(r.d));
+  const procurement = active.filter(r =>  isProcurementDept(r.d));
+
+  renderVerticalBreakdown('cli-industry-list',   industry,   '#92400e');
+  renderVerticalBreakdown('cli-procurement-list', procurement, '#1e40af');
+  renderCrossProductTop25(active);
+}
+
+function setStatVal(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function setInsStatLabels(a, b, c) {
+  const l1 = document.getElementById('ins-stat-1-label'); if (l1) l1.textContent = a;
+  const l2 = document.getElementById('ins-stat-2-label'); if (l2) l2.textContent = b;
+  const l3 = document.getElementById('ins-stat-3-label'); if (l3) l3.textContent = c;
+}
+
+// Render a "Vertical | Count | Bar | $" list inside `containerId` from `rows`
+function renderVerticalBreakdown(containerId, rows, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="padding:20px 18px;color:var(--text-muted);font-size:13px;">No active licenses in this category.</div>'; return; }
+  const byVert = {};
+  rows.forEach(r => {
+    const v = r.v || '— No vertical';
+    if (!byVert[v]) byVert[v] = { count:0, total:0 };
+    byVert[v].count++;
+    byVert[v].total += (r.$||0);
+  });
+  const sorted = Object.entries(byVert).sort((a,b) => b[1].total - a[1].total);
+  const maxTotal = sorted[0][1].total || 1;
+  el.innerHTML = sorted.map(([vert, d]) => {
+    const bg = (typeof VERT_COLORS !== 'undefined' && VERT_COLORS[vert]) || '#f3f4f6';
+    const pct = (d.total / maxTotal * 100).toFixed(1);
+    return `<div class="ins-row">
+      <div class="ins-row-label"><span class="ins-row-vert-pill" style="background:${bg};">${escHtml(vert)}</span></div>
+      <div class="ins-row-total">${d.count}</div>
+      <div class="ins-row-bar"><span class="ins-row-bar-seg" style="background:${accentColor};width:${pct}%;" title="${formatBigUSD(d.total)}"></span></div>
+      <div class="ins-row-revenue">${formatBigUSD(d.total)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCrossProductTop25(active) {
+  const el = document.getElementById('cli-cross-list');
+  if (!el) return;
+  // Per-account: industry $ + procurement $ + vertical (most common)
+  const byAcct = {};
+  active.forEach(r => {
+    const k = normName(r.a);
+    if (!byAcct[k]) byAcct[k] = { display:r.a, industry:0, procurement:0, verts:{} };
+    if (isProcurementDept(r.d)) byAcct[k].procurement += (r.$||0);
+    else                         byAcct[k].industry    += (r.$||0);
+    const v = r.v || '— No vertical';
+    byAcct[k].verts[v] = (byAcct[k].verts[v] || 0) + 1;
+  });
+  const both = Object.values(byAcct)
+    .filter(a => a.industry > 0 && a.procurement > 0)
+    .map(a => ({ ...a, total: a.industry + a.procurement, vert: Object.entries(a.verts).sort((x,y)=>y[1]-x[1])[0][0] }))
+    .sort((a,b) => b.total - a.total)
+    .slice(0, 25);
+  if (!both.length) {
+    el.innerHTML = '<div style="padding:20px 18px;color:var(--text-muted);font-size:13px;">No accounts found holding BOTH Industry and Procurement licenses.</div>';
+    return;
+  }
+  const header = `<div class="cli-cross-row-header">
+    <div class="cli-cross-rank">#</div>
+    <div class="cli-cross-name">Account</div>
+    <div class="cli-cross-vert" style="flex:0 0 160px;">Vertical</div>
+    <div class="cli-cross-amt industry">Industry $</div>
+    <div class="cli-cross-amt procurement">Procurement $</div>
+    <div class="cli-cross-amt total">Combined $</div>
+  </div>`;
+  const rows = both.map((a, i) => {
+    const bg = (typeof VERT_COLORS !== 'undefined' && VERT_COLORS[a.vert]) || '#f3f4f6';
+    return `<div class="cli-cross-row">
+      <div class="cli-cross-rank">${i+1}</div>
+      <div class="cli-cross-name">${escHtml(a.display)}</div>
+      <div class="cli-cross-vert" style="flex:0 0 160px;"><span class="ins-row-vert-pill" style="background:${bg};">${escHtml(a.vert)}</span></div>
+      <div class="cli-cross-amt industry">${formatBigUSD(a.industry)}</div>
+      <div class="cli-cross-amt procurement">${formatBigUSD(a.procurement)}</div>
+      <div class="cli-cross-amt total">${formatBigUSD(a.total)}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = header + rows;
+}
+
+/* ─── Repurpose stats bar when switching back to Group subpage ─────────── */
+const _origRenderInsights = renderInsights;
+window.renderInsights = function() {
+  setInsStatLabels('Total Group Accounts', 'Unique Accounts', 'Verticals Covered');
+  _origRenderInsights();
+};
+
+/* ─── Init ───────────────────────────────────────────────────────────────── */
+(function bootClientInsights(){
+  loadClientLicenses();
+  updateClientInsightsDot();
+  if (clientLicenses.length) {
+    document.getElementById('cli-empty-state')?.classList.add('hidden');
+    document.getElementById('cli-cards')?.classList.remove('hidden');
+  }
 })();
 // ─────────────────────────────────────────────────────────────────────────────
 </script>
