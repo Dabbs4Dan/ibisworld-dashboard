@@ -686,6 +686,39 @@
   .csv-loading-spinner { width:24px; height:24px; border:3px solid #e5e7eb; border-top-color:var(--ibis-red); border-radius:50%; animation:csv-spin 0.7s linear infinite; flex-shrink:0; }
   .csv-loading-msg { font-size:13px; font-weight:500; color:var(--text-primary); font-family:'DM Sans',sans-serif; }
   @keyframes csv-spin { to { transform:rotate(360deg); } }
+  /* ─── EXPORT BUTTON ─────────────────────────────────────────────────── */
+  .export-btn { background:#fff; border:1px solid var(--border); color:var(--text-primary); height:32px; padding:0 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; display:inline-flex; align-items:center; gap:6px; transition:background 150ms ease, border-color 150ms ease; }
+  .export-btn:hover { background:#f9fafb; border-color:#9ca3af; }
+  .export-btn:active { transform:scale(0.97); }
+  /* Print-only banner shown at the top of every export */
+  .print-banner { display:none; }
+  /* ─── PRINT STYLES — clean export to PDF ────────────────────────────── */
+  @media print {
+    /* Hide everything by default; reveal only the print scope */
+    body * { visibility:hidden !important; }
+    body.printing #print-stage, body.printing #print-stage * { visibility:visible !important; }
+    #print-stage { position:absolute; left:0; top:0; width:100%; background:#fff; }
+    /* Print banner at top of every exported page */
+    .print-banner { display:block !important; padding:14px 0 16px; border-bottom:2px solid #C8102E; margin-bottom:16px; }
+    .print-banner-title { font-size:18px; font-weight:700; color:#111827; font-family:'DM Sans',sans-serif; }
+    .print-banner-meta  { font-size:11px; color:#6b7280; font-family:'DM Mono',monospace; margin-top:4px; }
+    /* Tighten table/card spacing for print */
+    #print-stage table { border-collapse:collapse; width:100%; font-size:11px; }
+    #print-stage th, #print-stage td { padding:6px 8px !important; border-bottom:1px solid #e5e7eb !important; }
+    #print-stage .ins-card { border:1px solid #e5e7eb !important; box-shadow:none !important; page-break-inside:avoid; margin-bottom:14px; }
+    #print-stage .ins-card-header { padding:10px 14px !important; }
+    #print-stage .ins-row, #print-stage .cli-cross-row { padding:6px 14px !important; }
+    /* Force colour printing on backgrounds (Chrome/Edge) */
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    /* Hide all chrome — buttons, controls, upload menus, filters etc. */
+    .header, .view-nav, .controls, .stats-bar, .upload-menu-wrap,
+    #group-upload-menu, #upload-menu, .no-print, .export-btn,
+    #storage-warning-banner, #opp-toast, #wd-rev-progress, #csv-loading-overlay,
+    .splash-overlay, .ins-subtabs { display:none !important; }
+    /* Allow long tables to paginate cleanly */
+    tr, .ins-row, .cli-cross-row { page-break-inside:avoid; }
+    @page { margin:14mm 12mm; }
+  }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2566,6 +2599,8 @@
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip" id="grp-filter-multiowner" onclick="toggleGroupMultiOwnerFilter()" title="Show only accounts owned by 2+ reps">🔁 Multi-Owner</button>
     <button class="chip" id="grp-filter-activelic"  onclick="toggleGroupActiveLicFilter()"  title="Only accounts with an active PIQ or INTL license">🟢 Active License</button>
+    <span style="flex:1 1 auto;"></span>
+    <button class="export-btn" onclick="exportGroupTab()" title="Print or save current view as PDF (uses your active filters)">🖨 Export / PDF</button>
   </div>
 </div>
 
@@ -2630,6 +2665,8 @@
   <div class="ins-subtabs">
     <button class="ins-subtab active" id="ins-subtab-group"  onclick="setInsightsSubtab('group')">📋 Group Accounts</button>
     <button class="ins-subtab"        id="ins-subtab-client" onclick="setInsightsSubtab('client')">🔑 Client Insights</button>
+    <span style="flex:1 1 auto;"></span>
+    <button class="export-btn" id="ins-export-btn" onclick="exportInsightsCurrentSubtab()" style="margin:6px 24px 4px 0;" title="Print or save the current subpage as PDF">🖨 Export / PDF</button>
   </div>
   <div class="content">
     <!-- Group Accounts subpage -->
@@ -2692,6 +2729,8 @@
 <div id="content-account-page" class="hidden"></div>
 
 <div id="opp-toast"></div>
+<!-- Print stage — content gets cloned into here right before window.print() -->
+<div id="print-stage" style="display:none;"></div>
 
 
 <script>
@@ -10118,6 +10157,79 @@ window.renderInsights = function() {
 };
 
 /* ─── Init ───────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════════
+   EXPORT / PRINT-TO-PDF
+   Clones the target element into a #print-stage div, prepends a clean banner
+   with the export title + active filters + date, then triggers window.print().
+   The @media print stylesheet hides everything except #print-stage so the
+   browser's "Save as PDF" output matches the dashboard look without any chrome.
+   ════════════════════════════════════════════════════════════════════════════ */
+function _printWithBanner(title, subtitle, sourceElement) {
+  const stage = document.getElementById('print-stage');
+  if (!stage || !sourceElement) return;
+  // Clone the source so we don't move live DOM that has event listeners
+  const clone = sourceElement.cloneNode(true);
+  // Strip any nested export buttons / subtab switchers / no-print children
+  clone.querySelectorAll('.export-btn, .ins-subtabs, .no-print').forEach(n => n.remove());
+  // Strip placeholder cells for revenues still in flight — replace with em-dash
+  clone.querySelectorAll('span').forEach(s => {
+    if (s.textContent.trim() === 'looking up…') { s.textContent = '—'; s.style.fontStyle='normal'; }
+  });
+  const dateStr = new Date().toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+  stage.innerHTML = `
+    <div class="print-banner">
+      <div class="print-banner-title">${escHtml(title)}</div>
+      <div class="print-banner-meta">${escHtml(subtitle || '')} · Exported ${dateStr}</div>
+    </div>
+  `;
+  stage.appendChild(clone);
+  stage.style.display = 'block';
+  document.body.classList.add('printing');
+  // Defer one frame so layout/styles settle before print dialog opens
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      window.print();
+      // Cleanup after print dialog closes (browser blocks until user dismisses)
+      document.body.classList.remove('printing');
+      stage.style.display = 'none';
+      stage.innerHTML = '';
+    }, 80);
+  });
+}
+
+function exportGroupTab() {
+  const content = document.getElementById('content-group');
+  if (!content) return;
+  // Build a human-readable subtitle describing active filters
+  const parts = [];
+  if (groupOwnerFilter.size > 0) parts.push('Owners: ' + [...groupOwnerFilter].map(o => GROUP_OWNER_LABEL[o]).join(', '));
+  if (groupMultiOwnerOn)         parts.push('Multi-Owner only');
+  if (groupActiveLicOn)          parts.push('Active License only');
+  if (groupTierFilters.size > 0) parts.push('Tier ' + [...groupTierFilters].join('/'));
+  const vert = document.getElementById('grp-vertical-filter')?.value;
+  if (vert)                      parts.push('Vertical: ' + vert);
+  const search = (document.getElementById('grp-search-input')?.value || '').trim();
+  if (search)                    parts.push('Search: "' + search + '"');
+  const rowCount = document.querySelectorAll('#grp-table-body tr').length;
+  parts.push(rowCount + ' rows');
+  const subtitle = parts.length > 1 ? parts.join(' · ') : (parts[0] || 'All accounts');
+  _printWithBanner('Group Accounts', subtitle, content);
+}
+
+function exportInsightsCurrentSubtab() {
+  if (insightsSubtab === 'client') {
+    const c = document.getElementById('ins-page-client');
+    if (!c) return;
+    const total = (clientLicenses.filter(r => r.act).length).toLocaleString();
+    _printWithBanner('Client Insights · Active Licenses Report', `${total} active licenses across the IBIS book`, c);
+  } else {
+    const c = document.getElementById('ins-page-group');
+    if (!c) return;
+    const total = GROUP_OWNERS.reduce((s,o) => s + (groupAccounts[o]?.length || 0), 0);
+    _printWithBanner('Group Insights · Accounts by Vertical', `${total} accounts across the group`, c);
+  }
+}
+
 (function bootClientInsights(){
   loadClientLicenses();
   loadClientRevCache();
