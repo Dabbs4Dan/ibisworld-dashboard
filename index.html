@@ -2081,6 +2081,7 @@
     <button class="chip" onclick="toggleChip(this,'HAS_OPP')" data-flag="HAS_OPP">💼 Active Opp</button>
     <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
     <button class="chip chip-action" onclick="toggleChip(this,'HAS_ACTION')" data-flag="HAS_ACTION">⚡ In Action</button>
+    <button class="chip" onclick="toggleChip(this,'MULTI_OWNER')" data-flag="MULTI_OWNER" title="Show only my accounts that another rep also owns">🔁 Multi-Owner</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip chip-quickwinner" onclick="toggleChip(this,'PRIO_QUICKWINNER')" data-flag="PRIO_QUICKWINNER">⚡ Quick Winner</button>
     <button class="chip chip-legendary" onclick="toggleChip(this,'PRIO_LEGENDARY')" data-flag="PRIO_LEGENDARY">💎 Legendary</button>
@@ -2225,6 +2226,7 @@
               </div>
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
+            <th onclick="setSortCol('overlap')" style="cursor:pointer;min-width:140px;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th style="text-align:center;min-width:110px;">Campaigns</th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
@@ -3165,8 +3167,10 @@ function getFiltered() {
       if (activeFlags.has('HAS_WORKABLES') && getWorkableCount(aName) === 0) return false;
       // In Action — standalone
       if (activeFlags.has('HAS_ACTION') && !localData[aName]?.hasAction) return false;
+      // Multi-Owner — standalone (account also owned by another rep in the group)
+      if (activeFlags.has('MULTI_OWNER') && getOtherRepOverlap(aName).length === 0) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','PRIO_QUICKWINNER','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -3196,6 +3200,10 @@ function getFiltered() {
     if (sort==='acctPriority') { const ord={quickwinner:0,legendary:1,veryrare:2,rare:3,uncommon:4,common:5,'':6}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??6)-(ord[bp]??6)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*((hasActiveOpp(an)?1:0)-(hasActiveOpp(bn)?1:0)); }
+    if (sort==='overlap') {
+      const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName');
+      return d*(getOtherRepOverlap(an).length - getOtherRepOverlap(bn).length);
+    }
     return 0;
   });
   return list;
@@ -3340,7 +3348,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -3365,6 +3373,7 @@ function renderTable(list) {
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
+      <td style="white-space:nowrap;">${renderOverlapBadges(name)}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;padding:0 8px;">${renderCampCluster(name)}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
@@ -4238,10 +4247,10 @@ let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
 let currentAccountPageName = null;  // name of account currently shown on the deep-dive page (null if closed)
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', usClient:'desc', activeClient:'desc', opp:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', usClient:'desc', activeClient:'desc', opp:'desc', overlap:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','usClient','activeClient','opp','acctStatus','acctPriority'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','usClient','activeClient','opp','overlap','acctStatus','acctPriority'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -4479,6 +4488,26 @@ function getActiveLicBadges(accountName) {
     badges.push(`<span class="alb alb-intl">🌍 INTL${acv>0?' · '+formatACV(acv):''}</span>`);
   }
   return badges.join('');
+}
+
+/* ─── Group overlap lookup — surfaces other reps who also own a given account ─
+   Used by the personal Accounts tab to show overlap badges + multi-owner filter.
+   Excludes 'dan' since Dan IS the personal-tab owner — overlap means OTHER reps.
+   ─────────────────────────────────────────────────────────────────────────── */
+function getOtherRepOverlap(accountName) {
+  if (typeof groupAccounts === 'undefined') return [];
+  const norm = normName(accountName);
+  return GROUP_OWNERS.filter(o => o !== 'dan').filter(o => {
+    return groupAccounts[o].some(a => normName(getField(a, 'Account Name', 'AccountName')) === norm);
+  });
+}
+
+function renderOverlapBadges(accountName) {
+  const owners = getOtherRepOverlap(accountName);
+  if (!owners.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  return '<div class="grp-overlap-bubbles" style="margin:0;flex-wrap:wrap;">'
+       + owners.map(o => `<span class="grp-owner-pill grp-pill-${o} grp-overlap-pill" title="${GROUP_OWNER_LABEL[o]} also owns this account">${GROUP_OWNER_LABEL[o]}</span>`).join('')
+       + '</div>';
 }
 
 // True if account ever had a US Industry license (churn signal / former US client)
@@ -9441,13 +9470,21 @@ function renderInsights() {
   }
 }
 
-// Hook: re-render insights after any group upload (only if tab is visible)
+// Hook: re-render insights AND accounts after any group upload (so overlap
+// badges/filter on the personal Accounts tab reflect the new group data)
 (function hookInsightsRefresh(){
   const _handleGroupAcct = handleGroupAccountsCSV;
   const _handleGroupLic  = handleGroupLicensesCSV;
+  const _refreshDownstream = () => {
+    if (mainView === 'insights') setTimeout(renderInsights, 50);
+    // Refresh personal Accounts tab so overlap column updates
+    if (typeof accounts !== 'undefined' && accounts.length > 0) {
+      if (typeof renderAll === 'function') setTimeout(renderAll, 60);
+    }
+  };
   window.handleGroupAccountsCSV = function(owner, e) {
     _handleGroupAcct(owner, e);
-    if (mainView === 'insights') setTimeout(renderInsights, 50);
+    _refreshDownstream();
   };
   window.handleGroupLicensesCSV = function(owner, e) {
     _handleGroupLic(owner, e);
@@ -9456,7 +9493,7 @@ function renderInsights() {
   const _clearGroup = clearGroupData;
   window.clearGroupData = function(owner, kind) {
     _clearGroup(owner, kind);
-    if (mainView === 'insights') renderInsights();
+    _refreshDownstream();
   };
 })();
 
@@ -10527,11 +10564,21 @@ function restoreAutoBackup(idx) {
 
 // Auto-backup boot — fire after init so all data is loaded
 (function bootAutoBackup(){
-  // Wait one tick so all loadXxx() calls have completed
   setTimeout(() => {
     updateAutoBackupIndicator();
     // Refresh indicator every minute so "ago" text stays current
     setInterval(updateAutoBackupIndicator, 60 * 1000);
+    // FORCED first-of-session backup: guarantee at least one file lands per
+    // session even if the user is just browsing without making changes.
+    // Only fires if there's actual data worth backing up (accounts loaded).
+    setTimeout(() => {
+      const hasData = (typeof accounts !== 'undefined' && accounts.length > 0)
+                   || (typeof groupAccounts !== 'undefined' && GROUP_OWNERS.some(o => groupAccounts[o].length > 0))
+                   || (typeof clientLicenses !== 'undefined' && clientLicenses.length > 0);
+      if (hasData) {
+        runAutoBackup({ forceFile: true });
+      }
+    }, 8 * 1000); // 8s after init — gives all background loads time to settle
   }, 800);
 })();
 
