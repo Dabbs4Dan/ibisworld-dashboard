@@ -1,64 +1,58 @@
 # IBISWorld Dashboard - One-time setup for the Auto-Backup-to-GitHub scheduled task
 # ----------------------------------------------------------------------------------
-# Run this ONCE (right-click -> Run with PowerShell, OR Claude Code runs it for you).
-# It registers a Windows scheduled task that runs auto-backup-to-github.ps1 every
-# hour, silently, with no popups. NO ADMIN PRIVILEGES REQUIRED - uses schtasks.exe
-# user-scope task scheduling.
-#
-# After this runs successfully you can:
-#   * Forget about backups entirely
-#   * The dashboard's in-browser auto-backup downloads the snapshot to Downloads
-#   * This scheduled task picks up the latest one every hour and commits to GitHub
+# Uses PowerShell's ScheduledTasks cmdlets (not schtasks.exe) so paths containing
+# spaces (like the OneDrive root) are handled correctly. User-scope task, no admin.
 # ----------------------------------------------------------------------------------
 
 $ErrorActionPreference = 'Continue'
 
-$ScriptPath = "$PSScriptRoot\auto-backup-to-github.ps1"
-$TaskName   = 'IBIS Dashboard Auto-Backup'
+$BatPath  = "$PSScriptRoot\auto-backup-run.bat"
+$TaskName = 'IBIS Dashboard Auto-Backup'
 
-if (-not (Test-Path $ScriptPath)) {
-    Write-Host "ERROR: auto-backup-to-github.ps1 not found at $ScriptPath" -ForegroundColor Red
+if (-not (Test-Path $BatPath)) {
+    Write-Host "ERROR: auto-backup-run.bat not found at $BatPath" -ForegroundColor Red
     exit 1
 }
 
 Write-Host "Registering scheduled task '$TaskName' (user-scope, no admin needed)..."
 
-# Delete existing task if present (silently ignore errors when not present)
-try { & schtasks.exe /Delete /TN $TaskName /F *> $null } catch {}
+# Remove any existing task first (silent if absent)
+Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
-# schtasks /TR has a 261-char limit. The path to our PS script is already long
-# (OneDrive path), so we route through a tiny .bat wrapper in this same folder.
-$tr = "$PSScriptRoot\auto-backup-run.bat"
-if (-not (Test-Path $tr)) {
-    Write-Host "ERROR: auto-backup-run.bat wrapper missing at $tr" -ForegroundColor Red
+# Build the task via cmdlets - quoting is handled correctly for paths with spaces
+$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$BatPath`""
+
+# Trigger: every 60 minutes starting in 2 minutes from now, indefinitely
+$startAt = (Get-Date).AddMinutes(2)
+$trigger = New-ScheduledTaskTrigger -Once -At $startAt -RepetitionInterval (New-TimeSpan -Minutes 60)
+
+$settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+    -MultipleInstances IgnoreNew
+
+# Limited principal - no admin, runs only when user is logged on
+$principal = New-ScheduledTaskPrincipal `
+    -UserId "$env:USERDOMAIN\$env:USERNAME" `
+    -LogonType Interactive `
+    -RunLevel Limited
+
+$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
+    -Description 'Hourly auto-commit of the latest IBIS dashboard backup file to GitHub.'
+
+try {
+    Register-ScheduledTask -TaskName $TaskName -InputObject $task | Out-Null
+    Write-Host ''
+    Write-Host "Task '$TaskName' registered successfully." -ForegroundColor Green
+    Write-Host ''
+    Write-Host "  First run: $startAt"
+    Write-Host "  Repeats every 60 minutes thereafter."
+    Write-Host ''
+    Write-Host 'Verify action path was set correctly:'
+    (Get-ScheduledTask -TaskName $TaskName).Actions | Format-List Execute, Arguments
+} catch {
+    Write-Host "Registration failed: $_" -ForegroundColor Red
     exit 1
-}
-
-# Register: run every 60 minutes, user-scope, run only when logged on.
-$schtasksArgs = @(
-    '/Create',
-    '/TN', $TaskName,
-    '/TR', $tr,
-    '/SC', 'HOURLY',
-    '/MO', '1',
-    '/ST', '01:00',
-    '/RL', 'LIMITED',
-    '/F'
-)
-& schtasks.exe @schtasksArgs | Out-Null
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host ''
-    Write-Host "Task '$TaskName' registered." -ForegroundColor Green
-    Write-Host ''
-    Write-Host '  Runs hourly in the background, no popups.'
-    Write-Host '  Picks up the newest ibis-autobackup file from Downloads each hour'
-    Write-Host '  and commits it to backups/latest.json + a timestamped snapshot.'
-    Write-Host ''
-    Write-Host 'Check status:    schtasks /Query /TN "IBIS Dashboard Auto-Backup" /V /FO LIST'
-    Write-Host 'Run on demand:   schtasks /Run /TN "IBIS Dashboard Auto-Backup"'
-} else {
-    Write-Host ''
-    Write-Host "schtasks returned exit code $LASTEXITCODE. Registration may have failed." -ForegroundColor Yellow
-    exit $LASTEXITCODE
 }
