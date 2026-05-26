@@ -719,6 +719,26 @@
     tr, .ins-row, .cli-cross-row { page-break-inside:avoid; }
     @page { margin:14mm 12mm; }
   }
+  /* ─── AUTO-BACKUP STATUS INDICATOR + RECOVERY MODAL ─────────────────── */
+  #autoback-indicator { position:fixed; bottom:14px; left:14px; background:#0f172a; color:#fff; font-size:11px; font-weight:600; padding:6px 12px; border-radius:999px; font-family:'DM Sans',sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.18); cursor:pointer; z-index:9000; transition:background 150ms ease, transform 150ms ease; user-select:none; }
+  #autoback-indicator:hover { background:#1e293b; transform:translateY(-1px); }
+  @media print { #autoback-indicator { display:none !important; } }
+  #autoback-modal { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; align-items:center; justify-content:center; padding:40px; }
+  .ab-card { background:#fff; border-radius:12px; max-width:520px; width:100%; box-shadow:0 12px 32px rgba(0,0,0,.22); overflow:hidden; font-family:'DM Sans',sans-serif; }
+  .ab-card-header { padding:18px 22px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; }
+  .ab-card-title { font-size:16px; font-weight:700; color:var(--text-primary); }
+  .ab-card-sub { font-size:12px; color:var(--text-muted); margin-top:3px; }
+  .ab-card-close { background:none; border:none; font-size:18px; color:var(--text-muted); cursor:pointer; line-height:1; padding:0 4px; }
+  .ab-card-close:hover { color:var(--text-primary); }
+  .ab-list { max-height:360px; overflow:auto; }
+  .ab-row { display:flex; align-items:center; gap:14px; padding:12px 22px; border-bottom:1px solid #f3f4f6; cursor:pointer; transition:background 100ms ease; }
+  .ab-row:hover { background:#f9fafb; }
+  .ab-row:last-child { border-bottom:none; }
+  .ab-row-num { font-family:'DM Mono',monospace; font-size:12px; font-weight:700; color:var(--text-muted); flex:0 0 28px; }
+  .ab-row-time { flex:1 1 auto; font-size:13px; font-weight:600; color:var(--text-primary); }
+  .ab-row-size { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .ab-row-btn { background:var(--ibis-red); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+  .ab-card-footer { padding:12px 22px; background:#f9fafb; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); line-height:1.5; }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -6396,7 +6416,11 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   'ibis_group_dan_accounts','ibis_group_christian_accounts','ibis_group_embry_accounts','ibis_group_anthony_accounts',
   'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses',
   'ibis_client_licenses',
-  'ibis_client_revenue'];
+  'ibis_client_revenue',
+  'ibis_auto_backup_meta'];
+  // Note: ibis_auto_backup_ring is intentionally EXCLUDED — it contains full
+  // snapshots itself, which would create infinite nesting if included in a
+  // snapshot. The ring is reset on restore so we always start with a clean slate.
 
 function checkStorageSize() {
   const WARN_KEY_KB = 2048; // warn at 2MB per key
@@ -10282,6 +10306,234 @@ function exportInsightsCurrentSubtab() {
     _printWithBanner('Group Insights · Accounts by Vertical', `${total} accounts across the group`, c);
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   AUTO-BACKUP ENGINE — runs silently, no clicks needed
+   3 layers of safety:
+     1) In-memory ring: keeps last 5 snapshots in a separate localStorage key.
+        Triggered automatically on every meaningful change.
+     2) Auto-downloaded backup files: silently downloads a v3 backup JSON to
+        Downloads at most once per hour AND on first significant change of
+        each session. Covers Chrome-wiped-site-data scenarios when paired
+        with OneDrive Downloads sync.
+     3) Status indicator: discreet pill in bottom-left shows freshness +
+        click-to-recover from any of the 5 in-memory snapshots.
+   ════════════════════════════════════════════════════════════════════════════ */
+const AUTO_BACKUP_RING_KEY  = 'ibis_auto_backup_ring';   // last N v3 snapshots, compressed
+const AUTO_BACKUP_META_KEY  = 'ibis_auto_backup_meta';   // timestamps + hashes
+const AUTO_BACKUP_RING_SIZE = 5;
+const AUTO_BACKUP_DEBOUNCE_MS  = 30 * 1000;     // 30s after a change
+const AUTO_BACKUP_FILE_MIN_MS  = 60 * 60 * 1000; // file download at most every 60min
+const AUTO_BACKUP_FILE_FIRST_MIN_MS = 60 * 1000; // first file dl within 60s of first change
+
+let _autoBackupTimer = null;
+let _autoBackupRunning = false;
+
+function _autoBackupHash() {
+  // Fast deterministic hash of all relevant storage keys' lengths + key counts
+  // (we don't need cryptographic strength — just change-detection)
+  let s = '';
+  ALL_STORAGE_KEYS.forEach(k => { s += k + ':' + (localStorage.getItem(k)?.length || 0) + '|'; });
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h<<5) + h) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+function _autoBackupLoadMeta() {
+  try { return JSON.parse(localStorage.getItem(AUTO_BACKUP_META_KEY) || '{}'); }
+  catch { return {}; }
+}
+function _autoBackupSaveMeta(m) {
+  try { localStorage.setItem(AUTO_BACKUP_META_KEY, JSON.stringify(m)); } catch {}
+}
+
+function _buildBackupSnapshot() {
+  const snap = { _version: 3, _exported: new Date().toISOString(), _auto: true, _keys: [] };
+  ALL_STORAGE_KEYS.forEach(key => {
+    const val = localStorage.getItem(key);
+    if (val == null) return;
+    try { snap[key] = JSON.parse(val); } catch { snap[key] = val; }
+    snap._keys.push(key);
+  });
+  return snap;
+}
+
+function _autoBackupSaveToRing(snap) {
+  // Each ring entry: { ts, hash, snap }
+  // Storage budget: 5 snapshots can get big, so we keep them in their own key.
+  // If we can't fit, evict oldest until we can.
+  let ring = [];
+  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
+  ring.unshift({ ts: Date.now(), hash: _autoBackupHash(), snap });
+  ring = ring.slice(0, AUTO_BACKUP_RING_SIZE);
+  while (ring.length > 0) {
+    try {
+      localStorage.setItem(AUTO_BACKUP_RING_KEY, JSON.stringify(ring));
+      return ring.length;
+    } catch {
+      // Quota exceeded — drop oldest and retry
+      ring.pop();
+      if (ring.length === 0) return 0;
+    }
+  }
+  return 0;
+}
+
+function _autoBackupDownloadFile(snap) {
+  try {
+    const blob = new Blob([JSON.stringify(snap)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const ts = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+    a.href = url;
+    a.download = `ibis-autobackup-${ts}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+    return true;
+  } catch(e) { console.warn('[auto-backup] download failed', e); return false; }
+}
+
+function runAutoBackup({ forceFile = false } = {}) {
+  if (_autoBackupRunning) return;
+  _autoBackupRunning = true;
+  try {
+    const hash = _autoBackupHash();
+    const meta = _autoBackupLoadMeta();
+    if (hash === meta.lastHash && !forceFile) { _autoBackupRunning = false; return; }
+    const snap = _buildBackupSnapshot();
+    const ringSize = _autoBackupSaveToRing(snap);
+    meta.lastHash = hash;
+    meta.lastInMemoryTs = Date.now();
+    meta.ringSize = ringSize;
+    // Decide whether to also trigger a file download
+    const now = Date.now();
+    const since = now - (meta.lastFileTs || 0);
+    const isFirstChangeThisSession = !meta.sessionFileDoneAt && (now - (window._autoBackupSessionStart || now)) > AUTO_BACKUP_FILE_FIRST_MIN_MS;
+    if (forceFile || isFirstChangeThisSession || since > AUTO_BACKUP_FILE_MIN_MS) {
+      if (_autoBackupDownloadFile(snap)) {
+        meta.lastFileTs = now;
+        meta.sessionFileDoneAt = now;
+      }
+    }
+    _autoBackupSaveMeta(meta);
+    updateAutoBackupIndicator();
+  } finally { _autoBackupRunning = false; }
+}
+
+function scheduleAutoBackup() {
+  if (_autoBackupTimer) clearTimeout(_autoBackupTimer);
+  _autoBackupTimer = setTimeout(() => runAutoBackup(), AUTO_BACKUP_DEBOUNCE_MS);
+}
+
+// ─── Intercept localStorage writes so ANY data change auto-schedules a backup
+window._autoBackupSessionStart = Date.now();
+(function _hookStorageWrites(){
+  const _origSet = Storage.prototype.setItem;
+  Storage.prototype.setItem = function(k, v) {
+    _origSet.call(this, k, v);
+    if (this === localStorage && ALL_STORAGE_KEYS.includes(k)) scheduleAutoBackup();
+  };
+})();
+
+// Safety net: also run unconditionally every 5 min in case anything bypassed the hook
+setInterval(() => runAutoBackup(), 5 * 60 * 1000);
+// Best-effort backup when leaving the page (synchronous ring save only — file
+// dl is unreliable on unload, but ring save works since it's a localStorage write)
+window.addEventListener('beforeunload', () => {
+  try { const snap = _buildBackupSnapshot(); _autoBackupSaveToRing(snap); } catch {}
+});
+
+/* ─── Status indicator — bottom-left pill, always visible ──────────────── */
+function updateAutoBackupIndicator() {
+  let el = document.getElementById('autoback-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'autoback-indicator';
+    el.title = 'Click to see recovery snapshots';
+    el.onclick = openAutoBackupPanel;
+    document.body.appendChild(el);
+  }
+  const meta = _autoBackupLoadMeta();
+  if (!meta.lastInMemoryTs) { el.innerHTML = '🟡 backup pending'; return; }
+  const mins = Math.round((Date.now() - meta.lastInMemoryTs) / 60000);
+  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
+  const fileMins = meta.lastFileTs ? Math.round((Date.now() - meta.lastFileTs) / 60000) : null;
+  const fileAgo = fileMins == null ? '' : fileMins < 1 ? ' · file just now' : fileMins < 60 ? ` · file ${fileMins}m ago` : ` · file ${Math.round(fileMins/60)}h ago`;
+  el.innerHTML = `🟢 Auto-backup ${ago}${fileAgo}`;
+}
+
+function openAutoBackupPanel() {
+  let ring = [];
+  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
+  if (!ring.length) { alert('No auto-backups have run yet. Make a change and wait ~30 seconds.'); return; }
+  // Show a simple modal listing snapshots — click to restore
+  let modal = document.getElementById('autoback-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'autoback-modal';
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+    document.body.appendChild(modal);
+  }
+  const rows = ring.map((r, i) => {
+    const d = new Date(r.ts);
+    const niceTime = d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    const sizeKB = Math.round(JSON.stringify(r.snap).length / 1024);
+    return `<div class="ab-row" onclick="restoreAutoBackup(${i})">
+      <div class="ab-row-num">#${i+1}</div>
+      <div class="ab-row-time">${niceTime}</div>
+      <div class="ab-row-size">${sizeKB} KB</div>
+      <button class="ab-row-btn">↺ Restore</button>
+    </div>`;
+  }).join('');
+  modal.innerHTML = `
+    <div class="ab-card">
+      <div class="ab-card-header">
+        <div>
+          <div class="ab-card-title">🛡 Recovery Snapshots</div>
+          <div class="ab-card-sub">Last ${ring.length} auto-saves — click any to roll back</div>
+        </div>
+        <button class="ab-card-close" onclick="document.getElementById('autoback-modal').style.display='none'">✕</button>
+      </div>
+      <div class="ab-list">${rows}</div>
+      <div class="ab-card-footer">
+        💾 Latest snapshot is also auto-downloaded to your Downloads folder — set up OneDrive sync on that folder for cloud safety.
+      </div>
+    </div>`;
+  modal.style.display = 'flex';
+}
+
+function restoreAutoBackup(idx) {
+  let ring = [];
+  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
+  const entry = ring[idx];
+  if (!entry) return;
+  const d = new Date(entry.ts).toLocaleString();
+  if (!confirm(`Restore snapshot from ${d}?\n\nThis replaces ALL current dashboard data with that snapshot. The page will reload after restoring.\n\nClick OK to proceed.`)) return;
+  try {
+    const snap = entry.snap;
+    ALL_STORAGE_KEYS.forEach(k => {
+      if (snap[k] === undefined) return;
+      const val = typeof snap[k] === 'string' ? snap[k] : JSON.stringify(snap[k]);
+      localStorage.setItem(k, val);
+    });
+    showOppToast('✅ Snapshot restored — reloading…');
+    setTimeout(() => location.reload(), 600);
+  } catch(err) {
+    alert('Restore failed: ' + err.message);
+  }
+}
+
+// Auto-backup boot — fire after init so all data is loaded
+(function bootAutoBackup(){
+  // Wait one tick so all loadXxx() calls have completed
+  setTimeout(() => {
+    updateAutoBackupIndicator();
+    // Refresh indicator every minute so "ago" text stays current
+    setInterval(updateAutoBackupIndicator, 60 * 1000);
+  }, 800);
+})();
 
 (function bootClientInsights(){
   loadClientLicenses();

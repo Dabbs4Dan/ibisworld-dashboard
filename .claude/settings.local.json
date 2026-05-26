@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c \"C:/Users/Daniel.starr/OneDrive - IBISWORLD PTY LTD/Desktop/ibisworld-dashboard/outreach-extension/content.js\")",
+      "Bash(where node:*)",
+      "PowerShell(& \"C:\\\\Users\\\\Daniel.starr\\\\OneDrive - IBISWORLD PTY LTD\\\\Desktop\\\\ibisworld-dashboard\\\\scripts\\\\setup-auto-backup-task.ps1\")"
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+# This folder holds auto-backup snapshots committed by scripts/auto-backup-to-github.ps1
+# latest.json — single canonical "current state" file (overwritten every sync)
+# snap-YYYY-MM-DD-HHmm.json — last 30 timestamped snapshots (rolling)
+# sync.log — append-only log of every sync run
