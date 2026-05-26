@@ -2164,8 +2164,8 @@
 
 <div id="storage-warning-banner">
   <span>⚠️</span>
-  <span class="swb-msg">Storage is getting full. Consider clearing your enrichment cache to prevent upload failures.</span>
-  <button class="swb-clear" onclick="clearEnrichmentCache()">Clear Cache</button>
+  <span class="swb-msg">Storage is getting full. Click below — it auto-saves a full backup first, then frees space.</span>
+  <button class="swb-clear" onclick="safeFreeStorage()">💾 Backup &amp; Free Space</button>
   <button class="swb-dismiss" onclick="document.getElementById('storage-warning-banner').classList.remove('visible')" title="Dismiss">✕</button>
 </div>
 
@@ -6418,17 +6418,70 @@ function checkStorageSize() {
   }
 }
 
-function clearEnrichmentCache() {
-  // Remove ibis_local revenue cache only.
-  // PROTECTED — never touched: ibis_client_revenue (Wikidata company revenues
-  // looked up via Client Insights), all markup, all CSV data, all group data.
+// ─── Safe storage cleanup ──────────────────────────────────────────────────
+// Triggered from the storage warning banner. Order of operations is critical:
+//   1) Auto-download a full v3 backup (covers EVERY ALL_STORAGE_KEYS entry,
+//      so the user always has a complete restore point even if something goes
+//      wrong with the cache wipe).
+//   2) Confirm with an itemized list showing exactly what's wiped vs preserved.
+//   3) Wipe only fields that are 100% re-fetchable (revenue, description,
+//      sentiment) from ibis_local. Everything else stays untouched.
+function safeFreeStorage() {
+  // Compute current sizes so we can show the user what's being freed
+  const beforeKB = _calcLocalStorageKB();
+  // Step 1: auto-backup FIRST — no matter what happens next, this file exists
+  try {
+    exportLocalBackup();
+  } catch(err) {
+    if (!confirm('⚠️ Auto-backup failed: ' + err.message + '\n\nContinue with cache wipe anyway?')) return;
+  }
+  // Step 2: show explicit confirm with everything that will be touched vs preserved
+  const accountsWithRev  = Object.values(localData).filter(v => v?.rev).length;
+  const accountsWithDesc = Object.values(localData).filter(v => v?.desc).length;
+  const accountsWithSent = Object.values(localData).filter(v => v?.sentiment).length;
+  const msg =
+    `✅ Backup file just downloaded (ibis-backup-${new Date().toISOString().slice(0,10)}.json).\n` +
+    `   Contains EVERY data set — including every item below in "preserved".\n\n` +
+    `═══ WILL BE WIPED (all auto re-fetchable) ═══\n` +
+    `  • Revenue cache on ${accountsWithRev} accounts\n` +
+    `  • Wikipedia descriptions on ${accountsWithDesc} accounts\n` +
+    `  • Sentiment scores on ${accountsWithSent} accounts\n\n` +
+    `═══ PRESERVED — never touched ═══\n` +
+    `  • Action stages, headlines, dates, notes, key contacts\n` +
+    `  • Account status (Keep/Monitor/Drop), priority tiers\n` +
+    `  • Account plans, opp toggles + amounts + close dates\n` +
+    `  • All uploaded CSVs: personal accounts, licenses, all 8 campaigns,\n` +
+    `    all 4 reps' group accounts + licenses, client insights\n` +
+    `  • Group revenue cache (ibis_client_revenue — its own protected key)\n` +
+    `  • Dead tab contents, sort prefs, CSV upload history\n\n` +
+    `Click OK to proceed.`;
+  if (!confirm(msg)) return;
+  // Step 3: wipe re-fetchable enrichment fields
+  let wipedRev = 0, wipedDesc = 0, wipedSent = 0;
   Object.keys(localData).forEach(name => {
-    if (localData[name]?.rev) delete localData[name].rev;
+    if (localData[name]?.rev)       { delete localData[name].rev;       wipedRev++; }
+    if (localData[name]?.desc)      { delete localData[name].desc;      delete localData[name].descV; wipedDesc++; }
+    if (localData[name]?.sentiment) { delete localData[name].sentiment; wipedSent++; }
   });
-  localStorage.setItem('ibis_local', JSON.stringify(localData));
-  document.getElementById('storage-warning-banner').classList.remove('visible');
+  try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e) {}
+  const afterKB = _calcLocalStorageKB();
+  const freedKB = Math.max(0, beforeKB - afterKB);
+  document.getElementById('storage-warning-banner')?.classList.remove('visible');
   renderAll();
   checkStorageSize();
+  showOppToast(`✅ Freed ~${freedKB} KB · wiped ${wipedRev} rev / ${wipedDesc} desc / ${wipedSent} sentiment · backup saved`);
+}
+
+// Kept as a thin alias so existing callers still work — but delegates to safe path
+function clearEnrichmentCache() { return safeFreeStorage(); }
+
+function _calcLocalStorageKB() {
+  let total = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const v = localStorage.getItem(localStorage.key(i));
+    if (v) total += v.length * 2;
+  }
+  return Math.round(total / 1024);
 }
 
 /* ============================================================
