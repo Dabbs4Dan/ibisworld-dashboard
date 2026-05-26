@@ -1,0 +1,7 @@
+﻿[2026-05-26 16:05:46] Auto-backup sync starting
+[2026-05-26 16:05:46] No ibis-autobackup-*.json files found in C:\Users\Daniel.starr\Downloads. Nothing to do.
+[2026-05-26 16:24:43] Auto-backup sync starting
+[2026-05-26 16:24:43] Latest download: ibis-autobackup-2026-05-26-20-18.json (3,045,594 bytes, modified 05/26/2026 16:18:25)
+[2026-05-26 16:24:43] Copied to backups/latest.json
+[2026-05-26 16:24:43] Saved timestamped snapshot: snap-2026-05-26-1618.json
+[2026-05-26 16:24:43] Committing and pushing to GitHub
