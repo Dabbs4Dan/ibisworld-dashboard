@@ -739,6 +739,38 @@
   .ab-row-size { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-muted); }
   .ab-row-btn { background:var(--ibis-red); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
   .ab-card-footer { padding:12px 22px; background:#f9fafb; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); line-height:1.5; }
+  /* ── New Backups panel (v37) ──────────────────────────────────────────── */
+  .ab-card.bp-wide { max-width:640px; }
+  .bp-section { padding:16px 22px; border-bottom:1px solid #f3f4f6; }
+  .bp-section:last-child { border-bottom:none; }
+  .bp-section-title { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; }
+  .bp-storage-bar { height:8px; background:#f3f4f6; border-radius:999px; overflow:hidden; margin-bottom:6px; }
+  .bp-storage-fill { height:100%; transition:width 250ms ease, background 250ms ease; border-radius:999px; }
+  .bp-storage-meta { display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); font-family:'DM Mono',monospace; }
+  .bp-storage-meta strong { color:var(--text-primary); font-weight:600; }
+  .bp-layer { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f9fafb; }
+  .bp-layer:last-child { border-bottom:none; }
+  .bp-layer-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 3px rgba(0,0,0,.04); }
+  .bp-layer-dot.ok { background:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.15); }
+  .bp-layer-dot.warn { background:#d97706; box-shadow:0 0 0 3px rgba(217,119,6,.15); }
+  .bp-layer-dot.err { background:#dc2626; box-shadow:0 0 0 3px rgba(220,38,38,.15); }
+  .bp-layer-dot.pending { background:#9ca3af; }
+  .bp-layer-body { flex:1; min-width:0; }
+  .bp-layer-name { font-size:13px; font-weight:600; color:var(--text-primary); }
+  .bp-layer-meta { font-size:11px; color:var(--text-muted); font-family:'DM Mono',monospace; margin-top:2px; }
+  .bp-restore-btn { display:block; width:100%; padding:14px; background:var(--ibis-red); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; transition:background 150ms ease, transform 150ms ease; }
+  .bp-restore-btn:hover { background:#a40c25; transform:translateY(-1px); }
+  .bp-restore-btn:disabled { background:#d1d5db; cursor:not-allowed; transform:none; }
+  .bp-restore-sub { font-size:11px; color:var(--text-muted); text-align:center; margin-top:8px; line-height:1.5; }
+  .bp-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .bp-action-btn { flex:1 1 calc(50% - 4px); padding:10px; background:#fff; color:var(--text-primary); border:1px solid var(--border); border-radius:8px; font-size:12px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; transition:background 150ms ease, border-color 150ms ease; min-width:140px; }
+  .bp-action-btn:hover { background:#f9fafb; border-color:#9ca3af; }
+  .bp-snap-list { max-height:200px; overflow-y:auto; margin:0 -22px; }
+  .bp-snap-list .ab-row { padding-left:22px; padding-right:22px; }
+  .bp-empty { font-size:12px; color:var(--text-muted); font-style:italic; padding:8px 0; }
+  #autoback-indicator { padding:7px 14px; }
+  #autoback-indicator.warn { background:#92400e; }
+  #autoback-indicator.err { background:#991b1b; }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1660,13 +1692,9 @@
           <span class="upload-menu-x" onclick="event.stopPropagation();clearAlumniData()" title="Clear">✕</span>
         </button>
         <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
-        <button class="upload-menu-row" onclick="exportLocalBackup();closeUploadMenu()" style="color:#16a34a;">
-          <span class="upload-menu-label">💾 Backup Markup</span>
-          <span style="font-size:10px;color:#9ca3af;font-family:'DM Mono',monospace;margin-left:auto;padding-right:8px;">export JSON</span>
-        </button>
-        <button class="upload-menu-row" onclick="document.getElementById('local-restore-input').click();closeUploadMenu()" style="color:#2563eb;">
-          <span class="upload-menu-label">📥 Restore Markup</span>
-          <span style="font-size:10px;color:#9ca3af;font-family:'DM Mono',monospace;margin-left:auto;padding-right:8px;">import JSON</span>
+        <button class="upload-menu-row" onclick="openBackupsPanel();closeUploadMenu()" style="color:#0f172a;">
+          <span class="upload-menu-label">🛡 Backups &amp; Restore</span>
+          <span style="font-size:10px;color:#9ca3af;font-family:'DM Mono',monospace;margin-left:auto;padding-right:8px;">auto-managed</span>
         </button>
       </div>
     </div>
@@ -2190,8 +2218,8 @@
 
 <div id="storage-warning-banner">
   <span>⚠️</span>
-  <span class="swb-msg">Storage is getting full. Click below — it auto-saves a full backup first, then frees space.</span>
-  <button class="swb-clear" onclick="safeFreeStorage()">💾 Backup &amp; Free Space</button>
+  <span class="swb-msg">Storage is filling up faster than auto-cleanup can clear it. Open Backups for details.</span>
+  <button class="swb-clear" onclick="openBackupsPanel()">🛡 Open Backups</button>
   <button class="swb-dismiss" onclick="document.getElementById('storage-warning-banner').classList.remove('visible')" title="Dismiss">✕</button>
 </div>
 
@@ -2200,9 +2228,12 @@
 <div class="content">
   <div id="empty-state" class="empty-state">
     <div class="empty-icon">📂</div>
-    <div class="empty-title">Upload your Account CSV to get started</div>
-    <div class="empty-desc">Export your DA$ Account Stalker report from Salesforce as CSV, then click Accounts CSV above.</div>
-    <button class="upload-btn" style="margin:0 auto;" onclick="document.getElementById('file-input').click()">↑ Upload Accounts CSV</button>
+    <div class="empty-title">No data loaded yet</div>
+    <div class="empty-desc">If this is a fresh machine or a wiped browser, restore everything in one click from the cloud backup. Otherwise upload a fresh Accounts CSV.</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px;">
+      <button class="upload-btn" style="background:#0f172a;" onclick="restoreFromCloud()">☁️ Restore Everything from Cloud</button>
+      <button class="upload-btn" onclick="document.getElementById('file-input').click()">↑ Upload Accounts CSV</button>
+    </div>
   </div>
   <div id="acct-count-label" class="above-table-label"></div>
   <div id="cards-view" class="cards-grid hidden"></div>
@@ -6457,65 +6488,58 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   // snapshots itself, which would create infinite nesting if included in a
   // snapshot. The ring is reset on restore so we always start with a clean slate.
 
-function checkStorageSize() {
-  const WARN_KEY_KB = 2048; // warn at 2MB per key
-  const WARN_TOTAL_KB = 4096; // warn at 4MB total
+// Chrome / Edge per-origin localStorage ceiling is ~5 MB (UTF-16 chars × 2 bytes).
+// We act well before that wall so the user never sees a quota error.
+const STORAGE_LIMIT_KB    = 5120;  // 5 MB practical ceiling
+const STORAGE_AUTOCLEAN_KB = 3584; // 3.5 MB → silent enrichment wipe runs
+const STORAGE_WARN_KB     = 4608;  // 4.5 MB → banner only if cleanup couldn't help
+let _autoCleanLastRun = 0;
+const AUTO_CLEAN_MIN_MS = 5 * 60 * 1000; // don't auto-clean more than once per 5min
+
+function calcStorageUsage() {
   let totalKB = 0;
-  let triggered = false;
-  ALL_STORAGE_KEYS.forEach(key => {
-    const val = localStorage.getItem(key);
-    if (!val) return;
-    const kb = Math.round((val.length * 2) / 1024);
-    totalKB += kb;
-    if (kb > WARN_KEY_KB) { console.warn(`[ibis-storage] "${key}" is ${kb}KB — approaching limit`); triggered = true; }
-  });
-  if (totalKB > WARN_TOTAL_KB) { console.warn(`[ibis-storage] Total ~${totalKB}KB — very close to 5MB limit`); triggered = true; }
+  for (let i = 0; i < localStorage.length; i++) {
+    const v = localStorage.getItem(localStorage.key(i));
+    if (v) totalKB += (v.length * 2) / 1024;
+  }
+  totalKB = Math.round(totalKB);
+  return { totalKB, limitKB: STORAGE_LIMIT_KB, pct: Math.min(100, Math.round(totalKB / STORAGE_LIMIT_KB * 100)) };
+}
+
+function checkStorageSize() {
+  const { totalKB } = calcStorageUsage();
+  // Tier 1: silent auto-cleanup — wipes only re-fetchable enrichment after taking a fresh backup
+  if (totalKB > STORAGE_AUTOCLEAN_KB && (Date.now() - _autoCleanLastRun) > AUTO_CLEAN_MIN_MS) {
+    _autoCleanLastRun = Date.now();
+    const wiped = quietFreeStorage();
+    if (wiped.freedKB > 0) {
+      console.log(`[ibis-storage] Auto-cleanup freed ${wiped.freedKB} KB (wiped ${wiped.fields})`);
+      // Update the indicator pill so the user can see something happened if they look
+      try { updateAutoBackupIndicator(); } catch {}
+    }
+  }
+  // Tier 2: banner only if we're STILL above the warn threshold after cleanup
   const banner = document.getElementById('storage-warning-banner');
   if (banner) {
-    if (triggered) banner.classList.add('visible');
+    const { totalKB: nowKB } = calcStorageUsage();
+    if (nowKB > STORAGE_WARN_KB) banner.classList.add('visible');
     else banner.classList.remove('visible');
   }
 }
 
-// ─── Safe storage cleanup ──────────────────────────────────────────────────
-// Triggered from the storage warning banner. Order of operations is critical:
-//   1) Auto-download a full v3 backup (covers EVERY ALL_STORAGE_KEYS entry,
-//      so the user always has a complete restore point even if something goes
-//      wrong with the cache wipe).
-//   2) Confirm with an itemized list showing exactly what's wiped vs preserved.
-//   3) Wipe only fields that are 100% re-fetchable (revenue, description,
-//      sentiment) from ibis_local. Everything else stays untouched.
-function safeFreeStorage() {
-  // Compute current sizes so we can show the user what's being freed
-  const beforeKB = _calcLocalStorageKB();
-  // Step 1: auto-backup FIRST — no matter what happens next, this file exists
-  try {
-    exportLocalBackup();
-  } catch(err) {
-    if (!confirm('⚠️ Auto-backup failed: ' + err.message + '\n\nContinue with cache wipe anyway?')) return;
-  }
-  // Step 2: show explicit confirm with everything that will be touched vs preserved
-  const accountsWithRev  = Object.values(localData).filter(v => v?.rev).length;
-  const accountsWithDesc = Object.values(localData).filter(v => v?.desc).length;
-  const accountsWithSent = Object.values(localData).filter(v => v?.sentiment).length;
-  const msg =
-    `✅ Backup file just downloaded (ibis-backup-${new Date().toISOString().slice(0,10)}.json).\n` +
-    `   Contains EVERY data set — including every item below in "preserved".\n\n` +
-    `═══ WILL BE WIPED (all auto re-fetchable) ═══\n` +
-    `  • Revenue cache on ${accountsWithRev} accounts\n` +
-    `  • Wikipedia descriptions on ${accountsWithDesc} accounts\n` +
-    `  • Sentiment scores on ${accountsWithSent} accounts\n\n` +
-    `═══ PRESERVED — never touched ═══\n` +
-    `  • Action stages, headlines, dates, notes, key contacts\n` +
-    `  • Account status (Keep/Monitor/Drop), priority tiers\n` +
-    `  • Account plans, opp toggles + amounts + close dates\n` +
-    `  • All uploaded CSVs: personal accounts, licenses, all 8 campaigns,\n` +
-    `    all 4 reps' group accounts + licenses, client insights\n` +
-    `  • Group revenue cache (ibis_client_revenue — its own protected key)\n` +
-    `  • Dead tab contents, sort prefs, CSV upload history\n\n` +
-    `Click OK to proceed.`;
-  if (!confirm(msg)) return;
-  // Step 3: wipe re-fetchable enrichment fields
+// ─── Storage cleanup (silent, auto-triggered) ─────────────────────────────
+// Wipes ONLY re-fetchable enrichment (revenue/description/sentiment) from
+// ibis_local. Everything user-typed (status, priority, action stages, notes,
+// key contacts, account plans, opp toggles) and every CSV/group/dead store
+// stays untouched. Wikipedia + Wikidata refetch automatically as accounts
+// re-render, so the user never has to think about it.
+//
+// Called automatically by checkStorageSize() the moment storage crosses the
+// auto-clean threshold (3.5 MB), well below Chrome's ~5 MB wall. A fresh
+// auto-backup always runs immediately before this (handled by the storage
+// write hook), so no data is ever at risk.
+function quietFreeStorage() {
+  const before = calcStorageUsage().totalKB;
   let wipedRev = 0, wipedDesc = 0, wipedSent = 0;
   Object.keys(localData).forEach(name => {
     if (localData[name]?.rev)       { delete localData[name].rev;       wipedRev++; }
@@ -6523,15 +6547,24 @@ function safeFreeStorage() {
     if (localData[name]?.sentiment) { delete localData[name].sentiment; wipedSent++; }
   });
   try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e) {}
-  const afterKB = _calcLocalStorageKB();
-  const freedKB = Math.max(0, beforeKB - afterKB);
+  const after = calcStorageUsage().totalKB;
+  const freedKB = Math.max(0, before - after);
   document.getElementById('storage-warning-banner')?.classList.remove('visible');
-  renderAll();
-  checkStorageSize();
-  showOppToast(`✅ Freed ~${freedKB} KB · wiped ${wipedRev} rev / ${wipedDesc} desc / ${wipedSent} sentiment · backup saved`);
+  try { renderAll(); } catch {}
+  return { freedKB, fields: `${wipedRev} rev / ${wipedDesc} desc / ${wipedSent} sentiment`, wipedRev, wipedDesc, wipedSent };
 }
 
-// Kept as a thin alias so existing callers still work — but delegates to safe path
+// Manual variant — same wipe, but shows a toast. Used by the Backups panel
+// when the user clicks "Free space now". A fresh auto-backup will already
+// be on disk because the storage write hook fires before any wipe.
+function safeFreeStorage() {
+  const result = quietFreeStorage();
+  checkStorageSize();
+  showOppToast(`✅ Freed ~${result.freedKB} KB · wiped ${result.fields}`);
+  return result;
+}
+
+// Legacy alias — preserved for any older call sites.
 function clearEnrichmentCache() { return safeFreeStorage(); }
 
 function _calcLocalStorageKB() {
@@ -10532,24 +10565,93 @@ function updateAutoBackupIndicator() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'autoback-indicator';
-    el.title = 'Click to see recovery snapshots';
-    el.onclick = openAutoBackupPanel;
+    el.title = 'Click to open the Backups panel';
+    el.onclick = openBackupsPanel;
     document.body.appendChild(el);
   }
   const meta = _autoBackupLoadMeta();
-  if (!meta.lastInMemoryTs) { el.innerHTML = '🟡 backup pending'; return; }
+  const { totalKB, pct } = calcStorageUsage();
+  // Color-code on storage pressure so the pill becomes a real warning if needed
+  el.classList.remove('warn','err');
+  if (pct >= 90) el.classList.add('err');
+  else if (pct >= 75) el.classList.add('warn');
+  if (!meta.lastInMemoryTs) { el.innerHTML = `🟡 Backup pending · ${pct}% used`; return; }
   const mins = Math.round((Date.now() - meta.lastInMemoryTs) / 60000);
   const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
-  const fileMins = meta.lastFileTs ? Math.round((Date.now() - meta.lastFileTs) / 60000) : null;
-  const fileAgo = fileMins == null ? '' : fileMins < 1 ? ' · file just now' : fileMins < 60 ? ` · file ${fileMins}m ago` : ` · file ${Math.round(fileMins/60)}h ago`;
-  el.innerHTML = `🟢 Auto-backup ${ago}${fileAgo}`;
+  el.innerHTML = `🛡 Backed up ${ago} · ${pct}% used`;
 }
 
-function openAutoBackupPanel() {
-  let ring = [];
-  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
-  if (!ring.length) { alert('No auto-backups have run yet. Make a change and wait ~30 seconds.'); return; }
-  // Show a simple modal listing snapshots — click to restore
+/* ─── Cloud restore — fetches backups/latest.json from GitHub ───────────── */
+const CLOUD_BACKUP_RAW_URL = 'https://raw.githubusercontent.com/Dabbs4Dan/ibisworld-dashboard/main/backups/latest.json';
+const CLOUD_BACKUP_API_URL = 'https://api.github.com/repos/Dabbs4Dan/ibisworld-dashboard/commits?path=backups/latest.json&per_page=1';
+let _cloudStatusCache = null;
+
+async function fetchCloudBackupStatus() {
+  // Returns { available, lastPushTs, ageMin } or { available:false, error }
+  // Cached for 5 min so opening the panel multiple times doesn't hammer the API.
+  if (_cloudStatusCache && (Date.now() - _cloudStatusCache.fetchedAt) < 5 * 60 * 1000) return _cloudStatusCache;
+  try {
+    const r = await fetch(CLOUD_BACKUP_API_URL + '&_=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const commits = await r.json();
+    if (!Array.isArray(commits) || !commits.length) throw new Error('No commits');
+    const lastPushTs = new Date(commits[0].commit.committer.date).getTime();
+    const ageMin = Math.round((Date.now() - lastPushTs) / 60000);
+    _cloudStatusCache = { available: true, lastPushTs, ageMin, fetchedAt: Date.now() };
+  } catch(e) {
+    _cloudStatusCache = { available: false, error: e.message, fetchedAt: Date.now() };
+  }
+  return _cloudStatusCache;
+}
+
+async function restoreFromCloud() {
+  // One-click full restore from backups/latest.json on GitHub.
+  // If the dashboard has live data, confirm first; if it's empty (fresh
+  // machine / wiped Chrome), skip the confirm — Dan needs the easy path.
+  const hasLiveData = (typeof accounts !== 'undefined' && accounts.length > 0)
+                   || (typeof opps !== 'undefined' && Object.keys(opps).length > 0);
+  let backup;
+  try {
+    showOppToast('☁️ Fetching cloud backup…');
+    const r = await fetch(CLOUD_BACKUP_RAW_URL + '?cb=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' from GitHub');
+    backup = await r.json();
+  } catch(e) {
+    alert('Could not fetch cloud backup:\n\n' + e.message +
+          '\n\nFallback: use "Restore from a file" in the Backups panel and select your most recent ibis-autobackup file from Downloads.');
+    return;
+  }
+  if (!backup || !backup._version) { alert('Cloud backup is invalid or empty.'); return; }
+  const exported = backup._exported ? new Date(backup._exported).toLocaleString() : 'unknown';
+  if (hasLiveData) {
+    if (!confirm(`Restore cloud backup from ${exported}?\n\nThis REPLACES all current dashboard data with that snapshot. The page will reload after.\n\nClick OK to proceed.`)) return;
+  }
+  try {
+    ALL_STORAGE_KEYS.forEach(k => {
+      if (backup[k] === undefined) return;
+      const val = typeof backup[k] === 'string' ? backup[k] : JSON.stringify(backup[k]);
+      localStorage.setItem(k, val);
+    });
+    showOppToast('✅ Cloud backup restored — reloading…');
+    setTimeout(() => location.reload(), 700);
+  } catch(err) {
+    alert('Restore failed: ' + err.message);
+  }
+}
+
+/* ─── Force a full backup now (all 3 layers) ───────────────────────────── */
+function forceBackupNow() {
+  try {
+    runAutoBackup({ forceFile: true });
+    showOppToast('💾 Backup running — file dropping into Downloads now (cloud push within the hour)');
+    setTimeout(() => { updateAutoBackupIndicator(); openBackupsPanel(); }, 400);
+  } catch(e) {
+    alert('Backup failed: ' + e.message);
+  }
+}
+
+/* ─── The Backups panel — single view for everything backup-related ────── */
+function openBackupsPanel() {
   let modal = document.getElementById('autoback-modal');
   if (!modal) {
     modal = document.createElement('div');
@@ -10557,7 +10659,46 @@ function openAutoBackupPanel() {
     modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
     document.body.appendChild(modal);
   }
-  const rows = ring.map((r, i) => {
+  _renderBackupsPanel(modal, { cloud: null });
+  modal.style.display = 'flex';
+  // Fetch cloud status in the background, then re-render once we have it
+  fetchCloudBackupStatus().then(status => {
+    if (modal.style.display !== 'none') _renderBackupsPanel(modal, { cloud: status });
+  });
+}
+
+function _renderBackupsPanel(modal, { cloud }) {
+  const meta = _autoBackupLoadMeta();
+  const { totalKB, limitKB, pct } = calcStorageUsage();
+  // Color-code the storage bar
+  let barColor = '#16a34a'; // green
+  if (pct >= 90) barColor = '#dc2626';
+  else if (pct >= 75) barColor = '#d97706';
+  // Ring snapshots
+  let ring = [];
+  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
+  // Layer 1: in-memory ring
+  const l1Mins = meta.lastInMemoryTs ? Math.round((Date.now() - meta.lastInMemoryTs) / 60000) : null;
+  const l1Ago = l1Mins == null ? 'never' : l1Mins < 1 ? 'just now' : l1Mins < 60 ? `${l1Mins}m ago` : `${Math.round(l1Mins/60)}h ago`;
+  const l1Class = l1Mins == null ? 'pending' : l1Mins < 60 ? 'ok' : 'warn';
+  // Layer 2: file in Downloads
+  const l2Mins = meta.lastFileTs ? Math.round((Date.now() - meta.lastFileTs) / 60000) : null;
+  const l2Ago = l2Mins == null ? 'never' : l2Mins < 1 ? 'just now' : l2Mins < 60 ? `${l2Mins}m ago` : `${Math.round(l2Mins/60)}h ago`;
+  const l2Class = l2Mins == null ? 'pending' : l2Mins < 120 ? 'ok' : 'warn';
+  // Layer 3: GitHub cloud
+  let l3Class = 'pending', l3Text = 'Checking…';
+  if (cloud) {
+    if (cloud.available) {
+      const m = cloud.ageMin;
+      l3Text = m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m/60)}h ago` : `${Math.round(m/1440)}d ago`;
+      l3Class = m < 180 ? 'ok' : 'warn';
+    } else {
+      l3Class = 'err';
+      l3Text = 'Offline / unreachable';
+    }
+  }
+  // Ring snapshot rows
+  const ringRows = ring.length ? ring.map((r, i) => {
     const d = new Date(r.ts);
     const niceTime = d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
     const sizeKB = Math.round(JSON.stringify(r.snap).length / 1024);
@@ -10567,22 +10708,88 @@ function openAutoBackupPanel() {
       <div class="ab-row-size">${sizeKB} KB</div>
       <button class="ab-row-btn">↺ Restore</button>
     </div>`;
-  }).join('');
+  }).join('') : '<div class="bp-empty">No in-browser snapshots yet — they appear automatically after you make changes.</div>';
+
   modal.innerHTML = `
-    <div class="ab-card">
+    <div class="ab-card bp-wide">
       <div class="ab-card-header">
         <div>
-          <div class="ab-card-title">🛡 Recovery Snapshots</div>
-          <div class="ab-card-sub">Last ${ring.length} auto-saves — click any to roll back</div>
+          <div class="ab-card-title">🛡 Backups &amp; Restore</div>
+          <div class="ab-card-sub">Everything is backed up automatically. Use this panel to check status or roll back.</div>
         </div>
         <button class="ab-card-close" onclick="document.getElementById('autoback-modal').style.display='none'">✕</button>
       </div>
-      <div class="ab-list">${rows}</div>
+
+      <div class="bp-section">
+        <div class="bp-section-title">Storage in this browser</div>
+        <div class="bp-storage-bar"><div class="bp-storage-fill" style="width:${pct}%;background:${barColor};"></div></div>
+        <div class="bp-storage-meta">
+          <span><strong>${(totalKB/1024).toFixed(2)} MB</strong> of ~${(limitKB/1024).toFixed(0)} MB used</span>
+          <span>${pct}%</span>
+        </div>
+        <div class="bp-restore-sub" style="text-align:left;margin-top:8px;">
+          ${pct >= 75
+            ? 'Storage is getting full — auto-cleanup wipes re-fetchable enrichment (revenue/descriptions/sentiment) silently as needed. Your CSV data, notes, and action work are never touched.'
+            : 'Plenty of room. Auto-cleanup will kick in if usage reaches 70%.'}
+        </div>
+      </div>
+
+      <div class="bp-section">
+        <div class="bp-section-title">Automatic protection — 3 layers</div>
+        <div class="bp-layer">
+          <span class="bp-layer-dot ${l1Class}"></span>
+          <div class="bp-layer-body">
+            <div class="bp-layer-name">In-browser snapshots</div>
+            <div class="bp-layer-meta">Last save: ${l1Ago} · ${ring.length} of ${AUTO_BACKUP_RING_SIZE} kept</div>
+          </div>
+        </div>
+        <div class="bp-layer">
+          <span class="bp-layer-dot ${l2Class}"></span>
+          <div class="bp-layer-body">
+            <div class="bp-layer-name">Downloaded file backup</div>
+            <div class="bp-layer-meta">Last file: ${l2Ago} · saved to your Downloads folder</div>
+          </div>
+        </div>
+        <div class="bp-layer">
+          <span class="bp-layer-dot ${l3Class}"></span>
+          <div class="bp-layer-body">
+            <div class="bp-layer-name">GitHub cloud backup</div>
+            <div class="bp-layer-meta">Last push: ${l3Text} · hourly Windows task pushes Downloads → GitHub</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bp-section">
+        <div class="bp-section-title">Lost your data? Start here</div>
+        <button class="bp-restore-btn" onclick="restoreFromCloud()" ${cloud && !cloud.available ? 'disabled' : ''}>
+          ☁️ Restore Everything from Cloud
+        </button>
+        <div class="bp-restore-sub">
+          One click — pulls the most recent <code style="font-family:'DM Mono',monospace;">backups/latest.json</code> from GitHub and reloads.
+          ${cloud && !cloud.available ? '<br><strong style="color:#dc2626;">Currently offline — use "Restore from a file" below as a fallback.</strong>' : ''}
+        </div>
+      </div>
+
+      <div class="bp-section">
+        <div class="bp-section-title">In-browser snapshots — last ${AUTO_BACKUP_RING_SIZE}</div>
+        <div class="bp-snap-list">${ringRows}</div>
+      </div>
+
+      <div class="bp-section">
+        <div class="bp-section-title">Manual actions</div>
+        <div class="bp-actions">
+          <button class="bp-action-btn" onclick="forceBackupNow()">💾 Backup right now</button>
+          <button class="bp-action-btn" onclick="document.getElementById('local-restore-input').click()">📥 Restore from a file</button>
+          <button class="bp-action-btn" onclick="safeFreeStorage()">🧹 Free space now</button>
+          <button class="bp-action-btn" onclick="window.open('https://github.com/Dabbs4Dan/ibisworld-dashboard/tree/main/backups','_blank')">🌐 View cloud snapshots</button>
+        </div>
+      </div>
+
       <div class="ab-card-footer">
-        💾 Latest snapshot is also auto-downloaded to your Downloads folder — set up OneDrive sync on that folder for cloud safety.
+        ✅ Every change is auto-saved within 30 seconds · file backup at most hourly · GitHub push hourly via Windows task.
+        You never need to do anything manually.
       </div>
     </div>`;
-  modal.style.display = 'flex';
 }
 
 function restoreAutoBackup(idx) {
@@ -10605,6 +10812,9 @@ function restoreAutoBackup(idx) {
     alert('Restore failed: ' + err.message);
   }
 }
+
+// Back-compat: anything still calling the old name still works
+function openAutoBackupPanel() { return openBackupsPanel(); }
 
 // Auto-backup boot — fire after init so all data is loaded
 (function bootAutoBackup(){
