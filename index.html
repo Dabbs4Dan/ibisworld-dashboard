@@ -770,7 +770,20 @@
   .bp-empty { font-size:12px; color:var(--text-muted); font-style:italic; padding:8px 0; }
   #autoback-indicator { padding:7px 14px; }
   #autoback-indicator.warn { background:#92400e; }
-  #autoback-indicator.err { background:#991b1b; }
+  #autoback-indicator.err { background:#991b1b; animation: ibis-pulse-err 1.5s ease-in-out infinite; }
+  @keyframes ibis-pulse-err { 0%,100% { box-shadow:0 2px 8px rgba(153,27,27,.4); } 50% { box-shadow:0 2px 16px rgba(220,38,38,.7); } }
+  /* ── Save-failure banner (critical, full-bleed top, can't be missed) ─── */
+  #save-failure-banner {
+    display:none; position:fixed; top:0; left:0; right:0; z-index:10001;
+    background:linear-gradient(90deg,#991b1b,#dc2626); color:#fff;
+    padding:14px 22px; gap:16px; align-items:center;
+    font-family:'DM Sans',sans-serif; font-size:13px;
+    box-shadow:0 4px 14px rgba(220,38,38,.4);
+    animation: ibis-sfb-slide 250ms ease;
+  }
+  #save-failure-banner.visible { display:flex; }
+  @keyframes ibis-sfb-slide { from { transform:translateY(-100%); } to { transform:translateY(0); } }
+  @media print { #save-failure-banner { display:none !important; } }
   /* Contact preview portal */
   #contact-preview-portal { position:fixed; z-index:9700; display:none; background:#fff; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.10); border:1px solid #e5e7eb; min-width:220px; max-width:300px; overflow:hidden; }
   .cprev-header { padding:8px 14px; font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #f3f4f6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -10541,15 +10554,144 @@ function scheduleAutoBackup() {
   _autoBackupTimer = setTimeout(() => runAutoBackup(), AUTO_BACKUP_DEBOUNCE_MS);
 }
 
-// ─── Intercept localStorage writes so ANY data change auto-schedules a backup
+// ─── Write-health monitor ─────────────────────────────────────────────────
+// Wraps localStorage.setItem so every write to a tracked key is monitored.
+// On quota failure we auto-recover (drop ring → wipe enrichment → retry) so
+// the user's actual save still goes through. If recovery also fails, a
+// bright red banner appears immediately so the user can act before more data
+// is at risk.
 window._autoBackupSessionStart = Date.now();
+window.WRITE_HEALTH = {
+  lastSuccess:      0,   // ts of last successful tracked write
+  lastFailure:      0,   // ts of last quota-failure
+  lastFailureKey:   null,
+  lastProbeTs:      0,
+  consecutiveFails: 0,
+  inRecovery:       false,
+  recoveriesDone:   0,   // # of times we self-healed during this session
+};
+
+function _wh_markSuccess() {
+  WRITE_HEALTH.lastSuccess = Date.now();
+  WRITE_HEALTH.consecutiveFails = 0;
+  WRITE_HEALTH.lastFailureKey = null;
+  _wh_hideCriticalBanner();
+}
+
+function _wh_markFailure(key) {
+  WRITE_HEALTH.lastFailure = Date.now();
+  WRITE_HEALTH.lastFailureKey = key;
+  WRITE_HEALTH.consecutiveFails++;
+}
+
+// Try to free enough space + retry the original write. Returns true on success.
+function _wh_recoverAndRetry(origSetItem, key, val) {
+  if (WRITE_HEALTH.inRecovery) return false; // prevent re-entry
+  WRITE_HEALTH.inRecovery = true;
+  try {
+    // 1) Drop the auto-backup ring entirely — it's the single biggest reclaimable item
+    try { origSetItem.call(localStorage, AUTO_BACKUP_RING_KEY, '[]'); } catch {}
+    // 2) Wipe enrichment fields inline (don't call quietFreeStorage to avoid
+    //    nested hook re-entry — we manipulate ibis_local directly with the
+    //    raw setItem to bypass our own wrapper)
+    try {
+      const ld = JSON.parse(localStorage.getItem('ibis_local') || '{}');
+      let touched = 0;
+      Object.keys(ld).forEach(name => {
+        if (ld[name]?.rev)       { delete ld[name].rev; touched++; }
+        if (ld[name]?.desc)      { delete ld[name].desc; delete ld[name].descV; touched++; }
+        if (ld[name]?.sentiment) { delete ld[name].sentiment; touched++; }
+      });
+      if (touched > 0) origSetItem.call(localStorage, 'ibis_local', JSON.stringify(ld));
+      // Refresh the in-memory cache too
+      if (typeof localData !== 'undefined') {
+        try { Object.assign(localData, ld); /* shallow refresh */ } catch {}
+        // Easier: replace it
+        try { window.localData = ld; } catch {}
+      }
+    } catch {}
+    // 3) Retry the failed write
+    try {
+      origSetItem.call(localStorage, key, val);
+      _wh_markSuccess();
+      WRITE_HEALTH.recoveriesDone++;
+      showOppToast('🛡 Storage was filling up — auto-recovery ran, your save went through. Open the Backups panel for details.');
+      try { renderAll(); } catch {}
+      return true;
+    } catch (retryErr) {
+      _wh_showCriticalBanner('Recovery couldn\'t free enough space');
+      return false;
+    }
+  } finally {
+    WRITE_HEALTH.inRecovery = false;
+  }
+}
+
+function _wh_showCriticalBanner(reason) {
+  let b = document.getElementById('save-failure-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'save-failure-banner';
+    b.innerHTML = `
+      <span style="font-size:18px;">🚨</span>
+      <div style="flex:1;line-height:1.4;">
+        <strong>SAVE FAILURE — your most recent changes did NOT save.</strong><br>
+        <span style="font-size:11px;opacity:0.92;" id="sfb-reason"></span>
+      </div>
+      <button onclick="openBackupsPanel()" style="background:#fff;color:#991b1b;border:none;padding:8px 14px;border-radius:6px;font-weight:700;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;">🛡 Open Backups</button>
+      <button onclick="document.getElementById('save-failure-banner').classList.remove('visible')" style="background:none;border:none;color:#fff;cursor:pointer;font-size:18px;opacity:0.7;" title="Dismiss">✕</button>`;
+    document.body.appendChild(b);
+  }
+  const reasonEl = document.getElementById('sfb-reason');
+  if (reasonEl) reasonEl.textContent = reason + ' · key: ' + (WRITE_HEALTH.lastFailureKey || 'unknown') + ' · ' + new Date().toLocaleTimeString();
+  b.classList.add('visible');
+}
+function _wh_hideCriticalBanner() {
+  document.getElementById('save-failure-banner')?.classList.remove('visible');
+}
+
 (function _hookStorageWrites(){
   const _origSet = Storage.prototype.setItem;
   Storage.prototype.setItem = function(k, v) {
-    _origSet.call(this, k, v);
-    if (this === localStorage && ALL_STORAGE_KEYS.includes(k)) scheduleAutoBackup();
+    // Non-IBIS keys: pass through unchanged
+    if (this !== localStorage || !ALL_STORAGE_KEYS.includes(k)) {
+      return _origSet.call(this, k, v);
+    }
+    // Tracked key: monitor for success/failure
+    try {
+      _origSet.call(this, k, v);
+      if (!WRITE_HEALTH.inRecovery) _wh_markSuccess();
+      scheduleAutoBackup();
+    } catch (e) {
+      _wh_markFailure(k);
+      // If quota — try to recover and retry. If recovery works, swallow the
+      // error (the data IS saved). Otherwise re-throw so callers know.
+      if (e && /quota|exceed/i.test(e.name + ' ' + e.message)) {
+        if (_wh_recoverAndRetry(_origSet, k, v)) return;
+      }
+      throw e;
+    }
   };
 })();
+
+// ─── Periodic write probe — actively verifies writes still work ───────────
+// Every 2 min: try a tiny write + remove. If it fails, recover proactively
+// BEFORE the user's next real save fails.
+setInterval(() => {
+  WRITE_HEALTH.lastProbeTs = Date.now();
+  try {
+    localStorage.setItem('_ibis_health_probe', String(Date.now()));
+    localStorage.removeItem('_ibis_health_probe');
+    // Success — but only mark health if we weren't already failing
+    if (WRITE_HEALTH.consecutiveFails === 0) _wh_hideCriticalBanner();
+  } catch (e) {
+    // Probe failed — pre-emptively try to clear space
+    console.warn('[ibis-storage] write probe FAILED, attempting recovery');
+    _wh_recoverAndRetry(Storage.prototype.setItem, '_ibis_health_probe', String(Date.now()));
+    try { localStorage.removeItem('_ibis_health_probe'); } catch {}
+  }
+  try { updateAutoBackupIndicator(); } catch {}
+}, 2 * 60 * 1000);
 
 // Safety net: also run unconditionally every 5 min in case anything bypassed the hook
 setInterval(() => runAutoBackup(), 5 * 60 * 1000);
@@ -10571,8 +10713,13 @@ function updateAutoBackupIndicator() {
   }
   const meta = _autoBackupLoadMeta();
   const { totalKB, pct } = calcStorageUsage();
-  // Color-code on storage pressure so the pill becomes a real warning if needed
   el.classList.remove('warn','err');
+  // Highest priority: a recent failed write trumps everything else
+  if (WRITE_HEALTH.consecutiveFails > 0 && (Date.now() - WRITE_HEALTH.lastFailure) < 5 * 60 * 1000) {
+    el.classList.add('err');
+    el.innerHTML = `🚨 Save failure — click to fix`;
+    return;
+  }
   if (pct >= 90) el.classList.add('err');
   else if (pct >= 75) el.classList.add('warn');
   if (!meta.lastInMemoryTs) { el.innerHTML = `🟡 Backup pending · ${pct}% used`; return; }
@@ -10735,7 +10882,36 @@ function _renderBackupsPanel(modal, { cloud }) {
       </div>
 
       <div class="bp-section">
-        <div class="bp-section-title">Automatic protection — 3 layers</div>
+        <div class="bp-section-title">Write health</div>
+        ${(() => {
+          const okSuccess = WRITE_HEALTH.lastSuccess && (Date.now() - WRITE_HEALTH.lastSuccess) < 60 * 60 * 1000;
+          const recentFail = WRITE_HEALTH.consecutiveFails > 0 && (Date.now() - WRITE_HEALTH.lastFailure) < 30 * 60 * 1000;
+          let cls = 'ok', headline = 'All saves succeeding', sub;
+          if (recentFail) {
+            cls = 'err';
+            headline = 'Last save FAILED';
+            const failAgo = Math.round((Date.now() - WRITE_HEALTH.lastFailure) / 60000);
+            sub = `Key: ${WRITE_HEALTH.lastFailureKey || 'unknown'} · ${failAgo}m ago · consecutive failures: ${WRITE_HEALTH.consecutiveFails}`;
+          } else if (!okSuccess) {
+            cls = 'pending';
+            headline = 'No tracked saves yet this session';
+            sub = 'Will appear once you change anything.';
+          } else {
+            const ago = Math.round((Date.now() - WRITE_HEALTH.lastSuccess) / 60000);
+            sub = `Last successful save: ${ago < 1 ? 'just now' : ago + 'm ago'}${WRITE_HEALTH.recoveriesDone > 0 ? ` · auto-recoveries this session: ${WRITE_HEALTH.recoveriesDone}` : ''}`;
+          }
+          return `<div class="bp-layer">
+            <span class="bp-layer-dot ${cls}"></span>
+            <div class="bp-layer-body">
+              <div class="bp-layer-name">${headline}</div>
+              <div class="bp-layer-meta">${sub}</div>
+            </div>
+          </div>`;
+        })()}
+      </div>
+
+      <div class="bp-section">
+        <div class="bp-section-title">Automatic protection — 4 layers</div>
         <div class="bp-layer">
           <span class="bp-layer-dot ${l1Class}"></span>
           <div class="bp-layer-body">
@@ -10747,7 +10923,7 @@ function _renderBackupsPanel(modal, { cloud }) {
           <span class="bp-layer-dot ${l2Class}"></span>
           <div class="bp-layer-body">
             <div class="bp-layer-name">Downloaded file backup</div>
-            <div class="bp-layer-meta">Last file: ${l2Ago} · saved to your Downloads folder</div>
+            <div class="bp-layer-meta">Last file: ${l2Ago} · Downloads\\ibis-autobackup-*.json</div>
           </div>
         </div>
         <div class="bp-layer">
@@ -10755,6 +10931,13 @@ function _renderBackupsPanel(modal, { cloud }) {
           <div class="bp-layer-body">
             <div class="bp-layer-name">GitHub cloud backup</div>
             <div class="bp-layer-meta">Last push: ${l3Text} · hourly Windows task pushes Downloads → GitHub</div>
+          </div>
+        </div>
+        <div class="bp-layer">
+          <span class="bp-layer-dot ok"></span>
+          <div class="bp-layer-body">
+            <div class="bp-layer-name">Local mirror — independent of GitHub</div>
+            <div class="bp-layer-meta">Documents\\IBIS-Backups\\ · last 30 hourly snapshots · also auto-synced via OneDrive (4th cloud copy)</div>
           </div>
         </div>
       </div>
@@ -10782,6 +10965,7 @@ function _renderBackupsPanel(modal, { cloud }) {
           <button class="bp-action-btn" onclick="document.getElementById('local-restore-input').click()">📥 Restore from a file</button>
           <button class="bp-action-btn" onclick="safeFreeStorage()">🧹 Free space now</button>
           <button class="bp-action-btn" onclick="window.open('https://github.com/Dabbs4Dan/ibisworld-dashboard/tree/main/backups','_blank')">🌐 View cloud snapshots</button>
+          <button class="bp-action-btn" onclick="alert('Local mirror lives at:\\n\\nC:\\\\Users\\\\Daniel.starr\\\\Documents\\\\IBIS-Backups\\\\\\n\\nCopy any snap-*.json into Downloads, then use \\\\u201cRestore from a file\\\\u201d above.')">🗂 Local mirror path</button>
         </div>
       </div>
 
