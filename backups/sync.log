@@ -128,3 +128,31 @@
 [2026-05-27 13:10:11] Saved timestamped snapshot: snap-2026-05-27-1203.json
 [2026-05-27 13:10:11] Mirrored to C:\Users\Daniel.starr\OneDrive - IBISWORLD PTY LTD\Documents\IBIS-Backups
 [2026-05-27 13:10:12] Committing and pushing to GitHub
+[2026-05-27 13:10:14] [main acd51bf] auto-backup: 2026-05-27-1203 (2,928,769 bytes)
+[2026-05-27 13:10:14]  Committer: Daniel Starr <daniel.starr@ibisworld.com.au>
+[2026-05-27 13:10:14] Your name and email address were configured automatically based
+[2026-05-27 13:10:14] on your username and hostname. Please check that they are accurate.
+[2026-05-27 13:10:14] You can suppress this message by setting them explicitly. Run the
+[2026-05-27 13:10:14] following command and follow the instructions in your editor to edit
+[2026-05-27 13:10:14] your configuration file:
+[2026-05-27 13:10:14] 
+[2026-05-27 13:10:14]     git config --global --edit
+[2026-05-27 13:10:14] 
+[2026-05-27 13:10:14] After doing this, you may fix the identity used for this commit with:
+[2026-05-27 13:10:14] 
+[2026-05-27 13:10:14]     git commit --amend --reset-author
+[2026-05-27 13:10:14] 
+[2026-05-27 13:10:15]  3 files changed, 34 insertions(+), 1 deletion(-)
+[2026-05-27 13:10:15]  create mode 100644 backups/snap-2026-05-27-1203.json
+[2026-05-27 13:10:21] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-05-27 13:10:21]    8faacc9..acd51bf  main -> main
+[2026-05-27 13:10:21] Auto-backup sync complete.
+[2026-05-27 13:10:21] Cleaned Downloads: ibis-autobackup-2026-05-27-16-03.json
+[2026-05-27 13:28:24] Auto-backup sync starting
+[2026-05-27 13:28:24] No ibis-autobackup-*.json files found in C:\Users\Daniel.starr\Downloads. Nothing to do.
+[2026-05-27 14:28:25] Auto-backup sync starting
+[2026-05-27 14:28:25] Latest download: ibis-autobackup-2026-05-27-17-44.json (2,779,205 bytes, modified 05/27/2026 13:45:00)
+[2026-05-27 14:28:25] Copied to backups/latest.json
+[2026-05-27 14:28:25] Saved timestamped snapshot: snap-2026-05-27-1345.json
+[2026-05-27 14:28:25] Mirrored to C:\Users\Daniel.starr\OneDrive - IBISWORLD PTY LTD\Documents\IBIS-Backups
+[2026-05-27 14:28:26] Committing and pushing to GitHub
