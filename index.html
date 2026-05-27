@@ -2091,6 +2091,8 @@
     <button class="chip chip-veryrare" onclick="toggleChip(this,'PRIO_VERYRARE')" data-flag="PRIO_VERYRARE">⭐ Very Rare</button>
     <button class="chip chip-rare" onclick="toggleChip(this,'PRIO_RARE')" data-flag="PRIO_RARE">🔨 Rare</button>
     <button class="chip chip-uncommon" onclick="toggleChip(this,'PRIO_UNCOMMON')" data-flag="PRIO_UNCOMMON">⛏ Uncommon</button>
+    <span style="flex:1 1 auto;"></span>
+    <button class="export-btn" onclick="exportAccountsTab()" title="Print or save current view as PDF (respects active filters + search + vertical + tier)">🖨 Export / PDF</button>
   </div>
 </div>
 
@@ -10313,6 +10315,44 @@ function _printWithBanner(title, subtitle, sourceElement) {
       stage.innerHTML = '';
     }, 80);
   });
+}
+
+function exportAccountsTab() {
+  const content = document.getElementById('content-accounts');
+  if (!content) return;
+  // Build a human-readable subtitle describing every active filter
+  const parts = [];
+  // Status group
+  const statusLabels = { KEEP:'Keep', MONITOR:'Monitor', DROP:'Drop' };
+  const statusOn = ['KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f)).map(f => statusLabels[f]);
+  if (statusOn.length) parts.push('Status: ' + statusOn.join('/'));
+  // Priority group
+  const prioLabels = { PRIO_QUICKWINNER:'Quick Winner', PRIO_TEAMSELL:'Team Sell', PRIO_LEGENDARY:'Legendary', PRIO_VERYRARE:'Very Rare', PRIO_RARE:'Rare', PRIO_UNCOMMON:'Uncommon' };
+  const prioOn = Object.keys(prioLabels).filter(f => activeFlags.has(f)).map(f => prioLabels[f]);
+  if (prioOn.length) parts.push('Priority: ' + prioOn.join('/'));
+  // Stage group
+  const stageOn = [...activeFlags].filter(f => f.startsWith('STAGE_')).map(f => f.replace('STAGE_',''));
+  if (stageOn.length) parts.push('Stage: ' + stageOn.join('/'));
+  // Standalone flags
+  if (activeFlags.has('ACTIVE_LIC'))    parts.push('Active License');
+  if (activeFlags.has('HAS_OPP'))       parts.push('Active Opp');
+  if (activeFlags.has('HAS_WORKABLES')) parts.push('Has Workables');
+  if (activeFlags.has('HAS_ACTION'))    parts.push('In Action');
+  if (activeFlags.has('MULTI_OWNER'))   parts.push('Multi-Owner');
+  // Tier dropdown
+  if (typeof acctTierFilters !== 'undefined' && acctTierFilters.size > 0) {
+    parts.push('Tier ' + [...acctTierFilters].map(t => t === '' ? '—' : t).join('/'));
+  }
+  // Vertical dropdown + search
+  const vert = document.getElementById('vertical-filter')?.value;
+  if (vert) parts.push('Vertical: ' + vert);
+  const search = (document.getElementById('search-input')?.value || '').trim();
+  if (search) parts.push('Search: "' + search + '"');
+  // Row count
+  const rowCount = document.querySelectorAll('#table-body tr').length || document.querySelectorAll('#cards-view .account-card').length;
+  parts.push(rowCount + ' rows');
+  const subtitle = parts.length > 1 ? parts.join(' · ') : (parts[0] || 'All accounts');
+  _printWithBanner('Accounts', subtitle, content);
 }
 
 function exportGroupTab() {
