@@ -10511,7 +10511,182 @@ function _autoBackupSaveToRing(snap) {
   return 0;
 }
 
-function _autoBackupDownloadFile(snap) {
+/* ─── File System Access API — direct folder writes, no Downloads ──── */
+// User grants access to a folder ONCE (via showDirectoryPicker). The handle
+// is stored in IndexedDB and reused across sessions. Backups write directly
+// to that folder — no Chrome download notification, no Downloads history.
+// If FSA isn't available or permission lapses, we fall back to the legacy
+// <a download> path automatically.
+const FSA_DB_NAME    = 'ibis_fsa';
+const FSA_STORE      = 'handles';
+const FSA_HANDLE_KEY = 'backup_dir';
+let _fsaHandle = null;
+let _fsaPermission = 'unknown'; // granted | denied | prompt | no-handle | unsupported | error
+let _fsaSupported = ('showDirectoryPicker' in window);
+
+function _fsaOpenDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(FSA_DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(FSA_STORE)) db.createObjectStore(FSA_STORE);
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+async function _fsaSaveHandle(handle) {
+  const db = await _fsaOpenDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(FSA_STORE, 'readwrite');
+    tx.objectStore(FSA_STORE).put(handle, FSA_HANDLE_KEY);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function _fsaLoadHandle() {
+  try {
+    const db = await _fsaOpenDB();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(FSA_STORE, 'readonly');
+      const req = tx.objectStore(FSA_STORE).get(FSA_HANDLE_KEY);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror  = () => rej(req.error);
+    });
+  } catch { return null; }
+}
+async function _fsaClearHandle() {
+  try {
+    const db = await _fsaOpenDB();
+    await new Promise((res) => {
+      const tx = db.transaction(FSA_STORE, 'readwrite');
+      tx.objectStore(FSA_STORE).delete(FSA_HANDLE_KEY);
+      tx.oncomplete = () => res();
+    });
+  } catch {}
+}
+async function _fsaCheckPermission(handle, requestIfPrompt) {
+  if (!handle) return 'no-handle';
+  try {
+    let perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'prompt' && requestIfPrompt) {
+      perm = await handle.requestPermission({ mode: 'readwrite' });
+    }
+    return perm;
+  } catch { return 'error'; }
+}
+
+// Boot: load any saved handle and check (don't request) its permission.
+// Requesting permission requires a user gesture; we do that on first
+// use or via the panel's "Set up" button.
+async function _fsaBoot() {
+  if (!_fsaSupported) { _fsaPermission = 'unsupported'; return; }
+  const handle = await _fsaLoadHandle();
+  if (!handle) { _fsaPermission = 'no-handle'; return; }
+  _fsaHandle = handle;
+  _fsaPermission = await _fsaCheckPermission(handle, false);
+}
+
+// User-facing setup. MUST be called from a user gesture (button click).
+async function fsaSetupFolder() {
+  if (!_fsaSupported) {
+    alert('Your browser doesn\'t support direct folder writes. The dashboard will keep using Downloads — still fully backed up.');
+    return false;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({
+      id:      'ibis-backup-dir',
+      mode:    'readwrite',
+      startIn: 'documents',
+    });
+    // Verify permission is actually granted before storing
+    const perm = await _fsaCheckPermission(handle, true);
+    if (perm !== 'granted') {
+      alert('Permission was not granted. Direct save not enabled.');
+      return false;
+    }
+    await _fsaSaveHandle(handle);
+    _fsaHandle = handle;
+    _fsaPermission = 'granted';
+    showOppToast(`✅ Direct save active → ${handle.name}\\ (no more download notifications)`);
+    // Trigger an immediate backup write so we confirm it works
+    try { runAutoBackup({ forceFile: true }); } catch {}
+    if (typeof openBackupsPanel === 'function') openBackupsPanel();
+    return true;
+  } catch (err) {
+    if (err && err.name !== 'AbortError') alert('Folder setup failed: ' + err.message);
+    return false;
+  }
+}
+
+async function fsaDisable() {
+  if (!confirm('Disable direct save? Backups will go back to your Downloads folder (still fully backed up, just with download notifications).')) return;
+  await _fsaClearHandle();
+  _fsaHandle = null;
+  _fsaPermission = 'no-handle';
+  showOppToast('Direct save disabled — back to Downloads mode');
+  if (typeof openBackupsPanel === 'function') openBackupsPanel();
+}
+
+async function _fsaWriteBackup(snap) {
+  if (!_fsaHandle) return false;
+  // For periodic background writes we can't re-prompt the user. Just verify
+  // current permission state — if it lapsed, we fall back automatically.
+  const perm = await _fsaCheckPermission(_fsaHandle, false);
+  _fsaPermission = perm;
+  if (perm !== 'granted') return false;
+  try {
+    const json = JSON.stringify(snap);
+    // 1) latest.json — overwritten every write, single canonical file
+    const latestFile = await _fsaHandle.getFileHandle('latest.json', { create: true });
+    const w1 = await latestFile.createWritable();
+    await w1.write(json);
+    await w1.close();
+    // 2) snap-<ts>.json — timestamped, last 30 kept
+    const ts = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+    const snapFile = await _fsaHandle.getFileHandle(`snap-${ts}.json`, { create: true });
+    const w2 = await snapFile.createWritable();
+    await w2.write(json);
+    await w2.close();
+    await _fsaPruneSnapshots(30);
+    return true;
+  } catch (err) {
+    console.warn('[ibis-fsa] write failed, will fall back to Downloads', err);
+    return false;
+  }
+}
+
+async function _fsaPruneSnapshots(keep) {
+  try {
+    const files = [];
+    for await (const entry of _fsaHandle.values()) {
+      if (entry.kind === 'file' && /^snap-.*\.json$/.test(entry.name)) {
+        const file = await entry.getFile();
+        files.push({ name: entry.name, mtime: file.lastModified });
+      }
+    }
+    files.sort((a, b) => b.mtime - a.mtime);
+    for (const f of files.slice(keep)) {
+      try { await _fsaHandle.removeEntry(f.name); } catch {}
+    }
+  } catch (err) { console.warn('[ibis-fsa] prune failed', err); }
+}
+
+// ─── Backup writer — tries FSA first, falls back to Downloads ──────────
+async function _autoBackupDownloadFile(snap) {
+  // Preferred: write directly to the user's chosen folder via FSA. No
+  // Chrome download notification, nothing in Chrome's download history.
+  if (_fsaHandle && _fsaPermission === 'granted') {
+    if (await _fsaWriteBackup(snap)) {
+      const meta = _autoBackupLoadMeta();
+      meta.lastFileMethod = 'fsa';
+      _autoBackupSaveMeta(meta);
+      return true;
+    }
+    // Fall through if FSA write failed (rare — permission lapsed mid-session)
+  }
+  // Fallback: traditional download trick. Used until the user grants
+  // FSA permission, or if their browser doesn't support FSA.
   try {
     const blob = new Blob([JSON.stringify(snap)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -10523,11 +10698,14 @@ function _autoBackupDownloadFile(snap) {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+    const meta = _autoBackupLoadMeta();
+    meta.lastFileMethod = 'download';
+    _autoBackupSaveMeta(meta);
     return true;
   } catch(e) { console.warn('[auto-backup] download failed', e); return false; }
 }
 
-function runAutoBackup({ forceFile = false } = {}) {
+async function runAutoBackup({ forceFile = false } = {}) {
   if (_autoBackupRunning) return;
   _autoBackupRunning = true;
   try {
@@ -10539,12 +10717,11 @@ function runAutoBackup({ forceFile = false } = {}) {
     meta.lastHash = hash;
     meta.lastInMemoryTs = Date.now();
     meta.ringSize = ringSize;
-    // Decide whether to also trigger a file download
     const now = Date.now();
     const since = now - (meta.lastFileTs || 0);
     const isFirstChangeThisSession = !meta.sessionFileDoneAt && (now - (window._autoBackupSessionStart || now)) > AUTO_BACKUP_FILE_FIRST_MIN_MS;
     if (forceFile || isFirstChangeThisSession || since > AUTO_BACKUP_FILE_MIN_MS) {
-      if (_autoBackupDownloadFile(snap)) {
+      if (await _autoBackupDownloadFile(snap)) {
         meta.lastFileTs = now;
         meta.sessionFileDoneAt = now;
       }
@@ -10915,8 +11092,8 @@ function _renderBackupsPanel(modal, { cloud }) {
       <div class="bp-layer">
         <span class="bp-layer-dot ${l2Class}"></span>
         <div class="bp-layer-body">
-          <div class="bp-layer-name">2 · File backup (auto-routed)</div>
-          <div class="bp-layer-meta">Last file: ${l2Ago} · auto-deleted from Downloads once mirrored — you never see them</div>
+          <div class="bp-layer-name">2 · File backup ${meta.lastFileMethod === 'fsa' ? '(direct folder write)' : '(via Downloads)'}</div>
+          <div class="bp-layer-meta">Last file: ${l2Ago} · ${meta.lastFileMethod === 'fsa' ? 'written straight to ' + (_fsaHandle?.name || 'your folder') + ' — invisible, no notification' : 'lands in Downloads then auto-deleted when mirrored'}</div>
         </div>
       </div>
       <div class="bp-layer">
@@ -10975,6 +11152,37 @@ function _renderBackupsPanel(modal, { cloud }) {
         </div>
       </div>
 
+      ${(() => {
+        // FSA setup section — only show CTA if FSA is supported but not set up
+        if (_fsaPermission === 'granted' && _fsaHandle) {
+          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-left:3px solid #16a34a;">
+            <span style="font-size:18px;">📁</span>
+            <div style="flex:1;font-size:12px;color:#14532d;">
+              <strong>Direct save active</strong> — writing to <code style="font-family:'DM Mono',monospace;">${escHtml(_fsaHandle.name)}\\</code>. No download notifications.
+            </div>
+            <button class="bp-action-btn" style="flex:0 0 auto;min-width:80px;" onclick="fsaDisable()">Disable</button>
+          </div>`;
+        }
+        if (_fsaPermission === 'unsupported') return '';
+        if (_fsaPermission === 'denied' || _fsaPermission === 'prompt') {
+          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#fef3c7;border-left:3px solid #d97706;">
+            <span style="font-size:18px;">⚠️</span>
+            <div style="flex:1;font-size:12px;color:#78350f;">
+              <strong>Direct save permission lapsed</strong> — re-grant access to keep skipping Downloads.
+            </div>
+            <button class="bp-action-btn" style="flex:0 0 auto;background:#d97706;color:#fff;border-color:#d97706;" onclick="fsaSetupFolder()">Re-grant</button>
+          </div>`;
+        }
+        // not set up yet — show the CTA
+        return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eff6ff;border-left:3px solid #2563eb;">
+          <span style="font-size:18px;">✨</span>
+          <div style="flex:1;font-size:12px;color:#1e3a8a;">
+            <strong>Eliminate download notifications</strong> — point backups directly at <code style="font-family:'DM Mono',monospace;">Documents\\IBIS-Backups\\</code>. One-time setup.
+          </div>
+          <button class="bp-action-btn" style="flex:0 0 auto;background:#2563eb;color:#fff;border-color:#2563eb;" onclick="fsaSetupFolder()">Set up</button>
+        </div>`;
+      })()}
+
       <div class="bp-section">
         <button class="bp-restore-btn" onclick="restoreFromCloud()" ${cloud && !cloud.available ? 'disabled' : ''}>
           ☁️ Restore Everything from Cloud
@@ -11026,7 +11234,9 @@ function openAutoBackupPanel() { return openBackupsPanel(); }
 
 // Auto-backup boot — fire after init so all data is loaded
 (function bootAutoBackup(){
-  setTimeout(() => {
+  setTimeout(async () => {
+    // Load any previously-granted folder handle (no prompt — that needs a gesture)
+    try { await _fsaBoot(); } catch {}
     updateAutoBackupIndicator();
     // Refresh indicator every minute so "ago" text stays current
     setInterval(updateAutoBackupIndicator, 60 * 1000);

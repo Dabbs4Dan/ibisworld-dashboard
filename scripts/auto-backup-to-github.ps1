@@ -57,19 +57,41 @@ what brings the dashboard back from zero.
 
 Log "Auto-backup sync starting"
 
-# Find the newest autobackup file in Downloads
-$latestDl = Get-ChildItem -Path $Downloads -Filter 'ibis-autobackup-*.json' -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+# Find the newest backup from BOTH sources:
+#   - Downloads\ibis-autobackup-*.json  (legacy / fallback path)
+#   - $MirrorDir\latest.json + snap-*.json  (FSA direct-write path)
+# Whichever is most recent wins. This makes the script work seamlessly
+# whether or not the user has set up direct folder writes.
+$candidates = @()
+$dlFile = Get-ChildItem -Path $Downloads -Filter 'ibis-autobackup-*.json' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if ($dlFile) { $candidates += $dlFile }
+$mirLatest = $null
+if (Test-Path (Join-Path $MirrorDir 'latest.json')) {
+    $mirLatest = Get-Item (Join-Path $MirrorDir 'latest.json')
+    $candidates += $mirLatest
+}
+# Pick the newest source
+$latestDl = $candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
 if (-not $latestDl) {
-    Log "No ibis-autobackup-*.json files found in $Downloads. Nothing to do."
+    Log "No backup files in Downloads or $MirrorDir. Nothing to do."
     exit 0
 }
 
-$fmtBytes  = '{0:N0}' -f $latestDl.Length
-$fmtTime   = $latestDl.LastWriteTime
-Log "Latest download: $($latestDl.Name) ($fmtBytes bytes, modified $fmtTime)"
+$fromMirror = $false
+if ($mirLatest -ne $null -and $latestDl.FullName -eq $mirLatest.FullName) {
+    $fromMirror = $true
+}
+if ($fromMirror) {
+    $srcLabel = 'mirror (FSA direct write)'
+} else {
+    $srcLabel = 'Downloads (legacy path)'
+}
+$fmtBytes = '{0:N0}' -f $latestDl.Length
+$fmtTime  = $latestDl.LastWriteTime
+Log "Latest backup source: $srcLabel"
+Log "Latest file: $($latestDl.Name) ($fmtBytes bytes, modified $fmtTime)"
 
 # Helper: tidy Downloads of any redundant ibis-autobackup files (used on
 # every exit path so the folder never builds up regardless of whether we
@@ -119,16 +141,21 @@ if (-not (Test-Path $timestamped)) {
 }
 
 # ── Independent local mirror (Documents\IBIS-Backups) ───────────────────
-# Same files, separate folder. Survives GitHub, OneDrive, or repo failure.
-try {
-    Copy-Item $latestDl.FullName -Destination $MirrorLatest -Force
-    $mirrorTimestamped = Join-Path $MirrorDir "snap-$stamp.json"
-    if (-not (Test-Path $mirrorTimestamped)) {
-        Copy-Item $latestDl.FullName -Destination $mirrorTimestamped -Force
+# Only copy to the mirror if the source ISN'T already the mirror itself.
+# When FSA is enabled the file is already there.
+if (-not $fromMirror) {
+    try {
+        Copy-Item $latestDl.FullName -Destination $MirrorLatest -Force
+        $mirrorTimestamped = Join-Path $MirrorDir "snap-$stamp.json"
+        if (-not (Test-Path $mirrorTimestamped)) {
+            Copy-Item $latestDl.FullName -Destination $mirrorTimestamped -Force
+        }
+        Log "Mirrored to $MirrorDir"
+    } catch {
+        Log "Mirror copy failed (non-fatal): $($_.Exception.Message)"
     }
-    Log "Mirrored to $MirrorDir"
-} catch {
-    Log "Mirror copy failed (non-fatal): $($_.Exception.Message)"
+} else {
+    Log "Source is already the mirror -- skipping mirror copy."
 }
 
 # Prune old timestamped snapshots - keep only newest 30 (in BOTH locations)
