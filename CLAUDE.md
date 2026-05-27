@@ -27,6 +27,18 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 ---
 
 ## ARCHITECTURE — CRITICAL RULES
+
+### 🛡 BACKUP-FIRST RULE (v37 — explicit Dan instruction, NON-NEGOTIABLE)
+Every new system, field, tool, or data type built going forward MUST integrate with the 4-layer save-protection architecture. Dan's words: *"any new system or tool we build must also be optimized and fall under this save state."* Concretely:
+
+1. **Any new localStorage key** must be added to the `ALL_STORAGE_KEYS` array (line ~6593) so it's captured by: in-browser ring, FSA/Downloads file, GitHub push, and the local mirror. A key NOT in this array is invisible to the backup system and **will be lost on cache wipe**.
+2. **Any text input / textarea / contenteditable** must use the triple-protected save pattern: debounced auto-save on `input` (400ms via `saveActionFieldDebounced` or equivalent) + immediate save on `blur` + emergency save via the global `beforeunload` handler. **Blur-only saves are forbidden** — they're how Dan lost notes before v37.4.
+3. **Any save function** must go through `localStorage.setItem` (wrapped by the write-health monitor). Never bypass via direct IndexedDB / cookies / sessionStorage for primary user data. Quota failures must surface so auto-recovery can run.
+4. **Any new dropdown / toggle / immediate-save UI** should write to `ibis_local[name].<field>` and call `localStorage.setItem('ibis_local', ...)` directly (instant save, no debounce — pattern matches status, priority, action stage).
+5. **Any new fetch destination** (API endpoint, restore URL, image source) MUST be whitelisted in the CSP meta tag at the top of `index.html`. The v37.5 incident proved an unwhitelisted destination silently breaks features and is only discovered during a real disaster.
+6. **Any new editable UI surface** should show a visible save-state indicator (✓ Saved / ● Saving…) next to the field label so Dan can see his data is committed.
+
+### Other critical rules
 - **Single file only** — everything lives in `index.html` (HTML + CSS + JS, no separate files)
 - **No build tools, no npm, no frameworks** — vanilla JS only
 - **No external dependencies** except Google Fonts + DuckDuckGo favicon API
@@ -59,7 +71,7 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 
 ---
 
-## CURRENT STATE — v36 (stable)
+## CURRENT STATE — v37 (stable)
 
 ### Seven tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -70,7 +82,36 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
 6. **👥 Group tab** (new v36) — 4-rep enterprise overlap view; data lives in isolation from personal data
 7. **📊 Insights tab** (new v36) — derived analytics; two subpages: Group Accounts + Client Insights
 
-### v36 Summary (this session)
+### v37 Summary — Bulletproof save & recovery (entire session focus)
+Major reliability + UX work. After v36 we had a 3-layer backup story but multiple gaps caused real data loss for Dan ("I lost notes once, they're too valuable to lose"). This session rebuilt the entire save/recovery story to be impossible to lose data:
+
+- **🛡 4-layer backup system** (formalized, all working end-to-end):
+  1. In-browser snapshot ring (`ibis_auto_backup_ring`, last 5 v3 snapshots)
+  2. **Direct-write to user-chosen folder via File System Access API** → `Documents\IBIS-Backups\` (no Downloads folder, no Chrome download notifications). Falls back to legacy `<a download>` path if browser doesn't support FSA or permission is revoked.
+  3. Hourly Windows scheduled task pushes to GitHub `backups/` remote
+  4. **Independent local mirror** at `Documents\IBIS-Backups\` (also OneDrive-synced → 2nd cloud) — survives GitHub outages, repo corruption
+- **Write-health monitor** — wraps every `localStorage.setItem` call. On quota failure: drops the backup ring, wipes enrichment (rev/desc/sentiment) from `ibis_local`, retries the write. If retry succeeds, user sees a single toast. If retry fails, a full-bleed red top banner appears with the failed key + time. Periodic 2-minute write probe pre-emptively catches degraded storage before user saves fail.
+- **CRITICAL data-loss fixes (v37.4):**
+  - **Account Plan textarea had ZERO save logic.** Anything typed there was lost on refresh. Confirmed by code audit — no oninput, no onblur, no save function existed. Fixed with `saveAccountPlanNow` + `saveAccountPlanDebounced`.
+  - **Action Notes, Headline, Next Date all only saved on blur.** If user typed and closed the tab without clicking outside, the changes were lost. Fixed with triple-protected save: debounced auto-save on input (400ms) + immediate save on blur + emergency save via global `beforeunload` handler. Visible "✓ Saved / ● Saving…" indicator next to NOTES label.
+- **CRITICAL CSP fix (v37.5):** The Content Security Policy meta tag only allowed connect-src to Wikipedia, Wikidata, and UpLead. GitHub fetches (status check + the actual cloud restore!) were silently blocked. So the most important feature in the backup system — one-click cloud restore — was non-functional and would have left Dan stranded during a real disaster. Added `api.github.com` + `raw.githubusercontent.com` to CSP connect-src.
+- **Unified Backups panel** (replaces the bottom-left pill + recovery modal):
+  - One big health status line at top: ✅/⚠️/🚨 + plain English summary
+  - Storage usage bar (MB used of ~10 MB)
+  - Single big "☁️ Restore Everything from Cloud" button — fetches `backups/latest.json` from GitHub, restores all keys, reloads
+  - Collapsed-by-default details: 4-layer status (in-browser ring · file backup · GitHub · local mirror), in-browser snapshot list, advanced actions
+  - FSA setup CTA with "Set it up" + "Skip — don't ask again" buttons
+- **Discreet header indicator** — small 🛡 shield icon next to Group CSV / Upload CSV. Tiny 7px dot turns green / amber / red / pulsing-red based on health. Removed the bottom-left pill entirely.
+- **Empty-state cloud restore** — when localStorage is wiped (fresh machine, Chrome cache cleared), the empty state shows a **dark "☁️ Restore Everything from Cloud" button** alongside the Upload CSV button. One-click recovery from zero data.
+- **Auto-cleanup of Downloads folder** — scheduled task deletes `ibis-autobackup-*.json` files at or older than the committed latest. Folder never builds up regardless of whether the user has set up FSA. Once FSA is set up, files never land in Downloads at all.
+- **Proactive auto-cleanup of enrichment** — when storage crosses 4.5 MB, silently wipes only re-fetchable enrichment (revenue / description / sentiment) from `ibis_local` after taking a fresh backup. User-typed data (status, priority, action stages, notes, CSVs, group data, dead, sort prefs) is NEVER touched. Wikipedia/Wikidata refetch automatically.
+- **PowerShell script enhancements:**
+  - Picks up backups from BOTH `Downloads\ibis-autobackup-*.json` AND `Documents\IBIS-Backups\latest.json` — works whether or not user has set up FSA
+  - Auto-deletes processed Downloads files after sync
+  - Skips redundant mirror copy when source IS the mirror (FSA path)
+  - Replaced inline `if`-as-expression with explicit if/else for PowerShell 5.1 compatibility (avoid em-dashes in log strings — they break Windows-1252 default encoding)
+
+### v36 Summary (previous session)
 - **👥 Group tab** — 4-rep collective territory view (Dan / Christian / Embry / Anthony). 8 storage keys (per-rep accounts + licenses). One row per (account × owner). Overlap shown via colored owner pills in the Account Owner cell. Full filter set (owner multi-select, multi-owner toggle, active license, tier, vertical, search). Per-rep license attribution.
 - **📊 Insights tab** — two subpages with pill switcher:
   - **Group Accounts** — Accounts-by-Vertical with per-rep breakdown bars
@@ -1514,9 +1555,19 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 | ✅ Done | Accounts tab Overlap column + Multi-Owner filter (v36) | New sortable Overlap column right of Revenue. `getOtherRepOverlap(name)` returns OWNERS-EXCLUDING-DAN who also have account in group lists. `renderOverlapBadges(name)` returns colored owner pills. 🔁 Multi-Owner filter chip in controls bar — cross-pollinates with all existing filters (AND-combined). Live updates via hooked group CSV upload handlers. |
 | ✅ Done | 🤝 Team Sell priority tier (v36) | New manually-set priority between Quick Winner and Legendary. Teal palette (bg `#ccfbf1` / text `#115e59`). Filter chip `chip-teamsell.active`. All sort maps + filter groups + knownFlags updated. |
 | ✅ Done | Backup/Restore v3 — full snapshot (v36) | exportLocalBackup() now captures every ALL_STORAGE_KEYS entry. handleLocalRestore() detects v3 backups and wholesale-restores all keys with a confirm prompt + page reload. Smart-merge on ibis_local preserves fresh enrichment on accounts already enriched in current state. v1/v2 legacy backups still restore in place via the existing partial path. |
+| ✅ Done | v37.1 — Write-health monitor + 4th local mirror | Wraps every localStorage.setItem to detect quota failures. Auto-recovery (drop ring → wipe enrichment → retry). Periodic 2-min write probe. Red banner if recovery fails. Scheduled task also writes to Documents\IBIS-Backups\ as independent local mirror (also OneDrive-synced → 2nd cloud). |
+| ✅ Done | v37.2 — Discreet header indicator + simpler panel + auto-clean Downloads | Replaced bottom-left pill with small 🛡 shield icon in header (next to Group CSV). Panel collapsed by default: single health status + storage bar + restore CTA, details on click. PS script auto-deletes processed Downloads files. |
+| ✅ Done | v37.3 — File System Access API for direct folder writes | One-time picker → writes go straight to Documents\IBIS-Backups\ — no Downloads, no Chrome notification, nothing in download history. Handle stored in IndexedDB (survives sessions). Falls back to legacy <a download> on permission lapse or unsupported browser. |
+| ✅ Done | v37.4 — CRITICAL data-loss fix for Notes / Headline / Next Date / Account Plan | Account Plan had ZERO save logic — anything typed was lost on refresh. Notes/Headline/Date only saved on blur. Added triple-protected save (input debounce + blur + beforeunload) + visible "✓ Saved" indicator next to NOTES label. |
+| ✅ Done | v37.5 — CRITICAL CSP fix for cloud restore | CSP blocked api.github.com + raw.githubusercontent.com → "Restore from Cloud" button was non-functional and would have failed during a real disaster. Added both to connect-src. Removed disabled state from restore button — always let user try, show error if fetch actually fails. |
+| ✅ Done | v37.6 — Honest FSA CTA with "Skip" option | Reworded to explicitly state "browser security requires YOU to click — I can't do this remotely." Added skip button that sets ibis_fsa_cta_dismissed flag. |
+| ✅ Done | v37.7 — Added ibis_fsa_cta_dismissed to ALL_STORAGE_KEYS | Minor — preserves dismiss state through restore. |
+| 🔴 Next | Storage compression / IndexedDB migration | Dan is at ~5 MB localStorage usage. Auto-cleanup keeps enrichment trimmed but the CSV data itself (licenses + group data) is the bulk. Long-term fix: LZ-String compression of the big keys (would halve their size) OR migration of CSV data to IndexedDB (gigabytes available). Not urgent — write-health monitor + auto-cleanup keep current state working — but eventually unavoidable if data grows. |
 | 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Only implemented for workables today. |
 | 🔴 Next | Outreach Extension Univision/Jose still unmatched | v3.72 fixed most rows but Univision/Jose stayed unmatched. Suspected accounts-CSV domain mismatch (`univision.com` vs `televisaunivision.com`). Need F12 console screenshot to confirm. |
 | 🔴 Next | Make GitHub repo private | CLAUDE.md + SF User ID + internal architecture is public. 2-minute fix on GitHub settings. ⚠️ GitHub Pages requires GitHub Pro for private repos — confirm before switching. |
+| 🗺️ Future | CLAUDE.md doc drift — remove Powerback references | Code no longer has a Powerback campaign (no ibis_powerback key, no savePowerback function), but several sections of CLAUDE.md still reference it. Cleanup needed. |
+| 🗺️ Future | Daily backup integrity check | Once a day, fetch latest GitHub backup, compare hash to local. If diverged for >24h, alert in the panel. Would catch "scheduled task quietly stopped working" scenarios. |
 | 🗺️ Future | Insights — additional cards | Currently Group Accounts subpage only has 1 card (vertical breakdown). Easy to add more (by tier, by intent score, by days inactive bucket, etc.) |
 | 🗺️ Future | Client Insights — license-type breakdown | Could split each vertical card by license tier (Platinum/Departmental/Academic/etc.) — that data is in the CSV (`License: License Name` contains the tier). |
 | 🗺️ Future | Revenue source diversification | Wikidata covers all major enterprises but small private firms show "—". Could layer in another free source (Crunchbase scrape, OpenCorporates) for better coverage. Low priority — top-25 lists are mostly Fortune 500-ish. |
