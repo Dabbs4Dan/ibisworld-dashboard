@@ -45,19 +45,45 @@ GitHub Pages auto-deploys in ~30 seconds. Claude confirms with the commit hash.
   - `ibis_winback` → Winback campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_powerback` → Powerback campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], powerbackContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - **GROUP TAB KEYS (v36)** — 8 keys, fully isolated from personal data:
+    - `ibis_group_dan_accounts`, `ibis_group_christian_accounts`, `ibis_group_embry_accounts`, `ibis_group_anthony_accounts` — raw account rows per rep
+    - `ibis_group_dan_licenses`, `ibis_group_christian_licenses`, `ibis_group_embry_licenses`, `ibis_group_anthony_licenses` — decoded license rows per rep
+  - **CLIENT INSIGHTS KEYS (v36)**:
+    - `ibis_client_licenses` — slim rows from SF Active Client Report (~2.6K rows). Schema: `{a:account, d:dept, v:vertical, $:annAmt, e:endDate, act:bool}`
+    - `ibis_client_revenue` — **PROTECTED** Wikidata revenue cache, keyed by normName(company). Never touched by Clear Cache. Schema: `{normName: {raw, label, source, year, ts}}`
+  - **AUTO-BACKUP KEYS (v36)**:
+    - `ibis_auto_backup_ring` — last 5 v3 snapshots in-memory (excluded from snapshots themselves to avoid nesting)
+    - `ibis_auto_backup_meta` — hashes + timestamps for change detection + file-download throttle
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v35 (stable)
+## CURRENT STATE — v36 (stable)
 
-### Five tabs live:
+### Seven tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
-2. **📋 Accounts tab** — main territory view
-3. **🔑 Licenses tab** — churn/active license data (renamed from "License Intelligence")
-4. **📣 Campaigns tab** — multi-campaign contact hub (was Workables); campaign dropdown lives in stats bar
+2. **📋 Accounts tab** — main territory view (gained Overlap column + Multi-Owner filter + Export button + 🤝 Team Sell priority tier in v36)
+3. **🔑 Licenses tab** — churn/active license data
+4. **📣 Campaigns tab** — multi-campaign contact hub; campaign dropdown lives in stats bar
 5. **💀 Dead tab** — accounts/licenses/contacts that have disappeared from CSV uploads
+6. **👥 Group tab** (new v36) — 4-rep enterprise overlap view; data lives in isolation from personal data
+7. **📊 Insights tab** (new v36) — derived analytics; two subpages: Group Accounts + Client Insights
+
+### v36 Summary (this session)
+- **👥 Group tab** — 4-rep collective territory view (Dan / Christian / Embry / Anthony). 8 storage keys (per-rep accounts + licenses). One row per (account × owner). Overlap shown via colored owner pills in the Account Owner cell. Full filter set (owner multi-select, multi-owner toggle, active license, tier, vertical, search). Per-rep license attribution.
+- **📊 Insights tab** — two subpages with pill switcher:
+  - **Group Accounts** — Accounts-by-Vertical with per-rep breakdown bars
+  - **Client Insights** — derived from the SF "Active Client Report" CSV (~2.6K active licenses across the whole IBIS book). 3 cards: Industry by vertical, Procurement by vertical, Top 25 cross-product clients. Each top-25 list (Industry-only, Procurement-only, Cross-Product) includes a **Company Revenue** column auto-fetched from Wikidata.
+- **🤝 Team Sell** priority tier — teal palette, sits between Quick Winner and Legendary
+- **Overlap column** on Accounts tab — surfaces other reps who also own each account; pairs with **🔁 Multi-Owner** filter chip
+- **Auto-backup system** — 3 layers, fully automatic:
+  1. In-memory ring (5 snapshots in `ibis_auto_backup_ring`)
+  2. Auto-downloaded JSON files to `Downloads/ibis-autobackup-<ts>.json`
+  3. Hourly Windows scheduled task pushes `Downloads/` files to GitHub `backups/`
+- **Export/PDF** — Browser print-to-PDF on Accounts, Group, Insights → Group Accounts, Insights → Client Insights. Respects all active filters and shows them in the banner subtitle.
+- **Wikidata revenue lookup** — direct browser fetch (no Cloudflare Worker dependency). Protected cache in `ibis_client_revenue` key (Clear Cache can never wipe it).
+- **Safe storage cleanup** — banner button "💾 Backup & Free Space" auto-downloads full backup BEFORE confirming and wiping
 
 ### CSV Upload Date Display + Last Import Stats (v31)
 - **Upload menu dots** — each CSV row in the Upload menu now shows the last upload date (e.g. "Apr 2") in green monospace instead of a green/grey square dot. Grey dash when not yet loaded.
@@ -476,6 +502,97 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - Checkbox filter dropdowns on Type and Status column headers (AND logic, active state highlights header)
 - Stats bar recalculates live from filtered/visible rows
 - Company logos: UpLead → DuckDuckGo → Google → Initials (same cascade as Accounts tab)
+
+### Group Tab Features (v36)
+- **Purpose**: 4-rep enterprise overlap view. Identifies accounts shared across reps (Dan / Christian / Embry / Anthony).
+- **8 storage keys** (per rep × accounts/licenses), fully isolated from personal data
+- **Upload menu**: "👥 Group CSV" button to the LEFT of Upload CSV. Dropdown has 8 rows (4 accounts + 4 licenses) + 1 row for Client Insights CSV. Each rep gets a colored owner dot (Dan=red `#C8102E` / Christian=blue `#2563eb` / Embry=green `#059669` / Anthony=purple `#7c3aed`).
+- **Render model**: ONE row per `(account × owner)` pair. Overlap = same account appears multiple times, once per rep. Overlap **owner pills** (full coloured pills, not initials) shown in the Account Owner cell next to the row's owner pill — kept on one line via `white-space:nowrap` + `flex-wrap:nowrap`.
+- **Default sort**: by owner (Dan → Christian → Embry → Anthony) so rows cluster by rep.
+- **Columns**: Account Owner | Company | Vertical | Tier | Revenue | Score | US Client | Active Client | Licenses | Stage | Intent | Days Inactive (all sortable)
+- **Filter set**:
+  - Owner multi-select chips (colored to match each rep)
+  - 🔁 Multi-Owner toggle (only accounts with overlap)
+  - 🟢 Active License (uses per-owner license attribution via `getGroupActiveLicBadges(name, owner)`)
+  - Tier dropdown · Vertical select · Search
+- **Stats bar**: Total Rows · Unique Accounts · Overlap Accounts · per-rep counts
+- **Shared enrichment cache**: logos, revenue, descriptions, sentiment all pull from `ibis_local` — anything enriched on the personal Accounts tab shows up instantly here. New group-only accounts auto-queue into the same enrichment pipelines via `autoQueueGroupEnrichment(owner)`.
+- **Key functions**: `loadGroupData()`, `saveGroupAccounts(owner)`, `saveGroupLicenses(owner)`, `handleGroupAccountsCSV(owner, e)`, `handleGroupLicensesCSV(owner, e)`, `renderGroup()`, `renderGroupRow(r)`, `buildGroupRows()`, `getFilteredGroupRows()`, `getOtherRepOverlap(accountName)`, `renderOverlapBadges(accountName)`, `getGroupActiveLicBadges(name, owner)`, `hasGroupUSLicense(name, owner)`, `getGroupLicCount(name, owner)`
+- **State vars**: `groupAccounts`, `groupLicenses`, `groupOwnerFilter`, `groupTierFilters`, `groupMultiOwnerOn`, `groupActiveLicOn`, `groupSortCol`, `groupSortDir`
+- **Constants**: `GROUP_OWNERS = ['dan','christian','embry','anthony']`, `GROUP_OWNER_LABEL`, `GROUP_OWNER_INITIAL`, `GROUP_OWNER_COLOR`
+
+### Insights Tab Features (v36)
+- **Purpose**: derived analytics dashboard. Sub-tab switcher (pill style) inside the tab — currently 2 subpages but designed to scale.
+- **Subpage 1: Group Accounts** — Accounts-by-Vertical breakdown with per-rep count pills + stacked bars showing rep distribution.
+- **Subpage 2: Client Insights** — derived from SF "Active Client Report" CSV (~2.6K active licenses across the whole IBIS book).
+  - **CSV schema** (key columns): `Account`, `Admin Client: Licensing Department`, `Admin Client: Vertical`, `Annualized Amount`, `License End Date`
+  - **Industry vs Procurement rule**: `dept === 'Procurement'` → Procurement bucket. Everything else (blank, Library/Information Centre, Research, Marketing, etc.) → Industry bucket. Matches IBISWorld's two-product model.
+  - **3 cards**: 🏛 Industry by Vertical (count + total $) · 🔷 Procurement by Vertical (same) · 💎 Top 25 Cross-Product Clients (accounts with BOTH active products, ranked by combined Annualized $)
+  - Each of Industry + Procurement cards also includes a subsection: **Top 25 standalone clients** (accounts with that product but NOT the other), ranked by Annualized $.
+  - All 3 top-25 lists have a **Company Revenue** column auto-fetched from Wikidata.
+- **Key functions**: `renderInsights()` (group subpage), `renderClientInsights()`, `setInsightsSubtab(which)`, `renderVerticalBreakdown(containerId, rows, accentColor)`, `renderStandaloneTop25(containerId, active, kind, accentColor)`, `renderCrossProductTop25(active)`, `parseClientCSV(text)`, `handleClientInsightsCSV(e)`, `parseAnnAmount(str)`, `isProcurementDept(dept)`, `formatBigUSD(n)`
+- **CSV parser caveat**: shared `parseCSV()` filters rows on `Account Name`/`AccountName` columns. The Active Client Report uses `Account` (no "Name") so we use dedicated `parseClientCSV()` which filters on `Account`. **Do not route the Client CSV through `parseCSV()` — it will silently return 0 rows.**
+- **Loading overlay**: `showCsvLoadingOverlay(msg)` / `hideCsvLoadingOverlay()` — spinner + filename for large uploads. Parse runs via `requestAnimationFrame` so the overlay paints before the main thread blocks.
+
+### Wikidata Company-Revenue Lookup (v36)
+- **No backend dependency** — direct browser fetch from Wikipedia + Wikidata APIs (free, no auth, no Worker)
+- **Storage**: `ibis_client_revenue` — its own protected localStorage key. Schema: `{ normName: {raw, label, source, year, ts} }`. **PROTECTED from Clear Cache** — `clearEnrichmentCache()` / `safeFreeStorage()` only modifies `ibis_local`, never touches this key.
+- **Fetch pipeline** (`fetchRevenueFromWikidata(name)`):
+  1. Strip company suffixes (`Inc.`, `Corp.`, `LLC`, `Ltd`, etc.) via `cleanCompanyName(name)`
+  2. Wikipedia summary endpoint → extract `wikibase_item` ID (fallback: Wikipedia search API)
+  3. Wikidata `wbgetclaims` → read `P2139` (revenue) with `P585` (year qualifier)
+  4. Pick most recent year, convert to USD via `WD_CURRENCY_USD` table (12 majors: USD/EUR/GBP/JPY/CNY/CAD/AUD/CHF/INR/KRW/HKD/BRL)
+  5. Cache result, log negative results to in-memory `wdTriedThisSession` Set (NOT persisted, so a fresh page load retries)
+- **Queue runner**: `runWdRevQueue()` — 350ms throttle between requests. Cyan progress chip bottom-right shows "N left" countdown. Saves batched every 5 results for performance.
+- **Read order on display** (`getClientCompanyRevenue(name)`): 
+  1. Protected cache `clientRevCache[normName(name)]`
+  2. Shared `localData[name].rev` (so accounts enriched elsewhere surface here too)
+  3. Case-insensitive scan across `localData` keys (handles "KPMG" → "KPMG LLP" name variations)
+- **Write strategy on successful fetch**: always writes to protected cache; opportunistically populates `localData[name].rev` ONLY if that entry has no existing revenue (so seed-table or future Claude values never get clobbered by Wikidata)
+
+### Auto-Backup System (v36) — 3 layers, zero clicks required
+**LAYER 1 — In-memory ring (browser):**
+- Monkey-patches `Storage.prototype.setItem` to detect any write to an `ALL_STORAGE_KEYS` entry. Schedules `runAutoBackup()` with 30s debounce.
+- Keeps last 5 v3 snapshots in `ibis_auto_backup_ring`. Evicts oldest if localStorage quota hit. Includes a `beforeunload` ring save as a safety net.
+- Also fires unconditionally every 5 min via `setInterval(() => runAutoBackup(), 5 * 60 * 1000)` in case anything bypassed the hook.
+
+**LAYER 2 — Auto-downloaded files (browser):**
+- Silently triggers a `<a download>` of `ibis-autobackup-<ts>.json` to Downloads
+- Throttled to **at most 1 file per hour** (`AUTO_BACKUP_FILE_MIN_MS = 3600000`)
+- **Forced first backup**: 8 seconds after init, `bootAutoBackup()` fires `runAutoBackup({forceFile: true})` if any data is loaded — guarantees a file lands per session even if Dan just browses
+- Status pill bottom-left: `🟢 Auto-backup 2m ago · file 30m ago` (click to open recovery modal)
+
+**LAYER 3 — GitHub push (Windows Task Scheduler):**
+- `scripts/auto-backup-to-github.ps1` — picks up newest `ibis-autobackup-*.json` from Downloads, copies to `backups/latest.json` + timestamped `backups/snap-<ts>.json`, commits and pushes to `main`. Keeps last 30 timestamped snapshots, prunes the rest.
+- `scripts/auto-backup-run.bat` — thin wrapper (schtasks `/TR` has 261-char limit; the OneDrive path is too long for direct invocation, so we route through this `.bat`)
+- `scripts/setup-auto-backup-task.ps1` — one-time registration via PowerShell `ScheduledTasks` cmdlets (NOT `schtasks.exe` — the latter doesn't quote paths with spaces properly, which silently broke the task with `ERROR_ACCESS_DENIED` until v36 fix)
+- Task name: `IBIS Dashboard Auto-Backup`. User-scope, runs every hour. Logs to `backups/sync.log` (append-only).
+
+**Recovery modal**: click the bottom-left green pill → lists the 5 in-memory snapshots. Click any to restore (full page reload after).
+
+**Key functions / constants**: `runAutoBackup({forceFile})`, `scheduleAutoBackup()`, `_buildBackupSnapshot()`, `_autoBackupHash()`, `_autoBackupSaveToRing(snap)`, `_autoBackupDownloadFile(snap)`, `updateAutoBackupIndicator()`, `openAutoBackupPanel()`, `restoreAutoBackup(idx)`, `AUTO_BACKUP_RING_KEY`, `AUTO_BACKUP_META_KEY`, `AUTO_BACKUP_RING_SIZE=5`, `AUTO_BACKUP_DEBOUNCE_MS=30000`, `AUTO_BACKUP_FILE_MIN_MS=3600000`
+
+### Safe Storage Cleanup (v36)
+- Banner button now reads **"💾 Backup & Free Space"** (was "Clear Cache")
+- New `safeFreeStorage()` function (alias: `clearEnrichmentCache()`) does:
+  1. **Auto-downloads a full v3 backup FIRST** — happens before any destructive action
+  2. **Shows itemized confirm dialog** listing exactly what's wiped (rev/desc/sentiment on `ibis_local`) vs preserved (action stages, status, priority, notes, CSVs, group data, `ibis_client_revenue`, dead, sort prefs, etc.)
+  3. Wipes only re-fetchable fields (`rev`, `desc`+`descV`, `sentiment`) from `ibis_local`. **Never touches `ibis_dead`, `ibis_client_revenue`, or any CSV/group/contact stores.**
+  4. Reports actual KB freed in the toast
+- Cleanly composes with auto-backup (the wipe also triggers a fresh post-wipe backup via the storage write hook)
+
+### Export / PDF (v36)
+- **Buttons placed on**: Accounts controls bar · Group controls bar · Insights → Group Accounts subpage · Insights → Client Insights subpage
+- **Engine**: `_printWithBanner(title, subtitle, sourceElement)` clones the target into `#print-stage`, prepends a banner, calls `window.print()`. Cleanup runs after the dialog closes.
+- **Print stylesheet** (`@media print`): hides all chrome (header, tabs, controls, toasts, overlays, indicators, sub-tabs). Reveals only `#print-stage`. `print-color-adjust:exact` preserves all background colors (vertical pills, owner pills, badges). `page-break-inside:avoid` on `tr` and `ins-row` / `cli-cross-row` keeps rows whole.
+- **Filter-aware subtitles**: `exportAccountsTab()` enumerates every active filter (Status, Priority, Stage, standalone flags, Tier, Vertical, search) + row count. `exportGroupTab()` similar for Group. `exportInsightsCurrentSubtab()` adapts to whichever subpage is active.
+- **Manual backup button** in upload menu (💾 Backup Markup) still works as a manual fallback.
+
+### Accounts Tab v36 additions
+- **Overlap column** to the right of Revenue. `renderOverlapBadges(name)` returns owner pills for every OTHER rep (excludes 'dan') in the group lists who also has this account. Sortable by overlap count via `setSortCol('overlap')`. Live re-renders when any group CSV is uploaded (hook in `hookInsightsRefresh()`).
+- **🔁 Multi-Owner filter chip** — added to Accounts filter chips. Sits next to ⚡ In Action. Uses standard `toggleChip(this,'MULTI_OWNER')` pattern. Filter logic in `getFiltered()`: `if (activeFlags.has('MULTI_OWNER') && getOtherRepOverlap(aName).length === 0) return false;`. AND-combines with all existing filters.
+- **🤝 Team Sell priority** — new tier between Quick Winner and Legendary. Teal palette (bg `#ccfbf1` / text `#115e59`). CSS classes: `.apr-teamsell`, `.chip-teamsell.active`. Added to `ACCT_PRIORITY_OPTS`, `PRIO_COLORS`, sort maps in `getFiltered` + `renderAccountPage`, `prioFs` filter group, `knownFlags` Set.
+- **🖨 Export / PDF button** — far right of controls bar. Calls `exportAccountsTab()`.
 
 ---
 
@@ -1387,3 +1504,19 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 | ✅ Done | Outreach Extension v3.72 — works on PA cache + accounts CSV alone, no campaign data required | **Root cause:** `findContactForRow()` bailed out at Strategy 1 when `contactMap` was empty (no campaign CSVs uploaded), skipping all cache-based fallback strategies. Extension was useless without campaign data — over-architected dependency Dan flagged. **Fix (4 cascading changes):** (1) New `domainAccountMap` — built from `accountNameMap` (accounts CSV via bridge v1.5), provides domain → canonical account name reverse lookup. Works WITHOUT campaign CSVs. (2) Removed the `contactMap-empty` bail in `findContactForRow` — now only bails when BOTH `contactMap` AND `emailCache` are empty. (3) `_synthCacheResult` now prefers `domainAccountMap[domain]?.name` over `domainContactMap[domain]` over `domainToName(domain)`. Same order at lines 863, 915, 989. (4) `_confirmCacheMatch` relaxed: when `_textHint` is null AND `domainAccountMap[res.domain]` exists, accept the match — the known-territory-account match IS the confirmation. Medline/Nisa fix still holds because that case has a `_textHint` catching at the `_hintOk` branch. Architectural shift: campaign CSVs are now **optional enrichment** (titles, folder-strict tiebreaking on ambiguous first names), not required for matching. |
 | 🔴 Next | Outreach Extension: Univision/Jose still unmatched after v3.72 | v3.72 fixed most rows (Honeywell, Allinial, Toast, Evergreen, Procurementiq, Tufts all matching cleanly). Univision/Jose row still shows no company bubble + false reply chip + wrong step count. Suspected data issue, not code: Univision's Website field in the accounts CSV may be blank/missing/wrong domain (post-Televisa merger their actual email domain may be `televisaunivision.com` not `univision.com`). Next session: ask Dan for F12 console screenshot filtered by `[IBISWorld]` — look for startup `Contact map: ... territory-domains` count and `⛔ Match failed: [breadcrumbs]` on Jose's row. Breadcrumb will reveal whether (a) cacheNameMap doesn't have Jose at all, (b) cacheNameMap has him but domain isn't in `domainAccountMap`, or (c) something else. Likely fix: confirm Univision's domain in the accounts CSV. |
 | ✅ Done | Outreach Extension v3.71 — short-form account matching + unified cache gate + CSX logo | `findAccountNameInText` now has a 2nd pass: for multi-word account-map keys ("Medline Industries Inc."), extract the longest non-stopword ≥4 chars as an **anchor** and whole-word-match it in text. Fixes the root cause of Medline→Nisa: `_textHint` was null because subjects use short form ("Medline") vs dashboard long form. Stop-word list: inc/corp/ltd/industries/holdings/global/etc. **Hoisted cache confirmation gate:** `_confirmCacheMatch()` extracted to top of `findContactForRow`. Strategies 2b, 3b, 4 all funnel through it. Previously S4's cacheNameMap branch bypassed the gate — that was the leak path. Brand-check + text-hint check unified in one helper. **CSX logo fix:** added `csx.com` to `FAVICON_URL_OVERRIDES` (DDG serves broken icon; Google S2 API renders the real logo). |
+| ✅ Done | 👥 Group tab (v36) | 4-rep enterprise overlap view. 8 storage keys (per-rep accounts + licenses). One row per (account × owner). Full filter set (owner multi-select, multi-owner toggle, active license, tier, vertical, search). Per-rep license attribution. Owner pills in Account Owner cell show overlap from other reps. See Group Tab Features section. |
+| ✅ Done | 📊 Insights tab (v36) | Two-subpage analytics dashboard. Subpage 1: Group Accounts by vertical with per-rep breakdown. Subpage 2: Client Insights derived from SF Active Client Report CSV (~2.6K rows). Three cards: Industry by vertical, Procurement by vertical, Top 25 cross-product. Each top-25 list includes Company Revenue from Wikidata. See Insights Tab Features section. |
+| ✅ Done | Wikidata company-revenue lookup (v36) | Direct browser fetch (no Cloudflare Worker — Dan never deployed one). P2139 with P585 year qualifier. 12-currency USD conversion table. PROTECTED cache in `ibis_client_revenue` key — Clear Cache can never wipe it. 350ms throttle, batched saves, cyan progress chip. |
+| ✅ Done | Auto-backup system (v36) | 3 layers, fully automatic, zero clicks: (1) in-memory ring of 5 snapshots in `ibis_auto_backup_ring`, triggered by every `localStorage.setItem` to `ALL_STORAGE_KEYS` via Storage.prototype monkey-patch + 30s debounce + 5min safety-net interval + beforeunload save; (2) auto-downloaded `ibis-autobackup-<ts>.json` to Downloads (forced first-of-session backup at +8s, then at most hourly); (3) Windows scheduled task `IBIS Dashboard Auto-Backup` runs hourly, commits latest file from Downloads to `backups/latest.json` + timestamped snapshot, pushes to GitHub. Status pill bottom-left, recovery modal for in-memory snapshots. |
+| ✅ Done | Scheduled task path bug fix (v36) | schtasks.exe /TR was splitting the OneDrive path at the first space, causing `ERROR_ACCESS_DENIED`. Rewrote setup-auto-backup-task.ps1 to use PowerShell `ScheduledTasks` cmdlets (`New-ScheduledTaskAction` / `Register-ScheduledTask`) which quote spaces properly. Verified end-to-end: LastTaskResult=0, sync log updates on each run, commits landing in GitHub. |
+| ✅ Done | Safe storage cleanup (v36) | Banner button is now "💾 Backup & Free Space". `safeFreeStorage()` auto-downloads full v3 backup FIRST, then shows itemized confirm dialog listing wiped (rev/desc/sentiment) vs preserved (everything else). Reports KB freed in toast. Never touches `ibis_dead`, `ibis_client_revenue`, CSV stores, or markup. |
+| ✅ Done | Export/PDF system (v36) | 🖨 Export / PDF buttons on Accounts, Group, Insights → Group Accounts, Insights → Client Insights. Uses `_printWithBanner(title, subtitle, sourceElement)` engine — clones target into `#print-stage`, prepends banner with title + active filters + date, triggers `window.print()`. @media print stylesheet hides all chrome, preserves background colors via print-color-adjust:exact, prevents row-splitting via page-break-inside:avoid. Filter-aware subtitles on Accounts + Group exports enumerate every active filter. |
+| ✅ Done | Accounts tab Overlap column + Multi-Owner filter (v36) | New sortable Overlap column right of Revenue. `getOtherRepOverlap(name)` returns OWNERS-EXCLUDING-DAN who also have account in group lists. `renderOverlapBadges(name)` returns colored owner pills. 🔁 Multi-Owner filter chip in controls bar — cross-pollinates with all existing filters (AND-combined). Live updates via hooked group CSV upload handlers. |
+| ✅ Done | 🤝 Team Sell priority tier (v36) | New manually-set priority between Quick Winner and Legendary. Teal palette (bg `#ccfbf1` / text `#115e59`). Filter chip `chip-teamsell.active`. All sort maps + filter groups + knownFlags updated. |
+| ✅ Done | Backup/Restore v3 — full snapshot (v36) | exportLocalBackup() now captures every ALL_STORAGE_KEYS entry. handleLocalRestore() detects v3 backups and wholesale-restores all keys with a confirm prompt + page reload. Smart-merge on ibis_local preserves fresh enrichment on accounts already enriched in current state. v1/v2 legacy backups still restore in place via the existing partial path. |
+| 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Only implemented for workables today. |
+| 🔴 Next | Outreach Extension Univision/Jose still unmatched | v3.72 fixed most rows but Univision/Jose stayed unmatched. Suspected accounts-CSV domain mismatch (`univision.com` vs `televisaunivision.com`). Need F12 console screenshot to confirm. |
+| 🔴 Next | Make GitHub repo private | CLAUDE.md + SF User ID + internal architecture is public. 2-minute fix on GitHub settings. ⚠️ GitHub Pages requires GitHub Pro for private repos — confirm before switching. |
+| 🗺️ Future | Insights — additional cards | Currently Group Accounts subpage only has 1 card (vertical breakdown). Easy to add more (by tier, by intent score, by days inactive bucket, etc.) |
+| 🗺️ Future | Client Insights — license-type breakdown | Could split each vertical card by license tier (Platinum/Departmental/Academic/etc.) — that data is in the CSV (`License: License Name` contains the tier). |
+| 🗺️ Future | Revenue source diversification | Wikidata covers all major enterprises but small private firms show "—". Could layer in another free source (Crunchbase scrape, OpenCorporates) for better coverage. Low priority — top-25 lists are mostly Fortune 500-ish. |
