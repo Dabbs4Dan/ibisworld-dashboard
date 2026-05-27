@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://en.wikipedia.org https://www.wikidata.org https://api.uplead.com; img-src * data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://en.wikipedia.org https://www.wikidata.org https://api.uplead.com https://api.github.com https://raw.githubusercontent.com; img-src * data:;">
 <title>DA$ Account Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -11271,21 +11271,20 @@ function _renderBackupsPanel(modal, { cloud }) {
         // not set up yet — show the CTA
         return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eff6ff;border-left:3px solid #2563eb;">
           <span style="font-size:18px;">✨</span>
-          <div style="flex:1;font-size:12px;color:#1e3a8a;">
-            <strong>Eliminate download notifications</strong> — point backups directly at <code style="font-family:'DM Mono',monospace;">Documents\\IBIS-Backups\\</code>. One-time setup.
+          <div style="flex:1;font-size:12px;color:#1e3a8a;line-height:1.5;">
+            <strong>Stop the download notifications</strong><br>
+            <span style="color:#475569;">Click "Stop downloads" → a Windows folder picker opens → double-click <strong>Documents</strong> → double-click <strong>IBIS-Backups</strong> → click <strong>Select Folder</strong> → click <strong>Edit files</strong> when Chrome asks for permission. Done — no more downloads ever.</span>
           </div>
-          <button class="bp-action-btn" style="flex:0 0 auto;background:#2563eb;color:#fff;border-color:#2563eb;" onclick="fsaSetupFolder()">Set up</button>
+          <button class="bp-action-btn" style="flex:0 0 auto;background:#2563eb;color:#fff;border-color:#2563eb;white-space:nowrap;" onclick="fsaSetupFolder()">Stop downloads</button>
         </div>`;
       })()}
 
       <div class="bp-section">
-        <button class="bp-restore-btn" onclick="restoreFromCloud()" ${cloud && !cloud.available ? 'disabled' : ''}>
+        <button class="bp-restore-btn" onclick="restoreFromCloud()">
           ☁️ Restore Everything from Cloud
         </button>
         <div class="bp-restore-sub">
-          ${cloud && !cloud.available
-            ? '<strong style="color:#dc2626;">GitHub currently unreachable.</strong> Open "Show details" → Restore from a file as a fallback.'
-            : 'One click pulls your most recent GitHub backup and reloads. Use this only if your data is gone or corrupted.'}
+          One click pulls your most recent GitHub backup and reloads. Use this only if your data is gone or corrupted.${cloud && !cloud.available ? '<br><span style="color:#d97706;">Status check failed — the restore itself may still work. Try anyway.</span>' : ''}
         </div>
       </div>
 
