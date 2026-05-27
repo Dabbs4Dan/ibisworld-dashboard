@@ -768,10 +768,10 @@
   .bp-snap-list { max-height:200px; overflow-y:auto; margin:0 -22px; }
   .bp-snap-list .ab-row { padding-left:22px; padding-right:22px; }
   .bp-empty { font-size:12px; color:var(--text-muted); font-style:italic; padding:8px 0; }
-  #autoback-indicator { padding:7px 14px; }
-  #autoback-indicator.warn { background:#92400e; }
-  #autoback-indicator.err { background:#991b1b; animation: ibis-pulse-err 1.5s ease-in-out infinite; }
-  @keyframes ibis-pulse-err { 0%,100% { box-shadow:0 2px 8px rgba(153,27,27,.4); } 50% { box-shadow:0 2px 16px rgba(220,38,38,.7); } }
+  #header-backup-icon:hover { background:#f9fafb; border-color:#9ca3af; }
+  @keyframes ibis-dot-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.6); } 50% { box-shadow:0 0 0 6px rgba(220,38,38,0); } }
+  /* Old bottom-left pill (kept defensively in case anything still toggles it) */
+  #autoback-indicator { display:none !important; }
   /* ── Save-failure banner (critical, full-bleed top, can't be missed) ─── */
   #save-failure-banner {
     display:none; position:fixed; top:0; left:0; right:0; z-index:10001;
@@ -1586,6 +1586,10 @@
     <span class="header-title">Account Dashboard · Daniel Starr · US Major Markets</span>
   </div>
     <div class="header-right">
+    <button id="header-backup-icon" onclick="openBackupsPanel()" title="Backups &amp; Restore" style="background:#fff;color:#475569;border:1px solid #e5e7eb;height:34px;padding:0 12px;border-radius:6px;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-right:8px;font-family:'DM Sans',sans-serif;position:relative;transition:background 150ms ease, border-color 150ms ease;">
+      <span style="font-size:14px;">🛡</span>
+      <span id="header-backup-dot" style="width:7px;height:7px;border-radius:50%;background:#16a34a;display:inline-block;"></span>
+    </button>
     <div class="upload-menu-wrap" style="margin-right:8px;">
       <button class="upload-btn" id="group-upload-menu-trigger" onclick="toggleGroupUploadMenu(event)" style="background:#4338ca;">👥 Group CSV &nbsp;▾</button>
       <div id="group-upload-menu" class="hidden">
@@ -6501,11 +6505,12 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   // snapshots itself, which would create infinite nesting if included in a
   // snapshot. The ring is reset on restore so we always start with a clean slate.
 
-// Chrome / Edge per-origin localStorage ceiling is ~5 MB (UTF-16 chars × 2 bytes).
-// We act well before that wall so the user never sees a quota error.
-const STORAGE_LIMIT_KB    = 5120;  // 5 MB practical ceiling
-const STORAGE_AUTOCLEAN_KB = 3584; // 3.5 MB → silent enrichment wipe runs
-const STORAGE_WARN_KB     = 4608;  // 4.5 MB → banner only if cleanup couldn't help
+// Chrome / Edge per-origin localStorage ceiling is ~10 MB in practice
+// (5 MB is the spec minimum but Chromium has been ~10 MB for years).
+// We act well before either ceiling so the user never sees a quota error.
+const STORAGE_LIMIT_KB     = 10240; // 10 MB display ceiling (realistic Chrome quota)
+const STORAGE_AUTOCLEAN_KB = 4608;  // 4.5 MB → silent enrichment wipe runs
+const STORAGE_WARN_KB      = 7168;  // 7 MB → banner only if cleanup couldn't help
 let _autoCleanLastRun = 0;
 const AUTO_CLEAN_MIN_MS = 5 * 60 * 1000; // don't auto-clean more than once per 5min
 
@@ -10701,31 +10706,42 @@ window.addEventListener('beforeunload', () => {
   try { const snap = _buildBackupSnapshot(); _autoBackupSaveToRing(snap); } catch {}
 });
 
-/* ─── Status indicator — bottom-left pill, always visible ──────────────── */
+/* ─── Status indicator — discrete shield icon in the header ────────────── */
 function updateAutoBackupIndicator() {
-  let el = document.getElementById('autoback-indicator');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'autoback-indicator';
-    el.title = 'Click to open the Backups panel';
-    el.onclick = openBackupsPanel;
-    document.body.appendChild(el);
-  }
+  // Remove the old bottom-left pill if it's still hanging around from a
+  // previous session (defensive — its createElement code is gone now).
+  const oldPill = document.getElementById('autoback-indicator');
+  if (oldPill) oldPill.remove();
+  // Drive the small header icon: green / amber / red status dot + tooltip
+  const dot = document.getElementById('header-backup-dot');
+  const btn = document.getElementById('header-backup-icon');
+  if (!dot || !btn) return;
   const meta = _autoBackupLoadMeta();
   const { totalKB, pct } = calcStorageUsage();
-  el.classList.remove('warn','err');
-  // Highest priority: a recent failed write trumps everything else
-  if (WRITE_HEALTH.consecutiveFails > 0 && (Date.now() - WRITE_HEALTH.lastFailure) < 5 * 60 * 1000) {
-    el.classList.add('err');
-    el.innerHTML = `🚨 Save failure — click to fix`;
-    return;
+  // Priority 1: recent save failure
+  const recentFail = WRITE_HEALTH.consecutiveFails > 0 && (Date.now() - WRITE_HEALTH.lastFailure) < 5 * 60 * 1000;
+  let color, tooltip, pulse = false;
+  if (recentFail) {
+    color = '#dc2626'; pulse = true;
+    tooltip = '🚨 Save failure — click to open Backups';
+  } else if (pct >= 90) {
+    color = '#dc2626';
+    tooltip = `Storage ${pct}% full · click to manage`;
+  } else if (pct >= 75) {
+    color = '#d97706';
+    tooltip = `Storage ${pct}% full · click for details`;
+  } else if (!meta.lastInMemoryTs) {
+    color = '#9ca3af';
+    tooltip = 'Backup pending — click to open';
+  } else {
+    color = '#16a34a';
+    const mins = Math.round((Date.now() - meta.lastInMemoryTs) / 60000);
+    const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
+    tooltip = `Backed up ${ago} · storage ${pct}% · click for details`;
   }
-  if (pct >= 90) el.classList.add('err');
-  else if (pct >= 75) el.classList.add('warn');
-  if (!meta.lastInMemoryTs) { el.innerHTML = `🟡 Backup pending · ${pct}% used`; return; }
-  const mins = Math.round((Date.now() - meta.lastInMemoryTs) / 60000);
-  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.round(mins/60)}h ago`;
-  el.innerHTML = `🛡 Backed up ${ago} · ${pct}% used`;
+  dot.style.background = color;
+  dot.style.animation = pulse ? 'ibis-dot-pulse 1.2s ease-in-out infinite' : 'none';
+  btn.title = tooltip;
 }
 
 /* ─── Cloud restore — fetches backups/latest.json from GitHub ───────────── */
@@ -10798,6 +10814,7 @@ function forceBackupNow() {
 }
 
 /* ─── The Backups panel — single view for everything backup-related ────── */
+let _bpShowDetails = false; // collapsed by default so the panel is breathable
 function openBackupsPanel() {
   let modal = document.getElementById('autoback-modal');
   if (!modal) {
@@ -10806,12 +10823,18 @@ function openBackupsPanel() {
     modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
     document.body.appendChild(modal);
   }
+  // Invalidate the cloud-status cache so each open fetches fresh
+  _cloudStatusCache = null;
   _renderBackupsPanel(modal, { cloud: null });
   modal.style.display = 'flex';
-  // Fetch cloud status in the background, then re-render once we have it
   fetchCloudBackupStatus().then(status => {
     if (modal.style.display !== 'none') _renderBackupsPanel(modal, { cloud: status });
   });
+}
+function toggleBackupsDetails() {
+  _bpShowDetails = !_bpShowDetails;
+  const modal = document.getElementById('autoback-modal');
+  if (modal && modal.style.display !== 'none') _renderBackupsPanel(modal, { cloud: _cloudStatusCache });
 }
 
 function _renderBackupsPanel(modal, { cloud }) {
@@ -10857,121 +10880,122 @@ function _renderBackupsPanel(modal, { cloud }) {
     </div>`;
   }).join('') : '<div class="bp-empty">No in-browser snapshots yet — they appear automatically after you make changes.</div>';
 
+  // ── Top-level health summary — single line, biggest signal ───────────
+  const recentFail = WRITE_HEALTH.consecutiveFails > 0 && (Date.now() - WRITE_HEALTH.lastFailure) < 30 * 60 * 1000;
+  let topIcon, topText, topSub, topColor;
+  if (recentFail) {
+    topIcon = '🚨'; topColor = '#dc2626';
+    topText = 'Save failure — your latest changes may not have saved';
+    topSub  = `Key: ${WRITE_HEALTH.lastFailureKey || 'unknown'} · click "Restore from cloud" below if needed`;
+  } else if (pct >= 90) {
+    topIcon = '⚠️'; topColor = '#d97706';
+    topText = 'Storage almost full';
+    topSub  = 'Auto-cleanup is working in the background. CSV uploads of this size may need to wait.';
+  } else {
+    topIcon = '✅'; topColor = '#16a34a';
+    const l1AgoSimple = l1Mins == null ? 'pending' : l1Mins < 1 ? 'just now' : l1Mins < 60 ? l1Mins + 'm ago' : Math.round(l1Mins/60) + 'h ago';
+    topText = 'Everything is backed up';
+    let cloudPart = '';
+    if (cloud == null) cloudPart = ' · checking cloud…';
+    else if (cloud.available) cloudPart = ' · cloud ' + (cloud.ageMin < 60 ? cloud.ageMin + 'm ago' : Math.round(cloud.ageMin/60) + 'h ago');
+    else cloudPart = ' · cloud offline (local layers still active)';
+    topSub = `Last save ${l1AgoSimple}${cloudPart}`;
+  }
+  // ── Details (collapsed by default) ───────────────────────────────────
+  const detailsHTML = !_bpShowDetails ? '' : `
+    <div class="bp-section">
+      <div class="bp-section-title">All 4 protection layers</div>
+      <div class="bp-layer">
+        <span class="bp-layer-dot ${l1Class}"></span>
+        <div class="bp-layer-body">
+          <div class="bp-layer-name">1 · In-browser snapshots</div>
+          <div class="bp-layer-meta">Last save: ${l1Ago}${ring.length ? ' · ' + ring.length + ' of ' + AUTO_BACKUP_RING_SIZE + ' kept' : ' · none yet (storage tight — ring evicts to free space)'}</div>
+        </div>
+      </div>
+      <div class="bp-layer">
+        <span class="bp-layer-dot ${l2Class}"></span>
+        <div class="bp-layer-body">
+          <div class="bp-layer-name">2 · File backup (auto-routed)</div>
+          <div class="bp-layer-meta">Last file: ${l2Ago} · auto-deleted from Downloads once mirrored — you never see them</div>
+        </div>
+      </div>
+      <div class="bp-layer">
+        <span class="bp-layer-dot ${l3Class}"></span>
+        <div class="bp-layer-body">
+          <div class="bp-layer-name">3 · GitHub cloud</div>
+          <div class="bp-layer-meta">Last push: ${l3Text} · hourly Windows task</div>
+        </div>
+      </div>
+      <div class="bp-layer">
+        <span class="bp-layer-dot ok"></span>
+        <div class="bp-layer-body">
+          <div class="bp-layer-name">4 · Local mirror (Documents folder)</div>
+          <div class="bp-layer-meta">Last 30 hourly snapshots · OneDrive-synced too (4th cloud copy)</div>
+        </div>
+      </div>
+    </div>
+    ${ring.length ? `<div class="bp-section">
+      <div class="bp-section-title">Recent in-browser snapshots</div>
+      <div class="bp-snap-list">${ringRows}</div>
+    </div>` : ''}
+    <div class="bp-section">
+      <div class="bp-section-title">Advanced</div>
+      <div class="bp-actions">
+        <button class="bp-action-btn" onclick="forceBackupNow()">💾 Backup right now</button>
+        <button class="bp-action-btn" onclick="document.getElementById('local-restore-input').click()">📥 Restore from a file</button>
+        <button class="bp-action-btn" onclick="window.open('https://github.com/Dabbs4Dan/ibisworld-dashboard/tree/main/backups','_blank')">🌐 GitHub snapshots</button>
+        <button class="bp-action-btn" onclick="safeFreeStorage()">🧹 Free space now</button>
+      </div>
+    </div>`;
+
   modal.innerHTML = `
     <div class="ab-card bp-wide">
       <div class="ab-card-header">
         <div>
           <div class="ab-card-title">🛡 Backups &amp; Restore</div>
-          <div class="ab-card-sub">Everything is backed up automatically. Use this panel to check status or roll back.</div>
+          <div class="ab-card-sub">Fully automatic — nothing for you to manage. Use this panel only if something looks wrong or you need to roll back.</div>
         </div>
         <button class="ab-card-close" onclick="document.getElementById('autoback-modal').style.display='none'">✕</button>
+      </div>
+
+      <div class="bp-section" style="display:flex;align-items:flex-start;gap:14px;">
+        <span style="font-size:28px;line-height:1;">${topIcon}</span>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:600;color:${topColor};">${topText}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${topSub}</div>
+        </div>
       </div>
 
       <div class="bp-section">
         <div class="bp-section-title">Storage in this browser</div>
         <div class="bp-storage-bar"><div class="bp-storage-fill" style="width:${pct}%;background:${barColor};"></div></div>
         <div class="bp-storage-meta">
-          <span><strong>${(totalKB/1024).toFixed(2)} MB</strong> of ~${(limitKB/1024).toFixed(0)} MB used</span>
+          <span><strong>${(totalKB/1024).toFixed(2)} MB</strong> used of ~${(limitKB/1024).toFixed(0)} MB</span>
           <span>${pct}%</span>
         </div>
-        <div class="bp-restore-sub" style="text-align:left;margin-top:8px;">
-          ${pct >= 75
-            ? 'Storage is getting full — auto-cleanup wipes re-fetchable enrichment (revenue/descriptions/sentiment) silently as needed. Your CSV data, notes, and action work are never touched.'
-            : 'Plenty of room. Auto-cleanup will kick in if usage reaches 70%.'}
-        </div>
       </div>
 
       <div class="bp-section">
-        <div class="bp-section-title">Write health</div>
-        ${(() => {
-          const okSuccess = WRITE_HEALTH.lastSuccess && (Date.now() - WRITE_HEALTH.lastSuccess) < 60 * 60 * 1000;
-          const recentFail = WRITE_HEALTH.consecutiveFails > 0 && (Date.now() - WRITE_HEALTH.lastFailure) < 30 * 60 * 1000;
-          let cls = 'ok', headline = 'All saves succeeding', sub;
-          if (recentFail) {
-            cls = 'err';
-            headline = 'Last save FAILED';
-            const failAgo = Math.round((Date.now() - WRITE_HEALTH.lastFailure) / 60000);
-            sub = `Key: ${WRITE_HEALTH.lastFailureKey || 'unknown'} · ${failAgo}m ago · consecutive failures: ${WRITE_HEALTH.consecutiveFails}`;
-          } else if (!okSuccess) {
-            cls = 'pending';
-            headline = 'No tracked saves yet this session';
-            sub = 'Will appear once you change anything.';
-          } else {
-            const ago = Math.round((Date.now() - WRITE_HEALTH.lastSuccess) / 60000);
-            sub = `Last successful save: ${ago < 1 ? 'just now' : ago + 'm ago'}${WRITE_HEALTH.recoveriesDone > 0 ? ` · auto-recoveries this session: ${WRITE_HEALTH.recoveriesDone}` : ''}`;
-          }
-          return `<div class="bp-layer">
-            <span class="bp-layer-dot ${cls}"></span>
-            <div class="bp-layer-body">
-              <div class="bp-layer-name">${headline}</div>
-              <div class="bp-layer-meta">${sub}</div>
-            </div>
-          </div>`;
-        })()}
-      </div>
-
-      <div class="bp-section">
-        <div class="bp-section-title">Automatic protection — 4 layers</div>
-        <div class="bp-layer">
-          <span class="bp-layer-dot ${l1Class}"></span>
-          <div class="bp-layer-body">
-            <div class="bp-layer-name">In-browser snapshots</div>
-            <div class="bp-layer-meta">Last save: ${l1Ago} · ${ring.length} of ${AUTO_BACKUP_RING_SIZE} kept</div>
-          </div>
-        </div>
-        <div class="bp-layer">
-          <span class="bp-layer-dot ${l2Class}"></span>
-          <div class="bp-layer-body">
-            <div class="bp-layer-name">Downloaded file backup</div>
-            <div class="bp-layer-meta">Last file: ${l2Ago} · Downloads\\ibis-autobackup-*.json</div>
-          </div>
-        </div>
-        <div class="bp-layer">
-          <span class="bp-layer-dot ${l3Class}"></span>
-          <div class="bp-layer-body">
-            <div class="bp-layer-name">GitHub cloud backup</div>
-            <div class="bp-layer-meta">Last push: ${l3Text} · hourly Windows task pushes Downloads → GitHub</div>
-          </div>
-        </div>
-        <div class="bp-layer">
-          <span class="bp-layer-dot ok"></span>
-          <div class="bp-layer-body">
-            <div class="bp-layer-name">Local mirror — independent of GitHub</div>
-            <div class="bp-layer-meta">Documents\\IBIS-Backups\\ · last 30 hourly snapshots · also auto-synced via OneDrive (4th cloud copy)</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="bp-section">
-        <div class="bp-section-title">Lost your data? Start here</div>
         <button class="bp-restore-btn" onclick="restoreFromCloud()" ${cloud && !cloud.available ? 'disabled' : ''}>
           ☁️ Restore Everything from Cloud
         </button>
         <div class="bp-restore-sub">
-          One click — pulls the most recent <code style="font-family:'DM Mono',monospace;">backups/latest.json</code> from GitHub and reloads.
-          ${cloud && !cloud.available ? '<br><strong style="color:#dc2626;">Currently offline — use "Restore from a file" below as a fallback.</strong>' : ''}
+          ${cloud && !cloud.available
+            ? '<strong style="color:#dc2626;">GitHub currently unreachable.</strong> Open "Show details" → Restore from a file as a fallback.'
+            : 'One click pulls your most recent GitHub backup and reloads. Use this only if your data is gone or corrupted.'}
         </div>
       </div>
 
-      <div class="bp-section">
-        <div class="bp-section-title">In-browser snapshots — last ${AUTO_BACKUP_RING_SIZE}</div>
-        <div class="bp-snap-list">${ringRows}</div>
-      </div>
+      ${detailsHTML}
 
-      <div class="bp-section">
-        <div class="bp-section-title">Manual actions</div>
-        <div class="bp-actions">
-          <button class="bp-action-btn" onclick="forceBackupNow()">💾 Backup right now</button>
-          <button class="bp-action-btn" onclick="document.getElementById('local-restore-input').click()">📥 Restore from a file</button>
-          <button class="bp-action-btn" onclick="safeFreeStorage()">🧹 Free space now</button>
-          <button class="bp-action-btn" onclick="window.open('https://github.com/Dabbs4Dan/ibisworld-dashboard/tree/main/backups','_blank')">🌐 View cloud snapshots</button>
-          <button class="bp-action-btn" onclick="alert('Local mirror lives at:\\n\\nC:\\\\Users\\\\Daniel.starr\\\\Documents\\\\IBIS-Backups\\\\\\n\\nCopy any snap-*.json into Downloads, then use \\\\u201cRestore from a file\\\\u201d above.')">🗂 Local mirror path</button>
-        </div>
+      <div class="bp-section" style="background:#fafafa;border-top:1px solid #f3f4f6;padding-top:12px;padding-bottom:12px;">
+        <button onclick="toggleBackupsDetails()" style="background:none;border:none;color:#475569;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0;">
+          ${_bpShowDetails ? '▲ Hide details' : '▼ Show details (4 layers, snapshots, advanced)'}
+        </button>
       </div>
 
       <div class="ab-card-footer">
-        ✅ Every change is auto-saved within 30 seconds · file backup at most hourly · GitHub push hourly via Windows task.
-        You never need to do anything manually.
+        ✅ Auto-saves every 30s · auto-pushes to GitHub + local mirror hourly · auto-cleans Downloads when done. Nothing to manage.
       </div>
     </div>`;
 }

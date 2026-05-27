@@ -71,11 +71,29 @@ $fmtBytes  = '{0:N0}' -f $latestDl.Length
 $fmtTime   = $latestDl.LastWriteTime
 Log "Latest download: $($latestDl.Name) ($fmtBytes bytes, modified $fmtTime)"
 
+# Helper: tidy Downloads of any redundant ibis-autobackup files (used on
+# every exit path so the folder never builds up regardless of whether we
+# committed anything this run).
+function Clean-Downloads {
+    param([datetime]$Cutoff)
+    try {
+        $toClean = Get-ChildItem -Path $Downloads -Filter 'ibis-autobackup-*.json' -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -le $Cutoff }
+        foreach ($f in $toClean) {
+            Remove-Item $f.FullName -Force
+            Log "Cleaned Downloads: $($f.Name)"
+        }
+    } catch {
+        Log "Downloads cleanup skipped: $($_.Exception.Message)"
+    }
+}
+
 # Skip if the latest file is older than our latest commit (no real change)
 if (Test-Path $LatestPath) {
     $existing = Get-Item $LatestPath
     if ($latestDl.LastWriteTime -le $existing.LastWriteTime) {
         Log "Latest download is older than committed latest.json. Nothing new to sync."
+        Clean-Downloads -Cutoff $existing.LastWriteTime
         exit 0
     }
     # Also skip if file contents match (hash compare)
@@ -83,6 +101,7 @@ if (Test-Path $LatestPath) {
     $oldHash = (Get-FileHash $LatestPath        -Algorithm SHA1).Hash
     if ($newHash -eq $oldHash) {
         Log "Hash matches existing latest.json. No change to commit."
+        Clean-Downloads -Cutoff $existing.LastWriteTime
         exit 0
     }
 }
@@ -138,3 +157,7 @@ $commitMsg = "auto-backup: $stamp ($fmtBytes bytes)"
 & git push origin main 2>&1 | ForEach-Object { Log $_ }
 
 Log "Auto-backup sync complete."
+
+# Tidy Downloads — remove autobackup files at or older than the committed
+# latest. They're safely in $BackupDir + $MirrorDir + GitHub remote.
+Clean-Downloads -Cutoff (Get-Item $LatestPath).LastWriteTime
