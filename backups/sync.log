@@ -209,3 +209,30 @@
 [2026-05-27 15:54:36] Saved timestamped snapshot: snap-2026-05-27-1547.json
 [2026-05-27 15:54:36] Mirrored to C:\Users\Daniel.starr\OneDrive - IBISWORLD PTY LTD\Documents\IBIS-Backups
 [2026-05-27 15:54:37] Committing and pushing to GitHub
+[2026-05-27 15:54:38] [main c9862b1] auto-backup: 2026-05-27-1547 (2,779,259 bytes)
+[2026-05-27 15:54:38]  Committer: Daniel Starr <daniel.starr@ibisworld.com.au>
+[2026-05-27 15:54:38] Your name and email address were configured automatically based
+[2026-05-27 15:54:38] on your username and hostname. Please check that they are accurate.
+[2026-05-27 15:54:38] You can suppress this message by setting them explicitly. Run the
+[2026-05-27 15:54:38] following command and follow the instructions in your editor to edit
+[2026-05-27 15:54:38] your configuration file:
+[2026-05-27 15:54:38] 
+[2026-05-27 15:54:38]     git config --global --edit
+[2026-05-27 15:54:38] 
+[2026-05-27 15:54:38] After doing this, you may fix the identity used for this commit with:
+[2026-05-27 15:54:38] 
+[2026-05-27 15:54:38]     git commit --amend --reset-author
+[2026-05-27 15:54:38] 
+[2026-05-27 15:54:38]  3 files changed, 29 insertions(+), 1 deletion(-)
+[2026-05-27 15:54:38]  create mode 100644 backups/snap-2026-05-27-1547.json
+[2026-05-27 15:54:42] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-05-27 15:54:42]    d372cac..c9862b1  main -> main
+[2026-05-27 15:54:43] Auto-backup sync complete.
+[2026-05-27 15:54:43] Cleaned Downloads: ibis-autobackup-2026-05-27-19-47.json
+[2026-05-27 16:28:24] Auto-backup sync starting
+[2026-05-27 16:28:24] Latest backup source: Downloads (legacy path)
+[2026-05-27 16:28:25] Latest file: ibis-autobackup-2026-05-27-20-26.json (2,781,386 bytes, modified 05/27/2026 16:26:26)
+[2026-05-27 16:28:25] Copied to backups/latest.json
+[2026-05-27 16:28:25] Saved timestamped snapshot: snap-2026-05-27-1626.json
+[2026-05-27 16:28:25] Mirrored to C:\Users\Daniel.starr\OneDrive - IBISWORLD PTY LTD\Documents\IBIS-Backups
+[2026-05-27 16:28:25] Committing and pushing to GitHub
