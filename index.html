@@ -3548,6 +3548,50 @@ function saveActionField(name, field, value) {
   }
 }
 
+// ─── Debounced field saves + emergency beforeunload flush ─────────────
+// Until v37.4 the Action headline, Next Date, and Notes only saved on
+// blur. If the user typed something and closed the tab WITHOUT clicking
+// outside the field, the change was lost. This is how Dan lost notes.
+// Now: every keystroke schedules a save 400ms after typing stops, AND
+// any pending save is flushed synchronously on page unload.
+const _pendingFieldSaves = {};
+function saveActionFieldDebounced(name, field, value) {
+  const k = name + '|' + field;
+  if (_pendingFieldSaves[k]) clearTimeout(_pendingFieldSaves[k].t);
+  const doSave = () => {
+    if (!localData[name]) localData[name] = {};
+    localData[name][field] = value;
+    try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
+    delete _pendingFieldSaves[k];
+  };
+  _pendingFieldSaves[k] = { t: setTimeout(doSave, 400), flush: doSave };
+}
+window.addEventListener('beforeunload', () => {
+  // 1) Force-save anything that was still debouncing
+  Object.values(_pendingFieldSaves).forEach(s => {
+    clearTimeout(s.t);
+    try { s.flush(); } catch {}
+  });
+  // 2) Read every editable field currently in the DOM and save whatever is
+  //    visible — last-ditch safety net for cases where input handlers never
+  //    fired (paste-then-close, autocomplete-then-close, etc.)
+  try {
+    const notesEl = document.getElementById('ap-action-notes');
+    const planEl  = document.getElementById('ap-plan-textarea');
+    const headEl  = document.getElementById('ap-action-headline');
+    const dateEl  = document.getElementById('ap-action-date');
+    const acctName = notesEl?.dataset?.acctname || planEl?.dataset?.acctname || currentAccountPageName;
+    if (acctName) {
+      if (!localData[acctName]) localData[acctName] = {};
+      if (notesEl) localData[acctName].actionNotes    = notesEl.innerHTML;
+      if (planEl)  localData[acctName].accountPlan    = planEl.value;
+      if (headEl)  localData[acctName].actionHeadline = headEl.value;
+      if (dateEl)  localData[acctName].actionNextDate = dateEl.value;
+      localStorage.setItem('ibis_local', JSON.stringify(localData));
+    }
+  } catch {}
+});
+
 // Toggle opp from Action table — syncs with Campaigns (shared ibis_opps data)
 function toggleActionOpp(email) {
   if (!opps[email]) return;
@@ -5398,13 +5442,32 @@ function renderAccountPage(name) {
       }
     });
 
-    notesEl.addEventListener('blur', () => {
-      // Ensure all links get target=_blank before saving
+    // ── Save mechanics ────────────────────────────────────────────
+    // Notes save in THREE ways so a save is essentially impossible to miss:
+    //   1. Debounced auto-save while typing (400ms after the last keystroke)
+    //   2. Immediate save on blur (clicking outside)
+    //   3. Emergency save on beforeunload (window-level listener handles this)
+    let _notesDebounce = null;
+    function _setNotesIndicator(state) {
+      const ind = document.getElementById('ap-notes-savestate');
+      if (!ind) return;
+      if (state === 'saving')  { ind.textContent = '● Saving…'; ind.style.color = '#d97706'; }
+      else if (state === 'saved') { ind.textContent = '✓ Saved'; ind.style.color = '#16a34a'; }
+    }
+    function flushNotes() {
+      if (_notesDebounce) { clearTimeout(_notesDebounce); _notesDebounce = null; }
       notesEl.querySelectorAll('a').forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
       if (!localData[name]) localData[name] = {};
       localData[name].actionNotes = notesEl.innerHTML;
-      localStorage.setItem('ibis_local', JSON.stringify(localData));
+      try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
+      _setNotesIndicator('saved');
+    }
+    notesEl.addEventListener('input', () => {
+      _setNotesIndicator('saving');
+      if (_notesDebounce) clearTimeout(_notesDebounce);
+      _notesDebounce = setTimeout(flushNotes, 400);
     });
+    notesEl.addEventListener('blur', flushNotes);
   }
 
   // ── Key Contact write-in chip system ──────────────────────────
@@ -5475,6 +5538,7 @@ function renderAPAction(local, name) {
           <div class="ap-action-field-label">Headline</div>
           <input class="ap-action-input" id="ap-action-headline" type="text"
             value="${escHtml(local.actionHeadline||'')}" placeholder="Add action headline…"
+            oninput="saveActionFieldDebounced('${esc}','actionHeadline',this.value)"
             onblur="saveActionField('${esc}','actionHeadline',this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </div>
@@ -5482,6 +5546,7 @@ function renderAPAction(local, name) {
           <div class="ap-action-field-label">Next Date</div>
           <input class="ap-action-input" id="ap-action-date" type="text"
             value="${escHtml(local.actionNextDate||'')}" placeholder="e.g. Apr 15"
+            oninput="saveActionFieldDebounced('${esc}','actionNextDate',this.value)"
             onblur="saveActionField('${esc}','actionNextDate',this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </div>
@@ -5514,8 +5579,9 @@ function renderAPAction(local, name) {
           </div>
         </div>`;
       })()}
-      <div style="margin-top:14px;margin-bottom:6px;">
+      <div style="margin-top:14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;">
         <span class="ap-action-field-label">Notes</span>
+        <span id="ap-notes-savestate" style="font-size:10px;color:#16a34a;font-family:'DM Mono',monospace;transition:color 150ms ease;">✓ Saved</span>
       </div>
       <div class="ap-notes-editor">
         <div class="ap-notes-toolbar">
@@ -5833,15 +5899,44 @@ function renderAPPlan(acc, local, name) {
   const plan  = local.accountPlan || '';
   const stage = getField(acc,'6sense Account Buying Stage NA');
   const days  = getField(acc,'US Days Since Last Activity');
+  const esc = escHtml(name);
 
   return `
-    <div class="ap-panel-title">📝 Account Plan</div>
-    <textarea id="ap-plan-textarea" class="ap-plan-textarea"
+    <div class="ap-panel-title" style="display:flex;align-items:center;gap:10px;">📝 Account Plan
+      <span id="ap-plan-savestate" style="font-size:10px;color:#16a34a;font-family:'DM Mono',monospace;font-weight:500;">✓ Saved</span>
+    </div>
+    <textarea id="ap-plan-textarea" class="ap-plan-textarea" data-acctname="${esc}"
+      oninput="saveAccountPlanDebounced('${esc}',this.value)"
+      onblur="saveAccountPlanNow('${esc}',this.value)"
       placeholder="Click to add your account plan — strategy, key contacts, goals, blockers...">${escHtml(plan)}</textarea>
     ${(stage || days) ? `<div class="ap-plan-footer">
       ${stage ? `<div class="ap-plan-data"><strong>6sense Stage:</strong> ${escHtml(stage)}</div>` : ''}
       ${days  ? `<div class="ap-plan-data"><strong>Last Activity:</strong> ${days} days ago</div>` : ''}
     </div>` : ''}`;
+}
+
+// Account Plan save: instant on blur, debounced on input. Same three-layer
+// protection as Notes (debounce + blur + beforeunload).
+function saveAccountPlanNow(name, value) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].accountPlan = value;
+  try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
+  const ind = document.getElementById('ap-plan-savestate');
+  if (ind) { ind.textContent = '✓ Saved'; ind.style.color = '#16a34a'; }
+}
+function saveAccountPlanDebounced(name, value) {
+  const ind = document.getElementById('ap-plan-savestate');
+  if (ind) { ind.textContent = '● Saving…'; ind.style.color = '#d97706'; }
+  saveActionFieldDebounced(name, 'accountPlan', value);
+  // After the debounced save fires, swap indicator back to Saved. The
+  // debounce in saveActionFieldDebounced is 400ms.
+  setTimeout(() => {
+    if (!ind) return;
+    // Only update if we haven't started another save in the meantime
+    if (ind.textContent !== '● Saving…') return;
+    ind.textContent = '✓ Saved';
+    ind.style.color = '#16a34a';
+  }, 450);
 }
 
 // ── Action Tab ──────────────────────────────────────────────
