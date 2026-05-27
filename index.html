@@ -11268,14 +11268,20 @@ function _renderBackupsPanel(modal, { cloud }) {
             <button class="bp-action-btn" style="flex:0 0 auto;background:#d97706;color:#fff;border-color:#d97706;" onclick="fsaSetupFolder()">Re-grant</button>
           </div>`;
         }
-        // not set up yet — show the CTA
+        // not set up yet — show the CTA (unless user dismissed it)
+        if (localStorage.getItem('ibis_fsa_cta_dismissed') === '1') return '';
         return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eff6ff;border-left:3px solid #2563eb;">
           <span style="font-size:18px;">✨</span>
           <div style="flex:1;font-size:12px;color:#1e3a8a;line-height:1.5;">
-            <strong>Stop the download notifications</strong><br>
-            <span style="color:#475569;">Click "Stop downloads" → a Windows folder picker opens → double-click <strong>Documents</strong> → double-click <strong>IBIS-Backups</strong> → click <strong>Select Folder</strong> → click <strong>Edit files</strong> when Chrome asks for permission. Done — no more downloads ever.</span>
+            <strong>Optional: stop the Chrome download icon from flashing every hour</strong><br>
+            <span style="color:#475569;">Browser security requires <em>you</em> to click — I can't do this remotely. Takes ~5 seconds:<br>
+            <strong>1.</strong> Click "Set it up" → <strong>2.</strong> Double-click <strong>IBIS-Backups</strong> in the picker → <strong>3.</strong> Click <strong>Select Folder</strong> → <strong>4.</strong> Click <strong>Edit files</strong> when Chrome asks.<br>
+            <em style="color:#9ca3af;">If you skip this: your data is still 100% safe. Downloads icon will just keep flashing hourly — cosmetic only.</em></span>
           </div>
-          <button class="bp-action-btn" style="flex:0 0 auto;background:#2563eb;color:#fff;border-color:#2563eb;white-space:nowrap;" onclick="fsaSetupFolder()">Stop downloads</button>
+          <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">
+            <button class="bp-action-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;white-space:nowrap;" onclick="fsaSetupFolder()">Set it up</button>
+            <button class="bp-action-btn" style="white-space:nowrap;font-size:11px;color:#6b7280;" onclick="localStorage.setItem('ibis_fsa_cta_dismissed','1');openBackupsPanel();">Skip — don't ask again</button>
+          </div>
         </div>`;
       })()}
 
