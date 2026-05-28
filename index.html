@@ -2997,6 +2997,7 @@ function init() {
 
 function handleCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Accounts CSV');
   const reader = new FileReader();
   reader.onload = ev => processAccountRows(parseCSV(ev.target.result));
   reader.readAsText(file, 'latin1'); e.target.value = '';
@@ -4429,6 +4430,7 @@ const LIC_SORT_DEFAULT_DIR = {
 
 function handleLicenseCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Licenses CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const oldLicenses = licenses.slice(); // snapshot before replace
@@ -6732,6 +6734,7 @@ function saveOpps() {
 
 function handleOppsCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Workables CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result);
@@ -7312,6 +7315,7 @@ function saveSamples() {
 
 function handleSamplesCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Old Samples CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result); // same schema
@@ -7433,6 +7437,7 @@ function saveSixqa() {
 
 function handleSixqaCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · 6QA CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result); // same schema
@@ -7561,6 +7566,7 @@ function saveChurn() {
 
 function handleChurnCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Churn CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result); // same schema
@@ -7688,6 +7694,7 @@ function saveNetnew() {
 
 function handleNetnewCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Net New CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result);
@@ -7819,6 +7826,7 @@ function saveMultithread() {
 }
 function handleMultithreadCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Multithread CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result);
@@ -7894,6 +7902,7 @@ function saveWinback() {
 }
 function handleWinbackCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Winback CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result);
@@ -7969,6 +7978,7 @@ function saveAlumni() {
 }
 function handleAlumniCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Alumni CSV');
   const reader = new FileReader();
   reader.onload = ev => {
     const newContacts = parseOppsCSV(ev.target.result);
@@ -9186,6 +9196,7 @@ document.addEventListener('click', (e) => {
 function handleGroupAccountsCSV(owner, e) {
   const file = e.target.files[0]; if (!file) return;
   if (!GROUP_OWNERS.includes(owner)) { console.warn('[group] unknown owner', owner); return; }
+  snapshotBeforeAction(`Pre-upload · Group Accounts (${owner})`);
   const reader = new FileReader();
   reader.onload = ev => {
     const rows = parseCSV(ev.target.result);
@@ -9207,6 +9218,7 @@ function handleGroupAccountsCSV(owner, e) {
 function handleGroupLicensesCSV(owner, e) {
   const file = e.target.files[0]; if (!file) return;
   if (!GROUP_OWNERS.includes(owner)) { console.warn('[group] unknown owner', owner); return; }
+  snapshotBeforeAction(`Pre-upload · Group Licenses (${owner})`);
   const reader = new FileReader();
   reader.onload = ev => {
     groupLicenses[owner] = parseLicenseCSV(ev.target.result);
@@ -9723,6 +9735,7 @@ function parseClientCSV(text) {
 
 function handleClientInsightsCSV(e) {
   const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Client Insights CSV');
   showCsvLoadingOverlay(`Loading ${file.name}… (${Math.round(file.size/1024)} KB)`);
   const reader = new FileReader();
   reader.onload = ev => {
@@ -10585,13 +10598,14 @@ function _buildBackupSnapshot() {
   return snap;
 }
 
-function _autoBackupSaveToRing(snap) {
-  // Each ring entry: { ts, hash, snap }
-  // Storage budget: 5 snapshots can get big, so we keep them in their own key.
-  // If we can't fit, evict oldest until we can.
+function _autoBackupSaveToRing(snap, reason) {
+  // Each ring entry: { ts, hash, snap, reason? }
+  // reason is a human label like "Pre-upload · Accounts CSV" — shown in panel.
   let ring = [];
   try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
-  ring.unshift({ ts: Date.now(), hash: _autoBackupHash(), snap });
+  const entry = { ts: Date.now(), hash: _autoBackupHash(), snap };
+  if (reason) entry.reason = reason;
+  ring.unshift(entry);
   ring = ring.slice(0, AUTO_BACKUP_RING_SIZE);
   while (ring.length > 0) {
     try {
@@ -10604,6 +10618,29 @@ function _autoBackupSaveToRing(snap) {
     }
   }
   return 0;
+}
+
+/* ─── Pre-action safety snapshot (synchronous) ─────────────────────────
+   Call this RIGHT BEFORE any destructive operation (CSV upload, mass delete,
+   restore from file). Captures the current state into the in-browser ring
+   synchronously, labeled with a human-readable reason, so the user can roll
+   back to that exact pre-operation state from the Backups panel. Also kicks
+   off an async file write (to IBIS-Backups via FSA, or Downloads as fallback)
+   without blocking the destructive operation. */
+function snapshotBeforeAction(label) {
+  try {
+    const snap = _buildBackupSnapshot();
+    _autoBackupSaveToRing(snap, label);
+    const meta = _autoBackupLoadMeta();
+    meta.lastInMemoryTs = Date.now();
+    _autoBackupSaveMeta(meta);
+    // Fire-and-forget file write — don't block the upload waiting for it
+    _autoBackupDownloadFile(snap).catch(() => {});
+    try { showOppToast(`🛡 Safety snapshot saved — ${label}`); } catch {}
+    try { updateAutoBackupIndicator(); } catch {}
+  } catch (e) {
+    console.warn('[ibis-snapshot] pre-action snapshot failed', e);
+  }
 }
 
 /* ─── File System Access API — direct folder writes, no Downloads ──── */
@@ -11144,9 +11181,13 @@ function _renderBackupsPanel(modal, { cloud }) {
     const d = new Date(r.ts);
     const niceTime = d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
     const sizeKB = Math.round(JSON.stringify(r.snap).length / 1024);
+    const isPreUpload = r.reason && r.reason.startsWith('Pre-upload');
+    const reasonLabel = r.reason
+      ? `<div style="font-size:10px;color:${isPreUpload ? '#0369a1' : '#9ca3af'};font-family:'DM Mono',monospace;margin-top:2px;">${isPreUpload ? '🛡 ' : ''}${escHtml(r.reason)}</div>`
+      : '';
     return `<div class="ab-row" onclick="restoreAutoBackup(${i})">
       <div class="ab-row-num">#${i+1}</div>
-      <div class="ab-row-time">${niceTime}</div>
+      <div class="ab-row-time">${niceTime}${reasonLabel}</div>
       <div class="ab-row-size">${sizeKB} KB</div>
       <button class="ab-row-btn">↺ Restore</button>
     </div>`;
