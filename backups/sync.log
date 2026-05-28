@@ -266,3 +266,28 @@
 [2026-05-27 19:30:19] Saved timestamped snapshot: snap-2026-05-27-1631.json
 [2026-05-27 19:30:19] Source is already the mirror -- skipping mirror copy.
 [2026-05-27 19:31:20] Committing and pushing to GitHub
+[2026-05-27 19:31:23] [main adbfe4c] auto-backup: 2026-05-27-1631 (2,875,509 bytes)
+[2026-05-27 19:31:23]  3 files changed, 32 insertions(+), 1 deletion(-)
+[2026-05-27 19:31:24]  create mode 100644 backups/snap-2026-05-27-1631.json
+[2026-05-27 19:31:30] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-05-27 19:31:30]    f5721dd..adbfe4c  main -> main
+[2026-05-27 19:31:30] Auto-backup sync complete.
+[2026-05-28 02:28:53] Auto-backup sync starting
+[2026-05-28 02:28:53] Latest backup source: mirror (FSA direct write)
+[2026-05-28 02:28:53] Latest file: latest.json (2,875,509 bytes, modified 05/27/2026 16:31:16)
+[2026-05-28 02:28:53] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-05-28 09:33:05] Auto-backup sync starting
+[2026-05-28 09:33:05] Latest backup source: mirror (FSA direct write)
+[2026-05-28 09:33:05] Latest file: latest.json (2,875,509 bytes, modified 05/27/2026 16:31:16)
+[2026-05-28 09:33:05] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-05-28 09:37:30] Auto-backup sync starting
+[2026-05-28 09:37:30] Latest backup source: mirror (FSA direct write)
+[2026-05-28 09:37:30] Latest file: latest.json (2,875,509 bytes, modified 05/27/2026 16:31:16)
+[2026-05-28 09:37:30] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-05-28 10:33:07] Auto-backup sync starting
+[2026-05-28 10:33:07] Latest backup source: Downloads (legacy path)
+[2026-05-28 10:33:07] Latest file: ibis-autobackup-2026-05-28-13-37.json (2,780,445 bytes, modified 05/28/2026 09:37:56)
+[2026-05-28 10:33:07] Copied to backups/latest.json
+[2026-05-28 10:33:07] Saved timestamped snapshot: snap-2026-05-28-0937.json
+[2026-05-28 10:33:07] Mirrored to C:\Users\Daniel.starr\OneDrive - IBISWORLD PTY LTD\Documents\IBIS-Backups
+[2026-05-28 10:33:08] Committing and pushing to GitHub
