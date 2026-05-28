@@ -6,11 +6,11 @@
 
 $ErrorActionPreference = 'Continue'
 
-$BatPath  = "$PSScriptRoot\auto-backup-run.bat"
+$VbsPath  = "$PSScriptRoot\auto-backup-run-hidden.vbs"
 $TaskName = 'IBIS Dashboard Auto-Backup'
 
-if (-not (Test-Path $BatPath)) {
-    Write-Host "ERROR: auto-backup-run.bat not found at $BatPath" -ForegroundColor Red
+if (-not (Test-Path $VbsPath)) {
+    Write-Host "ERROR: auto-backup-run-hidden.vbs not found at $VbsPath" -ForegroundColor Red
     exit 1
 }
 
@@ -19,8 +19,9 @@ Write-Host "Registering scheduled task '$TaskName' (user-scope, no admin needed)
 # Remove any existing task first (silent if absent)
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
-# Build the task via cmdlets - quoting is handled correctly for paths with spaces
-$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument "/c `"$BatPath`""
+# Use wscript.exe + VBS launcher so no console window ever appears (SW_HIDE).
+# The VBS in turn launches PowerShell hidden — the user sees nothing.
+$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$VbsPath`""
 
 # Trigger: every 60 minutes starting in 2 minutes from now, indefinitely
 $startAt = (Get-Date).AddMinutes(2)
