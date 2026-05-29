@@ -648,7 +648,8 @@ Mediterranean Shipping Company→$91.0B, Labcorp→$13.0B,
 MGM Resorts International→$17.2B, StoneX→$1.7B, Cleveland Clinic→$14.0B,
 Authentic Brands Group→$750M, DRS Technologies Inc.→$3.2B,
 Conocophillips→$54.7B, Danone→$17.7B, Blackrock→$20.4B,
-Berkshire Hathaway→$364.5B, Panasonic→$65.0B, WPP→$19.0B, Aflac→$22.9B
+Berkshire Hathaway→$364.5B, Panasonic→$65.0B, WPP→$19.0B, Aflac→$22.9B,
+ExxonMobil→$339.25B
 
 ### No-revenue verticals (show dash, never enrich):
 Academic, Government
