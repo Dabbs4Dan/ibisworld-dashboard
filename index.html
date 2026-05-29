@@ -2921,7 +2921,7 @@ function init() {
   if (saved) {
     try { accounts = JSON.parse(saved); } catch(e) { console.error('ibis_accounts corrupted, resetting:', e); accounts = []; }
     try { localData = savedLocal ? JSON.parse(savedLocal) : {}; } catch(e) { console.error('ibis_local corrupted, resetting:', e); localData = {}; }
-    applySeedsToLocalData(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
+    applySeedsToLocalData(); applyTierOverridesToAccounts(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
   }
   // Load Opportunities (Workables)
@@ -3076,6 +3076,7 @@ function processAccountRows(newAccounts) {
   saveCsvStat('accounts', acctAdded, acctRemoved);
   updateUploadDots();
   applySeedsToLocalData();
+  applyTierOverridesToAccounts();
   updateStats(); populateVerticals(); renderAll();
   autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
   document.getElementById('empty-state').classList.add('hidden');
@@ -3683,6 +3684,27 @@ function applySeedsToLocalData() {
     changed = true;
   });
   if (changed) localStorage.setItem('ibis_local', JSON.stringify(localData));
+}
+
+// ── Manual tier overrides ──────────────────────────────────────────────
+// SF sometimes ships wrong/missing "Major Markets Tier" values. Names must
+// match the exact account name in the CSV. Patches the in-memory accounts
+// array — re-applied on every load and after every accounts CSV upload, so
+// the SF feed can never silently overwrite a manual override.
+const TIER_OVERRIDES = {
+  'ExxonMobil': '1',
+};
+function applyTierOverridesToAccounts() {
+  if (typeof accounts === 'undefined' || !Array.isArray(accounts)) return;
+  accounts.forEach(acc => {
+    const name = getField(acc, 'Account Name', 'AccountName');
+    if (!name) return;
+    if (TIER_OVERRIDES[name]) {
+      acc['Major Markets Tier'] = TIER_OVERRIDES[name];
+      // Also patch camelCase variant in case some path reads it that way
+      if ('MajorMarketsTier' in acc) acc['MajorMarketsTier'] = TIER_OVERRIDES[name];
+    }
+  });
 }
 
 function getRevDisplay(acc) {
