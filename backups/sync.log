@@ -407,3 +407,29 @@
 [2026-05-28 16:33:06] Saved timestamped snapshot: snap-2026-05-28-1625.json
 [2026-05-28 16:33:06] Source is already the mirror -- skipping mirror copy.
 [2026-05-28 16:33:06] Committing and pushing to GitHub
+[2026-05-28 16:33:07] [main 73a4030] auto-backup: 2026-05-28-1625 (2,871,991 bytes)
+[2026-05-28 16:33:07]  Committer: Daniel Starr <daniel.starr@ibisworld.com.au>
+[2026-05-28 16:33:07] Your name and email address were configured automatically based
+[2026-05-28 16:33:07] on your username and hostname. Please check that they are accurate.
+[2026-05-28 16:33:07] You can suppress this message by setting them explicitly. Run the
+[2026-05-28 16:33:07] following command and follow the instructions in your editor to edit
+[2026-05-28 16:33:07] your configuration file:
+[2026-05-28 16:33:07] 
+[2026-05-28 16:33:07]     git config --global --edit
+[2026-05-28 16:33:07] 
+[2026-05-28 16:33:07] After doing this, you may fix the identity used for this commit with:
+[2026-05-28 16:33:07] 
+[2026-05-28 16:33:07]     git commit --amend --reset-author
+[2026-05-28 16:33:07] 
+[2026-05-28 16:33:07]  3 files changed, 28 insertions(+), 1 deletion(-)
+[2026-05-28 16:33:07]  create mode 100644 backups/snap-2026-05-28-1625.json
+[2026-05-28 16:33:10] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-05-28 16:33:10]    da621bb..73a4030  main -> main
+[2026-05-28 16:33:10] Auto-backup sync complete.
+[2026-05-29 10:55:29] Auto-backup sync starting
+[2026-05-29 10:55:29] Latest backup source: mirror (FSA direct write)
+[2026-05-29 10:55:29] Latest file: latest.json (3,013,059 bytes, modified 05/29/2026 10:55:18)
+[2026-05-29 10:55:29] Copied to backups/latest.json
+[2026-05-29 10:55:29] Saved timestamped snapshot: snap-2026-05-29-1055.json
+[2026-05-29 10:55:29] Source is already the mirror -- skipping mirror copy.
+[2026-05-29 10:55:43] Committing and pushing to GitHub
