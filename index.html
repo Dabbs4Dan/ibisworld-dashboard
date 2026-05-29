@@ -430,6 +430,7 @@
   }
   .chip:hover { border-color: var(--border-hover); color: var(--text-primary); background: var(--surface); }
   .chip.active { background: var(--ibis-red-light); border-color: var(--ibis-red); color: var(--ibis-red); font-weight: 600; }
+  .chip-truekeep.active { background:#dbeafe; border-color:#93c5fd; color:#1e40af; }
   .chip-keep.active    { background:#d1fae5; border-color:#6ee7b7; color:#065f46; }
   .chip-monitor.active { background:#fef9c3; border-color:#fde68a; color:#854d0e; }
   .chip-drop.active    { background:#fee2e2; border-color:#fca5a5; color:#991b1b; }
@@ -1127,6 +1128,7 @@
   .acct-status-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-status-opt:last-child { margin-bottom:0; }
   .acct-status-opt:hover { filter:brightness(0.94); }
+  .ast-truekeep { background:#dbeafe; color:#1e40af; }
   .ast-keep    { background:#d1fae5; color:#065f46; }
   .ast-monitor { background:#fef9c3; color:#854d0e; }
   .ast-drop    { background:#fee2e2; color:#991b1b; }
@@ -2121,6 +2123,7 @@
     <option value="">All Verticals</option>
   </select>
   <div class="filter-chips">
+    <button class="chip chip-truekeep" onclick="toggleChip(this,'TRUE_KEEP')" data-flag="TRUE_KEEP">🔒 True Keep</button>
     <button class="chip chip-keep" onclick="toggleChip(this,'KEEP')" data-flag="KEEP">✓ Keep</button>
     <button class="chip chip-monitor" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">👁 Monitor</button>
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
@@ -3199,9 +3202,9 @@ function getFiltered() {
       const acctPriority = localData[aName]?.acctPriority || '';
       const stageVal     = getField(a, '6sense Account Buying Stage NA') || '';
       // Status group — OR within, AND across groups
-      const statusFs = ['KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f));
+      const statusFs = ['TRUE_KEEP','KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f));
       if (statusFs.length) {
-        const map = {KEEP:'keep',MONITOR:'monitor',DROP:'drop'};
+        const map = {TRUE_KEEP:'truekeep',KEEP:'keep',MONITOR:'monitor',DROP:'drop'};
         if (!statusFs.some(f => map[f] === acctStatus)) return false;
       }
       // Priority group — OR within
@@ -3224,7 +3227,7 @@ function getFiltered() {
       // Multi-Owner — standalone (account also owned by another rep in the group)
       if (activeFlags.has('MULTI_OWNER') && getOtherRepOverlap(aName).length === 0) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['TRUE_KEEP','KEEP','MONITOR','DROP','ACTIVE_LIC','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -4733,6 +4736,7 @@ document.addEventListener('scroll', function() {
 
 // Account Status custom dropdown — stored in ibis_local[name].acctStatus
 const ACCT_STATUS_OPTS = [
+  { key:'truekeep', label:'🔒 True Keep', cls:'ast-truekeep' },
   { key:'keep',    label:'✓ Keep',    cls:'ast-keep' },
   { key:'monitor', label:'👁 Monitor', cls:'ast-monitor' },
   { key:'drop',    label:'✕ Drop',    cls:'ast-drop' },
@@ -4742,7 +4746,7 @@ const ACCT_STATUS_OPTS = [
 function renderAcctStatusSelect(name) {
   const status = (localData[name]?.acctStatus) || '';
   const safeId = 'ast-' + name.replace(/[^a-z0-9]/gi,'_');
-  const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
+  const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS.find(o => o.key === '');
   // Name stored on wrapper div so portal can read it directly — no safeId reverse-lookup needed.
   return `<div class="acct-status-wrap" id="${safeId}" data-acct-name="${escHtml(name)}" onclick="event.stopPropagation()">
     <button class="acct-status-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctStatusPortal('${safeId}',this)">${cur.label}</button>
@@ -4785,7 +4789,7 @@ function applyPortalStatus(status) {
   // Update trigger in-place
   const wrap = document.getElementById(id);
   if (wrap) {
-    const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS[3];
+    const cur = ACCT_STATUS_OPTS.find(o => o.key === status) || ACCT_STATUS_OPTS.find(o => o.key === '');
     const trigger = wrap.querySelector('.acct-status-trigger');
     if (trigger) { trigger.className = 'acct-status-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
   }
@@ -8663,6 +8667,7 @@ function renderDeadAccounts() {
 
   // Status key → display label + color (matches live ACCT_STATUS_OPTS keys)
   const STATUS_DISPLAY = {
+    truekeep: { label:'🔒 True Keep', bg:'#dbeafe', col:'#1e40af' },
     keep:    { label:'✓ Keep',    bg:'#dcfce7', col:'#166534' },
     monitor: { label:'👁 Monitor', bg:'#fef9c3', col:'#854d0e' },
     drop:    { label:'✕ Drop',    bg:'#fee2e2', col:'#991b1b' },
@@ -10482,8 +10487,8 @@ function exportAccountsTab() {
   // Build a human-readable subtitle describing every active filter
   const parts = [];
   // Status group
-  const statusLabels = { KEEP:'Keep', MONITOR:'Monitor', DROP:'Drop' };
-  const statusOn = ['KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f)).map(f => statusLabels[f]);
+  const statusLabels = { TRUE_KEEP:'True Keep', KEEP:'Keep', MONITOR:'Monitor', DROP:'Drop' };
+  const statusOn = ['TRUE_KEEP','KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f)).map(f => statusLabels[f]);
   if (statusOn.length) parts.push('Status: ' + statusOn.join('/'));
   // Priority group
   const prioLabels = { PRIO_QUICKWINNER:'Quick Winner', PRIO_TEAMSELL:'Team Sell', PRIO_LEGENDARY:'Legendary', PRIO_VERYRARE:'Very Rare', PRIO_RARE:'Rare', PRIO_UNCOMMON:'Uncommon' };
