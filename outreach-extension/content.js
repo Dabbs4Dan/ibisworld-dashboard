@@ -49,6 +49,9 @@
     'gowlingwlg.com':    'Gowling WLG',
     'aircanada.ca':      'Air Canada',
     'bnpparibas.com':    'BNP Paribas',
+    // Univision's people email from the post-merger domain, not univision.com.
+    'televisaunivision.com': 'Univision',
+    'univision.com':         'Univision',
   };
 
   // Bump this ONLY when counting methodology changes (not on every release).
@@ -1399,16 +1402,15 @@
         // meeting/scheduling date (e.g. "June 17") that parsed as the row date — using
         // it made a stale contact read "today". A calendar day after today can't be a
         // real "last contacted" date, so fall back to the PA cache date instead.
+        // v3.78: THREAD-SCOPED staleness. The row's own date is the latest message in
+        // THIS conversation — exactly what "last activity in this thread" means. We no
+        // longer pull a more-recent date from the PA cache: that aggregates across ALL
+        // threads, so a follow-up Dan sent this person in a *different* thread would
+        // wrongly freshen this row. A future DOM date (a forward meeting date) is ignored.
         const _nowD = new Date();
         const _todayMs = new Date(_nowD.getFullYear(), _nowD.getMonth(), _nowD.getDate()).getTime();
         const _domDayMs = domDate ? new Date(domDate.getFullYear(), domDate.getMonth(), domDate.getDate()).getTime() : null;
         let date = (domDate && _domDayMs <= _todayMs) ? domDate : null;
-        if (storedEmail && cacheEntry?.lastDate) {
-          const paDate = new Date(cacheEntry.lastDate);
-          if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
-            date = paDate; // PA cache has a more recent sent date
-          }
-        }
 
         let days = daysSince(date);
 
@@ -1461,59 +1463,26 @@
           }
         }
 
-        // If domain fallback found a cache entry, also update staleness date
-        if (cacheData?.lastDate && !storedEmail) {
-          const paDate = new Date(cacheData.lastDate);
-          if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
-            date = paDate;
-            days = daysSince(date);
-          }
-        }
+        // v3.78: THREAD-SCOPED step count = number of messages in THIS conversation,
+        // not total emails to this person. Outlook exposes a count on multi-message
+        // conversations ("N messages"); a single email has none. We no longer use the
+        // PA-cache unique-day total — it aggregated across all threads AND counted group
+        // blasts (so a single 1:1 email to Josh, who was also CC'd on two team blasts,
+        // showed "3"). A conversation that contains the contact's reply is at least two
+        // messages (Dan's + theirs), which we use as a floor when no explicit count.
+        const _ariaThread = getThreadCountFromAria(row);
+        const _contactReplied = getNonDanFromNames(row).length > 0;
+        let stepCount = _ariaThread || (_contactReplied ? 2 : 1);
 
-        // Step count: unique DAYS Dan emailed this contact (deduped to day level).
-        // PA cache aggregates across all threads/folders, so raw count can be inflated
-        // by the same email appearing in multiple PA source arrays.
-        let stepCount = 0;
-        if (cacheData?.dates?.length) {
-          const uniqueDays = new Set(cacheData.dates.map(d => (d || '').slice(0, 10)));
-          stepCount = uniqueDays.size;
-        }
-        // v3.70: DOM truth floors — PA syncs every 2h, so fresh activity is invisible
-        // to PA until next run. The row DOM is realtime. Use whatever DOM evidence
-        // exceeds the PA count as a floor, never let PA staleness pull us below truth.
-        //   • domDates.length = distinct date tokens in row (captures "replied Tue 4/21")
-        //   • aria thread-count = "N messages" phrasing when present
-        const domDates    = getAllDatesFromRow(row);
-        const ariaThread  = getThreadCountFromAria(row);
-        const domFloor    = Math.max(domDates.length, ariaThread);
-        if (domFloor > stepCount) stepCount = domFloor;
-        // v3.61: even when PA has nothing and DOM shows no explicit count, the row
-        // itself proves one send happened.
-        if (stepCount === 0 && resolvedEmail && date) stepCount = 1;
-
-        // Reply detection (v3.69) — PA-cache-first, with DOM fallback:
-        //
-        // When we HAVE a PA cache entry for this contact, PA is authoritative.
-        // PA has actually read the email bodies in monitored folders + Sent Items.
-        // It knows who sent which email. That's real-world data — trust it and
-        // ignore the aria-label noise (which triggers on Dan's own follow-ups).
-        //   hasReplied := cacheData.hasReplied  OR  contact is current From
-        //
-        // When we DON'T have a PA cache entry (contact isn't in any monitored
-        // folder yet), we fall back to ALL DOM signals — aria-label included —
-        // because we have no other source of truth for that contact.
-        //   hasReplied := contact is current From  OR  aria-label says replied
-        const domReply = getNonDanFromNames(row).length > 0;
-        let hasReplied;
-        if (cacheData) {
-          hasReplied = !!cacheData.hasReplied || domReply;
-        } else {
-          hasReplied = domReply || hasRowReplyIndicator(row);
-        }
+        // v3.78: THREAD-SCOPED reply — did the contact reply IN THIS conversation? The
+        // From field of a conversation that has a reply lists them as a participant
+        // ("Christina Balatsos; Daniel Starr"); a Dan-only send shows just "Daniel Starr".
+        // PA-cache hasReplied was cross-thread (a reply in another thread lit this row).
+        const hasReplied = _contactReplied;
 
         // Debug: log what we found for each row
         if (!alreadyProcessed && resolvedEmail) {
-          LOG(`Row match: ${resolvedEmail} | domDate=${domDate?.toISOString().slice(0,10)} | paDate=${cacheEntry?.lastDate?.slice(0,10)||'none'} | steps=${stepCount} | replied=${hasReplied} | days=${days}`);
+          LOG(`Row match: ${resolvedEmail} | threadDate=${domDate?.toISOString().slice(0,10)||'none'} | ariaThread=${_ariaThread} | steps=${stepCount} | replied=${hasReplied} | days=${days}`);
         }
 
         row.dataset.ibisProcessed = '1';
@@ -1585,11 +1554,11 @@
     }
 
     // ── Step count chip ──
-    // Shows total emails sent to this contact (PA cache count). Gives Dan a quick
-    // "how many times have I reached out to this person" signal.
+    // v3.78: messages in THIS conversation (thread-scoped), not total emails to the
+    // person. A single email shows 1; a thread with replies shows its message count.
     if (stepCount > 0) {
       const stepChip = document.createElement('span');
-      stepChip.title = `${stepCount} unique day${stepCount === 1 ? '' : 's'} you emailed this contact (across all threads)`;
+      stepChip.title = `${stepCount} message${stepCount === 1 ? '' : 's'} in this conversation`;
       p(stepChip, 'display',       'inline-flex');
       p(stepChip, 'align-items',   'center');
       p(stepChip, 'gap',           '3px');
