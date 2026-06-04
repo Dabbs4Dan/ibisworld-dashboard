@@ -713,6 +713,36 @@
     });
   }
 
+  // v3.79: bridge a From display name to a PA-cache email when the address uses an
+  // initial+lastname style (jcastro, ddobbins, ljoseph) that first-name matching can't
+  // reach. Given "Jose Castro", test cache local-parts against common formats; once
+  // matched, the email's domain resolves the company (accounts list / domain override).
+  // Returns the single matching email (date-corroborated when ambiguous), else null.
+  function matchCacheByNamePattern(fullName, rowDate) {
+    const parts = stripAccents(fullName || '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return null;
+    const first = parts[0], last = parts[parts.length - 1];
+    if (first.length < 2 || last.length < 2) return null;
+    const fi = first[0], li = last[0];
+    const patterns = new Set([
+      fi + last,            // jcastro
+      first + last,         // josecastro
+      first + '.' + last,   // jose.castro
+      last + fi,            // castroj
+      first + '.' + li,     // jose.c
+      last,                 // castro (whole local part is the last name)
+    ]);
+    const hits = [];
+    for (const email of Object.keys(emailCache)) {
+      const local = (email.split('@')[0] || '').toLowerCase().replace(/[^a-z.]/g, '');
+      if (patterns.has(local)) hits.push(email);
+    }
+    if (hits.length === 0) return null;
+    if (hits.length === 1) return hits[0];
+    for (const h of hits) if (_dateCorroborates(h, rowDate)) return h;
+    return null;
+  }
+
   function tiebreakByDate(candidates, rowDate) {
     // When multiple contacts match by name, use PA cache dates to pick the best one.
     if (!rowDate || !emailCacheLoaded || candidates.length === 0) return null;
@@ -985,6 +1015,20 @@
               }
             }
           }
+        }
+      }
+
+      // ── Strategy 3c: initial+lastname email bridge (v3.79) ──
+      // "Jose Castro" (inbound) → jcastro@televisaunivision.com. First-name matching
+      // can't reach an initial+lastname address, but the full From name can pattern-
+      // match it, and the domain then resolves the company (accounts list / override).
+      const patEmail = matchCacheByNamePattern(senderName, domDate);
+      if (patEmail) {
+        const cm = { email: patEmail, domain: patEmail.split('@')[1] || '', nameParts: stripAccents(senderName).toLowerCase().split(/\s+/) };
+        const res = _synthCacheResult(cm, 'cache_name_pattern');
+        if (res && (_confirmCacheMatch(res) || _dateCorroborates(patEmail, domDate))) {
+          _diag.push('S3c:name-pattern');
+          return res;
         }
       }
     }
