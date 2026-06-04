@@ -1116,6 +1116,48 @@
       _diag.push(`S5:skip(date=${!!domDate} cache=${emailCacheLoaded} text=${rowText.length})`);
     }
 
+    // ── Strategy 6 (v3.80): LAST-RESORT greeting + date + known-account guess ──
+    // Runs ONLY here, after every other strategy has failed, so it can never override a
+    // confident match. Targets the outbound case Dan flagged: a row he addressed by first
+    // name ("Hi Dominica") whose address is initial+lastname (ddobbins@coca-cola.com) —
+    // unreachable by name matching because the row never shows her last name. We accept it
+    // only when ALL of these hold, so it points to exactly one real account:
+    //   (a) Dan actually emailed the address on/near THIS row's date,
+    //   (b) the address begins with the greeting's name or first initial (Dominica→ddobbins),
+    //   (c) the domain is a KNOWN territory account (never a random domain), and
+    //   (d) exactly one account survives — any ambiguity → back off and show nothing.
+    if (greetingName && domDate && emailCacheLoaded) {
+      const gLow = stripAccents(greetingName).toLowerCase();
+      const rowDayMs = new Date(domDate.getFullYear(), domDate.getMonth(), domDate.getDate()).getTime();
+      const cands = [];
+      for (const [email, entry] of Object.entries(emailCache)) {
+        if (!entry.dates?.length) continue;
+        const domain = email.split('@')[1] || '';
+        if (PERSONAL_DOMAINS.has(domain) || !domainAccountMap[domain]) continue; // (c)
+        // (a) Dan emailed this address on EXACTLY this row's day (not just nearby) —
+        // for an outbound row the row date IS the send date, so the true contact lands
+        // on it and an unrelated same-initial contact almost never coincides.
+        const sameDay = entry.dates.some(d => {
+          const dt = new Date(d);
+          if (isNaN(dt.getTime())) return false;
+          return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime() === rowDayMs;
+        });
+        if (!sameDay) continue;
+        const local = (email.split('@')[0] || '').toLowerCase().replace(/[^a-z]/g, '');
+        if (!(local.startsWith(gLow) || local[0] === gLow[0])) continue;          // (b)
+        cands.push({ email, domain });
+      }
+      const uniqDomains = [...new Set(cands.map(c => c.domain))];
+      if (cands.length >= 1 && uniqDomains.length === 1) {                        // (d)
+        const c = cands[0];
+        const accountName = domainAccountMap[c.domain]?.name || domainToName(c.domain);
+        _diag.push('S6:lastresort-greeting+date+account');
+        LOG(`  Last-resort match: "${greetingName}" + ${c.domain} (date+known account) → ${accountName}`);
+        return { email: c.email, contact: { accountName, domain: c.domain, name: greetingName, _folders: [] }, domain: c.domain, confidence: 'lastresort_account' };
+      }
+      if (cands.length > 0) _diag.push(`S6:ambiguous(${uniqDomains.length}-accounts)`);
+    }
+
     LOG('  ⛔ Match failed:', _diag.join(' → '));
     return null; // no match — row gets staleness-only badge (no company/step/reply)
   }
