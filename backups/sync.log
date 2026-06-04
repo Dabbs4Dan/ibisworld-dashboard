@@ -660,3 +660,10 @@
 [2026-06-04 11:33:10] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
 [2026-06-04 11:33:10]    81e549b..4fc3cb6  main -> main
 [2026-06-04 11:33:10] Auto-backup sync complete.
+[2026-06-04 12:33:06] Auto-backup sync starting
+[2026-06-04 12:33:06] Latest backup source: mirror (FSA direct write)
+[2026-06-04 12:33:06] Latest file: latest.json (2,896,672 bytes, modified 06/04/2026 12:17:10)
+[2026-06-04 12:33:06] Copied to backups/latest.json
+[2026-06-04 12:33:06] Saved timestamped snapshot: snap-2026-06-04-1217.json
+[2026-06-04 12:33:06] Source is already the mirror -- skipping mirror copy.
+[2026-06-04 12:33:06] Committing and pushing to GitHub
