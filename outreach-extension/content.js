@@ -753,6 +753,21 @@
     };
   }
 
+  // v3.77: row.textContent concatenates sibling DOM cells with NO separator, so the
+  // subject's last word fuses with the preview's first ("...World Bank" + "Hi Shiya"
+  // → "World BankHi Shiya"). That broke the \bbank\b word boundary, so the two-token
+  // rule saw only "world" and "World Bank Group" stopped matching. Join leaf-node text
+  // with spaces (same approach as extractGreetingName) to restore real word boundaries.
+  function rowSearchText(row) {
+    if (!row) return '';
+    const parts = [];
+    row.querySelectorAll('*').forEach(el => {
+      if (el.childElementCount === 0 && el.textContent) parts.push(el.textContent);
+    });
+    const joined = parts.join(' ').trim();
+    return joined || (row.textContent || '');
+  }
+
   function findContactForRow(row, activeFolder, domDate) {
     // Diagnostic breadcrumbs — visible in F12 console when filtering [IBISWorld]
     const _diag = [];
@@ -761,7 +776,8 @@
     // e.g. "Revisiting IBISWorld for Medline" → { name:'Medline', domain:'medline.com' }
     // Used to reject name-based matches that disagree with the clearly-named company
     // (prevents "Hi Angela" matching Angela-at-Nisa when subject says Medline).
-    const _textHint = findAccountNameInText(row.textContent || '');
+    const _searchText = rowSearchText(row);
+    const _textHint = findAccountNameInText(_searchText);
     function _hintOk(acctName, domain) {
       if (!_textHint || !acctName) return true; // no constraint → always ok
       const h = _textHint.name.toLowerCase();
@@ -777,7 +793,7 @@
     // which was the Medline→Nisa leak path: Angela-at-Nisa existed in PA
     // cache, Strategy 2 fell through (Angela not in Churns contactMap),
     // Strategy 2b rejected Nisa correctly, but Strategy 4 then accepted it.
-    const _rowTextLow = (row.textContent || '').toLowerCase();
+    const _rowTextLow = _searchText.toLowerCase();
     function _confirmCacheMatch(res) {
       if (!res) return false;
       // Never accept our own brand (Yuyu/eBay fix)
@@ -975,7 +991,7 @@
     // so preview shows the contact's text, not Dan's "Hi [Name]"), scan the entire
     // row text for ANY known contact first name. Folder-restricted only (v3.61):
     // cross-folder matches picked the wrong company on ambiguous first names.
-    const rowText = stripAccents(row.textContent || '').toLowerCase();
+    const rowText = stripAccents(_searchText).toLowerCase();
     if (rowText.length > 0) {
       for (const [email, c] of Object.entries(contactMap)) {
         if (!c._folders?.includes(activeFolder)) continue;
@@ -1422,8 +1438,9 @@
         let cacheData = resolvedEmail ? emailCache[resolvedEmail] : null;
 
         if (!cacheData && !resolvedEmail) {
-          // Try to find company domain from row text
-          const rowText = row.textContent || '';
+          // Try to find company domain from row text (leaf-joined so word
+          // boundaries survive the subject/preview concatenation — v3.77).
+          const rowText = rowSearchText(row);
           const acctHit = findAccountNameInText(rowText);
           if (acctHit?.domain) {
             // Search PA cache for any email at this domain
