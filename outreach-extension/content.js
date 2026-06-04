@@ -1686,11 +1686,33 @@
 
   // ── Utilities ─────────────────────────────────────────────────────────────────
 
+  // Generic subdomain prefixes (regional + infra) that are NEVER a company brand.
+  // Stripped from the front so us.bosch.com -> bosch, mail.corp.bigco.com -> bigco.
+  // Without this, domainToName took split('.')[0] and labeled sarah@us.bosch.com "Us".
+  const GENERIC_SUBDOMAINS = new Set([
+    'www','www2','www3','mail','mail2','email','smtp','mx','ns','webmail','owa','exchange','m',
+    'corp','corporate','internal','intranet','ad',
+    'us','usa','uk','ca','au','de','fr','jp','cn','in','br','eu',
+    'emea','apac','americas','amer','na','latam','global','intl','international','ww',
+    'secure','portal','web','my','go','info','news','marketing','careers','jobs','app',
+  ]);
+
   function domainToName(domain) {
     if (!domain) return '';
     const clean = domain.replace(/^www\./, '');
+    // Full-domain override check FIRST — must run before stripping so keys like
+    // 'us.issworld.com' resolve before 'us' would be stripped as a generic prefix.
     if (COMPANY_NAME_OVERRIDES[clean]) return COMPANY_NAME_OVERRIDES[clean];
-    return clean.split('.')[0]
+    // Strip leading generic subdomain labels, but never past the registrable domain
+    // (keep >= 2 labels), so us.bosch.com -> bosch.com, mail.corp.bigco.com -> bigco.com,
+    // and two-part TLDs like bosch.co.uk are left intact.
+    const labels = clean.split('.');
+    while (labels.length > 2 && GENERIC_SUBDOMAINS.has(labels[0].toLowerCase())) {
+      labels.shift();
+    }
+    const registrable = labels.join('.');
+    if (registrable !== clean && COMPANY_NAME_OVERRIDES[registrable]) return COMPANY_NAME_OVERRIDES[registrable];
+    return labels[0]
       .replace(/[-_]/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase());
   }
