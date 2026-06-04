@@ -42,6 +42,13 @@
   const COMPANY_NAME_OVERRIDES = {
     'guckenheimer.com':  'ISS-Guckenheimer',
     'us.issworld.com':   'ISS-Guckenheimer',
+    // v3.76 (Fix E): prettier display names for domains that domainToName() would
+    // otherwise render as a squashed label ("Gowlingwlg", "Aircanada", "Bnpparibas").
+    // Keyed by registrable domain — domainToName checks the override after stripping
+    // any regional subdomain, so "ca.gowlingwlg.com" / "us.bnpparibas.com" resolve here.
+    'gowlingwlg.com':    'Gowling WLG',
+    'aircanada.ca':      'Air Canada',
+    'bnpparibas.com':    'BNP Paribas',
   };
 
   // Bump this ONLY when counting methodology changes (not on every release).
@@ -688,6 +695,21 @@
     return firstName && firstName.length >= 3 ? matchContactsByFirstName(firstName, folder) : [];
   }
 
+  // v3.76 (Fix D): does the PA cache show Dan emailing this exact address on/near the
+  // row's date? Used to confirm a greeting-name match ("Hi Khaled" → the one Khaled in
+  // the cache) when the company name isn't echoed in the body. ±1 calendar-day window.
+  function _dateCorroborates(email, rowDate) {
+    const entry = emailCache[email];
+    if (!entry?.dates || !rowDate) return false;
+    const rowMs = new Date(rowDate.getFullYear(), rowDate.getMonth(), rowDate.getDate()).getTime();
+    return entry.dates.some(d => {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return false;
+      const dMs = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+      return Math.abs(dMs - rowMs) <= 86400000;
+    });
+  }
+
   function tiebreakByDate(candidates, rowDate) {
     // When multiple contacts match by name, use PA cache dates to pick the best one.
     if (!rowDate || !emailCacheLoaded || candidates.length === 0) return null;
@@ -779,6 +801,24 @@
              (domRoot.length  >= 4 && _rowTextLow.includes(domRoot));
     }
 
+    // v3.76 (Fix B): STRICTER gate for Strategy 4 (the body-wide first-name scan) — the
+    // weakest evidence we have, since a first name can appear anywhere in the body. A
+    // stray "Todd Kadry" mentioned in a Hubbell email must NOT paint that row "FIS"
+    // (Todd-at-FIS). Unlike _confirmCacheMatch this does NOT grant the known-territory-
+    // domain auto-pass: it requires the company itself (account-name root or domain root)
+    // to actually appear in the row text. _textHint, when present, stays authoritative.
+    function _confirmTextScanMatch(res) {
+      if (!res) return false;
+      const anLow = (res.contact?.accountName || '').toLowerCase();
+      const dLow  = (res.domain || '').toLowerCase();
+      if (anLow.includes('ibisworld') || dLow.includes('ibisworld')) return false;
+      if (_textHint) return _hintOk(res.contact?.accountName, res.domain);
+      const acctRoot = (res.contact?.accountName || '').split(/[\s\-]/)[0].toLowerCase();
+      const domRoot  = (res.domain || '').split('.')[0].toLowerCase();
+      return (acctRoot.length >= 4 && _rowTextLow.includes(acctRoot)) ||
+             (domRoot.length  >= 4 && _rowTextLow.includes(domRoot));
+    }
+
     // ── Strategy 1: DOM email scan (highest confidence) ──
     for (const el of [row, ...row.querySelectorAll('[title*="@"],[aria-label*="@"],[data-email],[href*="mailto"]')]) {
       for (const attr of ['title', 'aria-label', 'data-email', 'href']) {
@@ -841,6 +881,15 @@
         const cm = cacheMatches[0];
         const res = _synthCacheResult(cm, 'cache_name');
         if (res && _confirmCacheMatch(res)) return res;
+        // v3.76 (Fix D): the greeting names the actual recipient Dan addressed ("Hi
+        // Khaled"). When it's the ONLY person with that first name in the PA cache AND
+        // Dan emailed that exact address on/near this row's date, it's confidently the
+        // right person even without the company echoed in the body. Greeting-only (not
+        // a body scan), so a stray name elsewhere in the email can't trigger this.
+        if (res && _dateCorroborates(cm.email, domDate)) {
+          _diag.push('S2b:greeting+date-confirmed');
+          return { ...res, confidence: 'cache_name_greeting' };
+        }
         if (!res) _diag.push('S2b:brand-leak-rejected');
         else _diag.push(`S2b:unconfirmed(${res.contact?.accountName}≠text)`);
       } else if (cacheMatches.length > 1) {
@@ -947,7 +996,9 @@
         const re = new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
         if (re.test(rowText) && entries.length === 1) {
           const r = _synthCacheResult(entries[0], 'cache_text_scan');
-          if (r && _confirmCacheMatch(r)) return r;
+          // v3.76 (Fix B): strict gate — body-name evidence requires the company to
+          // actually appear in the row, no known-territory-domain shortcut.
+          if (r && _confirmTextScanMatch(r)) return r;
         }
       }
     }
@@ -1328,7 +1379,14 @@
         // v3.32 tried DOM-only but that was wrong: Dajin showed 16d (original filed
         // email from 3/25) when Dan sent a follow-up 4d ago (4/6 in PA cache).
         // v3.60: also check domain-fallback cache later and re-derive if needed.
-        let date = domDate;
+        // v3.76 (Fix C): ignore a DOM date in the FUTURE. Some rows carry a forward
+        // meeting/scheduling date (e.g. "June 17") that parsed as the row date — using
+        // it made a stale contact read "today". A calendar day after today can't be a
+        // real "last contacted" date, so fall back to the PA cache date instead.
+        const _nowD = new Date();
+        const _todayMs = new Date(_nowD.getFullYear(), _nowD.getMonth(), _nowD.getDate()).getTime();
+        const _domDayMs = domDate ? new Date(domDate.getFullYear(), domDate.getMonth(), domDate.getDate()).getTime() : null;
+        let date = (domDate && _domDayMs <= _todayMs) ? domDate : null;
         if (storedEmail && cacheEntry?.lastDate) {
           const paDate = new Date(cacheEntry.lastDate);
           if (!isNaN(paDate.getTime()) && (!date || paDate > date)) {
@@ -1743,7 +1801,10 @@
     'business','businesses','national','general','financial','finance','capital',
     'management','consulting','enterprise','products','brands','worldwide','companies',
     'insurance','research','industry','market','markets','development','membership',
-    'world','trade','center','manager','york','sample','samples','request','inquiry',
+    // NOTE: 'world' is deliberately NOT here — the v3.76 two-token rule lets "World Bank
+    // Group" require world+bank together (so "World Trade Center" in the signature no
+    // longer matches it), and stopping 'world' would strip a token the real match needs.
+    'trade','center','manager','york','sample','samples','request','inquiry',
     'account','accounts','coverage','access','demo',
   ]);
 
@@ -1762,25 +1823,28 @@
       if (lower.includes(key)) return accountNameMap[key];
     }
 
-    // v3.71: Pass 2 — significant-word match for multi-word keys. Dashboards often
-    // store full legal names ("Medline Industries Inc.") while subjects use the short
-    // form ("Medline"). Build an anchor = the longest non-stop-word token (≥4 chars)
-    // from each key; if that anchor appears as a whole word in the text, match.
-    // Longest anchor wins so specific brand words beat generic ones.
-    let bestHit = null;
-    let bestLen = 0;
+    // v3.76: Pass 2 — multi-token corroboration. Build each key's set of significant
+    // tokens (≥4 chars, not a stop word). A SINGLE-token key matches if that one token
+    // appears as a whole word ("Medline Industries Inc" → "medline"). A MULTI-token key
+    // requires ≥2 of its significant tokens present — so "World Bank Group" matches a row
+    // saying "World Bank" but NOT one saying "World Trade Center" (only "world" overlaps).
+    // This structurally kills the generic-word over-match class — a lone boilerplate word
+    // ("business", "world") can never anchor a multi-word company — without needing an
+    // ever-growing stop-word blocklist. Most specific match (most tokens, then longest) wins.
+    let bestHit = null, bestScore = 0;
     for (const key of _sortedAccountNames) {
-      const tokens = key.split(/[\s\-&.,'/]+/)
-        .map(t => t.replace(/[^a-z0-9]/g, ''))
-        .filter(t => t.length >= 4 && !_ACCT_STOP_WORDS.has(t));
+      const tokens = [...new Set(
+        key.split(/[\s\-&.,'/]+/)
+          .map(t => t.replace(/[^a-z0-9]/g, ''))
+          .filter(t => t.length >= 4 && !_ACCT_STOP_WORDS.has(t))
+      )];
       if (tokens.length === 0) continue;
-      tokens.sort((a, b) => b.length - a.length);
-      const anchor = tokens[0];
-      const re = new RegExp('\\b' + anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
-      if (re.test(lower) && anchor.length > bestLen) {
-        bestHit = accountNameMap[key];
-        bestLen = anchor.length;
-      }
+      const present = tokens.filter(t =>
+        new RegExp('\\b' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(lower));
+      const need = tokens.length === 1 ? 1 : 2;
+      if (present.length < need) continue;
+      const score = present.length * 1000 + present.reduce((s, t) => s + t.length, 0);
+      if (score > bestScore) { bestScore = score; bestHit = accountNameMap[key]; }
     }
     return bestHit;
   }
