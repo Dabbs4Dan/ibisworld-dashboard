@@ -1040,6 +1040,34 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 
 ---
 
+## CLAUDE IN CHROME — REMOTE BROWSER WORKFLOW
+*Claude Code remoting into Dan's real Chrome to connect data across his 4 core pages (dashboard, Outlook, Salesforce, Power Automate). Primary use today: live-diagnosing the Outreach Extension against ground-truth data. `/start-session` step 0c automates the enablement + access probe.*
+
+### The 4 core pages (the workspace)
+| # | Page | URL |
+|---|---|---|
+| 1 | Dashboard | `https://dabbs4dan.github.io/ibisworld-dashboard/` |
+| 2 | Outlook (Outreach → 6QA) | `https://outlook.office.com/mail/` |
+| 3 | Salesforce | `https://ibisworld-inc.lightning.force.com` |
+| 4 | Power Automate | `https://make.powerautomate.com` |
+
+### How the tooling works
+- Claude does NOT read Dan's existing tabs directly. It owns a dedicated **MCP tab group** and acts on tabs inside it. Create it with `tabs_context_mcp({createIfEmpty:true})`, then `navigate`/`tabs_create_mcp` to populate it. Cookies/sessions are shared with Dan's logged-in profile, so the work pages load already authenticated.
+- Read paths: **`read_page` (accessibility tree) is the reliable one.** `get_page_text` also works. `javascript_tool` + `screenshot` are higher-power but collide with injected extensions (see below).
+
+### ⚠️ The two access blockers we hit (June 2026) — and the fixes
+1. **Domain lockout / session binding (the big one).** Every domain except the dashboard returned *"Navigation to this domain is not allowed"* — even github.com — despite Claude Code's own permissions allowing the navigate tool fully. Root cause: the Chrome connection **binds to whatever domains are reachable at connect time**, and re-selecting the browser does NOT refresh it (`switch_browser` only works with a 2nd browser open). **Fix = Dan-side setup + a fresh session:**
+   - **Claude in Chrome → Settings → Claude in Chrome → Site permissions → "Default for all sites" = `Allow extension`** ("works everywhere except sites you block"). This is the undocumented master switch the Reddit community found — without it, new domains are hard-denied with *no approval prompt ever appearing*. Confirmed: flipping it mid-session does NOT unblock the live connection; it must be set BEFORE the session starts.
+   - In Claude Code: **`/chrome` → "Enabled by default"** (persists Chrome control without `--chrome`).
+   - **All 4 tabs open in Chrome before launching the session.** A fresh session + "Allow extension" already set + tabs open = clean attach to all domains.
+   - If still denied: set "Allow extension" in BOTH claude.ai and Claude Desktop (covers multiple Chrome profiles).
+2. **Outreach Extension vs Claude's debugger.** On pages where Dan's own Outreach Extension injects content scripts (dashboard + Outlook), `javascript_tool` and `screenshot` fail with *"Cannot access a chrome-extension:// URL of different extension."* **`read_page` still works** — use it as the default. If a JS/localStorage read is essential (e.g. pulling `ibis_6qa` directly), toggle the Outreach Extension OFF in `chrome://extensions` during diagnosis, then back ON to test badges.
+
+### Verified-working tool sequence
+`list_connected_browsers` → `select_browser(deviceId)` → `tabs_context_mcp({createIfEmpty:true})` → `navigate(tab, url)` → `read_page(tab)`. Confirmed reading the dashboard's full Accounts table via `read_page` even while JS was blocked.
+
+---
+
 ## OUTREACH EXTENSION — Chrome Extension
 
 **Location:** `/outreach-extension/` subfolder inside this repo (saved to GitHub, not deployed)
@@ -1409,12 +1437,15 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 
 > **🔬 Live-diagnosis session note — June 4 2026 (Claude in Chrome, no code changes).** First time reading Dan's live Outlook overlay. Confirmed the "Us"/subdomain company-label bug, left the CarMax sticky-label question open (needs recipient-domain verification), confirmed "Harris Williams" is a territory data gap (not a bug), and verified 6QA staleness dates are actually correct. Discovered two access walls: the M365/Teams connector is blocked by Conditional Access (AADSTS50158), and the Claude-in-Chrome beta only attached to Outlook this session (dashboard/Salesforce/Power Automate denied). See the four 🔬 rows below.
 
+> **🔧 Chrome-enablement session note — June 2026 (no code changes to index.html).** Root-caused the multi-tab access wall. The fix is the undocumented **"Default for all sites = Allow extension"** switch (Claude in Chrome → Settings → Site permissions) — without it, every new domain is hard-denied with no approval prompt. Flipping it mid-session does NOT unblock the live connection (it binds to reachable domains at connect time); requires a fresh session with the setting set + all 4 tabs open. Captured the full setup in the new **CLAUDE IN CHROME — REMOTE BROWSER WORKFLOW** section + automated it in `/start-session` step 0c (probes all 4 core pages up front, stops if denied). Also confirmed: on dashboard + Outlook, the Outreach Extension's injected scripts block `javascript_tool`/`screenshot` ("different extension" error) but `read_page` works fine. The Outreach diagnosis mission (subdomain fix, CarMax verify, 6QA audit, PA inspection) is **queued for next session** once full browser access is live.
+
 | Priority | Item | Notes |
 |---|---|---|
 | 🔴 Next | Outreach Extension: "Us"/subdomain company label (CONFIRMED) | 🔬 Found live in 6QA: the "Sample for Bosch" row showed company "Us". `domainToName()` (`content.js` ~1693) returns `domain.split('.')[0]`, so `sarah@us.bosch.com` → "us" → "Us". Any regional-subdomain contact (`us.`/`mail.`/`corp.`/`emea.`/`email.`/`smtp.`) gets a garbage label. Fix: strip generic subdomain prefixes / use the registrable domain. Not yet patched. |
 | 🔴 Next | Outreach Extension: CarMax sticky-label (VERIFY) | 🔬 In 6QA, "CarMax Business Services, LLC" labels ~6 unrelated-greeting rows (Khaled, Myranda, Bruno, Isla, Max, "Hi there"). Unconfirmed: either a real CarMax batch (correct) or Strategy-4 broad-text-scan (`content.js` ~924) over-matching a contact first-name that appears in Dan's template text. Resolve by checking the recipient `To:` domain on those rows, or `ibis_6qa` localStorage from the dashboard. `matchContactsByFirstName` uses exact equality, so "Max"→CarMax is likely coincidence. |
 | 🗺️ Blocked | M365 / Teams connector — Conditional Access (AADSTS50158) | 🔬 Dan's customized Microsoft 365 connector authenticates as daniel.starr@ibisworld.com but every Graph call fails `AADSTS50158 "external security challenge not satisfied"` — an IBISWorld Conditional Access policy (managed-device / IT app-approval), NOT a login error; re-auth doesn't clear it. Needs IT to allow-list app id `api://07c030f6-5743-41b7-ba00-0a6e85f37c17` (tenant `d6e1be51-d33d-44fc-a23f-d343cd8b3e78`). Workaround used: Claude in Chrome reading Outlook web. |
-| 🗺️ Note | Claude-in-Chrome beta — per-session tab binding | 🔬 In one chat the browser tool only fully attaches to ~the first tab it connects to. June 4 session read Outlook fine but was DENIED read/JS/navigate on dashboard + Salesforce + Power Automate despite Chrome "On all sites". NOT permanent — a fresh chat started with the needed tabs open attaches cleanly. Workaround: open all needed tabs BEFORE starting the session and verify read access to each early. |
+| ✅ Fixed | Claude-in-Chrome — per-session domain lockout | 🔧 Root cause: the connection binds to reachable domains at connect time, and the **"Default for all sites" extension setting was not `Allow extension`** → every domain except the dashboard hard-denied with no prompt. Fix: set "Allow extension" (Claude in Chrome → Settings → Site permissions) + `/chrome` "Enabled by default" + open all 4 tabs BEFORE launching + fresh session. Automated in `/start-session` step 0c. Full detail in CLAUDE IN CHROME — REMOTE BROWSER WORKFLOW section. |
+| 🔴 Next | Outreach diagnosis — resume with full browser access | Mission queued from June 4 + this session: (1) apply the "Us"/subdomain `domainToName()` fix, (2) settle the CarMax sticky-label question via recipient `To:` domains + `ibis_6qa`, (3) audit 8–10 more 6QA rows end-to-end vs ground truth, (4) inspect the PA flow's `contact_activity.json` (Sent Items in Compose union + uniform ISO dates). Needs the Chrome multi-tab workspace live (now unblocked). |
 | ✅ Done | Licenses count on Accounts | Shown in card stat (replaces Clients) + table column, sortable. Uses `getLicCount(name)` via `normName()` matching. |
 | ✅ Done | License badges on Account rows | `.alb-piq`, `.alb-intl`, `.alb-churn`, `.alb-trial` on cards + table. `getLicBadgeSpans()` / `getLicBadgesForAccount()`. |
 | ✅ Done | Stale `ibis_local` cleanup | `stampLastSeen()` + `pruneStaleLocalData()` on CSV upload. Prunes entries not seen in >180 days with no notes/flags. |
