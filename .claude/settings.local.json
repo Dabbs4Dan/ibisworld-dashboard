@@ -20,7 +20,21 @@
       "mcp__Claude_in_Chrome__read_console_messages",
       "Bash(node -e ' *)",
       "Bash(python3 -c ' *)",
-      "mcp__Claude_in_Chrome__tabs_context_mcp"
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(ls ~/.claude/projects/ 2>/dev/null | head -20; echo \"---WORKTREE---\"; git worktree list)",
+      "Bash(rm -rf \"/c/Users/Daniel.starr/.claude/projects/C--Users-Daniel-starr-OneDrive---IBISWORLD-PTY-LTD-Desktop-ibisworld-dashboard--claude-worktrees-cranky-bohr-cbbb36\" && echo \"Stale worktree history removed\"; git worktree list)",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__select_browser",
+      "WebFetch(domain:support.claude.com)",
+      "Bash(echo \"=== settings.local.json ===\"; cat \".claude/settings.local.json\" 2>/dev/null; echo \"\"; echo \"=== settings.json ===\"; cat \".claude/settings.json\" 2>/dev/null; echo \"\"; echo \"=== user settings ~/.claude/settings.json ===\"; cat ~/.claude/settings.json 2>/dev/null)",
+      "mcp__Claude_in_Chrome__switch_browser",
+      "Bash(node -c content.js)",
+      "Bash(node -e \"const m=require\\('./manifest.json'\\); console.log\\('✓ manifest.json valid, version', m.version\\)\")",
+      "PowerShell($n = \\(Get-Command node -ErrorAction SilentlyContinue\\).Source; if \\(-not $n\\) { $cands = @\\(\"$env:ProgramFiles\\\\nodejs\\\\node.exe\",\"$env:LOCALAPPDATA\\\\nodejs\\\\node.exe\",\"$env:APPDATA\\\\npm\\\\node.exe\",\"$env:ProgramFiles\\\\nodejs\\\\node.exe\"\\); $n = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1 }; if \\($n\\) { \"Found node: $n\" } else { \"node not found in common locations\" })",
+      "Bash(ls -t \"C:/Users/Daniel.starr/Downloads/\" 2>/dev/null | head -5; echo \"---\"; ls \"C:/Users/Daniel.starr/Downloads/contact_activity\"*.json 2>/dev/null)",
+      "PowerShell(winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent 2>&1)",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__get_page_text"
     ]
   }
 }

@@ -1729,6 +1729,16 @@
     'international','global','industries','services','solutions','systems','technologies',
     'enterprises','partners','partnership','associates','ventures','holding','plc','ag',
     'sa','co','the','and','for','of','n.a.','na','usa','us','america','american',
+    // v3.74: generic descriptor words that are too common to anchor a match. Without
+    // these, "CarMax Business Services, LLC" picked the longest token "business" and
+    // stuck CarMax onto every outreach row — Dan's signature "Business Development
+    // Manager" appears in every email, so "business" matched everywhere. Likewise
+    // "Farmers Insurance" matched the subject "Pet Insurance" via the "insurance"
+    // anchor. These words also appear constantly in IBISWorld template copy
+    // ("industry research", "market sizing"), so none of them can anchor alone.
+    'business','businesses','national','general','financial','finance','capital',
+    'management','consulting','enterprise','products','brands','worldwide','companies',
+    'insurance','research','industry','market','markets','development','membership',
   ]);
 
   function findAccountNameInText(text) {
