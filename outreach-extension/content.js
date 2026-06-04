@@ -1729,16 +1729,22 @@
     'international','global','industries','services','solutions','systems','technologies',
     'enterprises','partners','partnership','associates','ventures','holding','plc','ag',
     'sa','co','the','and','for','of','n.a.','na','usa','us','america','american',
-    // v3.74: generic descriptor words that are too common to anchor a match. Without
-    // these, "CarMax Business Services, LLC" picked the longest token "business" and
-    // stuck CarMax onto every outreach row — Dan's signature "Business Development
-    // Manager" appears in every email, so "business" matched everywhere. Likewise
-    // "Farmers Insurance" matched the subject "Pet Insurance" via the "insurance"
-    // anchor. These words also appear constantly in IBISWorld template copy
-    // ("industry research", "market sizing"), so none of them can anchor alone.
+    // v3.74/v3.75: words that appear in Dan's OWN boilerplate — his signature
+    // ("Daniel Starr | Business Development Manager", "1 World Trade Center, New York
+    // NY"), his company name ("IBISWorld"), and standard template copy ("industry
+    // research", "market sizing", "Sample Request", "Membership Inquiry"). Any of
+    // these appears on essentially every outreach row, so an account name whose
+    // longest token is one of them (e.g. "CarMax Business Services" → "business",
+    // "Farmers Insurance" → "insurance", "World Bank Group" → "world" via "1 World
+    // Trade Center") would stick onto unrelated rows. None of them can anchor a match
+    // alone — the account must match on a real brand token instead (carmax, farmers,
+    // bank). This is the cascading fix: removing "business" surfaced "world" next, so
+    // the whole boilerplate vocabulary is stopped at once.
     'business','businesses','national','general','financial','finance','capital',
     'management','consulting','enterprise','products','brands','worldwide','companies',
     'insurance','research','industry','market','markets','development','membership',
+    'world','trade','center','manager','york','sample','samples','request','inquiry',
+    'account','accounts','coverage','access','demo',
   ]);
 
   function findAccountNameInText(text) {
