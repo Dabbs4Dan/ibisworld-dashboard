@@ -1137,3 +1137,18 @@
 [2026-06-25 10:33:06] Source is already the mirror -- skipping mirror copy.
 [2026-06-25 10:33:06] Pruned old snapshot: snap-2026-05-27-1102.json
 [2026-06-25 10:33:06] Committing and pushing to GitHub
+[2026-06-25 10:33:07] [main 4bef432] auto-backup: 2026-06-25-1013 (2,907,339 bytes)
+[2026-06-25 10:33:07]  4 files changed, 21 insertions(+), 2 deletions(-)
+[2026-06-25 10:33:07]  delete mode 100644 backups/snap-2026-05-27-1102.json
+[2026-06-25 10:33:07]  create mode 100644 backups/snap-2026-06-25-1013.json
+[2026-06-25 10:33:09] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-06-25 10:33:09]    f0cfcb4..4bef432  main -> main
+[2026-06-25 10:33:09] Auto-backup sync complete.
+[2026-06-25 11:33:06] Auto-backup sync starting
+[2026-06-25 11:33:06] Latest backup source: mirror (FSA direct write)
+[2026-06-25 11:33:06] Latest file: latest.json (3,011,488 bytes, modified 06/25/2026 11:16:39)
+[2026-06-25 11:33:06] Copied to backups/latest.json
+[2026-06-25 11:33:06] Saved timestamped snapshot: snap-2026-06-25-1116.json
+[2026-06-25 11:33:06] Source is already the mirror -- skipping mirror copy.
+[2026-06-25 11:33:06] Pruned old snapshot: snap-2026-05-27-1203.json
+[2026-06-25 11:33:06] Committing and pushing to GitHub
