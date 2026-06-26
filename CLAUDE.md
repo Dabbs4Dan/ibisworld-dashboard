@@ -1040,6 +1040,48 @@ OneDrive share link is currently committed to GitHub (public repo). **However, i
 
 ---
 
+## SALESFORCE NATIVE COCKPIT — In Progress (June 2026)
+*Goal: bring the dashboard's value INTO Salesforce so Dan's account workflow lives next to the live SF data instead of in a separate standalone page (he said the standalone dashboard "feels too apart from my day to day"). Explored live via Claude in Chrome.*
+
+### 🚧 Hard constraint discovered — Dan CANNOT create Visualforce / Lightning / Apex
+Verified live (his profile + all 12 permission sets + the functional "New" button test):
+- **Profile:** "US Major Markets" (custom BDM *sales* profile). Role "US Ind MM BDM 1". SF User ID `005U100000534tpIAA`. Org `ibisworld-inc`, **Unlimited Edition**.
+- **`Customize Application` = UNCHECKED** on his profile (also Debug Apex, Deploy Change Sets, package perms). This is the exact permission that gates creating Visualforce pages, Lightning App Builder pages, and Apex.
+- His 12 permission sets are all feature/integration add-ons (Pipeline Inspection, Account Engagement/Pardot, 6sense, Gong, LinkedIn, Qualified, Files, IBISWorld Internal API Integration, IBISWorld Standard User) — **none** grants Customize Application.
+- Functional confirmation: the **"New" button is absent** on Setup → Visualforce Pages (the button reflects profile + all perm sets combined).
+- His broad Setup *tree visibility* (Object Manager, Custom Code, etc.) is a "view setup and configuration" permission — look, don't touch.
+- **Implication:** a custom-branded Visualforce cockpit (his colors/graphics) is **BLOCKED** unless IT grants Customize Application — a visible, elevated-access ask, almost certainly not worth it. **Do NOT re-litigate the Visualforce route without an IT grant.**
+
+### ✅ What Dan CAN self-serve (the chosen path: native + invisible)
+His profile DOES have Create & Customize List Views / Reports / Dashboards (Edit My Reports, Edit My Dashboards, Export Reports checked). So the in-SF cockpit is built from **personal list views + private reports + a personal Lightning dashboard** — all scoped to "only me", invisible to other admins (NOT written to the Setup Audit Trail), zero system risk, no IT involvement.
+
+### Built this session — personal Account list view "DA$ Cockpit – My Territory" (the ONLY artifact)
+- Visibility = **"Only I can see this list view"** (invisible).
+- Territory filter = **Filter by Owner → "My account teams"** (= accounts where Dan is on the Account Team; more reliable than text-matching his name in `Account_Owners__c`). Returns 50+ accounts.
+- **Reverse anytime:** Accounts → that list view → gear → Delete. No fields, no metadata, no data changes.
+- Columns were mid-build (added # Core Clients, # Core Opportunities, US Days Since Last Activity, Vertical, Major Markets Tier) but **not yet saved** — finish columns + sort next session.
+
+### Cockpit column → real SF field mapping (all pure existing Account fields — no new fields needed)
+| Column | Field | Notes |
+|---|---|---|
+| US Days Since Last Activity | `US_Days_Since_Last_Activity__c` | Formula(Number) |
+| Paying client? | `Core_Clients__c` (# Core Clients) | Roll-Up COUNT of Admin Client = native paying-client proxy |
+| Open opp? | `Core_Opportunities__c` (# Core Opportunities) | Roll-Up COUNT Opportunity |
+| Other BDMs + names | `Account_Owners__c` (long text) + `Account_Owner_Roles__c` + `Account_Owners_number__c` | Semicolon name list e.g. "Daniel Starr; Zachary Ruthven; …" |
+| Vertical | `Vertical__c` | Picklist — the API VALUE may be a number; render the label, not the raw value |
+| Tier | `Major_Markets_Tier__c` | Formula(Text) |
+| Revenue | `AnnualRevenue` | standard |
+| 6sense intent / stage | `X6sense_Account_*` variants (GL/NA/IW/PIQ) | Novelis showed **GL** populated (Intent 57, Stage Consideration); Dan's CSV uses "NA" — verify which variant has data when wiring |
+
+Note: there is **no reliable "active license" Account field** (search "licen" on Account = 0 fields) — license status lives in the License child object, same reason the standalone dashboard recomputes it from end-dates. `Core_Clients__c` is the closest pure-field proxy.
+
+### Next steps
+- Finish the list view columns + sort.
+- Build a personal (private-folder) Lightning **dashboard** with charts (by vertical, tier, days-inactive bucket, open-opp).
+- The standalone dashboard's tracking layer (Status / Priority / Action / Notes) would need org-wide custom fields — **deferred**; stays in the standalone tool for now.
+
+---
+
 ## CLAUDE IN CHROME — REMOTE BROWSER WORKFLOW
 *Claude Code remoting into Dan's real Chrome to connect data across his 4 core pages (dashboard, Outlook, Salesforce, Power Automate). Primary use today: live-diagnosing the Outreach Extension against ground-truth data. `/start-session` step 0c automates the enablement + access probe.*
 
@@ -1457,12 +1499,19 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 
 ## OPEN ITEMS
 
+> **🗺️ Salesforce-native cockpit session — June 2026 (no `index.html` changes; one reversible SF list view created).** Explored hooking the standalone dashboard closer to Salesforce. **Big finding:** Dan's "US Major Markets" profile lacks "Customize Application" → he **cannot create Visualforce/Lightning/Apex himself** (verified profile + all 12 permission sets + the missing "New" button on Setup → Visualforce Pages). So a custom-branded in-SF page is blocked without an IT grant. Pivoted to the native + invisible route he CAN self-serve: built a personal **"DA$ Cockpit – My Territory"** Account list view (visibility = only-me, territory = "My account teams"). Mapped every cockpit column to a real Account field. Next: finish columns/sort + a private dashboard. Full detail in the new **SALESFORCE NATIVE COCKPIT** section. Also re-confirmed the **Chrome debugger conflict**: ZoomInfo Anywhere (and Loom/Outreach Everywhere/Tomba) grab the CDP debugger and block `clicks`/`screenshot`/`javascript_tool` with "Cannot access a chrome-extension:// URL of different extension" — disable ALL non-Claude debugger extensions + use a fresh tab; `read_page`/`navigate`/`get_page_text` always work even while blocked.
+
 > **🔬 Live-diagnosis session note — June 4 2026 (Claude in Chrome, no code changes).** First time reading Dan's live Outlook overlay. Confirmed the "Us"/subdomain company-label bug, left the CarMax sticky-label question open (needs recipient-domain verification), confirmed "Harris Williams" is a territory data gap (not a bug), and verified 6QA staleness dates are actually correct. Discovered two access walls: the M365/Teams connector is blocked by Conditional Access (AADSTS50158), and the Claude-in-Chrome beta only attached to Outlook this session (dashboard/Salesforce/Power Automate denied). See the four 🔬 rows below.
 
 > **🔧 Chrome-enablement session note — June 2026 (no code changes to index.html).** Root-caused the multi-tab access wall. The fix is the undocumented **"Default for all sites = Allow extension"** switch (Claude in Chrome → Settings → Site permissions) — without it, every new domain is hard-denied with no approval prompt. Flipping it mid-session does NOT unblock the live connection (it binds to reachable domains at connect time); requires a fresh session with the setting set + all 4 tabs open. Captured the full setup in the new **CLAUDE IN CHROME — REMOTE BROWSER WORKFLOW** section + automated it in `/start-session` step 0c (probes all 4 core pages up front, stops if denied). Also confirmed: on dashboard + Outlook, the Outreach Extension's injected scripts block `javascript_tool`/`screenshot` ("different extension" error) but `read_page` works fine. The Outreach diagnosis mission (subdomain fix, CarMax verify, 6QA audit, PA inspection) is **queued for next session** once full browser access is live.
 
 | Priority | Item | Notes |
 |---|---|---|
+| ✅ Done | SF permissions verified — Dan can't create Visualforce/Lightning/Apex | Profile "US Major Markets" lacks `Customize Application`; 12 perm sets are all feature add-ons; no "New" button on Setup → Visualforce Pages. Native reports/list views/dashboards only. Memory: `project_sf_permissions.md`. See SALESFORCE NATIVE COCKPIT section. |
+| ✅ Done | Built personal SF list view "DA$ Cockpit – My Territory" | Only-me visibility, "My account teams" territory filter (50+ accounts). Reversible: Accounts → view → gear → Delete. Columns mid-build (not saved). |
+| 🔴 Next | Finish SF cockpit list view + build private dashboard | Add/sort columns (US Days, # Core Clients, # Core Opportunities, Account Owners, Vertical, Tier, Revenue, 6sense). Then a private-folder Lightning dashboard with charts. All native, invisible, no IT. |
+| 🗺️ Future | SF cockpit tracking layer (Status/Priority/Action/Notes inside SF) | Needs org-wide custom fields OR an IT "Customize Application" grant. Deferred — tracking stays in the standalone dashboard for now. |
+| 🗺️ Future | Branded Visualforce cockpit (only if IT elevates Dan) | Would mimic the standalone dashboard's look inside SF, but requires IT to grant `Customize Application`. Visible/elevated ask — parked unless Dan pursues it with IT. |
 | ✅ Done | Outreach Extension: "Us"/subdomain company label (v3.73) | `domainToName()` (`content.js` ~1689) now strips leading generic subdomain labels via a `GENERIC_SUBDOMAINS` Set (us/mail/corp/emea/email/smtp/na/global/regional codes/infra) before taking the name label — never strips past the registrable domain, so `us.bosch.com` → "Bosch", `mail.corp.bigco.com` → "Bigco", two-part TLDs (`bosch.co.uk`) preserved. Full-domain `COMPANY_NAME_OVERRIDES` check still runs FIRST so keys like `us.issworld.com` resolve before `us` is stripped. Manifest bumped 3.72→3.73. **Reload extension in chrome://extensions to apply.** |
 | ✅ Done | Outreach Extension: CarMax sticky-label (v3.74–v3.76) | SETTLED via PA cache: zero `@carmax.com` contacts exist — it was a Strategy-2 over-match. Dan's signature "Business Development **Manager**" put "business" in every email, and the old longest-token anchor picked "business" out of "CarMax Business Services, LLC". Fixed by the two-token corroboration rule (see rework section). Same class fixed "Farmers Insurance"←"Pet Insurance". Verified live in 6QA: all 6 CarMax + the Farmers label gone; Max now correctly shows BlackRock. |
 | 🗺️ Blocked | M365 / Teams connector — Conditional Access (AADSTS50158) | 🔬 Dan's customized Microsoft 365 connector authenticates as daniel.starr@ibisworld.com but every Graph call fails `AADSTS50158 "external security challenge not satisfied"` — an IBISWorld Conditional Access policy (managed-device / IT app-approval), NOT a login error; re-auth doesn't clear it. Needs IT to allow-list app id `api://07c030f6-5743-41b7-ba00-0a6e85f37c17` (tenant `d6e1be51-d33d-44fc-a23f-d343cd8b3e78`). Workaround used: Claude in Chrome reading Outlook web. |
