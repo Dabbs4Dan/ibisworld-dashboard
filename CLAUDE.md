@@ -1055,13 +1055,42 @@ Verified live (his profile + all 12 permission sets + the functional "New" butto
 ### ✅ What Dan CAN self-serve (the chosen path: native + invisible)
 His profile DOES have Create & Customize List Views / Reports / Dashboards (Edit My Reports, Edit My Dashboards, Export Reports checked). So the in-SF cockpit is built from **personal list views + private reports + a personal Lightning dashboard** — all scoped to "only me", invisible to other admins (NOT written to the Setup Audit Trail), zero system risk, no IT involvement.
 
-### Built this session — personal Account list view "DA$ Cockpit – My Territory" (the ONLY artifact)
-- Visibility = **"Only I can see this list view"** (invisible).
-- Territory filter = **Filter by Owner → "My account teams"** (= accounts where Dan is on the Account Team; more reliable than text-matching his name in `Account_Owners__c`). Returns 50+ accounts.
-- **Reverse anytime:** Accounts → that list view → gear → Delete. No fields, no metadata, no data changes.
-- Columns were mid-build (added # Core Clients, # Core Opportunities, US Days Since Last Activity, Vertical, Major Markets Tier) but **not yet saved** — finish columns + sort next session.
+### ⏸️ PROJECT STATUS — PAUSED (parked, not next session's priority — Dan's call, end of June-2026 session 2)
+Dan deprioritized this. The work below is **saved server-side in Salesforce** (all private, reversible, zero org changes). Pick it up later — the one unfinished piece is getting the Active Clients pane onto the dashboard (blocked by a Lightning renderer glitch + an SSO session expiry at session end, NOT a logic problem).
 
-### Cockpit column → real SF field mapping (all pure existing Account fields — no new fields needed)
+### Artifacts built so far (all in `ibisworld-inc`, all PRIVATE / only-me / reversible)
+**1. Account list view "DA$ Cockpit – My Territory"** — visibility "Only I can see", territory = **Filter by Owner → "My account teams"** (Account Team membership, more reliable than name-matching `Account_Owners__c`). Reverse: Accounts → view → gear → Delete.
+
+**2. Personal Lightning dashboard "DA$ Cockpit"** (Private Dashboards, id `01ZU1000008Av6uMAC`). Current panes:
+   - **MY COCKPIT** — Text widget routing hub with a hyperlink to the list view ("Open my Account Cockpit (editable list)").
+   - **DA$ Cockpit - Open Opps by Owner** — live table (repointed this session off the old broken all-opps widget).
+   - ✅ **Removed "Accounts by Vertical"** this session (Dan asked).
+   - ❌ **Active Clients pane NOT yet attached** — see blocker below.
+   - Dashboards are READ-ONLY (can't edit fields); the editable working-list lives in the list view, reached via the routing widget.
+
+**3. Private reports** (all folder = Private Reports, owner Daniel Starr):
+   | Report | Id | Type | Key config |
+   |---|---|---|---|
+   | **DA$ Cockpit - Active Clients (Licenses)** | `00OU1000005tuYAMAY` | Account with Licenses & Products | Show Me = My account team's accounts · Created Date = **All Time** · **License End Date ≥ TODAY** · **License Name does not contain "Migration"** · grouped by **License Type** · cols: Account, License Name, Annualized Amount, License End Date. **= 33 active licenses, $626,380.** |
+   | **DA$ Cockpit - Open Opps by Owner** | `00OU1000005u0YjMAI` | Accounts with Opportunities | Show Me = My account team's accounts · Created Date = All Time · **Closed = False** · grouped by **Opportunity Owner: Full Name** · cols: Account, Opp Name, Stage, Amount, Close Date. One pane = mine-vs-colleagues (each owner is a group). Today: Daniel Starr $35K, no colleague opps yet. |
+   | DA$ Cockpit - Tagged Contacts by Account | `00OU1000005toe1MAA` | Contacts | Department starts with "D" → 187 D+Account tagged contacts. |
+   | DA$ Cockpit - Open Opportunities | `00OU1000005ts05MAA` | — | ⚠️ OLD/broken (all 1,824 opps, no open filter). Superseded by the by-owner report — **safe to delete**. |
+   | DA$ Cockpit - Accounts by Vertical | `00OU1000005tqRJMAY` | — | Removed from dashboard; report still exists, can delete. |
+
+### 🔑 LICENSE GEOGRAPHY DECODE (the big learning this session — how active/PIQ/intl is actually encoded)
+- **"Active client" = compute it**: `License_End_Date__c >= TODAY`. There is **no "Active" field** (validates why the standalone dashboard recomputes from end-dates). Also no "active license" Account field (search "licen" on Account = 0 fields).
+- **Geography/product lives ONLY in the License Name string**, as a middle token: **`- US -`** (US Industry) · **`- USP -`** (US Procurement = **Procurement IQ / PIQ**) · **`- CA -`** (Canada) · **`- AU -`** (Australia) · **`- UK -`** (United Kingdom).
+- **NO clean groupable geography field exists.** Checked them all: `License_Type__c` AND `License_Type_Label__c` = **contract tier** (Direct / Enterprise / Departmental), NOT geography. `Module` and `Module_Country` (under the "Products" group of the report type) = **numeric internal IDs** (-1, 108, 1000…), useless for display — same class as `Vertical__c` being a number.
+- **⚠️ "Direct" ≠ international.** Initially looked like Direct = the foreign book, but the full run showed **Toast and Staples are US-Direct**. So License-Type grouping does not isolate international. (Caught this by running the report for real instead of trusting the limited preview — worth remembering: SF report PREVIEW shows a truncated record set that can mislead.)
+- **International clients bill in local currency** (AUD/GBP) — itself a reliable "this is foreign" flag. **Canada bills in USD**, so currency alone won't separate CA from US.
+- **To isolate the international book cleanly**, the only reliable filter is **License Name contains `- CA -` / `- AU -` / `- UK -`** (3 filters, OR'd). Dan's current foreign book: 🇦🇺 Glencore (AUD 28.6K), Coca-Cola (AUD 25K), Newmont, Parker Hannifin · 🇨🇦 Schneider Electric ×3, ABB · 🇬🇧 Hiscox ×3.
+- **Migration rows = $0 junk** (his documented rule). Filter `License Name does not contain "Migration"` — also removes duplicate $0 artifacts of real Departmental licenses.
+- **🪤 The Created-Date trap:** every new SF report silently pins **Created Date = "Current FQ"**, which returns **0 rows** on older territory data. ALWAYS flip it to **All Time** first (the "No Results" hint has an "All Time" quick-link, but verify it applied — it sometimes doesn't on first click).
+
+### 🚧 The blocker that stopped us (not logic — tooling)
+Adding the **Active Clients report as a dashboard pane** failed repeatedly: the **Lightning dashboard editor's renderer froze** (CDP `Page.captureScreenshot` timed out "renderer may be frozen", and "+ Widget → Chart or Table → Add" silently no-op'd ~3×). On the retry-with-fresh-reload attempt, the **Salesforce session token expired → bounced to Microsoft SSO** (`login.microsoftonline.com`, tenant `d6e1be51-…`) on every Lightning navigation. Re-auth is Dan's to do (can't enter his credentials). **To finish (4 clicks, ~30s, once logged in):** open DA$ Cockpit → **Edit** → **+ Widget → Chart or Table** → pick **"DA$ Cockpit - Active Clients (Licenses)"** → (optionally tick "Use table settings from report" for the client list, or leave as the License-Type $ bar chart) → **Add** → **Save**.
+
+### Cockpit column → real SF field mapping (pure existing Account fields — for the list view, no new fields needed)
 | Column | Field | Notes |
 |---|---|---|
 | US Days Since Last Activity | `US_Days_Since_Last_Activity__c` | Formula(Number) |
@@ -1073,12 +1102,12 @@ His profile DOES have Create & Customize List Views / Reports / Dashboards (Edit
 | Revenue | `AnnualRevenue` | standard |
 | 6sense intent / stage | `X6sense_Account_*` variants (GL/NA/IW/PIQ) | Novelis showed **GL** populated (Intent 57, Stage Consideration); Dan's CSV uses "NA" — verify which variant has data when wiring |
 
-Note: there is **no reliable "active license" Account field** (search "licen" on Account = 0 fields) — license status lives in the License child object, same reason the standalone dashboard recomputes it from end-dates. `Core_Clients__c` is the closest pure-field proxy.
-
-### Next steps
-- Finish the list view columns + sort.
-- Build a personal (private-folder) Lightning **dashboard** with charts (by vertical, tier, days-inactive bucket, open-opp).
-- The standalone dashboard's tracking layer (Status / Priority / Action / Notes) would need org-wide custom fields — **deferred**; stays in the standalone tool for now.
+### Next steps when resumed
+- **Finish the Active Clients pane** on the dashboard (4 clicks above) — the report is done.
+- Optional: add a dedicated **🌍 International Clients pane** (clone Active Clients, swap the Migration filter approach for `License Name contains - CA -/- AU -/- UK -`).
+- Finish the list view columns + sort (mid-build).
+- Delete the two dead reports (old Open Opportunities, Accounts by Vertical) to keep Private Reports tidy.
+- The standalone dashboard's tracking layer (Status / Priority / Action / Notes) would need org-wide custom fields — **deferred**; stays in the standalone tool.
 
 ---
 
@@ -1499,6 +1528,8 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 
 ## OPEN ITEMS
 
+> **⏸️ SF-native cockpit — session 2, June 2026 (no `index.html` changes; project now PARKED on Dan's instruction).** Built out the cockpit substantially in Salesforce (all private/reversible): the **DA$ Cockpit dashboard** got an **Open-Opps-by-Owner** live table (grouped by Opportunity Owner so my opps and PIQ/global colleagues' opps split out in one pane), **Accounts-by-Vertical removed**, and two solid private reports — **Active Clients (Licenses)** (active = End Date ≥ today, Migration junk filtered, grouped by License Type → 33 active, $626K) and **Open Opps by Owner**. **Biggest learning: how license geography is actually encoded** — US/USP(=Procurement IQ)/CA/AU/UK live ONLY in the License Name string; License Type/Label = contract tier (Direct/Enterprise/Departmental), and Module/Module_Country are useless numeric IDs. Also caught my own error (Direct ≠ international — Toast/Staples are US-Direct) by running the report instead of trusting the truncated preview. **The one unfinished piece:** attaching the Active Clients report as a dashboard pane — blocked by a **Lightning dashboard renderer freeze** (screenshot/add timeouts) and then an **SSO session expiry** (bounced to Microsoft login). Both are tooling issues, not logic — a 4-click finish once re-authed. Full detail + report IDs in the **SALESFORCE NATIVE COCKPIT** section. Dan is **not working this next session.**
+
 > **🗺️ Salesforce-native cockpit session — June 2026 (no `index.html` changes; one reversible SF list view created).** Explored hooking the standalone dashboard closer to Salesforce. **Big finding:** Dan's "US Major Markets" profile lacks "Customize Application" → he **cannot create Visualforce/Lightning/Apex himself** (verified profile + all 12 permission sets + the missing "New" button on Setup → Visualforce Pages). So a custom-branded in-SF page is blocked without an IT grant. Pivoted to the native + invisible route he CAN self-serve: built a personal **"DA$ Cockpit – My Territory"** Account list view (visibility = only-me, territory = "My account teams"). Mapped every cockpit column to a real Account field. Next: finish columns/sort + a private dashboard. Full detail in the new **SALESFORCE NATIVE COCKPIT** section. Also re-confirmed the **Chrome debugger conflict**: ZoomInfo Anywhere (and Loom/Outreach Everywhere/Tomba) grab the CDP debugger and block `clicks`/`screenshot`/`javascript_tool` with "Cannot access a chrome-extension:// URL of different extension" — disable ALL non-Claude debugger extensions + use a fresh tab; `read_page`/`navigate`/`get_page_text` always work even while blocked.
 
 > **🔬 Live-diagnosis session note — June 4 2026 (Claude in Chrome, no code changes).** First time reading Dan's live Outlook overlay. Confirmed the "Us"/subdomain company-label bug, left the CarMax sticky-label question open (needs recipient-domain verification), confirmed "Harris Williams" is a territory data gap (not a bug), and verified 6QA staleness dates are actually correct. Discovered two access walls: the M365/Teams connector is blocked by Conditional Access (AADSTS50158), and the Claude-in-Chrome beta only attached to Outlook this session (dashboard/Salesforce/Power Automate denied). See the four 🔬 rows below.
@@ -1509,7 +1540,8 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 |---|---|---|
 | ✅ Done | SF permissions verified — Dan can't create Visualforce/Lightning/Apex | Profile "US Major Markets" lacks `Customize Application`; 12 perm sets are all feature add-ons; no "New" button on Setup → Visualforce Pages. Native reports/list views/dashboards only. Memory: `project_sf_permissions.md`. See SALESFORCE NATIVE COCKPIT section. |
 | ✅ Done | Built personal SF list view "DA$ Cockpit – My Territory" | Only-me visibility, "My account teams" territory filter (50+ accounts). Reversible: Accounts → view → gear → Delete. Columns mid-build (not saved). |
-| 🔴 Next | Finish SF cockpit list view + build private dashboard | Add/sort columns (US Days, # Core Clients, # Core Opportunities, Account Owners, Vertical, Tier, Revenue, 6sense). Then a private-folder Lightning dashboard with charts. All native, invisible, no IT. |
+| ⏸️ Paused | SF-native cockpit — PARKED (Dan deprioritized, June 2026 session 2) | Built & saved private: dashboard `DA$ Cockpit` (01ZU1000008Av6uMAC) with Open-Opps-by-Owner table + MY COCKPIT routing widget; removed Accounts-by-Vertical; reports **Active Clients (Licenses)** `00OU1000005tuYAMAY` (33 active, $626K) + **Open Opps by Owner** `00OU1000005u0YjMAI`. Decoded license geography (US/USP=PIQ/CA/AU/UK live only in License Name; no clean geo field). See SALESFORCE NATIVE COCKPIT section for full detail. |
+| 🔴 Next (when resumed) | Attach Active Clients pane to dashboard | Blocked by Lightning renderer freeze + SSO session expiry — NOT logic. 4-click finish once logged in: DA$ Cockpit → Edit → + Widget → Chart or Table → "DA$ Cockpit - Active Clients (Licenses)" → Add → Save. Then optional 🌍 International pane (filter License Name contains `- CA -`/`- AU -`/`- UK -`). |
 | 🗺️ Future | SF cockpit tracking layer (Status/Priority/Action/Notes inside SF) | Needs org-wide custom fields OR an IT "Customize Application" grant. Deferred — tracking stays in the standalone dashboard for now. |
 | 🗺️ Future | Branded Visualforce cockpit (only if IT elevates Dan) | Would mimic the standalone dashboard's look inside SF, but requires IT to grant `Customize Application`. Visible/elevated ask — parked unless Dan pursues it with IT. |
 | ✅ Done | Outreach Extension: "Us"/subdomain company label (v3.73) | `domainToName()` (`content.js` ~1689) now strips leading generic subdomain labels via a `GENERIC_SUBDOMAINS` Set (us/mail/corp/emea/email/smtp/na/global/regional codes/infra) before taking the name label — never strips past the registrable domain, so `us.bosch.com` → "Bosch", `mail.corp.bigco.com` → "Bigco", two-part TLDs (`bosch.co.uk`) preserved. Full-domain `COMPANY_NAME_OVERRIDES` check still runs FIRST so keys like `us.issworld.com` resolve before `us` is stripped. Manifest bumped 3.72→3.73. **Reload extension in chrome://extensions to apply.** |
