@@ -626,9 +626,20 @@
     color:#94a3b8; cursor:pointer; -webkit-appearance:none; appearance:none; outline:none;
     transition:150ms ease; max-width:88px; text-align:center; text-align-last:center;
   }
-  .rot-churn-pill { display:inline-block; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;
-    border-radius:999px; padding:2px 8px; font-size:10px; font-weight:600; font-family:'DM Sans',sans-serif;
-    margin:1px 3px 1px 0; white-space:nowrap; }
+  .rot-pill { display:inline-block; border-radius:999px; padding:2px 8px; font-size:10px; font-weight:600;
+    font-family:'DM Sans',sans-serif; margin:1px 3px 1px 0; white-space:nowrap; border:1px solid transparent; }
+  .rot-churn-ind  { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }  /* Industry churn = red */
+  .rot-churn-piq  { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }  /* PIQ churn = blue */
+  .rot-churn-old  { background:#f3f4f6; color:#6b7280; border-color:#e5e7eb; }  /* pre-2020 = grey */
+  .rot-churn-new  { background:#fef9c3; color:#a16207; border-color:#fde68a; }  /* 2024+ = golden */
+  .rot-opp-pill   { background:#fef9c3; color:#a16207; border-color:#fde68a; }  /* active opp = golden */
+  .rot-trial-pill { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }  /* trial = purple */
+  .rot-star { cursor:pointer; font-size:15px; line-height:1; color:#cbd5e1; margin-right:7px;
+    transition:150ms ease; flex-shrink:0; user-select:none; }
+  .rot-star:hover { color:#f59e0b; transform:scale(1.15); }
+  .rot-star.on { color:#f59e0b; }
+  #rot-table tbody tr.rot-row-key { background:#fffdf3; }
+  #rot-table tbody tr.rot-row-key:hover { background:#fdf6e3; }
   .rot-assign-select:hover, .rot-teamsell-select:hover { border-color:#94a3b8; }
   .rot-assign-select option, .rot-teamsell-select option { background:#fff; color:#111827; font-weight:500; }
   /* Assign — set state uses per-rep solid colour (matches group owner pills) */
@@ -2866,8 +2877,12 @@
   </div>
   <select id="rot-vertical-filter" class="vertical-filter" onchange="renderRotation()"><option value="">All Verticals</option></select>
   <div class="filter-chips" id="rotation-filter-chips">
+    <button class="chip" id="rot-filter-assigned"  onclick="toggleRotationAssignedFilter()"  title="Only accounts assigned to a rep">🎯 Assigned</button>
+    <button class="chip" id="rot-filter-teamsell"  onclick="toggleRotationTeamSellFilter()"  title="Only accounts marked as a team sell">🤝 Team Sell</button>
+    <button class="chip" id="rot-filter-piqowned"  onclick="toggleRotationPiqOwnedFilter()"  title="Only accounts with a PIQ rep">🔵 PIQ Owned</button>
     <button class="chip" id="rot-filter-activelic" onclick="toggleRotationActiveLicFilter()" title="Only accounts with an active PIQ or INTL license">🟢 Active License</button>
-    <button class="chip" id="rot-filter-unassigned" onclick="toggleRotationUnassignedFilter()" title="Only accounts not yet assigned to a rep">🕳 Unassigned</button>
+    <button class="chip" id="rot-filter-keychurns" onclick="toggleRotationKeyChurnsFilter()" title="Only accounts with a meaningful churn">🔴 Key Churns</button>
+    <button class="chip" id="rot-filter-favorites" onclick="toggleRotationFavoritesFilter()" title="Only starred (key) accounts">⭐ Favorites</button>
     <span style="flex:1 1 auto;"></span>
     <button class="export-btn" onclick="exportRotationTab()" title="Print or save current view as PDF (uses your active filters)">🖨 Export / PDF</button>
   </div>
@@ -2890,6 +2905,7 @@
               <th onclick="setRotSortCol('assign')"   style="cursor:pointer;min-width:82px;text-align:center;">Assign <span class="acct-sort-arrow" id="rsort-assign"></span></th>
               <th onclick="setRotSortCol('teamsell')" style="cursor:pointer;min-width:82px;text-align:center;">Team Sell <span class="acct-sort-arrow" id="rsort-teamsell"></span></th>
               <th onclick="setRotSortCol('piqrep')"   style="cursor:pointer;min-width:80px;">PIQ Rep <span class="acct-sort-arrow" id="rsort-piqrep"></span></th>
+              <th onclick="setRotSortCol('activeopp')" style="cursor:pointer;">Active Opp <span class="acct-sort-arrow" id="rsort-activeopp"></span></th>
               <th onclick="setRotSortCol('activelic')" style="cursor:pointer;">Active License <span class="acct-sort-arrow" id="rsort-activelic"></span></th>
               <th>Company</th>
               <th onclick="setRotSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="rsort-vertical"></span></th>
@@ -2909,9 +2925,10 @@
               </th>
               <th onclick="setRotSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="rsort-revenue"></span></th>
               <th onclick="setRotSortCol('keychurns')" style="cursor:pointer;">Key Churns <span class="acct-sort-arrow" id="rsort-keychurns"></span></th>
+              <th onclick="setRotSortCol('keytrial')" style="cursor:pointer;">Key Trial <span class="acct-sort-arrow" id="rsort-keytrial"></span></th>
               <th onclick="setRotSortCol('intent')" style="cursor:pointer;text-align:center;">6sense <span class="acct-sort-arrow" id="rsort-intent"></span></th>
               <th onclick="setRotSortCol('licenses')" style="cursor:pointer;text-align:center;">Licenses <span class="acct-sort-arrow" id="rsort-licenses"></span></th>
-              <th>Open Opps</th>
+              <th onclick="setRotSortCol('opps')" style="cursor:pointer;text-align:center;">Opps <span class="acct-sort-arrow" id="rsort-opps"></span></th>
             </tr>
           </thead>
           <tbody id="rot-table-body"></tbody>
@@ -9725,9 +9742,10 @@ function renderGroupRow(r) {
    Shares the ibis_local enrichment cache (revenue / desc / sentiment).
    ════════════════════════════════════════════════════════════════════════════ */
 let rotationAccounts = [], rotationLicenses = [], rotationOpps = [], rotationMarkup = {};
-let rotTierFilters = new Set(), rotActiveLicOn = false, rotUnassignedOn = false;
+let rotTierFilters = new Set();
+let rotActiveLicOn = false, rotAssignedOn = false, rotTeamSellOn = false, rotPiqOwnedOn = false, rotKeyChurnsOn = false, rotFavoritesOn = false;
 let rotSortCol = 'tier', rotSortDir = 'asc';
-const ROT_SORT_DEFAULT_DIR = { assign:'asc', teamsell:'asc', piqrep:'desc', activelic:'desc', vertical:'asc', tier:'asc', revenue:'desc', keychurns:'desc', intent:'desc', licenses:'desc' };
+const ROT_SORT_DEFAULT_DIR = { assign:'asc', teamsell:'asc', piqrep:'desc', activeopp:'desc', activelic:'desc', vertical:'asc', tier:'asc', revenue:'desc', keychurns:'desc', keytrial:'desc', intent:'desc', licenses:'desc', opps:'desc' };
 const ROT_OWNER_ORDER = { dan:0, christian:1, embry:2, anthony:3 };
 const ROT_DASH = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
 
@@ -9883,6 +9901,59 @@ function rotShortDate(d) {
   const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
   return `${mo} '${String(d.getFullYear()).slice(2)}`;
 }
+function rotMoney(n) {
+  if (n >= 1000000) return '$' + (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return '$' + (n/1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'K';
+  return '$' + Math.round(n);
+}
+function rotParseMoney(s) { if (!s) return 0; const n = parseFloat(String(s).replace(/[^0-9.]/g,'')); return isNaN(n) ? 0 : n; }
+function rotParseDate(s)  { if (!s) return null; const d = new Date(s); return isNaN(d.getTime()) ? null : d; }
+// Churn-pill colour: pre-2020 grey (too old) · 2024+ golden (fresh) · else PIQ blue / Industry red.
+function rotChurnPillClass(l) {
+  const yr = l._endDate ? l._endDate.getFullYear() : 0;
+  if (yr && yr < 2020) return 'rot-churn-old';
+  if (yr >= 2024) return 'rot-churn-new';
+  return l._type === 'PIQ' ? 'rot-churn-piq' : 'rot-churn-ind';
+}
+
+/* ─── Opportunities (schema: Account Name · Opportunity Name · Stage · Amount ·
+   Close Date · Created Date · Type). Active = stage not Closed Won/Lost.
+   Trial = amount ≤ $1 OR Closed Won. ──────────────────────────────────────── */
+function getRotationOppRows(name) {
+  if (!rotationOpps.length) return [];
+  const n = normName(name);
+  return rotationOpps
+    .filter(o => normName(getField(o,'Account Name','AccountName')) === n)
+    .map(o => {
+      const stage = (getField(o,'Stage') || '').trim();
+      const sl = stage.toLowerCase();
+      const amount = rotParseMoney(getField(o,'Amount'));
+      const closedWon = sl === 'closed won';
+      const closedLost = sl === 'closed lost';
+      const isClosed = closedWon || closedLost;
+      const isTrial = amount <= 1 || closedWon;
+      return {
+        name: getField(o,'Opportunity Name'), stage, amount,
+        created: rotParseDate(getField(o,'Created Date')),
+        close: rotParseDate(getField(o,'Close Date')),
+        closedWon, closedLost, isClosed, isTrial,
+        isActive: !isClosed && !isTrial
+      };
+    });
+}
+function getRotationActiveOpps(name) { return getRotationOppRows(name).filter(o => o.isActive); }
+function getRotationTrials(name)     { return getRotationOppRows(name).filter(o => o.isTrial); }
+function getRotationOppCount(name)   { return getRotationOppRows(name).length; }
+
+/* ─── Star (key account) toggle ──────────────────────────────────────────── */
+function toggleRotationStar(name) {
+  const k = normName(name);
+  if (!rotationMarkup[k]) rotationMarkup[k] = {};
+  if (rotationMarkup[k].star) delete rotationMarkup[k].star; else rotationMarkup[k].star = true;
+  if (!Object.keys(rotationMarkup[k]).length) delete rotationMarkup[k];
+  saveRotationMarkup();
+  renderRotation();
+}
 // PIQ Rep — if this account also appears in Embry's or Anthony's Group account
 // list, they own the sister PIQ product and are auto-flagged as the PIQ rep.
 function getRotationPIQReps(name) {
@@ -9943,7 +10014,11 @@ function renderRotTeamSellSelect(name) {
 
 /* ─── Filters / sort ─────────────────────────────────────────────────────── */
 function toggleRotationActiveLicFilter() { rotActiveLicOn = !rotActiveLicOn; document.getElementById('rot-filter-activelic')?.classList.toggle('active', rotActiveLicOn); renderRotation(); }
-function toggleRotationUnassignedFilter() { rotUnassignedOn = !rotUnassignedOn; document.getElementById('rot-filter-unassigned')?.classList.toggle('active', rotUnassignedOn); renderRotation(); }
+function toggleRotationAssignedFilter()  { rotAssignedOn = !rotAssignedOn; document.getElementById('rot-filter-assigned')?.classList.toggle('active', rotAssignedOn); renderRotation(); }
+function toggleRotationTeamSellFilter()  { rotTeamSellOn = !rotTeamSellOn; document.getElementById('rot-filter-teamsell')?.classList.toggle('active', rotTeamSellOn); renderRotation(); }
+function toggleRotationPiqOwnedFilter()  { rotPiqOwnedOn = !rotPiqOwnedOn; document.getElementById('rot-filter-piqowned')?.classList.toggle('active', rotPiqOwnedOn); renderRotation(); }
+function toggleRotationKeyChurnsFilter() { rotKeyChurnsOn = !rotKeyChurnsOn; document.getElementById('rot-filter-keychurns')?.classList.toggle('active', rotKeyChurnsOn); renderRotation(); }
+function toggleRotationFavoritesFilter() { rotFavoritesOn = !rotFavoritesOn; document.getElementById('rot-filter-favorites')?.classList.toggle('active', rotFavoritesOn); renderRotation(); }
 function toggleRotationTierDropdown(e) { if (e) e.stopPropagation(); document.getElementById('rot-dropdown-tier')?.classList.toggle('hidden'); }
 function applyRotationTierFilter() {
   const boxes = document.querySelectorAll('#rot-dropdown-tier input[type="checkbox"]');
@@ -9972,7 +10047,7 @@ function setRotSortCol(col) {
   renderRotation();
 }
 function updateRotationSortArrows() {
-  ['assign','teamsell','piqrep','activelic','vertical','tier','revenue','keychurns','intent','licenses'].forEach(c => {
+  ['assign','teamsell','piqrep','activeopp','activelic','vertical','tier','revenue','keychurns','keytrial','intent','licenses','opps'].forEach(c => {
     const el = document.getElementById('rsort-' + c);
     if (!el) return;
     if (c === rotSortCol) { el.textContent = rotSortDir === 'asc' ? ' ↑' : ' ↓'; el.className = 'acct-sort-arrow acct-sort-active'; }
@@ -10003,8 +10078,13 @@ function getFilteredRotationRows() {
     }
     if (vert && getTrueVertical(r.acc) !== vert) return false;
     if (rotTierFilters.size > 0) { const t = getField(r.acc,'Major Markets Tier') || ''; if (!rotTierFilters.has(t)) return false; }
+    const mk = rotationMarkup[normName(r.name)] || {};
     if (rotActiveLicOn && !getRotationActiveLicBadges(r.name)) return false;
-    if (rotUnassignedOn && rotationMarkup[normName(r.name)]?.assign) return false;
+    if (rotAssignedOn && !mk.assign) return false;
+    if (rotTeamSellOn && !mk.teamSell) return false;
+    if (rotPiqOwnedOn && getRotationPIQReps(r.name).length === 0) return false;
+    if (rotKeyChurnsOn && getRotationKeyChurns(r.name).length === 0) return false;
+    if (rotFavoritesOn && !mk.star) return false;
     return true;
   });
   const d = rotSortDir === 'asc' ? 1 : -1;
@@ -10016,13 +10096,16 @@ function getFilteredRotationRows() {
     if (c === 'assign')   return d * (assignRank(a.name) - assignRank(b.name));
     if (c === 'teamsell') return d * (teamsellRank(a.name) - teamsellRank(b.name));
     if (c === 'piqrep')   return d * ((getRotationPIQReps(a.name).length?1:0) - (getRotationPIQReps(b.name).length?1:0));
+    if (c === 'activeopp') { const av = getRotationActiveOpps(a.name).reduce((s,o)=>s+o.amount,0); const bv = getRotationActiveOpps(b.name).reduce((s,o)=>s+o.amount,0); return d * (av - bv); }
     if (c === 'activelic') return d * ((getRotationActiveLicBadges(a.name)?1:0) - (getRotationActiveLicBadges(b.name)?1:0));
     if (c === 'vertical') return d * getTrueVertical(a.acc).localeCompare(getTrueVertical(b.acc));
     if (c === 'tier')     return d * (parseFloat(getField(a.acc,'Major Markets Tier')||9) - parseFloat(getField(b.acc,'Major Markets Tier')||9));
     if (c === 'revenue')  { const ra = getRevDisplay(a.acc)?.raw || 0; const rb = getRevDisplay(b.acc)?.raw || 0; return d * (ra - rb); }
     if (c === 'keychurns') return d * (churnTotal(a.name) - churnTotal(b.name));
+    if (c === 'keytrial') return d * (getRotationTrials(a.name).length - getRotationTrials(b.name).length);
     if (c === 'intent')   return d * ((parseFloat(getField(a.acc,'6sense Account Intent Score NA'))||0) - (parseFloat(getField(b.acc,'6sense Account Intent Score NA'))||0));
     if (c === 'licenses') return d * (getRotationLicCount(a.name) - getRotationLicCount(b.name));
+    if (c === 'opps')     return d * (getRotationOppCount(a.name) - getRotationOppCount(b.name));
     return 0;
   });
   return list;
@@ -10046,7 +10129,7 @@ function renderRotation() {
   document.getElementById('rot-table-view')?.classList.remove('hidden');
   const rows = getFilteredRotationRows();
   const tbody = document.getElementById('rot-table-body');
-  if (!rows.length) tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>';
+  if (!rows.length) tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>';
   else tbody.innerHTML = rows.map(r => renderRotationRow(r)).join('');
   const cl = document.getElementById('rot-count-label');
   if (cl) cl.textContent = `${rows.length} of ${rotationAccounts.length} accounts`;
@@ -10073,29 +10156,46 @@ function renderRotationRow(r) {
   const piqCell = piqReps.length
     ? piqReps.map(o => `<span class="grp-owner-pill grp-pill-${o}" title="${GROUP_OWNER_LABEL[o]} owns this account (sister PIQ product)">${GROUP_OWNER_LABEL[o]}</span>`).join(' ')
     : ROT_DASH;
+  const starred = !!rotationMarkup[normName(name)]?.star;
   const activeBadges = getRotationActiveLicBadges(name);
   const activeCell = activeBadges || ROT_DASH;
   const cnt = getRotationLicCount(name);
   const licCell = cnt ? `<span style="font-family:'DM Mono',monospace;">${cnt}</span>` : ROT_DASH;
+  // Active opportunities — golden bubble with stage + amount
+  const activeOpps = getRotationActiveOpps(name);
+  const activeOppCell = activeOpps.length
+    ? activeOpps.map(o => `<span class="rot-pill rot-opp-pill" title="${escHtml(o.name||'')} · ${o.stage} · ${rotMoney(o.amount)}">${escHtml(o.stage)} · ${rotMoney(o.amount)}</span>`).join('')
+    : ROT_DASH;
+  // Key churns — coloured by age/type
   const churns = getRotationKeyChurns(name);
   const churnCell = churns.length
     ? churns.map(l => {
         const lab = l._type === 'US' ? 'Industry' : 'PIQ';
         const end = l._endDate ? rotShortDate(l._endDate) : '';
-        return `<span class="rot-churn-pill" title="Churned ${lab} license · ${formatACV(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${formatACV(l._acv||0)}${end?' · '+end:''}</span>`;
+        return `<span class="rot-pill ${rotChurnPillClass(l)}" title="Churned ${lab} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${rotMoney(l._acv||0)}${end?' · '+end:''}</span>`;
       }).join('')
     : ROT_DASH;
-  const opps = getRotationOpps(name);
-  const oppCell = opps.length
-    ? opps.map(o => `<span style="display:inline-block;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;">${escHtml(o)}</span>`).join('')
+  // Key trials — purple bubble with start → end date
+  const trials = getRotationTrials(name);
+  const trialCell = trials.length
+    ? trials.map(o => {
+        const s = o.created ? rotShortDate(o.created) : '?';
+        const e = o.close ? rotShortDate(o.close) : '?';
+        const lbl = (o.created || o.close) ? `${s} → ${e}` : 'Trial';
+        return `<span class="rot-pill rot-trial-pill" title="${escHtml(o.name||'Trial')}">${lbl}</span>`;
+      }).join('')
     : ROT_DASH;
-  return `<tr>
+  const oppCount = getRotationOppCount(name);
+  const oppCell = oppCount ? `<span style="font-family:'DM Mono',monospace;">${oppCount}</span>` : ROT_DASH;
+  return `<tr class="${starred?'rot-row-key':''}">
     <td style="text-align:center;">${renderRotAssignSelect(name)}</td>
     <td style="text-align:center;">${renderRotTeamSellSelect(name)}</td>
     <td>${piqCell}</td>
+    <td>${activeOppCell}</td>
     <td>${activeCell}</td>
     <td>
       <div class="td-company">
+        <span class="rot-star ${starred?'on':''}" data-name="${escHtml(name)}" onclick="event.stopPropagation();toggleRotationStar(this.dataset.name)" title="${starred?'Key account — click to unstar':'Mark as key account'}">${starred?'★':'☆'}</span>
         <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
         <div>
           <span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>
@@ -10107,9 +10207,10 @@ function renderRotationRow(r) {
     <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
     <td style="white-space:nowrap;">${revCell}</td>
     <td>${churnCell}</td>
+    <td>${trialCell}</td>
     <td style="text-align:center;font-family:'DM Mono',monospace;">${intent||'—'}</td>
     <td style="text-align:center;">${licCell}</td>
-    <td>${oppCell}</td>
+    <td style="text-align:center;">${oppCell}</td>
   </tr>`;
 }
 function exportRotationTab() {
