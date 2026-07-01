@@ -10303,7 +10303,9 @@ function exportRotationExcel() {
   }).join('');
 
   const table = `<table style="border-collapse:collapse;">${headRow}${body}</table>`;
-  const wb = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Rotation</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
+  // Enable Excel AutoFilter (dropdown arrows) over the full data range, R1C1 style.
+  const filterRange = `R1C1:R${rows.length + 1}C${headers.length}`;
+  const wb = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Rotation</x:Name><x:WorksheetOptions><x:AutoFilter x:Range="${filterRange}"/><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
 
   const blob = new Blob(['﻿' + wb], { type:'application/vnd.ms-excel;charset=utf-8' });
   const url = URL.createObjectURL(blob);
