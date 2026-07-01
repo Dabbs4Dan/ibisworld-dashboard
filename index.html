@@ -619,6 +619,26 @@
   .grp-owner-pill.grp-pill-christian { background:#2563eb; }
   .grp-owner-pill.grp-pill-embry     { background:#059669; }
   .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
+  /* ── Rotation tab — Assign + Team Sell pill dropdowns ─────────────────── */
+  .rot-assign-select, .rot-teamsell-select {
+    font-family:'DM Sans',sans-serif; font-size:11px; font-weight:600; letter-spacing:0.2px;
+    border-radius:999px; padding:3px 8px; border:1px dashed #cbd5e1; background:#f8fafc;
+    color:#94a3b8; cursor:pointer; -webkit-appearance:none; appearance:none; outline:none;
+    transition:150ms ease; max-width:104px;
+  }
+  .rot-assign-select:hover, .rot-teamsell-select:hover { border-color:#94a3b8; }
+  .rot-assign-select option, .rot-teamsell-select option { background:#fff; color:#111827; font-weight:500; }
+  /* Assign — set state uses per-rep solid colour (matches group owner pills) */
+  .rot-assign-select.set { border-style:solid; color:#fff; }
+  .rot-assign-select.rot-owner-dan       { background:#C8102E; border-color:#C8102E; }
+  .rot-assign-select.rot-owner-christian { background:#2563eb; border-color:#2563eb; }
+  .rot-assign-select.rot-owner-embry     { background:#059669; border-color:#059669; }
+  .rot-assign-select.rot-owner-anthony   { background:#7c3aed; border-color:#7c3aed; }
+  /* Team Sell — set state is a light-blue neon bubble (same for any rep) */
+  .rot-teamsell-select.set {
+    border-style:solid; border-color:#7dd3fc; background:#e0f2fe; color:#0369a1;
+    box-shadow:0 0 0 2px rgba(56,189,248,.18), 0 0 8px rgba(14,165,233,.28);
+  }
   /* Overlap pills — full coloured owner pills shown in the Account Owner cell when account is shared */
   .grp-overlap-bubbles { display:inline-flex; align-items:center; gap:4px; margin-left:6px; vertical-align:middle; flex-wrap:nowrap; }
   .grp-overlap-pill { font-size:10px; padding:2px 8px; white-space:nowrap; }
@@ -1654,6 +1674,26 @@
           <span class="upload-menu-dot" id="udot-client-insights"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearClientInsightsData()" title="Clear">✕</span>
         </button>
+        <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
+        <div style="padding:4px 12px;font-size:10px;font-weight:600;letter-spacing:0.5px;color:var(--text-muted);text-transform:uppercase;">Rotation</div>
+        <button class="upload-menu-row" onclick="document.getElementById('rotation-acct-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#64748b;"></span>
+          <span class="upload-menu-label">Rotation · Accounts</span>
+          <span class="upload-menu-dot" id="udot-rotation-acct"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearRotationData('accounts')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('rotation-lic-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#64748b;"></span>
+          <span class="upload-menu-label">Rotation · Licenses</span>
+          <span class="upload-menu-dot" id="udot-rotation-lic"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearRotationData('licenses')" title="Clear">✕</span>
+        </button>
+        <button class="upload-menu-row" onclick="document.getElementById('rotation-opp-input').click();closeGroupUploadMenu()">
+          <span class="grp-owner-dot" style="background:#64748b;"></span>
+          <span class="upload-menu-label">Rotation · Opportunities</span>
+          <span class="upload-menu-dot" id="udot-rotation-opp"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearRotationData('opps')" title="Clear">✕</span>
+        </button>
       </div>
     </div>
     <div class="upload-menu-wrap">
@@ -1737,6 +1777,9 @@
     <input type="file" id="group-embry-lic-input"      accept=".csv" onchange="handleGroupLicensesCSV('embry',event)"     style="display:none;">
     <input type="file" id="group-anthony-lic-input"    accept=".csv" onchange="handleGroupLicensesCSV('anthony',event)"   style="display:none;">
     <input type="file" id="client-insights-input"      accept=".csv" onchange="handleClientInsightsCSV(event)"            style="display:none;">
+    <input type="file" id="rotation-acct-input"        accept=".csv" onchange="handleRotationAccountsCSV(event)"          style="display:none;">
+    <input type="file" id="rotation-lic-input"         accept=".csv" onchange="handleRotationLicensesCSV(event)"          style="display:none;">
+    <input type="file" id="rotation-opp-input"         accept=".csv" onchange="handleRotationOppsCSV(event)"              style="display:none;">
   </div>
 </div>
 
@@ -1749,6 +1792,7 @@
     <button class="vnav-btn" id="vnav-dead" onclick="setMainView('dead')">💀 Dead <span id="dead-tab-badge" style="display:none;background:#f97316;color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;font-weight:700;"></span></button>
     <button class="vnav-btn" id="vnav-group" onclick="setMainView('group')">👥 Group</button>
     <button class="vnav-btn" id="vnav-insights" onclick="setMainView('insights')">📊 Insights</button>
+    <button class="vnav-btn" id="vnav-rotation" onclick="setMainView('rotation')">🔄 Rotation</button>
   </div>
 </div>
 
@@ -2798,6 +2842,75 @@
           </header>
           <div id="cli-cross-list" class="ins-list"></div>
         </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROTATION STATS BAR -->
+<div class="stats-bar hidden" id="stats-rotation">
+  <div class="stat-item"><div class="stat-label">Total Accounts</div><div class="stat-value" id="rot-stat-total">—</div></div>
+  <div class="stat-item"><div class="stat-label">Assigned</div><div class="stat-value" id="rot-stat-assigned">—</div></div>
+  <div class="stat-item"><div class="stat-label">Active Clients</div><div class="stat-value" id="rot-stat-active">—</div></div>
+  <div class="stat-item"><div class="stat-label">Team Sells</div><div class="stat-value" id="rot-stat-teamsell">—</div></div>
+</div>
+
+<!-- ROTATION CONTROLS -->
+<div class="controls hidden" id="controls-rotation">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search accounts or vertical..." id="rot-search-input" oninput="renderRotation()">
+  </div>
+  <select id="rot-vertical-filter" class="vertical-filter" onchange="renderRotation()"><option value="">All Verticals</option></select>
+  <div class="filter-chips" id="rotation-filter-chips">
+    <button class="chip" id="rot-filter-activelic" onclick="toggleRotationActiveLicFilter()" title="Only accounts with an active PIQ or INTL license">🟢 Active License</button>
+    <button class="chip" id="rot-filter-unassigned" onclick="toggleRotationUnassignedFilter()" title="Only accounts not yet assigned to a rep">🕳 Unassigned</button>
+    <span style="flex:1 1 auto;"></span>
+    <button class="export-btn" onclick="exportRotationTab()" title="Print or save current view as PDF (uses your active filters)">🖨 Export / PDF</button>
+  </div>
+</div>
+
+<!-- ROTATION CONTENT -->
+<div id="content-rotation" class="hidden">
+  <div class="content">
+    <div id="rot-empty-state" class="empty-state">
+      <div class="empty-icon">🔄</div>
+      <div class="empty-title">Upload a departed rep's book to begin</div>
+      <div class="empty-desc">Click <strong>👥 Group CSV</strong> in the top right and upload under <strong>Rotation · Accounts</strong>. Add <strong>Rotation · Licenses</strong> and <strong>Rotation · Opportunities</strong> to enrich the Licenses and Open Opps columns.</div>
+    </div>
+    <div id="rot-count-label" class="above-table-label"></div>
+    <div id="rot-table-view" class="hidden">
+      <div class="table-wrap">
+        <table id="rot-table">
+          <thead>
+            <tr>
+              <th style="min-width:96px;">Assign</th>
+              <th style="min-width:96px;">Team Sell</th>
+              <th style="min-width:80px;">PIQ Rep</th>
+              <th>Company</th>
+              <th onclick="setRotSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="rsort-vertical"></span></th>
+              <th style="cursor:pointer;position:relative;" id="rth-tier">
+                <div class="lic-th-inner">
+                  <span onclick="setRotSortCol('tier')">Tier <span class="acct-sort-arrow" id="rsort-tier"></span></span>
+                  <button class="lic-filter-trigger" id="rtfbtn-tier" onclick="toggleRotationTierDropdown(event)" title="Filter by tier">▾</button>
+                </div>
+                <div class="lic-dropdown hidden" id="rot-dropdown-tier">
+                  <label><input type="checkbox" value="1" onchange="applyRotationTierFilter()"> Tier 1</label>
+                  <label><input type="checkbox" value="2" onchange="applyRotationTierFilter()"> Tier 2</label>
+                  <label><input type="checkbox" value="3" onchange="applyRotationTierFilter()"> Tier 3</label>
+                  <label><input type="checkbox" value="4" onchange="applyRotationTierFilter()"> Tier 4</label>
+                  <label><input type="checkbox" value=""  onchange="applyRotationTierFilter()"> — (No tier)</label>
+                  <div class="lic-dropdown-actions"><button onclick="clearRotationTierFilter()">Clear</button></div>
+                </div>
+              </th>
+              <th onclick="setRotSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="rsort-revenue"></span></th>
+              <th onclick="setRotSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="rsort-sentiment"></span></th>
+              <th onclick="setRotSortCol('activeClient')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="rsort-activeClient"></span></th>
+              <th>Open Opps</th>
+            </tr>
+          </thead>
+          <tbody id="rot-table-body"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -6581,7 +6694,7 @@ function renderActionCards(rows) {
 function setMainView(v) {
   document.getElementById('content-account-page')?.classList.add('hidden');
   mainView = v;
-  ['action','accounts','licenses','campaigns','dead','group','insights'].forEach(tab => {
+  ['action','accounts','licenses','campaigns','dead','group','insights','rotation'].forEach(tab => {
     const active = v === tab;
     document.getElementById('vnav-' + tab)?.classList.toggle('active', active);
     document.getElementById('stats-' + tab)?.classList.toggle('hidden', !active);
@@ -6593,6 +6706,7 @@ function setMainView(v) {
   if (v === 'action') { renderAction(); }
   if (v === 'group') { renderGroup(); }
   if (v === 'insights') { renderInsights(); }
+  if (v === 'rotation') { renderRotation(); }
 }
 
 
@@ -6624,6 +6738,7 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses',
   'ibis_client_licenses',
   'ibis_client_revenue',
+  'ibis_rotation_accounts','ibis_rotation_licenses','ibis_rotation_opps','ibis_rotation_markup',
   'ibis_auto_backup_meta'];
   // Note: ibis_auto_backup_ring is intentionally EXCLUDED — it contains full
   // snapshots itself, which would create infinite nesting if included in a
@@ -9595,6 +9710,378 @@ function renderGroupRow(r) {
   populateGroupVerticals();
   // Kick off shared-cache enrichment for any group accounts already on disk
   GROUP_OWNERS.forEach(o => { if (groupAccounts[o].length) autoQueueGroupEnrichment(o); });
+})();
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ROTATION TAB — a departed rep's book, to decide which accounts to absorb.
+   Single-rep dataset (accounts / licenses / opps). Lightweight accounts list
+   with per-account Assign + Team Sell markup and an auto PIQ-Rep cross-ref
+   pulled from Embry/Anthony's Group account lists (sister PIQ product).
+   Shares the ibis_local enrichment cache (revenue / desc / sentiment).
+   ════════════════════════════════════════════════════════════════════════════ */
+let rotationAccounts = [], rotationLicenses = [], rotationOpps = [], rotationMarkup = {};
+let rotTierFilters = new Set(), rotActiveLicOn = false, rotUnassignedOn = false;
+let rotSortCol = 'tier', rotSortDir = 'asc';
+const ROT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', revenue:'desc', sentiment:'desc', activeClient:'desc' };
+const ROT_DASH = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+
+/* ─── Storage ────────────────────────────────────────────────────────────── */
+function loadRotationData() {
+  try { const s = localStorage.getItem('ibis_rotation_accounts'); rotationAccounts = s ? JSON.parse(s) : []; }
+  catch(e) { console.error('[rotation] load accounts failed', e); rotationAccounts = []; }
+  try {
+    const s = localStorage.getItem('ibis_rotation_licenses');
+    const raw = s ? JSON.parse(s) : [];
+    const today = new Date();
+    rotationLicenses = raw.map(l => {
+      l._endDate   = l._endDate   ? new Date(l._endDate)   : null;
+      l._startDate = l._startDate ? new Date(l._startDate) : null;
+      l._active = l._endDate ? l._endDate > today : false;
+      if (!l._active && l._endDate) {
+        const yr = l._endDate.getFullYear();
+        l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
+      } else { l._churnTier = l._active ? 'active' : 'dead'; }
+      applyLicenseRules(l);
+      return l;
+    });
+  } catch(e) { console.error('[rotation] load licenses failed', e); rotationLicenses = []; }
+  try { const s = localStorage.getItem('ibis_rotation_opps'); rotationOpps = s ? JSON.parse(s) : []; }
+  catch(e) { console.error('[rotation] load opps failed', e); rotationOpps = []; }
+  try { const s = localStorage.getItem('ibis_rotation_markup'); rotationMarkup = s ? JSON.parse(s) : {}; }
+  catch(e) { console.error('[rotation] load markup failed', e); rotationMarkup = {}; }
+}
+function saveRotationAccounts() { try { localStorage.setItem('ibis_rotation_accounts', JSON.stringify(rotationAccounts)); } catch(e) { console.warn('[rotation] save accounts failed', e); } }
+function saveRotationLicenses() {
+  const slim = rotationLicenses.map(l => ({
+    _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
+    _type: l._type, _acv: l._acv, _currency: l._currency,
+    _endDate:   l._endDate   ? l._endDate.toISOString()   : null,
+    _startDate: l._startDate ? l._startDate.toISOString() : null,
+    _active: l._active, _churnTier: l._churnTier,
+    _confirmedProcurement: l._confirmedProcurement || false
+  }));
+  try { localStorage.setItem('ibis_rotation_licenses', JSON.stringify(slim)); } catch(e) { console.warn('[rotation] save licenses failed', e); }
+}
+function saveRotationOpps()   { try { localStorage.setItem('ibis_rotation_opps',   JSON.stringify(rotationOpps));   } catch(e) { console.warn('[rotation] save opps failed', e); } }
+function saveRotationMarkup()  { try { localStorage.setItem('ibis_rotation_markup', JSON.stringify(rotationMarkup)); } catch(e) { console.warn('[rotation] save markup failed', e); } }
+
+/* ─── Upload handlers ────────────────────────────────────────────────────── */
+function handleRotationAccountsCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Rotation Accounts');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    rotationAccounts = parseCSV(ev.target.result);
+    saveRotationAccounts();
+    updateRotationUploadDots();
+    autoQueueRotationEnrichment();
+    populateRotationVerticals();
+    document.getElementById('rot-empty-state')?.classList.add('hidden');
+    document.getElementById('rot-table-view')?.classList.remove('hidden');
+    if (mainView === 'rotation') renderRotation();
+    showGroupToast(`✅ Rotation · ${rotationAccounts.length} accounts loaded`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+function handleRotationLicensesCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Rotation Licenses');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    rotationLicenses = parseLicenseCSV(ev.target.result);
+    saveRotationLicenses();
+    updateRotationUploadDots();
+    if (mainView === 'rotation') renderRotation();
+    showGroupToast(`✅ Rotation · ${rotationLicenses.length} licenses loaded`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+function handleRotationOppsCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Rotation Opportunities');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    // Provisional parse — opp CSV schema is still to be defined by Dan.
+    // Stored raw; getRotationOpps() reads names/stage best-effort until finalized.
+    rotationOpps = parseCSV(ev.target.result);
+    saveRotationOpps();
+    updateRotationUploadDots();
+    if (mainView === 'rotation') renderRotation();
+    showGroupToast(`✅ Rotation · ${rotationOpps.length} opportunities loaded`);
+    checkStorageSize();
+  };
+  reader.readAsText(file, 'latin1');
+  e.target.value = '';
+}
+function clearRotationData(kind) {
+  const label = { accounts:'Rotation accounts', licenses:'Rotation licenses', opps:'Rotation opportunities' }[kind] || 'Rotation data';
+  if (!confirm(`Clear ${label}?`)) return;
+  if (kind === 'licenses') { rotationLicenses = []; localStorage.removeItem('ibis_rotation_licenses'); }
+  else if (kind === 'opps') { rotationOpps = []; localStorage.removeItem('ibis_rotation_opps'); }
+  else { rotationAccounts = []; localStorage.removeItem('ibis_rotation_accounts'); }
+  updateRotationUploadDots();
+  if (mainView === 'rotation') renderRotation();
+}
+function updateRotationUploadDots() {
+  const map = { acct: rotationAccounts.length, lic: rotationLicenses.length, opp: rotationOpps.length };
+  Object.entries(map).forEach(([k,n]) => {
+    const el = document.getElementById('udot-rotation-' + k);
+    if (el) { el.textContent = n ? n + ' rows' : ''; el.className = 'upload-menu-dot' + (n ? ' has-date' : ''); }
+  });
+}
+function autoQueueRotationEnrichment() {
+  const t1   = rotationAccounts.filter(a => getField(a,'Major Markets Tier') == '1');
+  const rest = rotationAccounts.filter(a => getField(a,'Major Markets Tier') != '1');
+  [...t1, ...rest].forEach(a => {
+    const n = getField(a, 'Account Name', 'AccountName');
+    if (!n) return;
+    queueClaudeEnrich(n); queueDescEnrich(n); queueSentEnrich(n);
+  });
+}
+
+/* ─── License + PIQ-Rep + Opp helpers ────────────────────────────────────── */
+function getRotationActiveLicBadges(name) {
+  if (!rotationLicenses.length) return '';
+  const n = normName(name);
+  const acctLics = rotationLicenses.filter(l => normName(l._name) === n);
+  const out = [];
+  const activePIQ = acctLics.filter(l => l._type === 'PIQ' && l._active);
+  if (activePIQ.length) { const acv = activePIQ.reduce((s,l) => s + (l._acv||0), 0); out.push(`<span class="alb alb-piq">🔵 PIQ${acv>0?' · '+formatACV(acv):''}</span>`); }
+  const activeINTL = acctLics.filter(l => l._type === 'INTL' && l._active);
+  if (activeINTL.length) { const acv = activeINTL.reduce((s,l) => s + (l._acv||0), 0); out.push(`<span class="alb alb-intl">🌍 INTL${acv>0?' · '+formatACV(acv):''}</span>`); }
+  return out.join('');
+}
+function getRotationLicCount(name) {
+  const n = normName(name);
+  return rotationLicenses.filter(l => normName(l._name) === n).length;
+}
+// PIQ Rep — if this account also appears in Embry's or Anthony's Group account
+// list, they own the sister PIQ product and are auto-flagged as the PIQ rep.
+function getRotationPIQReps(name) {
+  const n = normName(name);
+  const reps = [];
+  ['embry','anthony'].forEach(o => {
+    if ((groupAccounts[o] || []).some(a => normName(getField(a,'Account Name','AccountName')) === n)) reps.push(o);
+  });
+  return reps;
+}
+// Open opportunity names for an account (best-effort; schema provisional).
+function getRotationOpps(name) {
+  if (!rotationOpps.length) return [];
+  const n = normName(name);
+  const out = [];
+  rotationOpps.forEach(r => {
+    if (normName(getField(r,'Account Name','AccountName')) !== n) return;
+    const oppName = getField(r,'Opportunity Name','Opp Name','Name') || '';
+    const closedRaw = (getField(r,'Closed') || '').toString().toLowerCase();
+    const stage = (getField(r,'Stage','Stage Name','Opportunity Stage') || '').toLowerCase();
+    const isClosed = closedRaw === 'true' || closedRaw === '1' || closedRaw === 'yes' || stage.includes('closed');
+    if (isClosed) return;
+    if (oppName) out.push(oppName);
+  });
+  return out;
+}
+
+/* ─── Markup (Assign / Team Sell) — instant save ─────────────────────────── */
+function setRotationAssign(name, val) {
+  const k = normName(name);
+  if (!rotationMarkup[k]) rotationMarkup[k] = {};
+  if (val) rotationMarkup[k].assign = val; else delete rotationMarkup[k].assign;
+  if (!Object.keys(rotationMarkup[k]).length) delete rotationMarkup[k];
+  saveRotationMarkup();
+  renderRotation();
+}
+function setRotationTeamSell(name, val) {
+  const k = normName(name);
+  if (!rotationMarkup[k]) rotationMarkup[k] = {};
+  if (val) rotationMarkup[k].teamSell = val; else delete rotationMarkup[k].teamSell;
+  if (!Object.keys(rotationMarkup[k]).length) delete rotationMarkup[k];
+  saveRotationMarkup();
+  renderRotation();
+}
+function renderRotAssignSelect(name) {
+  const val = rotationMarkup[normName(name)]?.assign || '';
+  const cls = val ? 'set rot-owner-' + val : '';
+  const opts = ['<option value="">＋ Assign</option>']
+    .concat(GROUP_OWNERS.map(o => `<option value="${o}" ${val===o?'selected':''}>${GROUP_OWNER_LABEL[o]}</option>`)).join('');
+  return `<select class="rot-assign-select ${cls}" data-name="${escHtml(name)}" onchange="setRotationAssign(this.dataset.name, this.value)">${opts}</select>`;
+}
+function renderRotTeamSellSelect(name) {
+  const val = rotationMarkup[normName(name)]?.teamSell || '';
+  const opts = ['<option value="">＋ Team Sell</option>']
+    .concat(GROUP_OWNERS.map(o => `<option value="${o}" ${val===o?'selected':''}>${GROUP_OWNER_LABEL[o]}</option>`)).join('');
+  return `<select class="rot-teamsell-select ${val?'set':''}" data-name="${escHtml(name)}" onchange="setRotationTeamSell(this.dataset.name, this.value)">${opts}</select>`;
+}
+
+/* ─── Filters / sort ─────────────────────────────────────────────────────── */
+function toggleRotationActiveLicFilter() { rotActiveLicOn = !rotActiveLicOn; document.getElementById('rot-filter-activelic')?.classList.toggle('active', rotActiveLicOn); renderRotation(); }
+function toggleRotationUnassignedFilter() { rotUnassignedOn = !rotUnassignedOn; document.getElementById('rot-filter-unassigned')?.classList.toggle('active', rotUnassignedOn); renderRotation(); }
+function toggleRotationTierDropdown(e) { if (e) e.stopPropagation(); document.getElementById('rot-dropdown-tier')?.classList.toggle('hidden'); }
+function applyRotationTierFilter() {
+  const boxes = document.querySelectorAll('#rot-dropdown-tier input[type="checkbox"]');
+  rotTierFilters.clear();
+  boxes.forEach(b => { if (b.checked) rotTierFilters.add(b.value); });
+  document.getElementById('rth-tier')?.classList.toggle('lic-filter-active', rotTierFilters.size > 0);
+  renderRotation();
+}
+function clearRotationTierFilter() {
+  document.querySelectorAll('#rot-dropdown-tier input[type="checkbox"]').forEach(b => b.checked = false);
+  rotTierFilters.clear();
+  document.getElementById('rth-tier')?.classList.remove('lic-filter-active');
+  document.getElementById('rot-dropdown-tier')?.classList.add('hidden');
+  renderRotation();
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('rot-dropdown-tier');
+  const btn = document.getElementById('rtfbtn-tier');
+  if (!dd || dd.classList.contains('hidden')) return;
+  if (dd.contains(e.target) || (btn && btn.contains(e.target))) return;
+  dd.classList.add('hidden');
+});
+function setRotSortCol(col) {
+  if (rotSortCol === col) { rotSortDir = rotSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { rotSortCol = col; rotSortDir = ROT_SORT_DEFAULT_DIR[col] || 'desc'; }
+  renderRotation();
+}
+function updateRotationSortArrows() {
+  ['vertical','tier','revenue','sentiment','activeClient'].forEach(c => {
+    const el = document.getElementById('rsort-' + c);
+    if (!el) return;
+    if (c === rotSortCol) { el.textContent = rotSortDir === 'asc' ? ' ↑' : ' ↓'; el.className = 'acct-sort-arrow acct-sort-active'; }
+    else { el.textContent = ''; el.className = 'acct-sort-arrow'; }
+  });
+}
+function populateRotationVerticals() {
+  const sel = document.getElementById('rot-vertical-filter');
+  if (!sel) return;
+  const cur = sel.value;
+  const set = new Set();
+  rotationAccounts.forEach(a => { const v = getTrueVertical(a); if (v) set.add(v); });
+  const opts = [...set].sort();
+  sel.innerHTML = '<option value="">All Verticals</option>' + opts.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+  if (opts.includes(cur)) sel.value = cur;
+}
+
+/* ─── Render ─────────────────────────────────────────────────────────────── */
+function getFilteredRotationRows() {
+  const q = (document.getElementById('rot-search-input')?.value || '').toLowerCase().trim();
+  const vert = document.getElementById('rot-vertical-filter')?.value || '';
+  let list = rotationAccounts.map(a => ({ acc: a, name: getField(a,'Account Name','AccountName') })).filter(r => r.name);
+  list = list.filter(r => {
+    if (q) {
+      const v = getField(r.acc,'Vertical').toLowerCase();
+      const sv = getField(r.acc,'Sub-Vertical').toLowerCase();
+      if (!r.name.toLowerCase().includes(q) && !v.includes(q) && !sv.includes(q)) return false;
+    }
+    if (vert && getTrueVertical(r.acc) !== vert) return false;
+    if (rotTierFilters.size > 0) { const t = getField(r.acc,'Major Markets Tier') || ''; if (!rotTierFilters.has(t)) return false; }
+    if (rotActiveLicOn && !getRotationActiveLicBadges(r.name)) return false;
+    if (rotUnassignedOn && rotationMarkup[normName(r.name)]?.assign) return false;
+    return true;
+  });
+  const d = rotSortDir === 'asc' ? 1 : -1;
+  list.sort((a,b) => {
+    const c = rotSortCol;
+    if (c === 'vertical') return d * getTrueVertical(a.acc).localeCompare(getTrueVertical(b.acc));
+    if (c === 'tier')     return d * (parseFloat(getField(a.acc,'Major Markets Tier')||9) - parseFloat(getField(b.acc,'Major Markets Tier')||9));
+    if (c === 'revenue')  { const ra = getRevDisplay(a.acc)?.raw || 0; const rb = getRevDisplay(b.acc)?.raw || 0; return d * (ra - rb); }
+    if (c === 'sentiment'){ const sa = (typeof getSentiment==='function'?getSentiment(a.name)?.score:null) ?? -1; const sb = (typeof getSentiment==='function'?getSentiment(b.name)?.score:null) ?? -1; return d * (sa - sb); }
+    if (c === 'activeClient') return d * (getRotationLicCount(a.name) - getRotationLicCount(b.name));
+    return 0;
+  });
+  return list;
+}
+function updateRotationStats() {
+  const set = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('rot-stat-total', rotationAccounts.length || '—');
+  set('rot-stat-assigned', Object.values(rotationMarkup).filter(m => m.assign).length || '—');
+  set('rot-stat-teamsell', Object.values(rotationMarkup).filter(m => m.teamSell).length || '—');
+  const active = rotationAccounts.filter(a => getRotationActiveLicBadges(getField(a,'Account Name','AccountName'))).length;
+  set('rot-stat-active', active || '—');
+}
+function renderRotation() {
+  if (rotationAccounts.length === 0) {
+    document.getElementById('rot-empty-state')?.classList.remove('hidden');
+    document.getElementById('rot-table-view')?.classList.add('hidden');
+    updateRotationStats();
+    return;
+  }
+  document.getElementById('rot-empty-state')?.classList.add('hidden');
+  document.getElementById('rot-table-view')?.classList.remove('hidden');
+  const rows = getFilteredRotationRows();
+  const tbody = document.getElementById('rot-table-body');
+  if (!rows.length) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>';
+  else tbody.innerHTML = rows.map(r => renderRotationRow(r)).join('');
+  const cl = document.getElementById('rot-count-label');
+  if (cl) cl.textContent = `${rows.length} of ${rotationAccounts.length} accounts`;
+  updateRotationStats();
+  updateRotationSortArrows();
+}
+function renderRotationRow(r) {
+  const a = r.acc, name = r.name;
+  const tier = getField(a,'Major Markets Tier');
+  const sub = getField(a,'Sub-Vertical');
+  const local = localData[name] || {};
+  const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
+  const domain = getLogoDomain(a);
+  const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const _res = domain && logoResolved[domain];
+  const tdLogoHtml = !domain ? initials
+    : _res === '__initials__' ? initials
+    : _res ? `<img src="${_res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${name}">`
+    : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
+  const revInfo = getRevDisplay(a);
+  const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : ROT_DASH;
+  const sentBadge = (typeof renderSentimentBadge === 'function') ? renderSentimentBadge(name) : ROT_DASH;
+  const piqReps = getRotationPIQReps(name);
+  const piqCell = piqReps.length
+    ? piqReps.map(o => `<span class="grp-owner-pill grp-pill-${o}" title="${GROUP_OWNER_LABEL[o]} owns this account (sister PIQ product)">${GROUP_OWNER_LABEL[o]}</span>`).join(' ')
+    : ROT_DASH;
+  const badges = getRotationActiveLicBadges(name);
+  const cnt = getRotationLicCount(name);
+  const licCell = (badges || cnt)
+    ? `${badges||''}${cnt?`<span style="font-family:'DM Mono',monospace;color:var(--text-muted);font-size:11px;margin-left:${badges?'6px':'0'};">${cnt} lic</span>`:''}`
+    : ROT_DASH;
+  const opps = getRotationOpps(name);
+  const oppCell = opps.length
+    ? opps.map(o => `<span style="display:inline-block;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;">${escHtml(o)}</span>`).join('')
+    : ROT_DASH;
+  return `<tr>
+    <td>${renderRotAssignSelect(name)}</td>
+    <td>${renderRotTeamSellSelect(name)}</td>
+    <td>${piqCell}</td>
+    <td>
+      <div class="td-company">
+        <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
+        <div>
+          <span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>
+          ${(local.desc||sub)?`<div class="td-sub-vert">${local.desc||sub}</div>`:''}
+        </div>
+      </div>
+    </td>
+    <td>${vertBubble(a)}</td>
+    <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
+    <td style="white-space:nowrap;">${revCell}</td>
+    <td style="text-align:center;">${sentBadge}</td>
+    <td>${licCell}</td>
+    <td>${oppCell}</td>
+  </tr>`;
+}
+function exportRotationTab() {
+  const src = document.getElementById('content-rotation');
+  if (typeof _printWithBanner === 'function') _printWithBanner('Rotation · Departed Rep Book', `${getFilteredRotationRows().length} accounts`, src);
+}
+
+/* ─── Init hook ──────────────────────────────────────────────────────────── */
+(function bootRotation(){
+  loadRotationData();
+  updateRotationUploadDots();
+  populateRotationVerticals();
+  if (rotationAccounts.length) autoQueueRotationEnrichment();
 })();
 
 /* ════════════════════════════════════════════════════════════════════════════
