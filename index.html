@@ -2885,6 +2885,7 @@
     <button class="chip" id="rot-filter-favorites" onclick="toggleRotationFavoritesFilter()" title="Only starred (key) accounts">⭐ Favorites</button>
     <span style="flex:1 1 auto;"></span>
     <button class="export-btn" onclick="exportRotationTab()" title="Print or save current view as PDF (uses your active filters)">🖨 Export / PDF</button>
+    <button class="export-btn" onclick="exportRotationExcel()" title="Export to Excel (.xls) — keeps colors + current sort/filters, excludes Assign & Team Sell">📊 Export Excel</button>
   </div>
 </div>
 
@@ -10216,6 +10217,102 @@ function renderRotationRow(r) {
 function exportRotationTab() {
   const src = document.getElementById('content-rotation');
   if (typeof _printWithBanner === 'function') _printWithBanner('Rotation · Departed Rep Book', `${getFilteredRotationRows().length} accounts`, src);
+}
+
+/* ─── Export to Excel (.xls HTML workbook — colours + current sort/filters,
+   Assign & Team Sell columns excluded). Uses inline cell fills so Excel
+   renders the same colour-coding shown on screen. No external libraries. ── */
+const ROT_TIER_XL   = { '1':'#2d5a9e', '2':'#2d9e6b', '3':'#c4651a', '4':'#9a9a9a' };
+const ROT_CHURN_XL  = { 'rot-churn-ind':['#fef2f2','#b91c1c'], 'rot-churn-piq':['#eff6ff','#1d4ed8'], 'rot-churn-old':['#f3f4f6','#6b7280'], 'rot-churn-new':['#fef9c3','#a16207'] };
+function _xlCell(text, o) {
+  o = o || {};
+  const s = [
+    o.bg ? `background:${o.bg};` : '',
+    o.color ? `color:${o.color};` : '',
+    o.bold ? 'font-weight:bold;' : '',
+    `text-align:${o.align||'left'};`,
+    'border:1px solid #d1d5db;padding:4px 8px;font-family:Calibri,Arial,sans-serif;font-size:11px;vertical-align:middle;',
+    o.num ? '' : "mso-number-format:'\\@';"
+  ].join('');
+  return `<td style="${s}">${escHtml(text == null ? '' : String(text))}</td>`;
+}
+function exportRotationExcel() {
+  const rows = getFilteredRotationRows();
+  if (!rows.length) { showGroupToast('Nothing to export — no rows match your filters'); return; }
+  const headers = ['PIQ Rep','Active Opp','Active License','Company','Vertical','Tier','Revenue','Key Churns','Key Trial','6sense','Licenses','Opps'];
+  const headRow = '<tr>' + headers.map(h =>
+    `<td style="background:#C8102E;color:#fff;font-weight:bold;text-align:left;border:1px solid #a50d24;padding:6px 8px;font-family:Calibri,Arial,sans-serif;font-size:11px;">${escHtml(h)}</td>`
+  ).join('') + '</tr>';
+
+  const body = rows.map(r => {
+    const a = r.acc, name = r.name;
+    const starred = !!rotationMarkup[normName(name)]?.star;
+    const keyBg = starred ? '#fff8e1' : '';   // subtle gold fill for starred rows on plain cells
+    const n = normName(name);
+    const lics = rotationLicenses.filter(l => normName(l._name) === n);
+
+    // PIQ Rep
+    const piqReps = getRotationPIQReps(name);
+    const piqCell = piqReps.length
+      ? _xlCell(piqReps.map(o => GROUP_OWNER_LABEL[o]).join(', '), { bg: GROUP_OWNER_COLOR[piqReps[0]], color:'#fff', bold:true })
+      : _xlCell('', { bg:keyBg });
+    // Active Opp
+    const aopps = getRotationActiveOpps(name);
+    const aoppCell = aopps.length
+      ? _xlCell(aopps.map(o => `${o.stage} · ${rotMoney(o.amount)}`).join('  |  '), { bg:'#fef9c3', color:'#a16207' })
+      : _xlCell('', { bg:keyBg });
+    // Active License
+    const piqActive  = lics.some(l => l._type === 'PIQ'  && l._active);
+    const intlActive = lics.some(l => l._type === 'INTL' && l._active);
+    const alParts = [piqActive ? 'PIQ' : '', intlActive ? 'INTL' : ''].filter(Boolean);
+    const alCell = alParts.length
+      ? _xlCell(alParts.join(' + '), piqActive ? { bg:'#dbeafe', color:'#1d4ed8', bold:true } : { bg:'#dcfce7', color:'#15803d', bold:true })
+      : _xlCell('', { bg:keyBg });
+    // Company
+    const compCell = _xlCell((starred ? '★ ' : '') + name, { bg:keyBg, bold:starred });
+    // Vertical
+    const vert = getTrueVertical(a) || '';
+    const vertCell = vert ? _xlCell(vert, { bg:(typeof VERT_COLORS!=='undefined' && VERT_COLORS[vert]) || '#f3f4f6', color:'#111827' }) : _xlCell('', { bg:keyBg });
+    // Tier
+    const tier = getField(a,'Major Markets Tier');
+    const tierCell = ROT_TIER_XL[tier]
+      ? _xlCell(tier, { bg:ROT_TIER_XL[tier], color:'#fff', bold:true, align:'center' })
+      : _xlCell(tier||'', { bg:keyBg, align:'center' });
+    // Revenue
+    const revInfo = getRevDisplay(a);
+    const revCell = _xlCell(revInfo ? revInfo.label : '', { bg:keyBg });
+    // Key Churns
+    const churns = getRotationKeyChurns(name);
+    let churnCell;
+    if (churns.length) {
+      const [cbg, ccol] = ROT_CHURN_XL[rotChurnPillClass(churns[0])] || ['', ''];
+      churnCell = _xlCell(churns.map(l => `${l._type==='US'?'Industry':'PIQ'} · ${rotMoney(l._acv||0)}${l._endDate?' · '+rotShortDate(l._endDate):''}`).join('  |  '), { bg:cbg, color:ccol });
+    } else churnCell = _xlCell('', { bg:keyBg });
+    // Key Trial
+    const trials = getRotationTrials(name);
+    const trialCell = trials.length
+      ? _xlCell(trials.map(o => `${o.created?rotShortDate(o.created):'?'} → ${o.close?rotShortDate(o.close):'?'}`).join('  |  '), { bg:'#f5f3ff', color:'#6d28d9' })
+      : _xlCell('', { bg:keyBg });
+    // 6sense / Licenses / Opps (numeric)
+    const intent = getField(a,'6sense Account Intent Score NA');
+    const intentCell = _xlCell(intent || '', { bg:keyBg, align:'center', num:!!intent });
+    const licCell = _xlCell(getRotationLicCount(name) || '', { bg:keyBg, align:'center', num:true });
+    const oppCell = _xlCell(getRotationOppCount(name) || '', { bg:keyBg, align:'center', num:true });
+
+    return '<tr>' + piqCell + aoppCell + alCell + compCell + vertCell + tierCell + revCell + churnCell + trialCell + intentCell + licCell + oppCell + '</tr>';
+  }).join('');
+
+  const table = `<table style="border-collapse:collapse;">${headRow}${body}</table>`;
+  const wb = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Rotation</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
+
+  const blob = new Blob(['﻿' + wb], { type:'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0,10);
+  const dl = document.createElement('a');
+  dl.href = url; dl.download = `rotation-export-${stamp}.xls`;
+  document.body.appendChild(dl); dl.click();
+  setTimeout(() => { URL.revokeObjectURL(url); dl.remove(); }, 150);
+  showGroupToast(`📊 Exported ${rows.length} accounts to Excel`);
 }
 
 /* ─── Init hook ──────────────────────────────────────────────────────────── */
