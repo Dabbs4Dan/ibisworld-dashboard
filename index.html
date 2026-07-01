@@ -621,11 +621,14 @@
   .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
   /* ── Rotation tab — Assign + Team Sell pill dropdowns ─────────────────── */
   .rot-assign-select, .rot-teamsell-select {
-    font-family:'DM Sans',sans-serif; font-size:11px; font-weight:600; letter-spacing:0.2px;
-    border-radius:999px; padding:3px 8px; border:1px dashed #cbd5e1; background:#f8fafc;
+    font-family:'DM Sans',sans-serif; font-size:10px; font-weight:600; letter-spacing:0.2px;
+    border-radius:999px; padding:2px 6px; border:1px dashed #cbd5e1; background:#f8fafc;
     color:#94a3b8; cursor:pointer; -webkit-appearance:none; appearance:none; outline:none;
-    transition:150ms ease; max-width:104px;
+    transition:150ms ease; max-width:88px; text-align:center; text-align-last:center;
   }
+  .rot-churn-pill { display:inline-block; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;
+    border-radius:999px; padding:2px 8px; font-size:10px; font-weight:600; font-family:'DM Sans',sans-serif;
+    margin:1px 3px 1px 0; white-space:nowrap; }
   .rot-assign-select:hover, .rot-teamsell-select:hover { border-color:#94a3b8; }
   .rot-assign-select option, .rot-teamsell-select option { background:#fff; color:#111827; font-weight:500; }
   /* Assign — set state uses per-rep solid colour (matches group owner pills) */
@@ -2884,9 +2887,10 @@
         <table id="rot-table">
           <thead>
             <tr>
-              <th style="min-width:96px;">Assign</th>
-              <th style="min-width:96px;">Team Sell</th>
-              <th style="min-width:80px;">PIQ Rep</th>
+              <th onclick="setRotSortCol('assign')"   style="cursor:pointer;min-width:82px;text-align:center;">Assign <span class="acct-sort-arrow" id="rsort-assign"></span></th>
+              <th onclick="setRotSortCol('teamsell')" style="cursor:pointer;min-width:82px;text-align:center;">Team Sell <span class="acct-sort-arrow" id="rsort-teamsell"></span></th>
+              <th onclick="setRotSortCol('piqrep')"   style="cursor:pointer;min-width:80px;">PIQ Rep <span class="acct-sort-arrow" id="rsort-piqrep"></span></th>
+              <th onclick="setRotSortCol('activelic')" style="cursor:pointer;">Active License <span class="acct-sort-arrow" id="rsort-activelic"></span></th>
               <th>Company</th>
               <th onclick="setRotSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="rsort-vertical"></span></th>
               <th style="cursor:pointer;position:relative;" id="rth-tier">
@@ -2904,8 +2908,9 @@
                 </div>
               </th>
               <th onclick="setRotSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="rsort-revenue"></span></th>
-              <th onclick="setRotSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="rsort-sentiment"></span></th>
-              <th onclick="setRotSortCol('activeClient')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="rsort-activeClient"></span></th>
+              <th onclick="setRotSortCol('keychurns')" style="cursor:pointer;">Key Churns <span class="acct-sort-arrow" id="rsort-keychurns"></span></th>
+              <th onclick="setRotSortCol('intent')" style="cursor:pointer;text-align:center;">6sense <span class="acct-sort-arrow" id="rsort-intent"></span></th>
+              <th onclick="setRotSortCol('licenses')" style="cursor:pointer;text-align:center;">Licenses <span class="acct-sort-arrow" id="rsort-licenses"></span></th>
               <th>Open Opps</th>
             </tr>
           </thead>
@@ -9722,7 +9727,8 @@ function renderGroupRow(r) {
 let rotationAccounts = [], rotationLicenses = [], rotationOpps = [], rotationMarkup = {};
 let rotTierFilters = new Set(), rotActiveLicOn = false, rotUnassignedOn = false;
 let rotSortCol = 'tier', rotSortDir = 'asc';
-const ROT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', revenue:'desc', sentiment:'desc', activeClient:'desc' };
+const ROT_SORT_DEFAULT_DIR = { assign:'asc', teamsell:'asc', piqrep:'desc', activelic:'desc', vertical:'asc', tier:'asc', revenue:'desc', keychurns:'desc', intent:'desc', licenses:'desc' };
+const ROT_OWNER_ORDER = { dan:0, christian:1, embry:2, anthony:3 };
 const ROT_DASH = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
 
 /* ─── Storage ────────────────────────────────────────────────────────────── */
@@ -9859,6 +9865,24 @@ function getRotationLicCount(name) {
   const n = normName(name);
   return rotationLicenses.filter(l => normName(l._name) === n).length;
 }
+// Key Churns — significant churned Industry/PIQ licenses worth re-winning.
+// Rules: type US (Industry) or PIQ, ACV > $20K, currently churned (not active).
+// Special rule: if the account still has an ACTIVE PIQ license, skip entirely
+// (it's already covered — no need to surface the old churn).
+function getRotationKeyChurns(name) {
+  if (!rotationLicenses.length) return [];
+  const n = normName(name);
+  const lics = rotationLicenses.filter(l => normName(l._name) === n);
+  if (lics.some(l => l._type === 'PIQ' && l._active)) return [];
+  return lics
+    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000)
+    .sort((a,b) => (b._acv||0) - (a._acv||0));
+}
+function rotShortDate(d) {
+  if (!d) return '';
+  const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  return `${mo} '${String(d.getFullYear()).slice(2)}`;
+}
 // PIQ Rep — if this account also appears in Embry's or Anthony's Group account
 // list, they own the sister PIQ product and are auto-flagged as the PIQ rep.
 function getRotationPIQReps(name) {
@@ -9948,7 +9972,7 @@ function setRotSortCol(col) {
   renderRotation();
 }
 function updateRotationSortArrows() {
-  ['vertical','tier','revenue','sentiment','activeClient'].forEach(c => {
+  ['assign','teamsell','piqrep','activelic','vertical','tier','revenue','keychurns','intent','licenses'].forEach(c => {
     const el = document.getElementById('rsort-' + c);
     if (!el) return;
     if (c === rotSortCol) { el.textContent = rotSortDir === 'asc' ? ' ↑' : ' ↓'; el.className = 'acct-sort-arrow acct-sort-active'; }
@@ -9984,13 +10008,21 @@ function getFilteredRotationRows() {
     return true;
   });
   const d = rotSortDir === 'asc' ? 1 : -1;
+  const assignRank   = nm => ROT_OWNER_ORDER[rotationMarkup[normName(nm)]?.assign]   ?? 9;
+  const teamsellRank = nm => ROT_OWNER_ORDER[rotationMarkup[normName(nm)]?.teamSell] ?? 9;
+  const churnTotal   = nm => getRotationKeyChurns(nm).reduce((s,l) => s + (l._acv||0), 0);
   list.sort((a,b) => {
     const c = rotSortCol;
+    if (c === 'assign')   return d * (assignRank(a.name) - assignRank(b.name));
+    if (c === 'teamsell') return d * (teamsellRank(a.name) - teamsellRank(b.name));
+    if (c === 'piqrep')   return d * ((getRotationPIQReps(a.name).length?1:0) - (getRotationPIQReps(b.name).length?1:0));
+    if (c === 'activelic') return d * ((getRotationActiveLicBadges(a.name)?1:0) - (getRotationActiveLicBadges(b.name)?1:0));
     if (c === 'vertical') return d * getTrueVertical(a.acc).localeCompare(getTrueVertical(b.acc));
     if (c === 'tier')     return d * (parseFloat(getField(a.acc,'Major Markets Tier')||9) - parseFloat(getField(b.acc,'Major Markets Tier')||9));
     if (c === 'revenue')  { const ra = getRevDisplay(a.acc)?.raw || 0; const rb = getRevDisplay(b.acc)?.raw || 0; return d * (ra - rb); }
-    if (c === 'sentiment'){ const sa = (typeof getSentiment==='function'?getSentiment(a.name)?.score:null) ?? -1; const sb = (typeof getSentiment==='function'?getSentiment(b.name)?.score:null) ?? -1; return d * (sa - sb); }
-    if (c === 'activeClient') return d * (getRotationLicCount(a.name) - getRotationLicCount(b.name));
+    if (c === 'keychurns') return d * (churnTotal(a.name) - churnTotal(b.name));
+    if (c === 'intent')   return d * ((parseFloat(getField(a.acc,'6sense Account Intent Score NA'))||0) - (parseFloat(getField(b.acc,'6sense Account Intent Score NA'))||0));
+    if (c === 'licenses') return d * (getRotationLicCount(a.name) - getRotationLicCount(b.name));
     return 0;
   });
   return list;
@@ -10014,7 +10046,7 @@ function renderRotation() {
   document.getElementById('rot-table-view')?.classList.remove('hidden');
   const rows = getFilteredRotationRows();
   const tbody = document.getElementById('rot-table-body');
-  if (!rows.length) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>';
+  if (!rows.length) tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>';
   else tbody.innerHTML = rows.map(r => renderRotationRow(r)).join('');
   const cl = document.getElementById('rot-count-label');
   if (cl) cl.textContent = `${rows.length} of ${rotationAccounts.length} accounts`;
@@ -10036,24 +10068,32 @@ function renderRotationRow(r) {
     : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
   const revInfo = getRevDisplay(a);
   const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : ROT_DASH;
-  const sentBadge = (typeof renderSentimentBadge === 'function') ? renderSentimentBadge(name) : ROT_DASH;
+  const intent = getField(a,'6sense Account Intent Score NA');
   const piqReps = getRotationPIQReps(name);
   const piqCell = piqReps.length
     ? piqReps.map(o => `<span class="grp-owner-pill grp-pill-${o}" title="${GROUP_OWNER_LABEL[o]} owns this account (sister PIQ product)">${GROUP_OWNER_LABEL[o]}</span>`).join(' ')
     : ROT_DASH;
-  const badges = getRotationActiveLicBadges(name);
+  const activeBadges = getRotationActiveLicBadges(name);
+  const activeCell = activeBadges || ROT_DASH;
   const cnt = getRotationLicCount(name);
-  const licCell = (badges || cnt)
-    ? `${badges||''}${cnt?`<span style="font-family:'DM Mono',monospace;color:var(--text-muted);font-size:11px;margin-left:${badges?'6px':'0'};">${cnt} lic</span>`:''}`
+  const licCell = cnt ? `<span style="font-family:'DM Mono',monospace;">${cnt}</span>` : ROT_DASH;
+  const churns = getRotationKeyChurns(name);
+  const churnCell = churns.length
+    ? churns.map(l => {
+        const lab = l._type === 'US' ? 'Industry' : 'PIQ';
+        const end = l._endDate ? rotShortDate(l._endDate) : '';
+        return `<span class="rot-churn-pill" title="Churned ${lab} license · ${formatACV(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${formatACV(l._acv||0)}${end?' · '+end:''}</span>`;
+      }).join('')
     : ROT_DASH;
   const opps = getRotationOpps(name);
   const oppCell = opps.length
     ? opps.map(o => `<span style="display:inline-block;background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600;margin:1px 3px 1px 0;">${escHtml(o)}</span>`).join('')
     : ROT_DASH;
   return `<tr>
-    <td>${renderRotAssignSelect(name)}</td>
-    <td>${renderRotTeamSellSelect(name)}</td>
+    <td style="text-align:center;">${renderRotAssignSelect(name)}</td>
+    <td style="text-align:center;">${renderRotTeamSellSelect(name)}</td>
     <td>${piqCell}</td>
+    <td>${activeCell}</td>
     <td>
       <div class="td-company">
         <div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div>
@@ -10066,8 +10106,9 @@ function renderRotationRow(r) {
     <td>${vertBubble(a)}</td>
     <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
     <td style="white-space:nowrap;">${revCell}</td>
-    <td style="text-align:center;">${sentBadge}</td>
-    <td>${licCell}</td>
+    <td>${churnCell}</td>
+    <td style="text-align:center;font-family:'DM Mono',monospace;">${intent||'—'}</td>
+    <td style="text-align:center;">${licCell}</td>
     <td>${oppCell}</td>
   </tr>`;
 }
