@@ -2965,7 +2965,6 @@ let accounts = [], localData = {}, currentView = 'cards', activeFlags = new Set(
 
 // ── Debug telemetry ──────────────────────────────────────────────────────────
 const _dbg = {
-  pa:     { status: 'pending', rows: 0, ts: null, error: null },
   enrich: { attempted: 0, succeeded: 0, failed: 0, failedNames: [] },
   desc:   { attempted: 0, succeeded: 0, failed: 0 },
   sent:   { attempted: 0, succeeded: 0, failed: 0 },
@@ -3054,9 +3053,16 @@ function init() {
   const saved = localStorage.getItem('ibis_accounts');
   const savedLocal = localStorage.getItem('ibis_local');
   const savedLic = localStorage.getItem('ibis_licenses');
+  // ibis_local must load even when accounts are absent — later saves (workables sync, CSV upload)
+  // write the in-memory object wholesale, so an unloaded ibis_local would wipe all user markup.
+  try { localData = savedLocal ? JSON.parse(savedLocal) : {}; }
+  catch(e) {
+    console.error('ibis_local corrupted:', e);
+    try { localStorage.setItem('ibis_local_corrupt_backup', savedLocal); } catch(e2) {}
+    localData = {};
+  }
   if (saved) {
     try { accounts = JSON.parse(saved); } catch(e) { console.error('ibis_accounts corrupted, resetting:', e); accounts = []; }
-    try { localData = savedLocal ? JSON.parse(savedLocal) : {}; } catch(e) { console.error('ibis_local corrupted, resetting:', e); localData = {}; }
     applySeedsToLocalData(); applyTierOverridesToAccounts(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
   }
@@ -3112,11 +3118,11 @@ function init() {
     // Re-decode on restore (dates need re-parsing from strings)
     let raw;
     try { raw = JSON.parse(savedLic); } catch(e) { console.error('License localStorage corrupted:', e); raw = []; }
-    const today = new Date();
+    const today = new Date(); today.setHours(0,0,0,0); // active = End Date >= today (date-level, not time-level)
     licenses = raw.map(l => {
       l._endDate = l._endDate ? new Date(l._endDate) : null;
       l._startDate = l._startDate ? new Date(l._startDate) : null;
-      l._active = l._endDate ? l._endDate > today : false;
+      l._active = l._endDate ? l._endDate >= today : false;
       if (!l._active && l._endDate) {
         const yr = l._endDate.getFullYear();
         l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
@@ -3134,12 +3140,32 @@ function init() {
   initActionChipColors();
 }
 
+// Reads a CSV file with correct encoding, then feeds the text to the reader's
+// existing onload handler (as ev.target.result). SF exports are UTF-8 with BOM;
+// the old readAsText(file,'latin1') glued the BOM onto the first header name
+// (breaking header matching) and mojibaked accented contact/account names.
+// Order: UTF-16 BOM → strict UTF-8 → windows-1252 fallback for legacy files.
+function readCsvViaReader(reader, file) {
+  const r2 = new FileReader();
+  r2.onload = ev => {
+    const buf = new Uint8Array(ev.target.result);
+    let text;
+    if (buf[0] === 0xFF && buf[1] === 0xFE) text = new TextDecoder('utf-16le').decode(buf);
+    else {
+      try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+      catch { text = new TextDecoder('windows-1252').decode(buf); }
+    }
+    reader.onload({ target: { result: text.replace(/^\uFEFF/, '') } });
+  };
+  r2.readAsArrayBuffer(file);
+}
+
 function handleCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   snapshotBeforeAction('Pre-upload · Accounts CSV');
   const reader = new FileReader();
   reader.onload = ev => processAccountRows(parseCSV(ev.target.result));
-  reader.readAsText(file, 'latin1'); e.target.value = '';
+  readCsvViaReader(reader, file); e.target.value = '';
 }
 
 function processAccountRows(newAccounts) {
@@ -3390,7 +3416,7 @@ function getFiltered() {
     if (sort==='sixqa') return d * (getSixqaCount(getField(a,'Account Name','AccountName')) - getSixqaCount(getField(b,'Account Name','AccountName')));
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
-    if (sort==='acctStatus') { const ord={keep:0,monitor:1,drop:2,'':3}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??3)-(ord[bs]??3)); }
+    if (sort==='acctStatus') { const ord={truekeep:0,keep:1,monitor:2,drop:3,'':4}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??4)-(ord[bs]??4)); }
     if (sort==='acctPriority') { const ord={quickwinner:0,teamsell:1,legendary:2,veryrare:3,rare:4,uncommon:5,common:6,'':7}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??7)-(ord[bp]??7)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*((hasActiveOpp(an)?1:0)-(hasActiveOpp(bn)?1:0)); }
@@ -3529,7 +3555,7 @@ function renderCards(list) {
       ${revHtml}
       <div class="card-footer" style="justify-content:space-between;align-items:center;">
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-          <span class="stage-tag ${stageClass(stage)} stage-clickable${activeFlags.has('STAGE_'+stage)?' stage-active':''}" onclick="toggleStageFilter(${JSON.stringify(stage||'')})" title="Click to filter by stage">${stage||'Unknown'}</span>
+          <span class="stage-tag ${stageClass(stage)} stage-clickable${activeFlags.has('STAGE_'+stage)?' stage-active':''}" data-stage="${escHtml(stage||'')}" onclick="toggleStageFilter(this.dataset.stage)" title="Click to filter by stage">${stage||'Unknown'}</span>
           ${(()=>{const ab=getActiveLicBadges(name);return ab?`<div style="display:flex;gap:4px;flex-wrap:wrap;">${ab}</div>`:''})()}
         </div>
         <div style="display:flex;align-items:center;">${renderAcctOppCell(name, local)}</div>
@@ -3574,7 +3600,7 @@ function renderTable(list) {
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
-      <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`onclick="toggleStageFilter(${JSON.stringify(stage)})" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
+      <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`data-stage="${escHtml(stage)}" onclick="toggleStageFilter(this.dataset.stage)" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
       <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
     </tr>`;
@@ -3652,16 +3678,18 @@ function renderAcctOppCell(name, local) {
     const amt = local.acctOppAmt || contactOpp?.sfAmt || '';
     const closeD = local.acctOppClose || contactOpp?.closeDate || '';
     return `<div class="opp-active-wrap" style="display:inline-flex;">
-      <button class="opp-sf-pill" onclick="event.stopPropagation();toggleAcctOpp('${esc}')">Opp</button>
-      <input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(amt)}"
-        onblur="saveAcctOppField('${esc}','acctOppAmt',this.value)"
+      <button class="opp-sf-pill" data-acctname="${esc}" onclick="event.stopPropagation();toggleAcctOpp(this.dataset.acctname)">Opp</button>
+      <input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(amt)}" data-acctname="${esc}"
+        oninput="saveActionFieldDebounced(this.dataset.acctname,'acctOppAmt',this.value)"
+        onblur="saveAcctOppField(this.dataset.acctname,'acctOppAmt',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()">
-      <input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(closeD)}"
-        onblur="saveAcctOppField('${esc}','acctOppClose',this.value)"
+      <input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(closeD)}" data-acctname="${esc}"
+        oninput="saveActionFieldDebounced(this.dataset.acctname,'acctOppClose',this.value)"
+        onblur="saveAcctOppField(this.dataset.acctname,'acctOppClose',this.value)"
         onkeydown="if(event.key==='Enter')this.blur()">
     </div>`;
   }
-  return `<button class="opp-dot-btn" onclick="event.stopPropagation();toggleAcctOpp('${esc}')"><span class="opp-dot"></span></button>`;
+  return `<button class="opp-dot-btn" data-acctname="${esc}" onclick="event.stopPropagation();toggleAcctOpp(this.dataset.acctname)"><span class="opp-dot"></span></button>`;
 }
 
 // Returns true if this account has an active account-level opp OR any contact-level opp
@@ -4649,7 +4677,7 @@ function handleLicenseCSV(e) {
     checkStorageSize();
     autoQueueLicDescriptions();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -4659,7 +4687,7 @@ function parseLicenseCSV(text) {
   if (lines.length < 2) return [];
   const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
   const rows = [];
-  const today = new Date();
+  const today = new Date(); today.setHours(0,0,0,0); // active = End Date >= today (date-level)
   for (let i = 1; i < lines.length; i++) {
     const vals = parseCSVLine(lines[i]);
     if (vals.length < 2) continue;
@@ -4677,7 +4705,7 @@ function parseLicenseCSV(text) {
     const startRaw = obj['License Start Date'] || '';
     obj._endDate = parseDate(endRaw);
     obj._startDate = parseDate(startRaw);
-    obj._active = obj._endDate ? obj._endDate > today : false;
+    obj._active = obj._endDate ? obj._endDate >= today : false;
     // Churn tier: newchurn=CHURN_YEAR_NEW+, churned=CHURN_YEAR_CHURNED+, dead=pre
     if (!obj._active && obj._endDate) {
       const yr = obj._endDate.getFullYear();
@@ -5463,7 +5491,7 @@ function openAccountPage(name, origin, list, idx) {
   accountPageIdx = (idx !== undefined && idx !== null) ? idx : -1;
   currentAccountPageName = name;
   // Hide all tab UI
-  ['action','accounts','licenses','campaigns','dead'].forEach(tab => {
+  ['action','accounts','licenses','campaigns','dead','group','insights','rotation'].forEach(tab => {
     document.getElementById('stats-'    + tab)?.classList.add('hidden');
     document.getElementById('controls-' + tab)?.classList.add('hidden');
     document.getElementById('content-'  + tab)?.classList.add('hidden');
@@ -5487,7 +5515,7 @@ function navAccountPage(dir) {
 }
 
 function apOriginLabel(origin) {
-  const map = { accounts:'📋 Accounts', licenses:'🔑 Licenses', campaigns:'📣 Campaigns', dead:'💀 Dead' };
+  const map = { action:'⚡ Action', accounts:'📋 Accounts', licenses:'🔑 Licenses', campaigns:'📣 Campaigns', dead:'💀 Dead', group:'👥 Group', insights:'📊 Insights', rotation:'🔄 Rotation' };
   return map[origin] || 'Accounts';
 }
 
@@ -5702,17 +5730,17 @@ function renderAPAction(local, name) {
         <div class="ap-action-field">
           <div class="ap-action-field-label">Headline</div>
           <input class="ap-action-input" id="ap-action-headline" type="text"
-            value="${escHtml(local.actionHeadline||'')}" placeholder="Add action headline…"
-            oninput="saveActionFieldDebounced('${esc}','actionHeadline',this.value)"
-            onblur="saveActionField('${esc}','actionHeadline',this.value)"
+            value="${escHtml(local.actionHeadline||'')}" placeholder="Add action headline…" data-acctname="${esc}"
+            oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)"
+            onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </div>
         <div class="ap-action-field">
           <div class="ap-action-field-label">Next Date</div>
           <input class="ap-action-input" id="ap-action-date" type="text"
-            value="${escHtml(local.actionNextDate||'')}" placeholder="e.g. Apr 15"
-            oninput="saveActionFieldDebounced('${esc}','actionNextDate',this.value)"
-            onblur="saveActionField('${esc}','actionNextDate',this.value)"
+            value="${escHtml(local.actionNextDate||'')}" placeholder="e.g. Apr 15" data-acctname="${esc}"
+            oninput="saveActionFieldDebounced(this.dataset.acctname,'actionNextDate',this.value)"
+            onblur="saveActionField(this.dataset.acctname,'actionNextDate',this.value)"
             onkeydown="if(event.key==='Enter')this.blur()">
         </div>
       </div>
@@ -5832,7 +5860,7 @@ function renderAPHeader(acc, local, name) {
 
   return `
     <div class="ap-header${hasOpp?' ap-header-opp-active':''}">
-      <button class="ap-actn-btn${hasAction?' active':''}" onclick="toggleActionFromPage('${escHtml(name)}')" title="${hasAction?'Remove from ⚡ Action':'Add to ⚡ Action'}"><span class="actn-bolt">⚡</span></button>
+      <button class="ap-actn-btn${hasAction?' active':''}" data-acctname="${escHtml(name)}" onclick="toggleActionFromPage(this.dataset.acctname)" title="${hasAction?'Remove from ⚡ Action':'Add to ⚡ Action'}"><span class="actn-bolt">⚡</span></button>
       <div class="ap-header-logo">${logoInner}</div>
       <div class="ap-header-info">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
@@ -6576,7 +6604,7 @@ function renderActionTable(rows) {
     const stageSelect = renderActionStageSelect(name);
 
     // Action Headline — custom text, stored in ibis_local[name].actionHeadline
-    const headlineCell = `<input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" onblur="saveActionField('${escHtml(name)}','actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
+    const headlineCell = `<input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
 
     // Next Date — custom date, turns orange if past due
     const nextDateCell = (()=>{
@@ -6589,7 +6617,7 @@ function renderActionTable(rows) {
           isPastDue = parsed < new Date();
         }
       }
-      return `<input class="action-date-input${isPastDue?' past-due':''}" type="text" value="${escHtml(dateStr)}" placeholder="Date…" onblur="saveActionField('${escHtml(name)}','actionNextDate',this.value);this.classList.toggle('past-due',!!this.value&&!isNaN(new Date(this.value))&&new Date(this.value)<new Date())" onkeydown="if(event.key==='Enter')this.blur()">`;
+      return `<input class="action-date-input${isPastDue?' past-due':''}" type="text" value="${escHtml(dateStr)}" placeholder="Date…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionNextDate',this.value)" onblur="saveActionField(this.dataset.acctname,'actionNextDate',this.value);this.classList.toggle('past-due',!!this.value&&!isNaN(new Date(this.value))&&new Date(this.value)<new Date())" onkeydown="if(event.key==='Enter')this.blur()">`;
     })();
 
     return `<tr class="${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}">
@@ -6689,7 +6717,7 @@ function renderActionCards(rows) {
         const nextDateParsed = local.actionNextDate ? new Date(local.actionNextDate) : null;
         const isOverdue = nextDateParsed && nextDateParsed < todayMidnight;
         return `<div class="action-kanban-card${isOverdue?' action-card-overdue':''}" draggable="true"
-                  ondragstart="handleActionKanbanDragStart(event,'${escHtml(name)}')"
+                  data-acctname="${escHtml(name)}" ondragstart="handleActionKanbanDragStart(event,this.dataset.acctname)"
                   ondragend="document.querySelectorAll('.action-kanban-col').forEach(c=>c.classList.remove('drag-over'))">
           ${hasOpp ? `<span class="action-opp-badge">Opp</span>` : ''}
           <div class="action-kanban-card-top">
@@ -6913,7 +6941,7 @@ function handleOppsCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.dqd ? ` · ${result.dqd} DQ'd` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -6954,6 +6982,9 @@ function autoAddToAction(accountName) {
   const canonicalName = existingAcct ? getField(existingAcct,'Account Name','AccountName') : null;
   // Already in Action — nothing to do (check both possible keys)
   if (localData[canonicalName || accountName]?.hasAction) return;
+  // hasAction === false means Dan explicitly removed ⚡ — auto-sync must not undo that.
+  // Only auto-add accounts that were never in Action (undefined).
+  if (localData[canonicalName || accountName]?.hasAction === false) return;
   if (existingAcct && canonicalName) {
     // In territory — flag using canonical name so Action tab finds it
     if (!localData[canonicalName]) localData[canonicalName] = {};
@@ -6999,7 +7030,8 @@ function syncAllWorkablesToAction() {
       const normN = normName(o.accountName);
       const existingAcct = accounts.find(a => normName(getField(a,'Account Name','AccountName')) === normN);
       const key = existingAcct ? getField(existingAcct,'Account Name','AccountName') : o.accountName;
-      if (!localData[key]?.hasAction) {
+      // undefined = never in Action → auto-add. false = Dan removed ⚡ → leave it removed.
+      if (localData[key]?.hasAction === undefined) {
         autoAddToAction(o.accountName);
         changed = true;
       }
@@ -7322,22 +7354,24 @@ function renderOppCard(o) {
     <div class="opp-card-footer">
       <span class="opp-days">📅 ${daysStr}</span>
       <div style="display:flex;gap:4px;align-items:center;">
-        ${o.sfOpp?`<button class="opp-sf-pill" style="border-radius:6px;padding:3px 10px;" title="Toggle off" onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')">Opp</button>`:`<button class="opp-dot-btn" title="Mark as SF Opp" onclick="event.stopPropagation();toggleSFOpp('${escHtml(email)}')"><span class="opp-dot"></span></button>`}
+        ${o.sfOpp?`<button class="opp-sf-pill" style="border-radius:6px;padding:3px 10px;" title="Toggle off" data-email="${escHtml(email)}" onclick="event.stopPropagation();toggleSFOpp(this.dataset.email)">Opp</button>`:`<button class="opp-dot-btn" title="Mark as SF Opp" data-email="${escHtml(email)}" onclick="event.stopPropagation();toggleSFOpp(this.dataset.email)"><span class="opp-dot"></span></button>`}
         <button class="opp-notes-btn${hasNotes?' has-notes':''}" title="${hasNotes?'Notes':'Add notes'}"
           onclick="event.stopPropagation();toggleOppNotes('opp-notes-${safeId}')">📝</button>
-        <button class="opp-delete-btn" title="Delete contact"
-          onclick="event.stopPropagation();deleteOpp('${escHtml(email)}')">🗑</button>
+        <button class="opp-delete-btn" title="Delete contact" data-email="${escHtml(email)}"
+          onclick="event.stopPropagation();deleteOpp(this.dataset.email)">🗑</button>
       </div>
     </div>
     <div class="opp-next-wrap">
       <input class="opp-next-input" type="text" placeholder="Next action…"
-        value="${escHtml(o.nextAction||'')}"
-        onblur="saveOppField('${escHtml(email)}','nextAction',this.value)"
+        value="${escHtml(o.nextAction||'')}" data-email="${escHtml(email)}"
+        oninput="saveOppFieldDebounced(this.dataset.email,'nextAction',this.value)"
+        onblur="saveOppField(this.dataset.email,'nextAction',this.value)"
         onclick="event.stopPropagation()">
     </div>
     <div class="opp-notes-wrap${hasNotes?' open':''}" id="opp-notes-${safeId}">
-      <textarea class="opp-notes-ta" rows="2" placeholder="Notes…"
-        onblur="saveOppField('${escHtml(email)}','notes',this.value)"
+      <textarea class="opp-notes-ta" rows="2" placeholder="Notes…" data-email="${escHtml(email)}"
+        oninput="saveOppFieldDebounced(this.dataset.email,'notes',this.value)"
+        onblur="saveOppField(this.dataset.email,'notes',this.value)"
         onclick="event.stopPropagation()">${escHtml(o.notes||'')}</textarea>
     </div>
   </div>`;
@@ -7372,14 +7406,14 @@ function renderOppsTable(pipeline) {
           <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName)}</span></div></td>
           <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name)}</div></td>
           <td style="font-size:12px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" onclick="toggleSFOpp('${email}')">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" onblur="saveOppAmt('${email}',this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(o.closeDate||'')}" onblur="saveOppField('${email}','closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`:`<button class="opp-dot-btn" onclick="toggleSFOpp('${email}')"><span class="opp-dot"></span></button>`}</td>
+          <td style="text-align:center;">${o.sfOpp?`<div class="opp-active-wrap"><button class="opp-sf-pill" data-email="${escHtml(email)}" onclick="toggleSFOpp(this.dataset.email)">Opp</button><input class="opp-amt-input" type="text" placeholder="$" value="${escHtml(o.sfAmt||'')}" data-email="${escHtml(email)}" oninput="saveOppFieldDebounced(this.dataset.email,'sfAmt',this.value)" onblur="saveOppAmt(this.dataset.email,this)" onkeydown="if(event.key==='Enter')this.blur()"><input class="opp-close-input" type="text" placeholder="Close date" value="${escHtml(o.closeDate||'')}" data-email="${escHtml(email)}" oninput="saveOppFieldDebounced(this.dataset.email,'closeDate',this.value)" onblur="saveOppField(this.dataset.email,'closeDate',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div>`:`<button class="opp-dot-btn" data-email="${escHtml(email)}" onclick="toggleSFOpp(this.dataset.email)"><span class="opp-dot"></span></button>`}</td>
           <td>${renderStageSelect(o, email)}</td>
-          <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" onchange="saveOppField('${email}','nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
+          <td><select class="opp-next-select${!o.nextAction?' opp-next-empty':''}" data-email="${escHtml(email)}" onchange="saveOppField(this.dataset.email,'nextAction',this.value);this.classList.toggle('opp-next-empty',!this.value)">
             ${OPP_NEXT_ACTIONS.map(a => `<option value="${escHtml(a.val)}"${(o.nextAction||'')===(a.val)?' selected':''}>${a.key}</option>`).join('')}
           </select></td>
-          <td><input class="opp-inline-input" type="text" value="${escHtml(o.nextDate||'')}" placeholder="Date…" style="width:90px;" onblur="saveOppField('${email}','nextDate',this.value)"></td>
+          <td><input class="opp-inline-input" type="text" value="${escHtml(o.nextDate||'')}" placeholder="Date…" style="width:90px;" data-email="${escHtml(email)}" oninput="saveOppFieldDebounced(this.dataset.email,'nextDate',this.value)" onblur="saveOppField(this.dataset.email,'nextDate',this.value)"></td>
           <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${daysAgo!==null?daysAgo+'d ago':'—'}</td>
-          <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteOpp('${email}')" title="Delete">🗑</button></td>
+          <td style="text-align:center;"><button class="opp-delete-btn" data-email="${escHtml(email)}" onclick="deleteOpp(this.dataset.email)" title="Delete">🗑</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table>
@@ -7451,6 +7485,18 @@ function saveOppField(email, field, value) {
   saveOpps();
 }
 
+// Debounced twin of saveOppField — shares _pendingFieldSaves so the
+// beforeunload flush covers typed-but-not-blurred contact notes too.
+function saveOppFieldDebounced(email, field, value) {
+  const k = 'opp|' + email + '|' + field;
+  if (_pendingFieldSaves[k]) clearTimeout(_pendingFieldSaves[k].t);
+  const doSave = () => {
+    if (opps[email]) { opps[email][field] = value; saveOpps(); }
+    delete _pendingFieldSaves[k];
+  };
+  _pendingFieldSaves[k] = { t: setTimeout(doSave, 400), flush: doSave };
+}
+
 function saveOppAmt(email, input) {
   if (!opps[email]) return;
   let v = input.value.trim().replace(/^\$+/, '');
@@ -7495,7 +7541,7 @@ function handleSamplesCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -7617,7 +7663,7 @@ function handleSixqaCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -7746,7 +7792,7 @@ function handleChurnCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -7874,7 +7920,7 @@ function handleNetnewCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -8003,7 +8049,7 @@ function handleMultithreadCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1'); e.target.value = '';
+  readCsvViaReader(reader, file); e.target.value = '';
 }
 function mergeMultithread(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
@@ -8079,7 +8125,7 @@ function handleWinbackCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1'); e.target.value = '';
+  readCsvViaReader(reader, file); e.target.value = '';
 }
 function mergeWinback(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
@@ -8155,7 +8201,7 @@ function handleAlumniCSV(e) {
     showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1'); e.target.value = '';
+  readCsvViaReader(reader, file); e.target.value = '';
 }
 function mergeAlumni(newContacts) {
   const today = new Date().toISOString().slice(0, 10);
@@ -8734,6 +8780,7 @@ function saveDeadSeen() {
 function markDeadAsSeen() {
   deadAccounts.forEach(d => deadSeenKeys.add(deadItemKey(d,'account')));
   deadLicenses.forEach(d => deadSeenKeys.add(deadItemKey(d,'license')));
+  deadWorkableContacts.forEach(d => deadSeenKeys.add('wk|' + d.email));
   deadSampleContacts.forEach(d => deadSeenKeys.add('sc|' + d.email));
   deadSixqaContacts.forEach(d => deadSeenKeys.add('6q|' + d.email));
   deadChurnContacts.forEach(d => deadSeenKeys.add('ch|' + d.email));
@@ -8886,7 +8933,7 @@ function renderDeadAccounts() {
 
     // Warning badge — clickable to dismiss (marks as expected drop)
     const warnHtml = isUnexpected
-      ? `<span title="Removed without being marked ✕ Drop. Click to dismiss." onclick="dismissDeadWarning(${JSON.stringify(name)})" style="font-size:14px;cursor:pointer;" onmouseover="this.style.opacity='0.6'" onmouseout="this.style.opacity='1'">⚠️</span>`
+      ? `<span title="Removed without being marked ✕ Drop. Click to dismiss." data-acctname="${escHtml(name)}" onclick="dismissDeadWarning(this.dataset.acctname)" style="font-size:14px;cursor:pointer;" onmouseover="this.style.opacity='0.6'" onmouseout="this.style.opacity='1'">⚠️</span>`
       : '';
 
     return `<tr style="opacity:0.85;${isUnexpected ? 'background:#fffbeb;' : ''}">
@@ -9023,7 +9070,7 @@ function renderDeadContacts() {
       <td>${campBadge}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${days !== null ? days+'d ago' : '—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-secondary);">${d._deadSince||'—'}</td>
-      <td><button onclick="reviveDeadContact(${JSON.stringify(d.email)},${JSON.stringify(camp)})" style="height:26px;padding:0 10px;font:500 11px 'DM Sans',sans-serif;border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;cursor:pointer;white-space:nowrap;transition:150ms ease;" onmouseover="this.style.background='#f0fdf4';this.style.borderColor='#16a34a';this.style.color='#16a34a'" onmouseout="this.style.background='#fff';this.style.borderColor='#d1d5db';this.style.color='#374151'">↩ Revive</button></td>
+      <td><button data-email="${escHtml(d.email||'')}" data-camp="${escHtml(camp)}" onclick="reviveDeadContact(this.dataset.email,this.dataset.camp)" style="height:26px;padding:0 10px;font:500 11px 'DM Sans',sans-serif;border:1px solid #d1d5db;border-radius:999px;background:#fff;color:#374151;cursor:pointer;white-space:nowrap;transition:150ms ease;" onmouseover="this.style.background='#f0fdf4';this.style.borderColor='#16a34a';this.style.color='#16a34a'" onmouseout="this.style.background='#fff';this.style.borderColor='#d1d5db';this.style.color='#374151'">↩ Revive</button></td>
     </tr>`;
   }).join('');
 }
@@ -9143,7 +9190,12 @@ function closeContactPreview() {
 
 <script>
 // ── Debug Panel ────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => { if (e.shiftKey && e.key === 'D') openDebugPanel(); });
+document.addEventListener('keydown', e => {
+  // Ignore while typing — a capital D in any input/notes field must not open the panel
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (e.shiftKey && e.key === 'D') openDebugPanel();
+});
 
 function openDebugPanel() {
   document.getElementById('dbg-ts').textContent = 'as of ' + new Date().toLocaleTimeString();
@@ -9171,16 +9223,6 @@ function dbgSection(title, rows) {
 function renderDebugContent() {
   const el = document.getElementById('debug-content');
 
-  // PA Sync
-  const pa = _dbg.pa;
-  const paOk = pa.status === 'ok';
-  const paRows = [
-    ['Status', pa.status === 'ok' ? `✅ Success` : pa.status === 'error' ? `❌ ${pa.error}` : pa.status === 'fetching' ? '⏳ In progress' : pa.status === 'pending' ? '⏳ Not yet run' : pa.status, paOk],
-    ['Accounts loaded', pa.rows > 0 ? pa.rows + ' accounts' : '—', pa.rows > 0],
-    ['Last run', pa.ts || '—', null],
-    ['URL configured', PA_CONFIG.accountsUrl !== 'PASTE_SHAREPOINT_URL_HERE' ? '✅ Yes' : '❌ Missing', PA_CONFIG.accountsUrl !== 'PASTE_SHAREPOINT_URL_HERE'],
-  ];
-
   // Enrichment
   const en = _dbg.enrich;
   const enrichRows = [
@@ -9206,7 +9248,7 @@ function renderDebugContent() {
   // Accounts state
   const acctRows = [
     ['In memory', accounts.length + ' accounts', accounts.length > 0],
-    ['Source', _dbg.pa.status === 'ok' ? 'Power Automate (OneDrive)' : accounts.length > 0 ? 'localStorage / CSV' : 'None', null],
+    ['Source', accounts.length > 0 ? 'localStorage / CSV' : 'None', null],
     ['Licenses in memory', (typeof licenses !== 'undefined' ? licenses.length : '?') + ' rows', null],
     ['Workables in memory', Object.keys(opps || {}).length + ' contacts', null],
     ['Dead accounts', (typeof deadAccounts !== 'undefined' ? deadAccounts.length : '?'), null],
@@ -9226,8 +9268,7 @@ function renderDebugContent() {
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      ${dbgSection('🔄 Power Automate Sync', paRows)}
-      ${dbgSection('🧠 Claude Enrichment', enrichRows)}
+      ${dbgSection('🧠 Enrichment', enrichRows)}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
       ${dbgSection('💾 localStorage Sizes', storageRows)}
@@ -9248,7 +9289,6 @@ function copyDebugReport() {
   ALL_STORAGE_KEYS.forEach(k => { const v = localStorage.getItem(k); sizes[k] = v ? Math.round(v.length * 2 / 1024) + 'KB' : '—'; });
   const report = {
     ts: new Date().toISOString(),
-    pa: _dbg.pa,
     enrich: _dbg.enrich,
     storage: sizes,
     state: {
@@ -9304,11 +9344,11 @@ function loadGroupData() {
     try {
       const s = localStorage.getItem(grpLicKey(o));
       const raw = s ? JSON.parse(s) : [];
-      const today = new Date();
+      const today = new Date(); today.setHours(0,0,0,0);
       groupLicenses[o] = raw.map(l => {
         l._endDate   = l._endDate   ? new Date(l._endDate)   : null;
         l._startDate = l._startDate ? new Date(l._startDate) : null;
-        l._active = l._endDate ? l._endDate > today : false;
+        l._active = l._endDate ? l._endDate >= today : false;
         if (!l._active && l._endDate) {
           const yr = l._endDate.getFullYear();
           l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
@@ -9377,7 +9417,7 @@ function handleGroupAccountsCSV(owner, e) {
     showGroupToast(`✅ ${GROUP_OWNER_LABEL[owner]} · ${rows.length} accounts loaded`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -9394,7 +9434,7 @@ function handleGroupLicensesCSV(owner, e) {
     showGroupToast(`✅ ${GROUP_OWNER_LABEL[owner]} · ${groupLicenses[owner].length} licenses loaded`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -9757,11 +9797,11 @@ function loadRotationData() {
   try {
     const s = localStorage.getItem('ibis_rotation_licenses');
     const raw = s ? JSON.parse(s) : [];
-    const today = new Date();
+    const today = new Date(); today.setHours(0,0,0,0);
     rotationLicenses = raw.map(l => {
       l._endDate   = l._endDate   ? new Date(l._endDate)   : null;
       l._startDate = l._startDate ? new Date(l._startDate) : null;
-      l._active = l._endDate ? l._endDate > today : false;
+      l._active = l._endDate ? l._endDate >= today : false;
       if (!l._active && l._endDate) {
         const yr = l._endDate.getFullYear();
         l._churnTier = yr >= CHURN_YEAR_NEW ? 'newchurn' : yr >= CHURN_YEAR_CHURNED ? 'churned' : 'dead';
@@ -9807,7 +9847,7 @@ function handleRotationAccountsCSV(e) {
     showGroupToast(`✅ Rotation · ${rotationAccounts.length} accounts loaded`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 function handleRotationLicensesCSV(e) {
@@ -9822,7 +9862,7 @@ function handleRotationLicensesCSV(e) {
     showGroupToast(`✅ Rotation · ${rotationLicenses.length} licenses loaded`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 function handleRotationOppsCSV(e) {
@@ -9839,7 +9879,7 @@ function handleRotationOppsCSV(e) {
     showGroupToast(`✅ Rotation · ${rotationOpps.length} opportunities loaded`);
     checkStorageSize();
   };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 function clearRotationData(kind) {
@@ -10459,11 +10499,11 @@ function formatBigUSD(n) {
 // Dedicated parser for Client Insights CSV. Doesn't filter on "Account Name"
 // (this CSV uses "Account" — the shared parseCSV would silently return 0 rows).
 function parseClientCSV(text) {
-  text = text.replace(/^﻿/, '').normalize('NFC');
+  text = text.replace(/^\uFEFF/, '').normalize('NFC');
   const lines = text.split('\n').filter(l => l.trim());
   if (lines.length < 2) return [];
   const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g,''));
-  const today = new Date();
+  const today = new Date(); today.setHours(0,0,0,0);
   const out = [];
   for (let i = 1; i < lines.length; i++) {
     const vals = parseCSVLine(lines[i]);
@@ -10483,7 +10523,7 @@ function parseClientCSV(text) {
       v: vert,
       $: amt,
       e: end ? end.toISOString().slice(0,10) : '',
-      act: end ? end > today : true
+      act: end ? end >= today : true
     });
   }
   return out;
@@ -10522,7 +10562,7 @@ function handleClientInsightsCSV(e) {
     });
   };
   reader.onerror = () => { hideCsvLoadingOverlay(); alert('Failed to read the file.'); };
-  reader.readAsText(file, 'latin1');
+  readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
@@ -11386,13 +11426,18 @@ function _autoBackupSaveToRing(snap, reason) {
 function snapshotBeforeAction(label) {
   try {
     const snap = _buildBackupSnapshot();
-    _autoBackupSaveToRing(snap, label);
+    const ringCount = _autoBackupSaveToRing(snap, label);
     const meta = _autoBackupLoadMeta();
-    meta.lastInMemoryTs = Date.now();
+    if (ringCount > 0) { meta.lastInMemoryTs = Date.now(); }
     _autoBackupSaveMeta(meta);
     // Fire-and-forget file write — don't block the upload waiting for it
     _autoBackupDownloadFile(snap).catch(() => {});
-    try { showOppToast(`🛡 Safety snapshot saved — ${label}`); } catch {}
+    // Only claim what actually happened — the ring save can fail on quota
+    try {
+      showOppToast(ringCount > 0
+        ? `🛡 Safety snapshot saved — ${label}`
+        : `🛡 Snapshot written to backup file — ${label} (in-browser ring full)`);
+    } catch {}
     try { updateAutoBackupIndicator(); } catch {}
   } catch (e) {
     console.warn('[ibis-snapshot] pre-action snapshot failed', e);
@@ -11603,7 +11648,9 @@ async function runAutoBackup({ forceFile = false } = {}) {
     const snap = _buildBackupSnapshot();
     const ringSize = _autoBackupSaveToRing(snap);
     meta.lastHash = hash;
-    meta.lastInMemoryTs = Date.now();
+    // Only stamp an in-memory save time when a ring entry actually persisted —
+    // otherwise the panel claims "last save just now" while the ring is empty.
+    if (ringSize > 0) meta.lastInMemoryTs = Date.now();
     meta.ringSize = ringSize;
     const now = Date.now();
     const since = now - (meta.lastFileTs || 0);
