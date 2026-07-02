@@ -8657,7 +8657,9 @@ function autoQueueGroupEnrichment(owner) {
     queueDescEnrich(n);
     queueSentEnrich(n);
   });
-  queueClientInsightsRevenue(revNames);
+  // Deferred one tick: bootGroup calls this during page evaluation, before the
+  // Wikidata module's top-level state (clientRevCache etc.) has initialized.
+  setTimeout(() => queueClientInsightsRevenue(revNames), 0);
 }
 
 /* ─── Per-owner license helpers (mirror personal versions) ─────────────── */
@@ -9070,7 +9072,8 @@ function autoQueueRotationEnrichment() {
     if (!isNoRevAccount(a)) revNames.push(n);
     queueDescEnrich(n); queueSentEnrich(n);
   });
-  queueClientInsightsRevenue(revNames);
+  // Deferred one tick — same boot-ordering reason as autoQueueGroupEnrichment
+  setTimeout(() => queueClientInsightsRevenue(revNames), 0);
 }
 
 /* ─── License + PIQ-Rep + Opp helpers ────────────────────────────────────── */
