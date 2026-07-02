@@ -95,26 +95,6 @@
   .vnav-btn:hover { color: var(--text-secondary); }
   .vnav-btn.active { color: var(--ibis-red); border-bottom-color: var(--ibis-red); }
 
-  .upload-btn-license {
-    background: var(--ibis-red);
-    color: white;
-    border: none;
-    padding: 0 16px;
-    height: 34px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    transition: background 150ms ease, transform 150ms ease;
-    display: inline-flex; align-items: center; gap: 6px;
-    white-space: nowrap;
-  }
-  .upload-btn-license:hover { background: #a50d24; }
-  .upload-btn-license:active { transform: scale(0.97); }
-  .upload-btn-license.fresh { background: #059669; }
-  .upload-btn-license.fresh:hover { background: #047857; }
-
   .lic-type-badge {
     display: inline-flex; align-items: center;
     font-size: 11px; font-weight: 600;
@@ -138,17 +118,8 @@
   .lic-churned  { background: #fee2e2; color: #991b1b; }
   .lic-dead     { background: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; }
 
-  .lic-signal { font-size: 13px; letter-spacing: -1px; }
-
   .lic-acv { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text-primary); }
   .lic-acv.zero { color: var(--text-muted); }
-
-  .in-territory {
-    display: inline-flex; align-items: center;
-    font-size: 10px; font-weight: 600; color: #059669;
-    background: #d1fae5; padding: 1px 7px; border-radius: 999px;
-    letter-spacing: 0.2px; margin-left: 6px;
-  }
 
   .lic-name-main { font-weight: 500; color: var(--text-primary); font-size: 13px; }
   .lic-name-sub  { font-size: 11px; color: #6b7280; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
@@ -521,7 +492,6 @@
   .company-logo img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
 
   .company-name { font-size: 14px; font-weight: 500; color: var(--text-primary); line-height: 1.3; }
-  .company-vertical { margin-top: 5px; }
   .vert-bubble {
     display: inline-block;
     font-size: 11px; font-weight: 600;
@@ -588,22 +558,6 @@
   /* Action filter chip active color */
   .chip-action.active { background:#ecfeff; border-color:#22d3ee; color:#0891b2; }
 
-  /* Workables count bubble */
-  .wkbl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#7c3aed; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .wkbl-dot:hover { opacity:0.82; }
-  /* Samples count bubble */
-  .smpl-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#059669; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .smpl-dot:hover { opacity:0.82; }
-  .sixqa-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#0891b2; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .sixqa-dot:hover { opacity:0.82; }
-  .churn-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#c2410c; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .churn-dot:hover { opacity:0.82; }
-  .netnew-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#2563eb; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .netnew-dot:hover { opacity:0.82; }
-  .multithread-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#92400e; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .multithread-dot:hover { opacity:0.82; }
-  .winback-dot { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:10px; background:#be185d; color:white; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; letter-spacing:0; cursor:pointer; transition:opacity 150ms ease; }
-  .winback-dot:hover { opacity:0.82; }
   /* Campaign cluster widget — compact ovals, scales to 8+ campaigns */
   .camp-cluster { display:inline-flex; align-items:center; gap:3px; flex-wrap:nowrap; }
   .camp-oval { display:inline-flex; align-items:center; justify-content:center; height:20px; min-width:24px; border-radius:999px; color:#fff; font-size:10px; font-weight:700; font-family:'DM Mono',monospace; padding:0 6px; cursor:pointer; transition:opacity 150ms ease; white-space:nowrap; letter-spacing:0; }
@@ -754,10 +708,7 @@
     tr, .ins-row, .cli-cross-row { page-break-inside:avoid; }
     @page { margin:14mm 12mm; }
   }
-  /* ─── AUTO-BACKUP STATUS INDICATOR + RECOVERY MODAL ─────────────────── */
-  #autoback-indicator { position:fixed; bottom:14px; left:14px; background:#0f172a; color:#fff; font-size:11px; font-weight:600; padding:6px 12px; border-radius:999px; font-family:'DM Sans',sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.18); cursor:pointer; z-index:9000; transition:background 150ms ease, transform 150ms ease; user-select:none; }
-  #autoback-indicator:hover { background:#1e293b; transform:translateY(-1px); }
-  @media print { #autoback-indicator { display:none !important; } }
+  /* ─── BACKUPS PANEL ──────────────────────────────────────────────────── */
   #autoback-modal { display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:9999; align-items:center; justify-content:center; padding:40px; }
   .ab-card { background:#fff; border-radius:12px; max-width:520px; width:100%; box-shadow:0 12px 32px rgba(0,0,0,.22); overflow:hidden; font-family:'DM Sans',sans-serif; }
   .ab-card-header { padding:18px 22px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; }
@@ -765,7 +716,6 @@
   .ab-card-sub { font-size:12px; color:var(--text-muted); margin-top:3px; }
   .ab-card-close { background:none; border:none; font-size:18px; color:var(--text-muted); cursor:pointer; line-height:1; padding:0 4px; }
   .ab-card-close:hover { color:var(--text-primary); }
-  .ab-list { max-height:360px; overflow:auto; }
   .ab-row { display:flex; align-items:center; gap:14px; padding:12px 22px; border-bottom:1px solid #f3f4f6; cursor:pointer; transition:background 100ms ease; }
   .ab-row:hover { background:#f9fafb; }
   .ab-row:last-child { border-bottom:none; }
@@ -806,7 +756,6 @@
   #header-backup-icon:hover { background:#f9fafb; border-color:#9ca3af; }
   @keyframes ibis-dot-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.6); } 50% { box-shadow:0 0 0 6px rgba(220,38,38,0); } }
   /* Old bottom-left pill (kept defensively in case anything still toggles it) */
-  #autoback-indicator { display:none !important; }
   /* ── Save-failure banner (critical, full-bleed top, can't be missed) ─── */
   #save-failure-banner {
     display:none; position:fixed; top:0; left:0; right:0; z-index:10001;
@@ -1001,7 +950,6 @@
   }
   .csv-chip-added  { background: #f0fdf4; color: #16a34a; }
   .csv-chip-removed { background: #fef2f2; color: #dc2626; }
-  .csv-chip-zero   { background: #f3f4f6; color: #9ca3af; }
   .upload-menu-x {
     background: none; border: none; cursor: pointer;
     font-size: 13px; color: var(--text-muted); padding: 0 2px;
@@ -1152,7 +1100,6 @@
   .opp-close-input::placeholder { font-size:10px; color:#9ca3af; }
   /* Territory patch dot */
   .patch-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,0.15); flex-shrink:0; }
-  .patch-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; color:#15803d; background:#dcfce7; border-radius:999px; padding:2px 8px; white-space:nowrap; }
   /* Account Status dropdown */
   .acct-status-wrap { position:relative; display:inline-block; }
   .acct-status-trigger { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.5; min-width:68px; transition:opacity 0.1s; }
@@ -1254,7 +1201,6 @@
   .campaign-selector-item.disabled:hover { background:none; }
   .campaign-selector-count-badge { margin-left:auto; background:#f3f4f6; color:#6b7280; border-radius:999px; padding:1px 8px; font-size:11px; font-weight:700; }
   .campaign-selector-item.active .campaign-selector-count-badge { background:#fee2e2; color:#c8102e; }
-  .campaign-selector-divider { height:1px; background:var(--border); margin:5px 0; }
   /* Workables/Samples inline stats wrappers */
   #campaign-workables-stats, #campaign-samples-stats { display:flex; align-items:stretch; gap:0; flex:1; }
   /* Cold section */
@@ -1434,7 +1380,6 @@
   .action-terr-dot.dropped { background:#d1d5db; }
   .action-kanban-name { font-size:12px; font-weight:600; color:var(--text-primary); cursor:pointer; }
   .action-kanban-name:hover { color:var(--ibis-red); }
-  .action-kanban-sub { font-size:10px; color:var(--text-muted); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .action-kanban-card-meta { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
 
   /* Action toggle button on Account page header */
@@ -1522,26 +1467,6 @@
   .ap-camp-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ap-camp-title { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ap-camp-days { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-muted); flex-shrink: 0; }
-  /* Legacy single-column contact row (used in Priority Outreach) */
-  .ap-contact-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 0; border-bottom: 1px solid #f3f4f6;
-  }
-  .ap-contact-row:last-child { border-bottom: none; }
-  .ap-avatar {
-    width: 28px; height: 28px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
-  }
-  .ap-contact-info { flex: 1; min-width: 0; }
-  .ap-contact-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-  .ap-contact-title { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ap-contact-right { display: flex; align-items: center; gap: 4px; }
-  .ap-days-chip {
-    font-size: 10px; color: var(--text-muted); font-family: 'DM Mono', monospace;
-    background: #f3f4f6; border-radius: 999px; padding: 2px 8px;
-  }
-
   /* License history */
   .ap-lic-row {
     display: flex; align-items: flex-start; gap: 8px;
@@ -1566,20 +1491,6 @@
   .ap-opp-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ap-opp-amt { font-size: 11px; font-family: 'DM Mono', monospace; color: #059669; font-weight: 600; }
   .ap-opp-close { font-size: 10px; color: var(--text-muted); }
-
-  /* Account plan */
-  .ap-plan-textarea {
-    width: 100%; min-height: 150px;
-    border: 1px solid transparent; border-radius: 8px;
-    padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 13px;
-    color: var(--text-primary); background: #fafafa; resize: vertical;
-    transition: border-color 0.15s, background 0.15s; box-sizing: border-box; line-height: 1.65;
-  }
-  .ap-plan-textarea:focus { outline: none; border-color: var(--ibis-red); background: #fff; box-shadow: 0 0 0 3px rgba(200,16,46,0.08); }
-  .ap-plan-textarea::placeholder { color: #c4c9d2; font-style: italic; }
-  .ap-plan-footer { display: flex; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-  .ap-plan-data { font-size: 11px; color: var(--text-muted); }
-  .ap-plan-data strong { color: var(--text-secondary); }
 
   /* Empty states */
   .ap-empty { text-align: center; color: var(--text-muted); font-size: 12px; padding: 18px 0 10px; font-style: italic; line-height: 1.5; }
@@ -3743,29 +3654,18 @@ window.addEventListener('beforeunload', () => {
   //    fired (paste-then-close, autocomplete-then-close, etc.)
   try {
     const notesEl = document.getElementById('ap-action-notes');
-    const planEl  = document.getElementById('ap-plan-textarea');
     const headEl  = document.getElementById('ap-action-headline');
     const dateEl  = document.getElementById('ap-action-date');
-    const acctName = notesEl?.dataset?.acctname || planEl?.dataset?.acctname || currentAccountPageName;
+    const acctName = notesEl?.dataset?.acctname || currentAccountPageName;
     if (acctName) {
       if (!localData[acctName]) localData[acctName] = {};
       if (notesEl) localData[acctName].actionNotes    = notesEl.innerHTML;
-      if (planEl)  localData[acctName].accountPlan    = planEl.value;
       if (headEl)  localData[acctName].actionHeadline = headEl.value;
       if (dateEl)  localData[acctName].actionNextDate = dateEl.value;
       localStorage.setItem('ibis_local', JSON.stringify(localData));
     }
   } catch {}
 });
-
-// Toggle opp from Action table — syncs with Campaigns (shared ibis_opps data)
-function toggleActionOpp(email) {
-  if (!opps[email]) return;
-  opps[email].sfOpp = !opps[email].sfOpp;
-  saveOpps();
-  renderOpps();
-  renderAction();
-}
 
 // Toggle ⚡ action from the Account page header button
 function toggleActionFromPage(name) {
@@ -4955,12 +4855,6 @@ function getLicBadgeSpans(accountName) {
   return badges.join('');
 }
 
-// Wrapped version for cards (includes border-top strip container)
-function getLicBadgesForAccount(accountName) {
-  const inner = getLicBadgeSpans(accountName);
-  return inner ? `<div class="acct-lic-badges">${inner}</div>` : '';
-}
-
 // Territory business rules: correct license types before signal calc.
 // Rules defined with Dan:
 //   1. Active US Industry → PIQ (no active US Industry exists in Dan's territory)
@@ -5946,50 +5840,9 @@ function renderAPOpportunities(name) {
     <button class="ap-add-btn" disabled>+ Track opportunity (coming soon)</button>`;
 }
 
-// ── Panel 6: Account plan & notes ────────────────────────────
-function renderAPPlan(acc, local, name) {
-  const plan  = local.accountPlan || '';
-  const stage = getField(acc,'6sense Account Buying Stage NA');
-  const days  = getField(acc,'US Days Since Last Activity');
-  const esc = escHtml(name);
-
-  return `
-    <div class="ap-panel-title" style="display:flex;align-items:center;gap:10px;">📝 Account Plan
-      <span id="ap-plan-savestate" style="font-size:10px;color:#16a34a;font-family:'DM Mono',monospace;font-weight:500;">✓ Saved</span>
-    </div>
-    <textarea id="ap-plan-textarea" class="ap-plan-textarea" data-acctname="${esc}"
-      oninput="saveAccountPlanDebounced('${esc}',this.value)"
-      onblur="saveAccountPlanNow('${esc}',this.value)"
-      placeholder="Click to add your account plan — strategy, key contacts, goals, blockers...">${escHtml(plan)}</textarea>
-    ${(stage || days) ? `<div class="ap-plan-footer">
-      ${stage ? `<div class="ap-plan-data"><strong>6sense Stage:</strong> ${escHtml(stage)}</div>` : ''}
-      ${days  ? `<div class="ap-plan-data"><strong>Last Activity:</strong> ${days} days ago</div>` : ''}
-    </div>` : ''}`;
-}
-
-// Account Plan save: instant on blur, debounced on input. Same three-layer
-// protection as Notes (debounce + blur + beforeunload).
-function saveAccountPlanNow(name, value) {
-  if (!localData[name]) localData[name] = {};
-  localData[name].accountPlan = value;
-  try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
-  const ind = document.getElementById('ap-plan-savestate');
-  if (ind) { ind.textContent = '✓ Saved'; ind.style.color = '#16a34a'; }
-}
-function saveAccountPlanDebounced(name, value) {
-  const ind = document.getElementById('ap-plan-savestate');
-  if (ind) { ind.textContent = '● Saving…'; ind.style.color = '#d97706'; }
-  saveActionFieldDebounced(name, 'accountPlan', value);
-  // After the debounced save fires, swap indicator back to Saved. The
-  // debounce in saveActionFieldDebounced is 400ms.
-  setTimeout(() => {
-    if (!ind) return;
-    // Only update if we haven't started another save in the meantime
-    if (ind.textContent !== '● Saving…') return;
-    ind.textContent = '✓ Saved';
-    ind.style.color = '#16a34a';
-  }, 450);
-}
+// (Account Plan panel removed — it was accidentally dropped from the account
+// page in the v30 layout overhaul and Dan confirmed he doesn't need it. Any
+// previously saved accountPlan text stays untouched in ibis_local.)
 
 // ── Action Tab ──────────────────────────────────────────────
 
@@ -6730,18 +6583,6 @@ function safeFreeStorage() {
   return result;
 }
 
-// Legacy alias — preserved for any older call sites.
-function clearEnrichmentCache() { return safeFreeStorage(); }
-
-function _calcLocalStorageKB() {
-  let total = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const v = localStorage.getItem(localStorage.key(i));
-    if (v) total += v.length * 2;
-  }
-  return Math.round(total / 1024);
-}
-
 /* ============================================================
    OPPORTUNITIES ENGINE
    ============================================================ */
@@ -7046,11 +6887,6 @@ const STAGE_COLORS = {
   'Future Revisit': { bg:'#ede9fe', color:'#6d28d9' },
   'DQ':             { bg:'#f3f4f6', color:'#6b7280' },
 };
-function applyStageColor(sel) {
-  const c = STAGE_COLORS[sel.value] || { bg:'var(--surface)', color:'var(--text-secondary)' };
-  sel.style.background = c.bg; sel.style.color = c.color; sel.style.fontWeight = '500';
-}
-
 function renderStageSelect(o, email) {
   const safeId = 'ssel-' + email.replace(/[^a-z0-9]/g,'_');
   const sc = STAGE_COLORS[o.stage] || { bg:'var(--surface)', color:'var(--text-secondary)' };
@@ -7164,10 +7000,6 @@ function oppBadgeLogoHTML(opp) {
   const resolved = logoResolved[domain];
   if (resolved === '__initials__' || !resolved) return '';
   return `<img src="${resolved}" alt="">`;
-}
-
-function oppStageClass(stageKey) {
-  return ({ 'Introduction':'ops-Introduction','Walkthrough':'ops-Walkthrough','Proposal':'ops-Proposal','Stalled':'ops-Stalled','Lost':'ops-Lost','Future Revisit':'ops-FutureRevisit','DQ':'ops-DQ' })[stageKey] || 'ops-Introduction';
 }
 
 function renderKanban(pipeline) {
@@ -7330,12 +7162,6 @@ function toggleOppNotes(panelId) {
   if (panel) panel.classList.toggle('open');
 }
 
-function promptOppNote(email) {
-  const o = opps[email];
-  if (!o) return;
-  const note = prompt('Notes for ' + o.name + ':', o.notes || '');
-  if (note !== null) { saveOppField(email, 'notes', note); renderOpps(); }
-}
 
 function saveOppField(email, field, value) {
   if (!opps[email]) return;
@@ -7745,12 +7571,6 @@ function clearChurnData() {
 function getChurnCount(name) {
   const n = normName(name);
   return Object.values(churn).filter(o => normName(o.accountName) === n).length;
-}
-
-function getKeyChurnContact(name) {
-  const n = normName(name);
-  const contacts = Object.values(churn).filter(o => normName(o.accountName) === n);
-  return contacts[0] || null;
 }
 
 // ── Net New Campaign ───────────────────────────────────────────────────────────
@@ -8293,41 +8113,6 @@ function toggleUploadMenu(e) {
 }
 function closeUploadMenu() {
   document.getElementById('upload-menu')?.classList.add('hidden');
-}
-
-function exportLocalBackup() {
-  // v3 backup = full snapshot of EVERY key in ALL_STORAGE_KEYS.
-  // Includes raw CSV uploads (accounts/licenses/campaigns/group), all markup, dead, sort prefs, csv stats.
-  // Restoring a v3 file = total dashboard state at backup time.
-  const backup = {
-    _version: 3,
-    _exported: new Date().toISOString(),
-    _keys: [],
-  };
-  let captured = 0;
-  ALL_STORAGE_KEYS.forEach(key => {
-    const val = localStorage.getItem(key);
-    if (val == null) return;
-    try {
-      // Try to parse — if it's JSON, store as object (smaller + readable)
-      backup[key] = JSON.parse(val);
-    } catch(e) {
-      // Plain string (e.g. ibis_updated is a date string)
-      backup[key] = val;
-    }
-    backup._keys.push(key);
-    captured++;
-  });
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  const date = new Date().toISOString().slice(0, 10);
-  const sizeKB = Math.round(blob.size / 1024);
-  a.href     = url;
-  a.download = `ibis-backup-${date}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showOppToast(`💾 Backup saved — ${captured} data sets · ${sizeKB} KB`);
 }
 
 function handleLocalRestore(event) {
@@ -11764,10 +11549,6 @@ window.addEventListener('beforeunload', () => {
 
 /* ─── Status indicator — discrete shield icon in the header ────────────── */
 function updateAutoBackupIndicator() {
-  // Remove the old bottom-left pill if it's still hanging around from a
-  // previous session (defensive — its createElement code is gone now).
-  const oldPill = document.getElementById('autoback-indicator');
-  if (oldPill) oldPill.remove();
   // Drive the small header icon: green / amber / red status dot + tooltip
   const dot = document.getElementById('header-backup-dot');
   const btn = document.getElementById('header-backup-icon');
@@ -12125,9 +11906,6 @@ function _applyBackupToStorage(backup) {
     localStorage.setItem(k, val);
   });
 }
-
-// Back-compat: anything still calling the old name still works
-function openAutoBackupPanel() { return openBackupsPanel(); }
 
 // Auto-backup boot — fire after init so all data is loaded
 (function bootAutoBackup(){
