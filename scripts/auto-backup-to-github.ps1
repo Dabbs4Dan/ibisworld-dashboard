@@ -27,6 +27,27 @@ function Log($msg) {
     if (Test-Path $BackupDir) { Add-Content -Path $LogPath -Value $line -Encoding utf8 }
 }
 
+# Push any commits that a previous run left stranded (e.g. commit succeeded but
+# the push failed on a network drop). Without this, a later run that finds
+# "nothing new to sync" exits early and the stranded commit never reaches
+# GitHub - the cloud copy silently goes stale. Called on EVERY exit path.
+function Push-IfBehind {
+    try {
+        $ahead = & git -C $RepoRoot rev-list --count origin/main..HEAD 2>$null
+        if ($LASTEXITCODE -eq 0 -and [int]$ahead -gt 0) {
+            Log "Found $ahead unpushed commit(s) from a previous run - pushing now"
+            & git -C $RepoRoot push origin main 2>&1 | ForEach-Object { Log $_ }
+            if ($LASTEXITCODE -ne 0) {
+                Log "PUSH FAILURE: stranded commit(s) still not on GitHub (exit $LASTEXITCODE). Will retry next run."
+            } else {
+                Log "Stranded commit(s) pushed successfully."
+            }
+        }
+    } catch {
+        Log "Push-IfBehind check failed: $($_.Exception.Message)"
+    }
+}
+
 # Ensure backup folders exist
 if (-not (Test-Path $BackupDir)) {
     New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
@@ -76,6 +97,7 @@ $latestDl = $candidates | Sort-Object LastWriteTime -Descending | Select-Object 
 
 if (-not $latestDl) {
     Log "No backup files in Downloads or $MirrorDir. Nothing to do."
+    Push-IfBehind
     exit 0
 }
 
@@ -116,6 +138,7 @@ if (Test-Path $LatestPath) {
     if ($latestDl.LastWriteTime -le $existing.LastWriteTime) {
         Log "Latest download is older than committed latest.json. Nothing new to sync."
         Clean-Downloads -Cutoff $existing.LastWriteTime
+        Push-IfBehind
         exit 0
     }
     # Also skip if file contents match (hash compare)
@@ -124,6 +147,7 @@ if (Test-Path $LatestPath) {
     if ($newHash -eq $oldHash) {
         Log "Hash matches existing latest.json. No change to commit."
         Clean-Downloads -Cutoff $existing.LastWriteTime
+        Push-IfBehind
         exit 0
     }
 }
@@ -174,6 +198,7 @@ Set-Location $RepoRoot
 $status = & git status --porcelain backups/ 2>&1
 if (-not $status) {
     Log "No git changes detected (working tree clean for backups/). Done."
+    Push-IfBehind
     exit 0
 }
 
@@ -182,8 +207,11 @@ Log "Committing and pushing to GitHub"
 $commitMsg = "auto-backup: $stamp ($fmtBytes bytes)"
 & git commit -m $commitMsg 2>&1 | ForEach-Object { Log $_ }
 & git push origin main 2>&1 | ForEach-Object { Log $_ }
-
-Log "Auto-backup sync complete."
+if ($LASTEXITCODE -ne 0) {
+    Log "PUSH FAILURE: commit is local only, NOT on GitHub (exit $LASTEXITCODE). Next run will retry via Push-IfBehind."
+} else {
+    Log "Auto-backup sync complete."
+}
 
 # Tidy Downloads — remove autobackup files at or older than the committed
 # latest. They're safely in $BackupDir + $MirrorDir + GitHub remote.

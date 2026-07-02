@@ -6650,9 +6650,8 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   'ibis_client_revenue',
   'ibis_rotation_accounts','ibis_rotation_licenses','ibis_rotation_opps','ibis_rotation_markup',
   'ibis_auto_backup_meta'];
-  // Note: ibis_auto_backup_ring is intentionally EXCLUDED — it contains full
-  // snapshots itself, which would create infinite nesting if included in a
-  // snapshot. The ring is reset on restore so we always start with a clean slate.
+  // Note: the snapshot ring lives in IndexedDB (not localStorage), so it never
+  // counts against the localStorage quota and can't nest inside a snapshot.
 
 // Chrome / Edge per-origin localStorage ceiling is ~10 MB in practice
 // (5 MB is the spec minimum but Chromium has been ~10 MB for years).
@@ -8345,6 +8344,8 @@ function handleLocalRestore(event) {
       if (ver >= 3) {
         const exported = backup._exported ? new Date(backup._exported).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'unknown date';
         if (!confirm(`Restore FULL snapshot from ${exported}?\n\nThis replaces ALL current data (accounts, licenses, campaigns, group, markup) with the backup contents. Fresh enrichment data (revenue/desc/sentiment) on accounts also present in the backup will be preserved.\n\nClick OK to proceed.`)) return;
+        // Save the CURRENT state to the ring first so even a restore is reversible
+        try { _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-restore safety').catch(() => {}); } catch {}
       }
 
       // 1) ibis_local — always smart-merge so we preserve fresh enrichment (revenue/desc/sentiment)
@@ -8370,8 +8371,13 @@ function handleLocalRestore(event) {
       let restoredKeys = 1; // counted ibis_local already
       if (ver >= 3) {
         ALL_STORAGE_KEYS.forEach(key => {
-          if (key === 'ibis_local') return; // already handled above
-          if (backup[key] === undefined) return;
+          if (key === 'ibis_local') return; // already handled above (smart-merge)
+          if (backup[key] === undefined) {
+            // Full restore replaces state — a key the backup doesn't have must go,
+            // otherwise stale/corrupt data survives a "replaces ALL data" restore.
+            try { localStorage.removeItem(key); } catch {}
+            return;
+          }
           const val = typeof backup[key] === 'string' ? backup[key] : JSON.stringify(backup[key]);
           localStorage.setItem(key, val);
           restoredKeys++;
@@ -11212,7 +11218,8 @@ function exportInsightsCurrentSubtab() {
 /* ════════════════════════════════════════════════════════════════════════════
    AUTO-BACKUP ENGINE — runs silently, no clicks needed
    3 layers of safety:
-     1) In-memory ring: keeps last 5 snapshots in a separate localStorage key.
+     1) Snapshot ring: keeps last 5 full snapshots in IndexedDB (gigabytes of
+        quota — never competes with dashboard data for localStorage space).
         Triggered automatically on every meaningful change.
      2) Auto-downloaded backup files: silently downloads a v3 backup JSON to
         Downloads at most once per hour AND on first significant change of
@@ -11221,7 +11228,7 @@ function exportInsightsCurrentSubtab() {
      3) Status indicator: discreet pill in bottom-left shows freshness +
         click-to-recover from any of the 5 in-memory snapshots.
    ════════════════════════════════════════════════════════════════════════════ */
-const AUTO_BACKUP_RING_KEY  = 'ibis_auto_backup_ring';   // last N v3 snapshots, compressed
+const AUTO_BACKUP_RING_KEY  = 'ibis_auto_backup_ring';   // LEGACY localStorage key — ring now lives in IndexedDB; kept only for migration/cleanup
 const AUTO_BACKUP_META_KEY  = 'ibis_auto_backup_meta';   // timestamps + hashes
 const AUTO_BACKUP_RING_SIZE = 5;
 const AUTO_BACKUP_DEBOUNCE_MS  = 30 * 1000;     // 30s after a change
@@ -11260,26 +11267,90 @@ function _buildBackupSnapshot() {
   return snap;
 }
 
-function _autoBackupSaveToRing(snap, reason) {
-  // Each ring entry: { ts, hash, snap, reason? }
-  // reason is a human label like "Pre-upload · Accounts CSV" — shown in panel.
-  let ring = [];
-  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
-  const entry = { ts: Date.now(), hash: _autoBackupHash(), snap };
-  if (reason) entry.reason = reason;
-  ring.unshift(entry);
-  ring = ring.slice(0, AUTO_BACKUP_RING_SIZE);
-  while (ring.length > 0) {
-    try {
-      localStorage.setItem(AUTO_BACKUP_RING_KEY, JSON.stringify(ring));
-      return ring.length;
-    } catch {
-      // Quota exceeded — drop oldest and retry
-      ring.pop();
-      if (ring.length === 0) return 0;
+/* ─── Snapshot ring — IndexedDB ──────────────────────────────────────────
+   The ring used to live in localStorage, but one full snapshot is roughly
+   the size of all dashboard data combined — once the data passed ~3 MB the
+   ring physically could not fit inside the shared ~10 MB localStorage quota,
+   so every ring save silently failed and pre-upload rollback didn't exist.
+   IndexedDB has gigabytes of quota, so 5 full snapshots are no problem, and
+   moving the ring out of localStorage also stops backups from pushing total
+   usage over the auto-clean threshold (the enrichment wipe/refetch churn). */
+const RING_DB_NAME = 'ibis_backup_ring';
+const RING_STORE   = 'snaps';
+let _ringMemCache  = null; // newest-first [{ts, reason?, sizeKB}] for synchronous panel reads
+
+function _ringOpenDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(RING_DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(RING_STORE)) db.createObjectStore(RING_STORE, { keyPath: 'ts' });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+async function _ringAll() { // full entries, newest first
+  const db = await _ringOpenDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(RING_STORE, 'readonly');
+    const rq = tx.objectStore(RING_STORE).getAll();
+    rq.onsuccess = () => res((rq.result || []).sort((a, b) => b.ts - a.ts));
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function _ringRefreshCache() {
+  try {
+    const all = await _ringAll();
+    _ringMemCache = all.map(e => ({ ts: e.ts, reason: e.reason, sizeKB: Math.round((e.snapJson || '').length / 1024) }));
+  } catch { _ringMemCache = _ringMemCache || []; }
+  return _ringMemCache;
+}
+
+// Saves a snapshot into the IndexedDB ring, prunes to AUTO_BACKUP_RING_SIZE,
+// refreshes the panel cache. Resolves to the ring count (0 = save failed).
+async function _autoBackupSaveToRing(snap, reason) {
+  try {
+    const entry = { ts: Date.now(), hash: _autoBackupHash(), snapJson: JSON.stringify(snap) };
+    if (reason) entry.reason = reason;
+    const db = await _ringOpenDB();
+    await new Promise((res, rej) => {
+      const tx = db.transaction(RING_STORE, 'readwrite');
+      tx.objectStore(RING_STORE).put(entry);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    const all = await _ringAll();
+    if (all.length > AUTO_BACKUP_RING_SIZE) {
+      await new Promise((res) => {
+        const tx = db.transaction(RING_STORE, 'readwrite');
+        all.slice(AUTO_BACKUP_RING_SIZE).forEach(e => tx.objectStore(RING_STORE).delete(e.ts));
+        tx.oncomplete = () => res();
+        tx.onerror = () => res();
+      });
     }
+    await _ringRefreshCache();
+    return Math.min(all.length, AUTO_BACKUP_RING_SIZE);
+  } catch (e) {
+    console.warn('[ibis-ring] IndexedDB ring save failed', e);
+    return 0;
   }
-  return 0;
+}
+
+// One-time migration: pull any snapshots out of the old localStorage ring into
+// IndexedDB, then delete the key — it was the single biggest localStorage item.
+async function _ringMigrateFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(AUTO_BACKUP_RING_KEY);
+    if (raw === null) return;
+    let old = [];
+    try { old = JSON.parse(raw) || []; } catch {}
+    for (const e of old) {
+      if (!e || !e.snap) continue;
+      try { await _autoBackupSaveToRing(e.snap, e.reason); } catch {}
+    }
+    localStorage.removeItem(AUTO_BACKUP_RING_KEY);
+  } catch {}
 }
 
 /* ─── Pre-action safety snapshot (synchronous) ─────────────────────────
@@ -11291,20 +11362,23 @@ function _autoBackupSaveToRing(snap, reason) {
    without blocking the destructive operation. */
 function snapshotBeforeAction(label) {
   try {
+    // Capture the pre-action state synchronously; the IndexedDB write that
+    // persists it completes async (the captured object is already immutable).
     const snap = _buildBackupSnapshot();
-    const ringCount = _autoBackupSaveToRing(snap, label);
-    const meta = _autoBackupLoadMeta();
-    if (ringCount > 0) { meta.lastInMemoryTs = Date.now(); }
-    _autoBackupSaveMeta(meta);
+    _autoBackupSaveToRing(snap, label).then(ringCount => {
+      const meta = _autoBackupLoadMeta();
+      if (ringCount > 0) { meta.lastInMemoryTs = Date.now(); meta.ringSize = ringCount; }
+      _autoBackupSaveMeta(meta);
+      // Only claim what actually happened — never toast success on a failed save
+      try {
+        showOppToast(ringCount > 0
+          ? `🛡 Safety snapshot saved — ${label}`
+          : `⚠️ In-browser snapshot failed — ${label} (backup file still written)`);
+      } catch {}
+      try { updateAutoBackupIndicator(); } catch {}
+    }).catch(e => console.warn('[ibis-snapshot] ring save failed', e));
     // Fire-and-forget file write — don't block the upload waiting for it
     _autoBackupDownloadFile(snap).catch(() => {});
-    // Only claim what actually happened — the ring save can fail on quota
-    try {
-      showOppToast(ringCount > 0
-        ? `🛡 Safety snapshot saved — ${label}`
-        : `🛡 Snapshot written to backup file — ${label} (in-browser ring full)`);
-    } catch {}
-    try { updateAutoBackupIndicator(); } catch {}
   } catch (e) {
     console.warn('[ibis-snapshot] pre-action snapshot failed', e);
   }
@@ -11512,7 +11586,7 @@ async function runAutoBackup({ forceFile = false } = {}) {
     const meta = _autoBackupLoadMeta();
     if (hash === meta.lastHash && !forceFile) { _autoBackupRunning = false; return; }
     const snap = _buildBackupSnapshot();
-    const ringSize = _autoBackupSaveToRing(snap);
+    const ringSize = await _autoBackupSaveToRing(snap);
     meta.lastHash = hash;
     // Only stamp an in-memory save time when a ring entry actually persisted —
     // otherwise the panel claims "last save just now" while the ring is empty.
@@ -11572,30 +11646,32 @@ function _wh_recoverAndRetry(origSetItem, key, val) {
   if (WRITE_HEALTH.inRecovery) return false; // prevent re-entry
   WRITE_HEALTH.inRecovery = true;
   try {
-    // 1) Drop the auto-backup ring entirely — it's the single biggest reclaimable item
-    try { origSetItem.call(localStorage, AUTO_BACKUP_RING_KEY, '[]'); } catch {}
-    // 2) Wipe enrichment fields inline (don't call quietFreeStorage to avoid
-    //    nested hook re-entry — we manipulate ibis_local directly with the
-    //    raw setItem to bypass our own wrapper)
+    // 1) Remove any legacy localStorage ring (the ring lives in IndexedDB now —
+    //    an old key left over from a previous version is pure reclaimable space)
+    try { localStorage.removeItem(AUTO_BACKUP_RING_KEY); } catch {}
+    // 2) Wipe re-fetchable enrichment from the IN-MEMORY localData and persist
+    //    that. Operating on memory (not a re-parse of the disk copy) keeps the
+    //    two in sync — the old disk-copy approach could overwrite a fresh edit
+    //    held in memory with stale persisted data on the next save.
     try {
-      const ld = JSON.parse(localStorage.getItem('ibis_local') || '{}');
-      let touched = 0;
-      Object.keys(ld).forEach(name => {
-        if (ld[name]?.rev)       { delete ld[name].rev; touched++; }
-        if (ld[name]?.desc)      { delete ld[name].desc; delete ld[name].descV; touched++; }
-        if (ld[name]?.sentiment) { delete ld[name].sentiment; touched++; }
-      });
-      if (touched > 0) origSetItem.call(localStorage, 'ibis_local', JSON.stringify(ld));
-      // Refresh the in-memory cache too
       if (typeof localData !== 'undefined') {
-        try { Object.assign(localData, ld); /* shallow refresh */ } catch {}
-        // Easier: replace it
-        try { window.localData = ld; } catch {}
+        let touched = 0;
+        Object.keys(localData).forEach(name => {
+          if (localData[name]?.rev)       { delete localData[name].rev; touched++; }
+          if (localData[name]?.desc)      { delete localData[name].desc; delete localData[name].descV; touched++; }
+          if (localData[name]?.sentiment) { delete localData[name].sentiment; touched++; }
+        });
+        if (touched > 0) origSetItem.call(localStorage, 'ibis_local', JSON.stringify(localData));
       }
     } catch {}
-    // 3) Retry the failed write
+    // 3) Retry the failed write. If the failing key was ibis_local itself, retry
+    //    the freshly-slimmed in-memory state instead of the original oversized value.
+    let retryVal = val;
+    if (key === 'ibis_local' && typeof localData !== 'undefined') {
+      try { retryVal = JSON.stringify(localData); } catch {}
+    }
     try {
-      origSetItem.call(localStorage, key, val);
+      origSetItem.call(localStorage, key, retryVal);
       _wh_markSuccess();
       WRITE_HEALTH.recoveriesDone++;
       showOppToast('🛡 Storage was filling up — auto-recovery ran, your save went through. Open the Backups panel for details.');
@@ -11635,6 +11711,7 @@ function _wh_hideCriticalBanner() {
 
 (function _hookStorageWrites(){
   const _origSet = Storage.prototype.setItem;
+  WRITE_HEALTH._rawSet = _origSet; // recovery paths must bypass the wrapper
   Storage.prototype.setItem = function(k, v) {
     // Non-IBIS keys: pass through unchanged
     if (this !== localStorage || !ALL_STORAGE_KEYS.includes(k)) {
@@ -11670,7 +11747,7 @@ setInterval(() => {
   } catch (e) {
     // Probe failed — pre-emptively try to clear space
     console.warn('[ibis-storage] write probe FAILED, attempting recovery');
-    _wh_recoverAndRetry(Storage.prototype.setItem, '_ibis_health_probe', String(Date.now()));
+    _wh_recoverAndRetry(WRITE_HEALTH._rawSet || Storage.prototype.setItem, '_ibis_health_probe', String(Date.now()));
     try { localStorage.removeItem('_ibis_health_probe'); } catch {}
   }
   try { updateAutoBackupIndicator(); } catch {}
@@ -11678,10 +11755,11 @@ setInterval(() => {
 
 // Safety net: also run unconditionally every 5 min in case anything bypassed the hook
 setInterval(() => runAutoBackup(), 5 * 60 * 1000);
-// Best-effort backup when leaving the page (synchronous ring save only — file
-// dl is unreliable on unload, but ring save works since it's a localStorage write)
+// Best-effort backup when leaving the page. The IndexedDB write is async and
+// may not finish on a fast close — the debounced saves + hourly file/GitHub
+// layers are the real unload protection; this just catches what it can.
 window.addEventListener('beforeunload', () => {
-  try { const snap = _buildBackupSnapshot(); _autoBackupSaveToRing(snap); } catch {}
+  try { const snap = _buildBackupSnapshot(); _autoBackupSaveToRing(snap).catch(() => {}); } catch {}
 });
 
 /* ─── Status indicator — discrete shield icon in the header ────────────── */
@@ -11768,11 +11846,9 @@ async function restoreFromCloud() {
     if (!confirm(`Restore cloud backup from ${exported}?\n\nThis REPLACES all current dashboard data with that snapshot. The page will reload after.\n\nClick OK to proceed.`)) return;
   }
   try {
-    ALL_STORAGE_KEYS.forEach(k => {
-      if (backup[k] === undefined) return;
-      const val = typeof backup[k] === 'string' ? backup[k] : JSON.stringify(backup[k]);
-      localStorage.setItem(k, val);
-    });
+    // Save the CURRENT state to the ring first so even a restore is reversible
+    if (hasLiveData) { try { await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-restore safety'); } catch {} }
+    _applyBackupToStorage(backup);
     showOppToast('✅ Cloud backup restored — reloading…');
     setTimeout(() => location.reload(), 700);
   } catch(err) {
@@ -11808,6 +11884,10 @@ function openBackupsPanel() {
   fetchCloudBackupStatus().then(status => {
     if (modal.style.display !== 'none') _renderBackupsPanel(modal, { cloud: status });
   });
+  // Refresh the IndexedDB snapshot list too (async — re-render when it lands)
+  _ringRefreshCache().then(() => {
+    if (modal.style.display !== 'none') _renderBackupsPanel(modal, { cloud: _cloudStatusCache });
+  });
 }
 function toggleBackupsDetails() {
   _bpShowDetails = !_bpShowDetails;
@@ -11822,9 +11902,8 @@ function _renderBackupsPanel(modal, { cloud }) {
   let barColor = '#16a34a'; // green
   if (pct >= 90) barColor = '#dc2626';
   else if (pct >= 75) barColor = '#d97706';
-  // Ring snapshots
-  let ring = [];
-  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
+  // Ring snapshots — metadata cache refreshed async by openBackupsPanel
+  const ring = _ringMemCache || [];
   // Layer 1: in-memory ring
   const l1Mins = meta.lastInMemoryTs ? Math.round((Date.now() - meta.lastInMemoryTs) / 60000) : null;
   const l1Ago = l1Mins == null ? 'never' : l1Mins < 1 ? 'just now' : l1Mins < 60 ? `${l1Mins}m ago` : `${Math.round(l1Mins/60)}h ago`;
@@ -11849,12 +11928,12 @@ function _renderBackupsPanel(modal, { cloud }) {
   const ringRows = ring.length ? ring.map((r, i) => {
     const d = new Date(r.ts);
     const niceTime = d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
-    const sizeKB = Math.round(JSON.stringify(r.snap).length / 1024);
+    const sizeKB = r.sizeKB || 0;
     const isPreUpload = r.reason && r.reason.startsWith('Pre-upload');
     const reasonLabel = r.reason
       ? `<div style="font-size:10px;color:${isPreUpload ? '#0369a1' : '#9ca3af'};font-family:'DM Mono',monospace;margin-top:2px;">${isPreUpload ? '🛡 ' : ''}${escHtml(r.reason)}</div>`
       : '';
-    return `<div class="ab-row" onclick="restoreAutoBackup(${i})">
+    return `<div class="ab-row" onclick="restoreAutoBackup(${r.ts})">
       <div class="ab-row-num">#${i+1}</div>
       <div class="ab-row-time">${niceTime}${reasonLabel}</div>
       <div class="ab-row-size">${sizeKB} KB</div>
@@ -11891,7 +11970,7 @@ function _renderBackupsPanel(modal, { cloud }) {
         <span class="bp-layer-dot ${l1Class}"></span>
         <div class="bp-layer-body">
           <div class="bp-layer-name">1 · In-browser snapshots</div>
-          <div class="bp-layer-meta">Last save: ${l1Ago}${ring.length ? ' · ' + ring.length + ' of ' + AUTO_BACKUP_RING_SIZE + ' kept' : ' · none yet (storage tight — ring evicts to free space)'}</div>
+          <div class="bp-layer-meta">Last save: ${l1Ago}${ring.length ? ' · ' + ring.length + ' of ' + AUTO_BACKUP_RING_SIZE + ' kept' : ' · none yet'}</div>
         </div>
       </div>
       <div class="bp-layer">
@@ -12018,25 +12097,33 @@ function _renderBackupsPanel(modal, { cloud }) {
     </div>`;
 }
 
-function restoreAutoBackup(idx) {
-  let ring = [];
-  try { ring = JSON.parse(localStorage.getItem(AUTO_BACKUP_RING_KEY) || '[]'); } catch {}
-  const entry = ring[idx];
-  if (!entry) return;
+async function restoreAutoBackup(ts) {
+  let entry = null;
+  try { entry = (await _ringAll()).find(e => e.ts === ts); } catch {}
+  if (!entry) { alert('Snapshot not found — it may have been pruned.'); return; }
   const d = new Date(entry.ts).toLocaleString();
   if (!confirm(`Restore snapshot from ${d}?\n\nThis replaces ALL current dashboard data with that snapshot. The page will reload after restoring.\n\nClick OK to proceed.`)) return;
   try {
-    const snap = entry.snap;
-    ALL_STORAGE_KEYS.forEach(k => {
-      if (snap[k] === undefined) return;
-      const val = typeof snap[k] === 'string' ? snap[k] : JSON.stringify(snap[k]);
-      localStorage.setItem(k, val);
-    });
+    const snap = typeof entry.snapJson === 'string' ? JSON.parse(entry.snapJson) : entry.snap;
+    // Save the CURRENT state first so even a restore is reversible
+    try { await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-restore safety'); } catch {}
+    _applyBackupToStorage(snap);
     showOppToast('✅ Snapshot restored — reloading…');
     setTimeout(() => location.reload(), 600);
   } catch(err) {
     alert('Restore failed: ' + err.message);
   }
+}
+
+// Shared restore writer: a restore REPLACES the dashboard state, so keys that
+// exist locally but are absent from the backup are removed — a merge here
+// leaves mixed-vintage data behind (e.g. a corrupt key the backup predates).
+function _applyBackupToStorage(backup) {
+  ALL_STORAGE_KEYS.forEach(k => {
+    if (backup[k] === undefined) { try { localStorage.removeItem(k); } catch {} return; }
+    const val = typeof backup[k] === 'string' ? backup[k] : JSON.stringify(backup[k]);
+    localStorage.setItem(k, val);
+  });
 }
 
 // Back-compat: anything still calling the old name still works
@@ -12047,6 +12134,10 @@ function openAutoBackupPanel() { return openBackupsPanel(); }
   setTimeout(async () => {
     // Load any previously-granted folder handle (no prompt — that needs a gesture)
     try { await _fsaBoot(); } catch {}
+    // One-time: move any old localStorage ring into IndexedDB and free the key,
+    // then warm the snapshot-list cache for the panel.
+    try { await _ringMigrateFromLocalStorage(); } catch {}
+    try { await _ringRefreshCache(); } catch {}
     updateAutoBackupIndicator();
     // Refresh indicator every minute so "ago" text stays current
     setInterval(updateAutoBackupIndicator, 60 * 1000);
