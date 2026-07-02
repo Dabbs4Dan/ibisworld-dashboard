@@ -9,7 +9,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 
 **Live URL:** https://dabbs4dan.github.io/ibisworld-dashboard
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
-**File:** `index.html` — single self-contained file, ~8,700+ lines
+**File:** `index.html` — single self-contained file, ~11,450 lines
 
 ---
 
@@ -55,8 +55,8 @@ Every new system, field, tool, or data type built going forward MUST integrate w
   - `ibis_netnew` → Net New campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_multithread` → Multithread campaign contacts, keyed by email (same schema as ibis_opps)
   - `ibis_winback` → Winback campaign contacts, keyed by email (same schema as ibis_opps)
-  - `ibis_powerback` → Powerback campaign contacts, keyed by email (same schema as ibis_opps)
-  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], powerbackContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
+  - `ibis_alumni` → Alumni campaign contacts, keyed by email (same schema as ibis_opps)
+  - `ibis_dead` → dead accounts array + dead licenses array + dead contacts (`{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], alumniContacts: [...] }`). Accounts added when missing from re-upload CSV; their licenses are **auto-moved to dead at the same time** (no separate license re-upload needed). Licenses also move independently when missing from license CSV re-upload. Each dead account carries `_deadSince`, `_statusAtDeath`, `_unexpectedDrop`, `_localSnapshot`.
   - **GROUP TAB KEYS (v36)** — 8 keys, fully isolated from personal data:
     - `ibis_group_dan_accounts`, `ibis_group_christian_accounts`, `ibis_group_embry_accounts`, `ibis_group_anthony_accounts` — raw account rows per rep
     - `ibis_group_dan_licenses`, `ibis_group_christian_licenses`, `ibis_group_embry_licenses`, `ibis_group_anthony_licenses` — decoded license rows per rep
@@ -69,14 +69,28 @@ Every new system, field, tool, or data type built going forward MUST integrate w
     - `ibis_rotation_opps` — raw opportunity rows from the SF opp report
     - `ibis_rotation_markup` — per-account UI state keyed by `normName`: `{assign, teamSell, star}` (instant-save, like status/priority)
   - **AUTO-BACKUP KEYS (v36)**:
-    - `ibis_auto_backup_ring` — last 5 v3 snapshots in-memory (excluded from snapshots themselves to avoid nesting)
+    - Snapshot ring: last 5 v3 snapshots live in **IndexedDB** (`ibis_backup_ring` db) as of v39 — never competes with dashboard data for localStorage quota. The old `ibis_auto_backup_ring` localStorage key is legacy (auto-migrated + removed on boot).
     - `ibis_auto_backup_meta` — hashes + timestamps for change detection + file-download throttle
   - `checkStorageSize()` fires on `init()` and after both CSV uploads; logs a console warning if any key exceeds 2MB or total exceeds 4MB
 - All CSV parsing happens client-side in the browser
 
 ---
 
-## CURRENT STATE — v38 (stable)
+## CURRENT STATE — v39 (stable)
+
+### v39 Summary — Full code sweep: bugs, backup hardening, campaign engine (entire session focus)
+A 5-agent code review + live browser inspection of the whole dashboard, followed by 6 fix batches (one commit each, revert point = git tag `v38-pre-sweep`). Commits: `b32c8c6` → `5dfe6ff`.
+
+- **Batch 1 — data-safety bugs:** `ibis_local` now loads even when accounts data is absent (was a silent wipe-all-markup path if accounts were cleared). ~10 inline save handlers converted to the apostrophe-safe `data-acctname`/`data-email` pattern (opp widget, account-page + Action-table headline/date, kanban drag, workables fields, ↩ Revive button — which was 100% broken by a quoting bug, stage-filter badges). Action-table Headline/Next Date and Workables notes/next-action now have triple-protected saves (input debounce + blur + beforeunload flush). Dead-tab badge now clears for workable contacts. 🔒 True Keep sorts first. A license ending *today* counts active all day (`>=` midnight, all 5 sites). CSVs now read as UTF-8 with BOM handling via `readCsvViaReader()` (was latin1 — mojibaked accents, broke first-header matching on BOM). Removing ⚡ from an account now sticks (auto-sync only re-adds `undefined`, never `false`). Shift+D debug panel fixed; account page opened from Group/Rotation no longer stacks views.
+- **Batch 2 — dead Claude enrichment layer removed:** the Cloudflare Worker was never deployed AND the CSP blocked it — it had never returned a byte, yet queued every account on every load (~2 min of failed fetches + a fake progress pill that counted negative). Revenue enrichment now routes through the already-working **Wikidata pipeline** (`queueClientInsightsRevenue`); Group/Rotation enrichment too. Revenue priority order is now: Seed table → Wikidata → SF CSV fallback.
+- **Batch 3 — backup hardening:** the in-browser snapshot ring **moved from localStorage to IndexedDB** (`ibis_backup_ring` db). At ~3.5MB of data, one snapshot couldn't fit in the localStorage quota — ring saves silently failed, pre-upload rollback didn't exist, and the ring pushed storage over the 4.5MB auto-clean line causing a permanent enrichment wipe/refetch churn loop. Now the ring truly holds 5 snapshots, pre-upload rollback works, localStorage usage halved, churn gone. All 3 restore paths are **replace-not-merge** (keys absent from a backup are removed) and take a "Pre-restore safety" snapshot first. Backup toasts/panel only claim success when the ring write actually persisted. `auto-backup-to-github.ps1` gained `Push-IfBehind` — a failed GitHub push (observed live 2026-07-02) is now retried on every subsequent run and logged loudly.
+- **Batch 4 — dead code removed (~220 lines):** the 📝 Account Plan panel (accidentally dropped from the account page in the v30 layout overhaul, commit `05bb6f1`; Dan confirmed removal — saved `accountPlan` data stays in `ibis_local`), `exportLocalBackup` (button was already gone; file **restore** still works via Backups panel), superseded helpers (`toggleActionOpp`, `getLicBadgesForAccount`, `getKeyChurnContact`, `applyStageColor`, `oppStageClass`, `promptOppNote`, `_calcLocalStorageKB`, legacy aliases), and orphaned CSS (old campaign count-dot family — replaced by `.camp-oval` in v33 — `.ap-contact-*`, `.ap-plan-*`, `.upload-btn-license`, `#autoback-indicator`, misc singles). `.btn-primary/.btn-secondary/.btn-ghost` kept (DESIGN.md canon).
+- **Batch 5 — CAMPAIGN ENGINE:** the 7 copy-pasted campaign stacks (samples/sixqa/churn/netnew/multithread/winback/alumni, ~740 lines) are now ONE generic engine — `CAMPAIGN_ENGINE` config + `campLoad/campSave/campHandleCSV/campMerge/campRender/campDelete/campClear/campCount` (~180 lines). Every old function name (`loadSamples`, `handleChurnCSV`, `deleteWinback`, …) still exists as an auto-generated wrapper, so no HTML call site changed. Workables stays bespoke. **New feature: dead-contact resurrection** — a contact that reappears in a CSV re-upload is automatically revived from the Dead tab (notes preserved, toast shows "N revived from Dead"). `reviveDeadContact` also runs on the engine now. Verified end-to-end against synthetic data on a local server before push.
+- **Batch 6 — usability:** all 12 search boxes debounced (`debouncedSearch`, 200ms); Churn campaign got its missing search box; the Action stage filter dropdown stays open across checkbox clicks; toast timer race fixed; **Escape closes any open portal/dropdown/menu/modal**; Insights → Group Accounts stats bar fixed (wrote to non-existent element IDs); enrichment queues re-render at most every 8 items and only while the Accounts view is visible; Wikidata progress chip moved up so it can't cover the toast.
+- **Also:** Powerback is fully gone from the code (docs previously drifted); 🎓 **Alumni** (indigo `#4f46e5`, `ibis_alumni`, `deadAlumniContacts`, `al|` prefix) is the 8th campaign.
+- **Frontend/usability catalog** from the review (design-token violations, contrast, focus states, tab inconsistencies) is parked for the upcoming redesign session.
+
+## PREVIOUS STATE — v38
 
 ### Eight tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
@@ -428,8 +442,8 @@ const ACTION_STAGES = [...];        // 8 stage objects with val, label, emoji, c
   - Row 2 col 2: **👥 Campaigns** — one column per campaign (🎯 Workables / 🧪 Old Samples / 🔥 6QA / 🐣 Churn / 🌱 Net New). Only columns with contacts are rendered.
   - Row 2 col 3: **💰 License History** — sorted active→newchurn→churned, ⚠ US churn callout
   - Row 3 col 1: **📈 Opportunities** — contacts with `sfOpp=true`
-  - Row 3 cols 2–3: **📝 Account Plan** — inline editable textarea
-- **Account plan persistence:** `accountPlan` stored in `ibis_local` — survives CSV re-uploads. `pruneStaleLocalData` treats it as user data (won't prune).
+  - ~~Row 3 cols 2–3: 📝 Account Plan~~ — **removed in v39** (had been accidentally dropped from the render in the v30 layout overhaul; Dan confirmed he doesn't need it)
+- **Account plan data:** any previously saved `accountPlan` text stays untouched in `ibis_local` — `pruneStaleLocalData` still treats it as user data (won't prune).
 - **State vars:** `accountPageOrigin`, `accountPageList`, `accountPageIdx` declared at global scope near `frozenSortOrder`
 - **Key functions:** `goToAccount(name)`, `openAccountPage(name, origin, list, idx)`, `closeAccountPage()`, `navAccountPage(dir)`, `renderAccountPage(name)`, `renderAPHeader`, `renderAPPriorityOutreach`, `renderAPCampaigns`, `renderAPLicenses`, `renderAPOpportunities`, `renderAPPlan`
 - **Not yet built:** live PA data sync, AI briefing panel, campaign type segmentation (Workables/Winbacks/Samples), prev/next for Licenses+Workables origins (currently passes empty list — arrows disabled)
@@ -522,15 +536,12 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - **CAMPAIGN_DEFS entry:** `{ emoji:'❄️', label:'Winback', getCount: () => Object.values(winback).length, onActivate: () => renderWinback() }`
 - **Upload menu:** ❄️ Winback CSV row + `udot-winback` dot + `winback-file-input` file input + clear button
 
-### Powerback Campaign (v33)
-- **🥶 Powerback** — eighth campaign under Campaigns tab. Same CSV schema.
-- **Colors:** teal — bg `#ccfbf1`, text `#0f766e`, count badge bg `#99f6e4`
-- **`ibis_powerback`** localStorage key
-- **Key functions:** `loadPowerback()`, `savePowerback()`, `handlePowerbackCSV()`, `mergePowerback()`, `renderPowerback()`, `deletePowerback()`, `clearPowerbackData()`, `getPowerbackCount(name)`
-- **Dead contacts:** `deadPowerbackContacts[]` → `ibis_dead.powerbackContacts`
-- **Campaign cluster oval:** teal `#0f766e`
-- **CAMPAIGN_DEFS entry:** `{ emoji:'🥶', label:'Powerback', getCount: () => Object.values(powerback).length, onActivate: () => renderPowerback() }`
-- **Upload menu:** 🥶 Powerback CSV row + `udot-powerback` dot + `powerback-file-input` file input + clear button
+### Alumni Campaign (v34)
+- **🎓 Alumni** — eighth campaign under Campaigns tab. Same CSV schema. For contacts who were IBISWorld users at a prior company and are now at an account in Dan's book.
+- **Colors:** indigo — bg `#eef2ff`, text `#4f46e5`, count badge bg `#c7d2fe`
+- **`ibis_alumni`** localStorage key · dead contacts: `deadAlumniContacts[]` → `ibis_dead.alumniContacts` · seen prefix `al|`
+- **v39:** runs on the generic CAMPAIGN ENGINE like the other 6 simple campaigns (see below). All `loadAlumni`/`handleAlumniCSV`/etc. names still work as wrappers.
+- ⚠️ **Powerback (🥶) was removed from the code before v39** — it no longer exists anywhere in `index.html`. Alumni holds the 8th campaign slot.
 
 ### Campaign Cluster Widget (v33)
 - **`renderCampCluster(name)`** — universal function returning a row of compact colored oval pills for all 8 campaigns.
@@ -550,8 +561,9 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 - **Status key note:** `_unexpectedDrop` is re-derived live in render as `statusKey !== 'drop'` — fixing any historical records that stored the wrong value
 - **Dead accounts columns:** ⚠️ | Status | Company | Vertical | Tier | Revenue | Score | Intent | Stage | Days Inactive | Dead Since (mirrors live Accounts table)
 - **Dead contacts (v31, updated v33):** unified view showing all dead campaign contacts. Color-coded campaign badge per row. **↩ Revive** button restores contact to correct campaign store via `reviveDeadContact(email, campaign)`.
-- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], powerbackContacts: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
-- **State vars:** `let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadMultithreadContacts = [], deadWinbackContacts = [], deadPowerbackContacts = [], deadView = 'accounts'`
+- **Storage:** `ibis_dead` localStorage key → `{ accounts: [...], licenses: [...], sampleContacts: [...], sixqaContacts: [...], workableContacts: [...], churnContacts: [...], netnewContacts: [...], multithreadContacts: [...], winbackContacts: [...], alumniContacts: [...] }`. Each dead account carries: `_deadSince` (ISO date), `_statusAtDeath` (raw key string), `_unexpectedDrop` (bool), `_localSnapshot` (copy of ibis_local entry at time of death)
+- **State vars:** `let deadAccounts = [], deadLicenses = [], deadSampleContacts = [], deadSixqaContacts = [], deadWorkableContacts = [], deadChurnContacts = [], deadNetnewContacts = [], deadMultithreadContacts = [], deadWinbackContacts = [], deadAlumniContacts = [], deadView = 'accounts'`
+- **Resurrection (v39):** a dead campaign contact that reappears in a CSV re-upload is auto-revived by the campaign engine (`campMerge`) — notes/history preserved, toast shows "N revived from Dead". Manual ↩ Revive still works for one-offs.
 - **Key functions:** `saveDead()`, `loadDead()`, `updateDeadTabBadge()`, `renderDead()`, `renderDeadAccounts()`, `renderDeadLicenses()`, `renderDeadContacts()`, `reviveDeadContact(email, campaign)`, `setDeadView(v)`
 - **Section IDs:** `dead-accts-section`, `dead-lics-section`, `dead-contacts-section` — explicit IDs used for show/hide
 
@@ -667,7 +679,8 @@ Territory dot | Company+Logo | Name | Title | Opp | Stage | Next Action | Next D
 ---
 
 ## REVENUE ENGINE
-Priority order: Seed table (instant) → Claude AI enrichment queue (~0.9s/account) → SF CSV fallback
+Priority order (v39): Seed table (instant) → Wikidata lookup queue (free, no auth — same pipeline as Client Insights) → SF CSV fallback
+⚠️ The old Claude/Cloudflare-Worker enrichment queue was removed in v39 — the Worker was never deployed, so it had never returned data. `cloudflare-worker.js` remains in the repo but nothing calls it.
 
 ### Seed Table (must match CSV Account Name EXACTLY)
 Lyft→$5.8B, Burger King→$2.3B, BJ's Wholesale Club→$20.2B, Lloyds Bank→$19.8B,
@@ -781,190 +794,17 @@ License Start Date, License End Date
 
 ---
 
-## ADDING A NEW CAMPAIGN — CHECKLIST
+## ADDING A NEW CAMPAIGN — v39 ENGINE PROCESS
 
-When adding a new campaign (e.g. `foo` with emoji 🆕, colors bg `#xxx`, text `#yyy`, badge `#zzz`), touch these locations in order:
+Since v39 the 7 simple campaigns run on one generic engine (`CAMPAIGN_ENGINE` + `campLoad/campSave/campHandleCSV/campMerge/campRender/campDelete/campClear/campCount`, search for `CAMPAIGN ENGINE` in index.html). The old 25-step checklist is obsolete. To add campaign `foo` (emoji 🆕, colors bg `#xxx` text `#yyy`):
 
-### 1. State variables (near line 2409)
-```js
-let samples = {}, ..., powerback = {}, alumni = {}, foo = {};
-let deadAlumniContacts = [], deadFooContacts = [], ...
-```
+1. **State**: add `foo = {}` to the campaign globals and `deadFooContacts = []` to the dead arrays; add `fooContacts: deadFooContacts` to `saveDead()` / `loadDead()` and a `fo|` seen-prefix line to `markDeadAsSeen()` + `updateDeadTabBadge()` + `renderDeadContacts` list/campColors.
+2. **Engine entry**: one `CAMPAIGN_ENGINE.foo = { fn:'Foo', del:'Foo', count:'Foo', storageKey:'ibis_foo', idPrefix:'foo', csvKey:'foo', noun:'foo contacts', removeName:'Foo', deadLabel:'🆕 Foo', snapLabel:'Foo CSV', store: () => foo, setStore: v => { foo = v; }, dead: () => deadFooContacts }` — this auto-generates `loadFoo/saveFoo/handleFooCSV/mergeFoo/renderFoo/deleteFoo/clearFooData/getFooCount`, incl. pre-upload snapshot, dead detection, and dead-contact resurrection.
+3. **Registry**: one `CAMPAIGN_DEFS.foo` entry (emoji/label/getCount/onActivate) + a `renderCampCluster` row + `updateUploadDots` MAP entry + `openContactPreview` type handler + `ibis_foo` in `ALL_STORAGE_KEYS` (🛡 BACKUP-FIRST RULE).
+4. **HTML**: campaign view panel (`campaign-view-foo` with `foo-empty-state`/`foo-count-label`/`foo-table-wrap`/`foo-table-body`), controls inner (`controls-foo-inner` with `foo-search-input` using `debouncedSearch('renderFoo')`), dropdown menu item, stats div, upload-menu row + hidden file input.
+5. **Extension**: add `ibis_foo` to the merged-contacts loop in `outreach-extension/bridge.js`.
 
-### 2. Init / page load (near line 2528)
-```js
-loadFoo();
-if (Object.keys(foo).length > 0) {
-  document.getElementById('foo-empty-state')?.classList.add('hidden');
-  document.getElementById('foo-table-wrap')?.classList.remove('hidden');
-}
-```
-
-### 3. Account page — `renderAPHeader` contactCount (near line 5107)
-```js
-+ Object.values(foo).filter(o => normName(o.accountName) === _cn).length;
-```
-
-### 4. Account page — `renderAPCampaigns` (near line 5212)
-- Add `const fooContacts = Object.values(foo).filter(...)`
-- Add `fooContacts.length` to the empty-state guard
-- Add a column block inside `cols.push(...)` with correct header colors
-
-### 5. ALL_STORAGE_KEYS (near line 6024)
-```js
-'ibis_foo'  // add to the array
-```
-
-### 6. Count helper (near line 7193, with other getXCount functions)
-```js
-function getFooCount(name) {
-  const n = normName(name);
-  return Object.values(foo).filter(o => normName(o.accountName) === n).length;
-}
-```
-
-### 7. Full campaign function block (after `clearPowerbackData`/`clearAlumniData`)
-Seven functions following the exact pattern:
-`loadFoo()` · `saveFoo()` · `handleFooCSV()` · `mergeFoo()` · `renderFoo()` · `deleteFoo()` · `clearFooData()`
-- `handleFooCSV`: calls `parseOppsCSV`, `mergeFoo`, `saveFoo`, `saveCsvStat('foo',...)`, `updateCampaignPillCounts`, `updateUploadDots`, `renderFoo`, `showOppToast`, `checkStorageSize`
-- `mergeFoo`: additive merge + dead detection with guard (`length > newContacts.length`), duplicate check, `saveDead()` + `updateDeadTabBadge()`
-- `renderFoo`: search filter, show/hide empty-state + table-wrap, render `<tbody id="foo-table-body">` rows with territory dot + logo + name + title + days + delete button
-
-### 8. `renderCampCluster` (near line 7434)
-```js
-{ count: getFooCount(name), bg:'#hex', type:'foo' },
-```
-
-### 9. `CAMPAIGN_DEFS` (near line 7583)
-```js
-foo: { emoji:'🆕', label:'Foo', getCount: () => Object.values(foo).length, onActivate: () => renderFoo() },
-```
-
-### 10. `updateCampaignPillCounts` (near line 7640) — only if the campaign has its own named stat element
-```js
-const foototal = document.getElementById('footstat-total');
-if (foototal) foototal.textContent = CAMPAIGN_DEFS.foo.getCount() || '—';
-```
-*(Dropdown count badges are data-driven via `Object.keys(CAMPAIGN_DEFS)` — no code change needed there.)*
-
-### 11. `updateUploadDots` MAP (near line 7645)
-```js
-foo: { storageKey: 'ibis_foo', dotId: 'udot-foo' },
-```
-
-### 12. `loadDead` (near line 7781)
-```js
-deadFooContacts = raw.fooContacts || [];
-// Also add to the catch fallback array
-```
-
-### 13. `saveDead` (near line 7786)
-```js
-// Add fooContacts: deadFooContacts to the JSON object
-```
-
-### 14. `markDeadAsSeen` (near line 7800)
-```js
-deadFooContacts.forEach(d => deadSeenKeys.add('fo|' + d.email));
-```
-*(Use a unique 2-letter prefix not already taken: wk/sc/6q/ch/nn/mt/wb/pb/al)*
-
-### 15. `updateDeadTabBadge` (near line 7813)
-```js
-const unseenFoo = deadFooContacts.filter(d => !deadSeenKeys.has('fo|' + d.email)).length;
-// Add + unseenFoo to the unseen total
-```
-
-### 16. `totalDeadContacts` in `renderDead` (near line 7843)
-```js
-+ deadFooContacts.length
-```
-
-### 17. `renderDeadContacts` — list + campColors (near line 8051 and 8082)
-```js
-// list: add ...deadFooContacts
-// campColors: foo: 'background:#xxx;color:#yyy;'
-```
-
-### 18. `openContactPreview` — type handler + label (near line 8126 and 8289)
-```js
-} else if (type === 'foo') {
-  contacts = Object.values(foo).filter(...).map(...);
-}
-// label ternary: ... : type === 'foo' ? '🆕 Foo' : ...
-```
-
-### 19. `reviveDeadContact` (near line 5565)
-```js
-} else if (campaign === 'foo') {
-  const idx = deadFooContacts.findIndex(c => c.email === email);
-  if (idx === -1) return;
-  const contact = { ...deadFooContacts[idx] };
-  deadFooContacts.splice(idx, 1);
-  delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-  foo[email] = contact;
-  saveFoo();
-}
-```
-
-### 20. HTML — campaign view panel (in `#content-campaigns`, after last campaign div)
-```html
-<div id="campaign-view-foo" class="hidden">
-  <div id="foo-empty-state" class="empty-state">...</div>
-  <div id="foo-count-label" class="above-table-label" ...></div>
-  <div id="foo-table-wrap" class="opp-tbl-wrap hidden">
-    <div class="table-wrap"><table>
-      <thead><tr><th></th><th>Company</th><th>Name</th><th>Title</th><th>Days Inactive</th><th></th></tr></thead>
-      <tbody id="foo-table-body"></tbody>
-    </table></div>
-  </div>
-</div>
-```
-
-### 21. HTML — campaign controls (in controls bar, after last `-inner` div)
-```html
-<div id="controls-foo-inner" class="hidden">
-  <div class="search-wrap">
-    <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search Foo contacts..." id="foo-search-input" oninput="renderFoo()">
-  </div>
-</div>
-```
-
-### 22. HTML — campaign dropdown menu item (in `#campaign-selector-menu`)
-```html
-<div class="campaign-selector-item" id="cmenu-foo" onclick="selectCampaignFromMenu('foo')">
-  <span>🆕 Foo</span>
-  <span class="campaign-selector-count-badge" id="cmenu-count-foo">0</span>
-</div>
-```
-
-### 23. HTML — campaign stats bar div (after last `campaign-X-stats` div)
-```html
-<div id="campaign-foo-stats" style="display:none;">
-  <div class="stat-item">
-    <div class="stat-label">Total Contacts</div>
-    <div class="stat-value red" id="footstat-total">—</div>
-  </div>
-</div>
-```
-
-### 24. HTML — upload menu button + hidden file input
-```html
-<!-- In upload menu -->
-<button class="upload-menu-row" onclick="document.getElementById('foo-file-input').click();closeUploadMenu()">
-  <span class="upload-menu-label">🆕 Foo CSV</span>
-  <span class="upload-menu-dot" id="udot-foo"></span>
-  <span class="upload-menu-x" onclick="event.stopPropagation();clearFooData()" title="Clear">✕</span>
-</button>
-<!-- Hidden file input block -->
-<input type="file" id="foo-file-input" accept=".csv" onchange="handleFooCSV(event)" style="display:none;">
-```
-
-### 25. Extension — bridge.js
-Add `ibis_foo` to the merged contacts loop in `bridge.js` so the extension picks up the contacts.
-
----
+Init (`loadFoo()` + empty-state toggle) is still called explicitly in `init()` — add one line there.
 
 ## SORT / FILTER PATTERN — ESTABLISHED CONVENTION
 Both tabs implement sort state independently. Follow this pattern for any future tab:
@@ -1360,7 +1200,7 @@ Every matched row's steps/days/replied was validated EXACT against the PA cache 
 Folder names must match Outlook folder names exactly (no emoji prefix — title detection uses `document.title` which strips emoji).
 
 ### bridge.js v1.5 — all 8 campaigns + `_folders` array + account names
-Merges `ibis_opps`, `ibis_samples`, `ibis_6qa`, `ibis_churn`, `ibis_netnew`, `ibis_multithread`, `ibis_winback`, `ibis_powerback` into one flat contact map keyed by email. Each contact now carries `_folders: string[]` — ALL campaign folders it belongs to (a contact in both Workables and Old Samples gets `_folders: ['Workables', 'Old Samples']`). Used by `findEmailByDate()` for folder-strict date matching.
+Merges `ibis_opps`, `ibis_samples`, `ibis_6qa`, `ibis_churn`, `ibis_netnew`, `ibis_multithread`, `ibis_winback`, `ibis_alumni` into one flat contact map keyed by email. Each contact now carries `_folders: string[]` — ALL campaign folders it belongs to (a contact in both Workables and Old Samples gets `_folders: ['Workables', 'Old Samples']`). Used by `findEmailByDate()` for folder-strict date matching.
 **v1.5 addition:** Also pushes `outreach_account_names` from `ibis_accounts` localStorage — a slim map `{accountNameLower: {name, domain}}` so content.js can find company names in email subject lines even when no campaign contact exists (the `accountNameMap` / `findAccountNameInText()` system).
 
 ### Manifest URL patterns (all Outlook variants covered)
@@ -1707,7 +1547,7 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 | ✅ Done | Universal campaign cluster widget (v33) | `renderCampCluster(name)` — compact oval pills for all 8 campaigns. `.camp-oval` CSS. Replaced 3 separate columns (Workables/Samples/6QA) in Accounts table with one unified Campaigns column. Used in Accounts table, Action table, Account page header. Each oval clickable for preview. |
 | ✅ Done | Action tab design pass (v33) | Camp cluster `flex-wrap:nowrap` (ovals no longer stack vertically). Controls bar chips now wrap naturally (removed nowrap from `#controls-action`). Campaigns `<th>` min-width:110px. Opp badge padding 7→8px. Territory dot size 7→8px. |
 | 🗺️ Future | Campaigns: Winbacks campaign | NOW DONE as ❄️ Winback (v33). |
-| 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Not yet implemented for any campaign except workables. |
+| ✅ Done (v39) | Dead Contacts resurrection logic | Built into the campaign engine's `campMerge` — a dead contact that reappears in a CSV re-upload is auto-revived (notes preserved) for all 7 simple campaigns. Workables keeps its bespoke revive. |
 | ✅ Done | Dropped-from-CSV accounts hidden from Accounts tab | Bug fix: accounts with `hasAction=true` that were dropped from CSV were still appearing in Accounts tab with orange badge. Fixed: `getFiltered()`, `updateStats()`, and count label now all exclude `_droppedFromCSV:true` accounts. Accounts tab is now a pure live-territory view. Dropped accounts stay in `accounts[]` for Action tab only. |
 | ✅ Done | Outreach Extension v3.53–v3.60 — Winback fix + company bubble + domain fallback | **Root cause:** `❄️` = U+2744 + invisible U+FE0F variation selector. `normFolder()` stripped the snowflake but not the variation selector, so `"️ Winback" !== "Winback"` always failed. All other folder emoji (`😎🔥🌱🥶`) don't use variation selectors. **Fix (v3.59):** Added `\p{Mn}` + `\p{Cf}` + explicit `\uFE0E\uFE0F` to normFolder regex. **Also fixed:** `getActiveCampaignFolder()` broadened with `tabindex="0"` treeitem check (v3.57). **bridge.js v1.5:** pushes `outreach_account_names` from `ibis_accounts` so company bubble works for ALL territory accounts, not just campaign contacts. **`findAccountNameInText()` (v3.52):** DOM text fallback scans row text for known account names (catches subject lines like "Enhancements for Allinial Global"). **Domain-based cache fallback (v3.60):** when no email match exists but company domain is known, searches PA cache for any `@domain` email → provides step count + reply status. Diagnostic heartbeat added (v3.56) for future debugging. |
 | ✅ Done | Outreach Extension v3.61 — cross-folder company bleed fix + first-email step count | **Bug 1:** Cross-folder greeting match picked wrong company when contact wasn't in the active folder's dashboard campaign (Todd-at-FIS row matched Todd-at-Michaels). **Fix:** removed cross-folder fallback in Strategies 2/3/4. Contacts carry `_folders: [all campaigns]` so folder-restricted match catches all legitimate cases; cross-folder was guessing. **Bug 2:** Step count stuck at 0 for new contacts until next PA sync (PA runs every 2h). **Fix:** if `stepCount === 0 && resolvedEmail && domDate`, bump to 1 — DOM row in the folder is proof of one sent email. |
@@ -1746,13 +1586,13 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 | ✅ Done | True Keep status option (4th, blue) | New `truekeep` key in `ACCT_STATUS_OPTS` at index 0. Filter chip added. `getFiltered()` status group recognizes `TRUE_KEEP` flag. Dead tab `STATUS_DISPLAY` + Export PDF `statusLabels` updated. Hardcoded `[3]` fallback replaced with `.find(o => o.key === '')` for future-proofing. Color: `#dbeafe`/`#1e40af` (matches PIQ palette). |
 | ✅ Done | ExxonMobil revenue seed + Tier 1 override | Was showing SF fallback at $360M (orders of magnitude wrong) and missing tier. Seeded at $339.25B in `REVENUE_SEEDS`. Introduced new `TIER_OVERRIDES` constant + `applyTierOverridesToAccounts()` function that patches `accounts[]` in memory on init + after every accounts CSV upload. ExxonMobil → Tier 1. Pattern is reusable for any future manual tier override. |
 | ✅ Done | License upload count investigation (1142 vs 1121) | Not a bug — 21 Migration rows ($0 junk) are intentionally filtered. Confirmed by reading the CSV directly: 1142 data rows, exactly 21 contain "Migration", all $0. Dashboard's behavior is correct. Future polish: add a subtitle on the total like "1121 of 1142 (21 migrations hidden)" so the discrepancy is self-explanatory. |
-| 🔴 Next | Storage compression / IndexedDB migration | Dan is at ~5 MB localStorage usage. Auto-cleanup keeps enrichment trimmed but the CSV data itself (licenses + group data) is the bulk. Long-term fix: LZ-String compression of the big keys (would halve their size) OR migration of CSV data to IndexedDB (gigabytes available). Not urgent — write-health monitor + auto-cleanup keep current state working — but eventually unavoidable if data grows. |
-| 🔴 Next | Dead Contacts resurrection logic | If a dead sample/sixqa/churn/multithread/winback/powerback contact reappears in a future CSV re-upload, restore them to live and remove from dead. Only implemented for workables today. |
+| 🟡 Partial (v39) | Storage compression / IndexedDB migration | The backup snapshot ring moved to IndexedDB in v39 — that ended the wipe/refetch churn loop and roughly halved localStorage usage (~3.3 MB of ~10 MB now). Migrating the CSV bulk (licenses + group data) to IndexedDB or LZ-String stays a future option, no longer urgent. |
+| 🔴 Next | Frontend redesign passes | The v39 sweep produced a full usability/design catalog (token violations, contrast, focus states, per-tab inconsistencies, 4 different sub-view switcher styles). Next sessions: /design-pass + targeted redesign, using that catalog as the worklist. |
 | ✅ Done | Outreach Extension Univision/Jose unmatched (v3.79) | Root cause: Outlook never exposes the email in collapsed-row DOM, and `jcastro@televisaunivision.com` is initial+lastname so name matching couldn't reach it. Fixed by Strategy 3c (name-pattern bridge) + `televisaunivision.com → Univision` override. Jose → Univision, Lara → Allinial now resolve live (inbound rows). |
 | 🔴 Next | Load campaign CSVs for initial+lastname / outbound contacts | The clean fix for any contact whose email is `initial+lastname` (ddobbins@coca-cola.com) AND whose row is outbound (only "Hi Dominica" greeting visible). Strategy 6 declines these on same-day ambiguity (by design — don't loosen). Uploading the campaign CSV that contains them gives the extension name↔email↔account directly and fixes the whole class. `contactMap` was 0 contacts all session (no campaign CSVs loaded). |
 | 🔴 Next | Reinstall Node on fresh machine | Portable Node v24.16.0 at `%LOCALAPPDATA%\nodejs-portable\` this session (added to user PATH) — needed for `node --check content.js`. Not in GitHub; reinstall on any new machine before editing the extension (winget `OpenJS.NodeJS.LTS` needs admin, or use the portable zip). |
 | 🔴 Next | Make GitHub repo private | CLAUDE.md + SF User ID + internal architecture is public. 2-minute fix on GitHub settings. ⚠️ GitHub Pages requires GitHub Pro for private repos — confirm before switching. |
-| 🗺️ Future | CLAUDE.md doc drift — remove Powerback references | Code no longer has a Powerback campaign (no ibis_powerback key, no savePowerback function), but several sections of CLAUDE.md still reference it. Cleanup needed. |
+| ✅ Done (v39) | CLAUDE.md doc drift — Powerback references removed | Storage-key lists, ibis_dead schema, campaign sections and bridge.js description now reflect reality: Powerback gone, 🎓 Alumni is the 8th campaign. A few historical ✅ Done rows still mention Powerback as history — intentional. |
 | 🗺️ Future | Daily backup integrity check | Once a day, fetch latest GitHub backup, compare hash to local. If diverged for >24h, alert in the panel. Would catch "scheduled task quietly stopped working" scenarios. |
 | 🗺️ Future | License total: show "1121 of 1142 (21 migrations hidden)" subtitle | Dan asked why the dashboard total didn't match the CSV row count. Answer was correct (migrations intentionally filtered) but the discrepancy isn't self-explanatory. Small UX win — surface the hidden count under the Total Licenses stat. |
 | 🗺️ Future | Insights — additional cards | Currently Group Accounts subpage only has 1 card (vertical breakdown). Easy to add more (by tier, by intent score, by days inactive bucket, etc.) |
