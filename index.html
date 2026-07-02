@@ -5975,8 +5975,9 @@ function killActionAccount(name) {
   renderAll();
 }
 function reviveDeadContact(email, campaign) {
-  const today = new Date().toISOString().slice(0, 10);
   if (campaign === 'workables') {
+    // Workables is bespoke: revived contacts re-enter the pipeline at
+    // Introduction and pull their account back into ⚡ Action.
     const idx = deadWorkableContacts.findIndex(c => c.email === email);
     if (idx === -1) return;
     const contact = { ...deadWorkableContacts[idx] };
@@ -5986,62 +5987,18 @@ function reviveDeadContact(email, campaign) {
     opps[email] = contact;
     autoAddToAction(contact.accountName);
     saveOpps();
-  } else if (campaign === 'samples') {
-    const idx = deadSampleContacts.findIndex(c => c.email === email);
+  } else if (CAMPAIGN_ENGINE[campaign]) {
+    const cfg = CAMPAIGN_ENGINE[campaign];
+    const deadArr = cfg.dead();
+    const idx = deadArr.findIndex(c => c.email === email);
     if (idx === -1) return;
-    const contact = { ...deadSampleContacts[idx] };
-    deadSampleContacts.splice(idx, 1);
+    const contact = { ...deadArr[idx] };
+    deadArr.splice(idx, 1);
     delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    samples[email] = contact;
-    saveSamples();
-  } else if (campaign === 'sixqa') {
-    const idx = deadSixqaContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadSixqaContacts[idx] };
-    deadSixqaContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    sixqa[email] = contact;
-    saveSixqa();
-  } else if (campaign === 'churn') {
-    const idx = deadChurnContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadChurnContacts[idx] };
-    deadChurnContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    churn[email] = contact;
-    saveChurn();
-  } else if (campaign === 'netnew') {
-    const idx = deadNetnewContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadNetnewContacts[idx] };
-    deadNetnewContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    netnew[email] = contact;
-    saveNetnew();
-  } else if (campaign === 'multithread') {
-    const idx = deadMultithreadContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadMultithreadContacts[idx] };
-    deadMultithreadContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    multithread[email] = contact;
-    saveMultithread();
-  } else if (campaign === 'winback') {
-    const idx = deadWinbackContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadWinbackContacts[idx] };
-    deadWinbackContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    winback[email] = contact;
-    saveWinback();
-  } else if (campaign === 'alumni') {
-    const idx = deadAlumniContacts.findIndex(c => c.email === email);
-    if (idx === -1) return;
-    const contact = { ...deadAlumniContacts[idx] };
-    deadAlumniContacts.splice(idx, 1);
-    delete contact._deadSince; delete contact._campaign; delete contact._campaignLabel;
-    alumni[email] = contact;
-    saveAlumni();
+    cfg.store()[email] = contact;
+    campSave(campaign);
+  } else {
+    return;
   }
   saveDead();
   updateDeadTabBadge();
@@ -7200,91 +7157,182 @@ function clearOppsData() {
 // OLD SAMPLES CAMPAIGN
 // ══════════════════════════════════════════════════════════════
 
-function loadSamples() {
-  try { const s = localStorage.getItem('ibis_samples'); if (s) samples = JSON.parse(s); } catch(e) { samples = {}; }
+/* ════════════════════════════════════════════════════════════════════════════
+   CAMPAIGN ENGINE — one generic implementation for the 7 simple campaigns
+   (Old Samples, 6QA, Churn, Net New, Multithread, Winback, Alumni).
+   These used to be 7 copy-pasted ~110-line stacks that were 94-99% identical;
+   any fix had to be applied 7 times and usually wasn't. Workables stays
+   bespoke (stages, kanban, DQ, opp widgets).
+
+   Each campaign keeps: its own localStorage key, its own global store variable,
+   its own dead-contact array, and all of its existing public function names
+   (loadSamples, handleChurnCSV, deleteWinback, …) — generated as one-line
+   wrappers below, so no HTML call site changed.
+
+   Adding a campaign = one CAMPAIGN_ENGINE entry + one CAMPAIGN_DEFS entry +
+   the HTML panel/menu blocks. (Was a 25-step checklist.)
+   ════════════════════════════════════════════════════════════════════════════ */
+const CAMPAIGN_ENGINE = {
+  samples: {
+    fn: 'Samples', del: 'Sample', count: 'Sample',
+    storageKey: 'ibis_samples', idPrefix: 'samples', csvKey: 'samples',
+    noun: 'sample contacts', removeName: 'Old Samples', deadLabel: '🧪 Old Sample',
+    snapLabel: 'Old Samples CSV',
+    store: () => samples, setStore: v => { samples = v; }, dead: () => deadSampleContacts,
+  },
+  sixqa: {
+    fn: 'Sixqa', del: 'Sixqa', count: 'Sixqa',
+    storageKey: 'ibis_6qa', idPrefix: 'sixqa', csvKey: 'sixqa',
+    noun: '6QA contacts', removeName: '6QA', deadLabel: '🔥 6QA',
+    snapLabel: '6QA CSV',
+    store: () => sixqa, setStore: v => { sixqa = v; }, dead: () => deadSixqaContacts,
+    // 6QA-only "Active Accounts Only" chip narrows to in-territory contacts
+    extraFilter: list => sixqaActiveFilter
+      ? list.filter(o => accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||'')))
+      : list,
+  },
+  churn: {
+    fn: 'Churn', del: 'Churn', count: 'Churn',
+    storageKey: 'ibis_churn', idPrefix: 'churn', csvKey: 'churn',
+    noun: 'churn contacts', removeName: 'Churn', deadLabel: '🐣 Churn',
+    snapLabel: 'Churn CSV',
+    store: () => churn, setStore: v => { churn = v; }, dead: () => deadChurnContacts,
+  },
+  netnew: {
+    fn: 'Netnew', del: 'Netnew', count: 'Netnew',
+    storageKey: 'ibis_netnew', idPrefix: 'netnew', csvKey: 'netnew',
+    noun: 'net new contacts', removeName: 'Net New', deadLabel: '🌱 Net New',
+    snapLabel: 'Net New CSV',
+    store: () => netnew, setStore: v => { netnew = v; }, dead: () => deadNetnewContacts,
+  },
+  multithread: {
+    fn: 'Multithread', del: 'Multithread', count: 'Multithread',
+    storageKey: 'ibis_multithread', idPrefix: 'multithread', csvKey: 'multithread',
+    noun: 'multithread contacts', removeName: 'Multithread', deadLabel: '😎 Multithread',
+    snapLabel: 'Multithread CSV',
+    store: () => multithread, setStore: v => { multithread = v; }, dead: () => deadMultithreadContacts,
+  },
+  winback: {
+    fn: 'Winback', del: 'Winback', count: 'Winback',
+    storageKey: 'ibis_winback', idPrefix: 'winback', csvKey: 'winback',
+    noun: 'winback contacts', removeName: 'Winback', deadLabel: '❄️ Winback',
+    snapLabel: 'Winback CSV',
+    store: () => winback, setStore: v => { winback = v; }, dead: () => deadWinbackContacts,
+  },
+  alumni: {
+    fn: 'Alumni', del: 'Alumni', count: 'Alumni',
+    storageKey: 'ibis_alumni', idPrefix: 'alumni', csvKey: 'alumni',
+    noun: 'alumni contacts', removeName: 'Alumni', deadLabel: '🎓 Alumni',
+    snapLabel: 'Alumni CSV',
+    store: () => alumni, setStore: v => { alumni = v; }, dead: () => deadAlumniContacts,
+  },
+};
+
+function campLoad(id) {
+  const cfg = CAMPAIGN_ENGINE[id];
+  try { const s = localStorage.getItem(cfg.storageKey); if (s) cfg.setStore(JSON.parse(s)); } catch(e) { cfg.setStore({}); }
 }
 
-function saveSamples() {
-  try { localStorage.setItem('ibis_samples', JSON.stringify(samples)); } catch(e) { console.warn('ibis_samples save failed:', e); }
+function campSave(id) {
+  const cfg = CAMPAIGN_ENGINE[id];
+  try { localStorage.setItem(cfg.storageKey, JSON.stringify(cfg.store())); }
+  catch(e) { console.warn(cfg.storageKey + ' save failed:', e); }
 }
 
-function handleSamplesCSV(e) {
+function campHandleCSV(id, e) {
+  const cfg = CAMPAIGN_ENGINE[id];
   const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · Old Samples CSV');
+  snapshotBeforeAction('Pre-upload · ' + cfg.snapLabel);
   const reader = new FileReader();
   reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result); // same schema
-    const result = mergeSamples(newContacts);
-    saveSamples();
-    saveCsvStat('samples', result.added, result.deadCount);
+    const newContacts = parseOppsCSV(ev.target.result); // all campaigns share the SF contact schema
+    const result = campMerge(id, newContacts);
+    campSave(id);
+    saveCsvStat(cfg.csvKey, result.added, result.deadCount);
     updateCampaignPillCounts();
     updateUploadDots();
-    renderSamples();
-    document.getElementById('samples-empty-state')?.classList.add('hidden');
-    document.getElementById('samples-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
+    campRender(id);
+    document.getElementById(cfg.idPrefix + '-empty-state')?.classList.add('hidden');
+    document.getElementById(cfg.idPrefix + '-table-wrap')?.classList.remove('hidden');
+    showOppToast(`✅ ${result.updated} updated · ${result.added} new`
+      + (result.revived ? ` · ${result.revived} revived from Dead` : '')
+      + (result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''));
     checkStorageSize();
   };
   readCsvViaReader(reader, file);
   e.target.value = '';
 }
 
-function mergeSamples(newContacts) {
+function campMerge(id, newContacts) {
+  const cfg = CAMPAIGN_ENGINE[id];
+  const store = cfg.store();
+  const deadArr = cfg.dead();
   const today = new Date().toISOString().slice(0, 10);
   const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
+  let added = 0, updated = 0, deadCount = 0, revived = 0;
   newContacts.forEach(c => {
-    if (samples[c.email]) {
-      samples[c.email].name = c.name;
-      samples[c.email].accountName = c.accountName;
-      samples[c.email].title = c.title;
-      samples[c.email].country = c.country;
-      samples[c.email].lastActivity = c.lastActivity;
+    if (store[c.email]) {
+      store[c.email].name = c.name;
+      store[c.email].accountName = c.accountName;
+      store[c.email].title = c.title;
+      store[c.email].country = c.country;
+      store[c.email].lastActivity = c.lastActivity;
       updated++;
     } else {
-      samples[c.email] = { ...c, notes: '', dateAdded: today };
-      added++;
+      // Resurrection: a contact that previously died out of this campaign and
+      // reappears in a fresh CSV comes back to life (notes/history preserved).
+      const deadIdx = deadArr.findIndex(d => d.email === c.email);
+      if (deadIdx >= 0) {
+        const back = { ...deadArr[deadIdx], name: c.name, accountName: c.accountName, title: c.title, country: c.country, lastActivity: c.lastActivity };
+        delete back._deadSince; delete back._campaign; delete back._campaignLabel;
+        deadArr.splice(deadIdx, 1);
+        store[c.email] = back;
+        revived++;
+      } else {
+        store[c.email] = { ...c, notes: '', dateAdded: today };
+        added++;
+      }
     }
   });
-  // Move missing contacts to dead (only on re-upload, i.e. samples already had data)
-  if (Object.keys(samples).length > newContacts.length) {
-    Object.keys(samples).forEach(email => {
+  // Move missing contacts to dead (only on re-upload, i.e. store already had data)
+  if (Object.keys(store).length > newContacts.length) {
+    Object.keys(store).forEach(email => {
       if (!newEmails.has(email)) {
-        const alreadyDead = deadSampleContacts.some(d => d.email === email);
-        if (!alreadyDead) {
-          deadSampleContacts.push({ ...samples[email], _deadSince: today, _campaign: 'samples', _campaignLabel: '🧪 Old Sample' });
+        if (!deadArr.some(d => d.email === email)) {
+          deadArr.push({ ...store[email], _deadSince: today, _campaign: id, _campaignLabel: cfg.deadLabel });
           deadCount++;
         }
-        delete samples[email];
+        delete store[email];
       }
     });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
   }
-  return { added, updated, deadCount };
+  if (deadCount > 0 || revived > 0) { saveDead(); updateDeadTabBadge(); }
+  return { added, updated, deadCount, revived };
 }
 
-function renderSamples() {
-  const q = (document.getElementById('samples-search-input')?.value || '').toLowerCase();
-  const all = Object.values(samples);
-  let list = all;
+function campRender(id) {
+  const cfg = CAMPAIGN_ENGINE[id];
+  const q = (document.getElementById(cfg.idPrefix + '-search-input')?.value || '').toLowerCase();
+  const all = Object.values(cfg.store());
+  let list = cfg.extraFilter ? cfg.extraFilter(all) : all;
   if (q) list = list.filter(o =>
     (o.name||'').toLowerCase().includes(q) ||
     (o.accountName||'').toLowerCase().includes(q) ||
     (o.title||'').toLowerCase().includes(q)
   );
 
-  const countLabel = document.getElementById('samples-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} sample contacts` : '';
+  const countLabel = document.getElementById(cfg.idPrefix + '-count-label');
+  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} ${cfg.noun}` : '';
 
   if (!all.length) {
-    document.getElementById('samples-empty-state')?.classList.remove('hidden');
-    document.getElementById('samples-table-wrap')?.classList.add('hidden');
+    document.getElementById(cfg.idPrefix + '-empty-state')?.classList.remove('hidden');
+    document.getElementById(cfg.idPrefix + '-table-wrap')?.classList.add('hidden');
     return;
   }
-  document.getElementById('samples-empty-state')?.classList.add('hidden');
-  document.getElementById('samples-table-wrap')?.classList.remove('hidden');
+  document.getElementById(cfg.idPrefix + '-empty-state')?.classList.add('hidden');
+  document.getElementById(cfg.idPrefix + '-table-wrap')?.classList.remove('hidden');
 
-  const tbody = document.getElementById('samples-table-body');
+  const tbody = document.getElementById(cfg.idPrefix + '-table-body');
   if (!tbody) return;
   tbody.innerHTML = list.map(o => {
     const days = oppDaysAgo(o.lastActivity);
@@ -7296,645 +7344,55 @@ function renderSamples() {
       <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
       <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
       <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteSample('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
+      <td style="text-align:center;"><button class="opp-delete-btn" data-email="${escHtml(o.email)}" onclick="campDelete('${id}',this.dataset.email)" title="Remove contact">🗑</button></td>
     </tr>`;
   }).join('');
 }
 
-function deleteSample(email) {
-  const o = samples[email];
+function campDelete(id, email) {
+  const cfg = CAMPAIGN_ENGINE[id];
+  const store = cfg.store();
+  const o = store[email];
   if (!o) return;
-  if (!confirm(`Remove ${o.name || email} from Old Samples? This cannot be undone.`)) return;
-  delete samples[email];
-  saveSamples();
-  renderSamples();
+  if (!confirm(`Remove ${o.name || email} from ${cfg.removeName}? This cannot be undone.`)) return;
+  delete store[email];
+  campSave(id);
+  campRender(id);
   updateCampaignPillCounts();
 }
 
-function clearSamplesData() {
-  if (!confirm('Clear all Old Samples data?')) return;
-  localStorage.removeItem('ibis_samples');
+function campClear(id) {
+  const cfg = CAMPAIGN_ENGINE[id];
+  if (!confirm(`Clear all ${cfg.removeName} data?`)) return;
+  localStorage.removeItem(cfg.storageKey);
   location.reload();
 }
 
-function getSampleCount(name) {
+function campCount(id, name) {
   const n = normName(name);
-  return Object.values(samples).filter(o => normName(o.accountName) === n).length;
+  return Object.values(CAMPAIGN_ENGINE[id].store()).filter(o => normName(o.accountName) === n).length;
 }
 
-// ── 6QA Campaign ─────────────────────────────────────────────────────────────
-function loadSixqa() {
-  try { const s = localStorage.getItem('ibis_6qa'); if (s) sixqa = JSON.parse(s); } catch(e) { sixqa = {}; }
-}
-function saveSixqa() {
-  try { localStorage.setItem('ibis_6qa', JSON.stringify(sixqa)); } catch(e) { console.warn('ibis_6qa save failed:', e); }
-}
+// Back-compat wrappers — every pre-engine function name still works, so no
+// HTML onclick/onchange or JS call site had to change.
+Object.entries(CAMPAIGN_ENGINE).forEach(([id, cfg]) => {
+  window['load' + cfg.fn]          = () => campLoad(id);
+  window['save' + cfg.fn]          = () => campSave(id);
+  window['handle' + cfg.fn + 'CSV'] = (e) => campHandleCSV(id, e);
+  window['merge' + cfg.fn]         = (contacts) => campMerge(id, contacts);
+  window['render' + cfg.fn]        = () => campRender(id);
+  window['delete' + cfg.del]       = (email) => campDelete(id, email);
+  window['clear' + cfg.fn + 'Data'] = () => campClear(id);
+  window['get' + cfg.count + 'Count'] = (name) => campCount(id, name);
+});
 
-function handleSixqaCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · 6QA CSV');
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result); // same schema
-    const result = mergeSixqa(newContacts);
-    saveSixqa();
-    saveCsvStat('sixqa', result.added, result.deadCount);
-    updateCampaignPillCounts();
-    updateUploadDots();
-    renderSixqa();
-    document.getElementById('sixqa-empty-state')?.classList.add('hidden');
-    document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  readCsvViaReader(reader, file);
-  e.target.value = '';
-}
-
-function mergeSixqa(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (sixqa[c.email]) {
-      sixqa[c.email].name = c.name;
-      sixqa[c.email].accountName = c.accountName;
-      sixqa[c.email].title = c.title;
-      sixqa[c.email].country = c.country;
-      sixqa[c.email].lastActivity = c.lastActivity;
-      updated++;
-    } else {
-      sixqa[c.email] = { ...c, notes: '', dateAdded: today };
-      added++;
-    }
-  });
-  // Move missing contacts to dead (only on re-upload, i.e. sixqa already had data)
-  if (Object.keys(sixqa).length > newContacts.length) {
-    Object.keys(sixqa).forEach(email => {
-      if (!newEmails.has(email)) {
-        const alreadyDead = deadSixqaContacts.some(d => d.email === email);
-        if (!alreadyDead) {
-          deadSixqaContacts.push({ ...sixqa[email], _deadSince: today, _campaign: 'sixqa', _campaignLabel: '🔥 6QA' });
-          deadCount++;
-        }
-        delete sixqa[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-
+// 6QA-only filter chip (state var declared with the other campaign globals)
 function toggleSixqaActiveFilter() {
   sixqaActiveFilter = !sixqaActiveFilter;
   document.getElementById('sixqa-filter-active-accts')?.classList.toggle('active', sixqaActiveFilter);
-  renderSixqa();
+  campRender('sixqa');
 }
 
-function renderSixqa() {
-  const q = (document.getElementById('sixqa-search-input')?.value || '').toLowerCase();
-  const all = Object.values(sixqa);
-  let list = all;
-  if (sixqaActiveFilter) list = list.filter(o => accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||'')));
-  if (q) list = list.filter(o =>
-    (o.name||'').toLowerCase().includes(q) ||
-    (o.accountName||'').toLowerCase().includes(q) ||
-    (o.title||'').toLowerCase().includes(q)
-  );
-
-  const countLabel = document.getElementById('sixqa-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} 6QA contacts` : '';
-
-  if (!all.length) {
-    document.getElementById('sixqa-empty-state')?.classList.remove('hidden');
-    document.getElementById('sixqa-table-wrap')?.classList.add('hidden');
-    return;
-  }
-  document.getElementById('sixqa-empty-state')?.classList.add('hidden');
-  document.getElementById('sixqa-table-wrap')?.classList.remove('hidden');
-
-  const tbody = document.getElementById('sixqa-table-body');
-  if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteSixqa('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-
-function deleteSixqa(email) {
-  const o = sixqa[email];
-  if (!o) return;
-  if (!confirm(`Remove ${o.name || email} from 6QA? This cannot be undone.`)) return;
-  delete sixqa[email];
-  saveSixqa();
-  renderSixqa();
-  updateCampaignPillCounts();
-}
-
-function clearSixqaData() {
-  if (!confirm('Clear all 6QA data?')) return;
-  localStorage.removeItem('ibis_6qa');
-  location.reload();
-}
-
-function getSixqaCount(name) {
-  const n = normName(name);
-  return Object.values(sixqa).filter(o => normName(o.accountName) === n).length;
-}
-
-// ── Churn Campaign ─────────────────────────────────────────────────────────────
-function loadChurn() {
-  try { const s = localStorage.getItem('ibis_churn'); if (s) churn = JSON.parse(s); } catch(e) { churn = {}; }
-}
-function saveChurn() {
-  try { localStorage.setItem('ibis_churn', JSON.stringify(churn)); } catch(e) { console.warn('ibis_churn save failed:', e); }
-}
-
-function handleChurnCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · Churn CSV');
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result); // same schema
-    const result = mergeChurn(newContacts);
-    saveChurn();
-    saveCsvStat('churn', result.added, result.deadCount);
-    updateCampaignPillCounts();
-    updateUploadDots();
-    renderChurn();
-    document.getElementById('churn-empty-state')?.classList.add('hidden');
-    document.getElementById('churn-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  readCsvViaReader(reader, file);
-  e.target.value = '';
-}
-
-function mergeChurn(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (churn[c.email]) {
-      churn[c.email].name = c.name;
-      churn[c.email].accountName = c.accountName;
-      churn[c.email].title = c.title;
-      churn[c.email].country = c.country;
-      churn[c.email].lastActivity = c.lastActivity;
-      updated++;
-    } else {
-      churn[c.email] = { ...c, notes: '', dateAdded: today };
-      added++;
-    }
-  });
-  // Move missing contacts to dead (only on re-upload, i.e. churn already had data)
-  if (Object.keys(churn).length > newContacts.length) {
-    Object.keys(churn).forEach(email => {
-      if (!newEmails.has(email)) {
-        const alreadyDead = deadChurnContacts.some(d => d.email === email);
-        if (!alreadyDead) {
-          deadChurnContacts.push({ ...churn[email], _deadSince: today, _campaign: 'churn', _campaignLabel: '🐣 Churn' });
-          deadCount++;
-        }
-        delete churn[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-
-function renderChurn() {
-  const q = (document.getElementById('churn-search-input')?.value || '').toLowerCase();
-  const all = Object.values(churn);
-  let list = all;
-  if (q) list = list.filter(o =>
-    (o.name||'').toLowerCase().includes(q) ||
-    (o.accountName||'').toLowerCase().includes(q) ||
-    (o.title||'').toLowerCase().includes(q)
-  );
-
-  const countLabel = document.getElementById('churn-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} churn contacts` : '';
-
-  if (!all.length) {
-    document.getElementById('churn-empty-state')?.classList.remove('hidden');
-    document.getElementById('churn-table-wrap')?.classList.add('hidden');
-    return;
-  }
-  document.getElementById('churn-empty-state')?.classList.add('hidden');
-  document.getElementById('churn-table-wrap')?.classList.remove('hidden');
-
-  const tbody = document.getElementById('churn-table-body');
-  if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteChurn('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-
-function deleteChurn(email) {
-  const o = churn[email];
-  if (!o) return;
-  if (!confirm(`Remove ${o.name || email} from Churn? This cannot be undone.`)) return;
-  delete churn[email];
-  saveChurn();
-  renderChurn();
-  updateCampaignPillCounts();
-}
-
-function clearChurnData() {
-  if (!confirm('Clear all Churn data?')) return;
-  localStorage.removeItem('ibis_churn');
-  location.reload();
-}
-
-function getChurnCount(name) {
-  const n = normName(name);
-  return Object.values(churn).filter(o => normName(o.accountName) === n).length;
-}
-
-// ── Net New Campaign ───────────────────────────────────────────────────────────
-function loadNetnew() {
-  try { const s = localStorage.getItem('ibis_netnew'); if (s) netnew = JSON.parse(s); } catch(e) { netnew = {}; }
-}
-function saveNetnew() {
-  try { localStorage.setItem('ibis_netnew', JSON.stringify(netnew)); } catch(e) { console.warn('ibis_netnew save failed:', e); }
-}
-
-function handleNetnewCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · Net New CSV');
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result);
-    const result = mergeNetnew(newContacts);
-    saveNetnew();
-    saveCsvStat('netnew', result.added, result.deadCount);
-    updateCampaignPillCounts();
-    updateUploadDots();
-    renderNetnew();
-    document.getElementById('netnew-empty-state')?.classList.add('hidden');
-    document.getElementById('netnew-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  readCsvViaReader(reader, file);
-  e.target.value = '';
-}
-
-function mergeNetnew(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (netnew[c.email]) {
-      netnew[c.email].name = c.name;
-      netnew[c.email].accountName = c.accountName;
-      netnew[c.email].title = c.title;
-      netnew[c.email].country = c.country;
-      netnew[c.email].lastActivity = c.lastActivity;
-      updated++;
-    } else {
-      netnew[c.email] = { ...c, notes: '', dateAdded: today };
-      added++;
-    }
-  });
-  if (Object.keys(netnew).length > newContacts.length) {
-    Object.keys(netnew).forEach(email => {
-      if (!newEmails.has(email)) {
-        const alreadyDead = deadNetnewContacts.some(d => d.email === email);
-        if (!alreadyDead) {
-          deadNetnewContacts.push({ ...netnew[email], _deadSince: today, _campaign: 'netnew', _campaignLabel: '🌱 Net New' });
-          deadCount++;
-        }
-        delete netnew[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-
-function renderNetnew() {
-  const q = (document.getElementById('netnew-search-input')?.value || '').toLowerCase();
-  const all = Object.values(netnew);
-  let list = all;
-  if (q) list = list.filter(o =>
-    (o.name||'').toLowerCase().includes(q) ||
-    (o.accountName||'').toLowerCase().includes(q) ||
-    (o.title||'').toLowerCase().includes(q)
-  );
-
-  const countLabel = document.getElementById('netnew-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} net new contacts` : '';
-
-  if (!all.length) {
-    document.getElementById('netnew-empty-state')?.classList.remove('hidden');
-    document.getElementById('netnew-table-wrap')?.classList.add('hidden');
-    return;
-  }
-  document.getElementById('netnew-empty-state')?.classList.add('hidden');
-  document.getElementById('netnew-table-wrap')?.classList.remove('hidden');
-
-  const tbody = document.getElementById('netnew-table-body');
-  if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    const terrDot = `<span class="sixqa-terr-dot ${inTerritory ? 'in-csv' : 'dropped'}" title="${inTerritory ? 'In your territory' : 'Not in current territory'}"></span>`;
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;">${terrDot}</td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days !== null ? days + 'd ago' : '—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteNetnew('${escHtml(o.email)}')" title="Remove contact">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-
-function deleteNetnew(email) {
-  const o = netnew[email];
-  if (!o) return;
-  if (!confirm(`Remove ${o.name || email} from Net New? This cannot be undone.`)) return;
-  delete netnew[email];
-  saveNetnew();
-  renderNetnew();
-  updateCampaignPillCounts();
-}
-
-function clearNetnewData() {
-  if (!confirm('Clear all Net New data?')) return;
-  localStorage.removeItem('ibis_netnew');
-  location.reload();
-}
-
-function getNetnewCount(name) {
-  const n = normName(name);
-  return Object.values(netnew).filter(o => normName(o.accountName) === n).length;
-}
-function getMultithreadCount(name) {
-  const n = normName(name);
-  return Object.values(multithread).filter(o => normName(o.accountName) === n).length;
-}
-function getWinbackCount(name) {
-  const n = normName(name);
-  return Object.values(winback).filter(o => normName(o.accountName) === n).length;
-}
-function getAlumniCount(name) {
-  const n = normName(name);
-  return Object.values(alumni).filter(o => normName(o.accountName) === n).length;
-}
-
-// ── Multithread Campaign ─────────────────────────────────────────────────────
-function loadMultithread() {
-  try { const s = localStorage.getItem('ibis_multithread'); if (s) multithread = JSON.parse(s); } catch(e) { multithread = {}; }
-}
-function saveMultithread() {
-  try { localStorage.setItem('ibis_multithread', JSON.stringify(multithread)); } catch(e) { console.warn('ibis_multithread save failed:', e); }
-}
-function handleMultithreadCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · Multithread CSV');
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result);
-    const result = mergeMultithread(newContacts);
-    saveMultithread(); saveCsvStat('multithread', result.added, result.deadCount);
-    updateCampaignPillCounts(); updateUploadDots(); renderMultithread();
-    document.getElementById('multithread-empty-state')?.classList.add('hidden');
-    document.getElementById('multithread-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  readCsvViaReader(reader, file); e.target.value = '';
-}
-function mergeMultithread(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (multithread[c.email]) {
-      multithread[c.email].name = c.name; multithread[c.email].accountName = c.accountName;
-      multithread[c.email].title = c.title; multithread[c.email].country = c.country;
-      multithread[c.email].lastActivity = c.lastActivity; updated++;
-    } else { multithread[c.email] = { ...c, notes: '', dateAdded: today }; added++; }
-  });
-  if (Object.keys(multithread).length > newContacts.length) {
-    Object.keys(multithread).forEach(email => {
-      if (!newEmails.has(email)) {
-        if (!deadMultithreadContacts.some(d => d.email === email)) {
-          deadMultithreadContacts.push({ ...multithread[email], _deadSince: today, _campaign: 'multithread', _campaignLabel: '😎 Multithread' }); deadCount++;
-        }
-        delete multithread[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-function renderMultithread() {
-  const q = (document.getElementById('multithread-search-input')?.value || '').toLowerCase();
-  const all = Object.values(multithread);
-  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
-  const countLabel = document.getElementById('multithread-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} multithread contacts` : '';
-  if (!all.length) { document.getElementById('multithread-empty-state')?.classList.remove('hidden'); document.getElementById('multithread-table-wrap')?.classList.add('hidden'); return; }
-  document.getElementById('multithread-empty-state')?.classList.add('hidden'); document.getElementById('multithread-table-wrap')?.classList.remove('hidden');
-  const tbody = document.getElementById('multithread-table-body'); if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteMultithread('${escHtml(o.email)}')" title="Remove">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-function deleteMultithread(email) {
-  const o = multithread[email]; if (!o) return;
-  if (!confirm(`Remove ${o.name||email} from Multithread?`)) return;
-  delete multithread[email]; saveMultithread(); renderMultithread(); updateCampaignPillCounts();
-}
-function clearMultithreadData() { if (!confirm('Clear all Multithread data?')) return; localStorage.removeItem('ibis_multithread'); location.reload(); }
-
-// ── Winback Campaign ──────────────────────────────────────────────────────────
-function loadWinback() {
-  try { const s = localStorage.getItem('ibis_winback'); if (s) winback = JSON.parse(s); } catch(e) { winback = {}; }
-}
-function saveWinback() {
-  try { localStorage.setItem('ibis_winback', JSON.stringify(winback)); } catch(e) { console.warn('ibis_winback save failed:', e); }
-}
-function handleWinbackCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · Winback CSV');
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result);
-    const result = mergeWinback(newContacts);
-    saveWinback(); saveCsvStat('winback', result.added, result.deadCount);
-    updateCampaignPillCounts(); updateUploadDots(); renderWinback();
-    document.getElementById('winback-empty-state')?.classList.add('hidden');
-    document.getElementById('winback-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  readCsvViaReader(reader, file); e.target.value = '';
-}
-function mergeWinback(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (winback[c.email]) {
-      winback[c.email].name = c.name; winback[c.email].accountName = c.accountName;
-      winback[c.email].title = c.title; winback[c.email].country = c.country;
-      winback[c.email].lastActivity = c.lastActivity; updated++;
-    } else { winback[c.email] = { ...c, notes: '', dateAdded: today }; added++; }
-  });
-  if (Object.keys(winback).length > newContacts.length) {
-    Object.keys(winback).forEach(email => {
-      if (!newEmails.has(email)) {
-        if (!deadWinbackContacts.some(d => d.email === email)) {
-          deadWinbackContacts.push({ ...winback[email], _deadSince: today, _campaign: 'winback', _campaignLabel: '❄️ Winback' }); deadCount++;
-        }
-        delete winback[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-function renderWinback() {
-  const q = (document.getElementById('winback-search-input')?.value || '').toLowerCase();
-  const all = Object.values(winback);
-  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
-  const countLabel = document.getElementById('winback-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} winback contacts` : '';
-  if (!all.length) { document.getElementById('winback-empty-state')?.classList.remove('hidden'); document.getElementById('winback-table-wrap')?.classList.add('hidden'); return; }
-  document.getElementById('winback-empty-state')?.classList.add('hidden'); document.getElementById('winback-table-wrap')?.classList.remove('hidden');
-  const tbody = document.getElementById('winback-table-body'); if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteWinback('${escHtml(o.email)}')" title="Remove">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-function deleteWinback(email) {
-  const o = winback[email]; if (!o) return;
-  if (!confirm(`Remove ${o.name||email} from Winback?`)) return;
-  delete winback[email]; saveWinback(); renderWinback(); updateCampaignPillCounts();
-}
-function clearWinbackData() { if (!confirm('Clear all Winback data?')) return; localStorage.removeItem('ibis_winback'); location.reload(); }
-
-// ── Alumni Campaign ───────────────────────────────────────────────────────────
-function loadAlumni() {
-  try { const s = localStorage.getItem('ibis_alumni'); if (s) alumni = JSON.parse(s); } catch(e) { alumni = {}; }
-}
-function saveAlumni() {
-  try { localStorage.setItem('ibis_alumni', JSON.stringify(alumni)); } catch(e) { console.warn('ibis_alumni save failed:', e); }
-}
-function handleAlumniCSV(e) {
-  const file = e.target.files[0]; if (!file) return;
-  snapshotBeforeAction('Pre-upload · Alumni CSV');
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const newContacts = parseOppsCSV(ev.target.result);
-    const result = mergeAlumni(newContacts);
-    saveAlumni(); saveCsvStat('alumni', result.added, result.deadCount);
-    updateCampaignPillCounts(); updateUploadDots(); renderAlumni();
-    document.getElementById('alumni-empty-state')?.classList.add('hidden');
-    document.getElementById('alumni-table-wrap')?.classList.remove('hidden');
-    showOppToast(`✅ ${result.updated} updated · ${result.added} new${result.deadCount ? ` · ${result.deadCount} moved to Dead` : ''}`);
-    checkStorageSize();
-  };
-  readCsvViaReader(reader, file); e.target.value = '';
-}
-function mergeAlumni(newContacts) {
-  const today = new Date().toISOString().slice(0, 10);
-  const newEmails = new Set(newContacts.map(c => c.email));
-  let added = 0, updated = 0, deadCount = 0;
-  newContacts.forEach(c => {
-    if (alumni[c.email]) {
-      alumni[c.email] = { ...alumni[c.email], name: c.name, title: c.title, accountName: c.accountName, lastActivity: c.lastActivity, country: c.country };
-      updated++;
-    } else {
-      alumni[c.email] = { ...c };
-      added++;
-    }
-  });
-  if (Object.keys(alumni).length > newContacts.length) {
-    Object.keys(alumni).forEach(email => {
-      if (!newEmails.has(email)) {
-        if (!deadAlumniContacts.some(d => d.email === email)) {
-          deadAlumniContacts.push({ ...alumni[email], _deadSince: today, _campaign: 'alumni', _campaignLabel: '🎓 Alumni' }); deadCount++;
-        }
-        delete alumni[email];
-      }
-    });
-    if (deadCount > 0) { saveDead(); updateDeadTabBadge(); }
-  }
-  return { added, updated, deadCount };
-}
-function renderAlumni() {
-  const q = (document.getElementById('alumni-search-input')?.value || '').toLowerCase();
-  const all = Object.values(alumni);
-  let list = q ? all.filter(o => (o.name||'').toLowerCase().includes(q) || (o.accountName||'').toLowerCase().includes(q) || (o.title||'').toLowerCase().includes(q)) : all;
-  const countLabel = document.getElementById('alumni-count-label');
-  if (countLabel) countLabel.textContent = list.length ? `${list.length} of ${all.length} alumni contacts` : '';
-  if (!all.length) { document.getElementById('alumni-empty-state')?.classList.remove('hidden'); document.getElementById('alumni-table-wrap')?.classList.add('hidden'); return; }
-  document.getElementById('alumni-empty-state')?.classList.add('hidden'); document.getElementById('alumni-table-wrap')?.classList.remove('hidden');
-  const tbody = document.getElementById('alumni-table-body'); if (!tbody) return;
-  tbody.innerHTML = list.map(o => {
-    const days = oppDaysAgo(o.lastActivity);
-    const inTerritory = accounts.some(a => normName(getField(a,'Account Name','AccountName')) === normName(o.accountName||''));
-    return `<tr>
-      <td style="text-align:center;padding:0 4px 0 10px;"><span class="sixqa-terr-dot ${inTerritory?'in-csv':'dropped'}"></span></td>
-      <td><div style="display:flex;align-items:center;gap:8px;padding:4px 0 4px 8px;"><div class="acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${oppLogoHTML(o,24)}</div><span class="acct-name-link" style="font-size:12px;color:var(--text-secondary);" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(o.accountName)}">${escHtml(o.accountName||'')}</span></div></td>
-      <td><div style="font-weight:500;padding:9px 8px;">${escHtml(o.name||'')}</div></td>
-      <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(o.title||'')}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text-muted);">${days!==null?days+'d ago':'—'}</td>
-      <td style="text-align:center;"><button class="opp-delete-btn" onclick="deleteAlumni('${escHtml(o.email)}')" title="Remove">🗑</button></td>
-    </tr>`;
-  }).join('');
-}
-function deleteAlumni(email) {
-  const o = alumni[email]; if (!o) return;
-  if (!confirm(`Remove ${o.name||email} from Alumni?`)) return;
-  delete alumni[email]; saveAlumni(); renderAlumni(); updateCampaignPillCounts();
-}
-function clearAlumniData() { if (!confirm('Clear all Alumni data?')) return; localStorage.removeItem('ibis_alumni'); location.reload(); }
 
 // Compact campaign cluster widget — one colored oval per campaign with contacts, scales to 8+
 function renderCampCluster(name) {
