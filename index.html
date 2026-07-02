@@ -2995,12 +2995,9 @@ function debouncedRenderAll() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Named constants ───────────────────────────────────────────────────────────
-const ENRICH_DELAY_MS        = 900;        // throttle between Claude API calls
 const DESC_DELAY_MS          = 150;        // throttle between Wikipedia description fetches
 const DESC_VERSION           = 6;          // bump to force re-fetch of all descriptions
 const SF_REV_STALE_THRESHOLD = 50_000_000; // SF revenue below this is suspect
-// Cloudflare Worker proxy — set this to your Worker URL after deploying cloudflare-worker.js
-const CLAUDE_PROXY_URL       = 'https://ibis-enrich.dabbs4dan.workers.dev';
 const LIC_NAME_MAX_LEN       = 45;         // truncate long license names in table
 const CHURN_YEAR_NEW         = 2024;       // new churn: end year >= this
 const CHURN_YEAR_CHURNED     = 2020;       // historical churn: end year >= this
@@ -3892,160 +3889,22 @@ function sourceBadge(source) {
   return '';
 }
 
-const claudeQueue = [];
-let claudeRunning = false;
-
-function queueClaudeEnrich(accName, priority = false) {
-  const saved = localData[accName]?.rev?.source;
-  if (saved === 'claude' || saved === 'seed') return;
-  if (claudeQueue.includes(accName)) return;
-  if (priority) claudeQueue.unshift(accName); else claudeQueue.push(accName);
-  if (!claudeRunning) runClaudeQueue();
-}
-
-async function runClaudeQueue() {
-  claudeRunning = true;
-  const total = claudeQueue.length;
-  let done = 0;
-  showEnrichProgress(done, total);
-  while (claudeQueue.length) {
-    const name = claudeQueue.shift();
-    const saved = localData[name]?.rev?.source;
-    if (saved === 'claude' || saved === 'seed') { done++; continue; }
-    await fetchRevenueFromClaude(name);
-    done++;
-    showEnrichProgress(done, total);
-    if (done % 5 === 0) debouncedRenderAll();
-    await new Promise(r => setTimeout(r, ENRICH_DELAY_MS));
-  }
-  claudeRunning = false;
-  hideEnrichProgress();
-  renderAll(); // final render: always immediate after queue completes
-}
-
-function showEnrichProgress(done, total) {
-  let bar = document.getElementById('enrich-progress');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'enrich-progress';
-    bar.style.cssText = "position:fixed;bottom:16px;right:16px;background:#1a1a2e;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);";
-    document.body.appendChild(bar);
-  }
-  const remaining = total - done;
-  bar.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block;">🔄</span> Enriching accounts… <strong>${remaining}</strong> remaining`;
-}
-
-function hideEnrichProgress() {
-  const bar = document.getElementById('enrich-progress');
-  if (bar) {
-    bar.innerHTML = '✅ Enrichment complete';
-    bar.style.background = '#065f46';
-    setTimeout(() => bar.remove(), 3000);
-  }
-}
-
-async function fetchRevenueFromClaude(companyName) {
-  try {
-    const resp = await fetch(CLAUDE_PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 800,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        system: `You are a financial data assistant. Return ONLY valid JSON — no markdown, no explanation, no text outside the JSON object.
-
-REQUIRED JSON SCHEMA (every field is mandatory):
-{
-  "value_usd": <number in USD or null>,
-  "label": "<e.g. USD 13.0B>",
-  "source": "<source name>",
-  "year": "<e.g. 2024>",
-  "description": "<10-15 word B2B description of what the company does>",
-  "sentiment": {
-    "score": <integer 1-10 or null>,
-    "headline": "<one sentence — the single most important thing a sales rep should know, e.g. 'Filed for Chapter 11 bankruptcy protection in Feb 2025' or 'Record Q4 revenue up 34% YoY driven by AI demand'>",
-    "rationale": "<one sentence plain English health summary>",
-    "trend": "<up|flat|down>",
-    "confidence": "<high|medium|low>",
-    "factors": {
-      "revTrend": <1-10>,
-      "profitTrend": <1-10>,
-      "marketGrowth": <1-10>,
-      "maActivity": <1-10>,
-      "stability": <1-10>,
-      "leadership": <1-10>
-    }
-  }
-}
-
-REVENUE: Search annual reports, SEC filings, Bloomberg, Forbes, Wikipedia. For private companies use best estimates. Convert non-USD to USD. Set value_usd to null if unavailable.
-
-SENTIMENT SCORING (1-10 scale, all 6 factors required):
-- revTrend (25%): revenue growth trajectory
-- profitTrend (20%): profitability / EPS / margin trend
-- marketGrowth (15%): industry expansion vs contraction
-- maActivity (15%): acquiring = positive; being acquired = penalty
-- stability (15%): layoffs, restructuring, bankruptcy risk = low score
-- leadership (10%): CEO/exec turnover = low score
-Set sentiment.score to null only if company is too obscure for any assessment. The headline must be specific and actionable — cite real events, not generic statements.`,
-        messages: [{ role: 'user', content: `Company: "${companyName}". Return the full JSON with revenue AND sentiment. Both are required.` }]
-      })
-    });
-    const data = await resp.json();
-    let parsed = null;
-    for (const b of (data.content||[]).filter(b => b.type === 'text')) {
-      try { parsed = JSON.parse(b.text.replace(/```json|```/g,'').trim()); break; } catch(e) {}
-    }
-    console.log(`[Enrich] ${companyName}:`, parsed ? { rev: parsed.value_usd, sentiment: parsed.sentiment?.score, headline: parsed.sentiment?.headline?.slice(0,50) } : 'NO PARSE');
-    if (parsed) {
-      if (!localData[companyName]) localData[companyName] = {};
-      // Save description from Claude — high quality, always overwrites Wikipedia
-      if (parsed.description && typeof parsed.description === 'string' && parsed.description.trim().length > 5) {
-        localData[companyName].desc = parsed.description.trim();
-        localData[companyName].descV = DESC_VERSION;
-      }
-      // Save sentiment data from Claude
-      if (parsed.sentiment && parsed.sentiment.score != null) {
-        localData[companyName].sentiment = {
-          score: parseInt(parsed.sentiment.score, 10),
-          headline: parsed.sentiment.headline || '',
-          rationale: parsed.sentiment.rationale || '',
-          trend: parsed.sentiment.trend || 'flat',
-          confidence: parsed.sentiment.confidence || 'low',
-          factors: parsed.sentiment.factors || {}
-        };
-      } else if (parsed.sentiment) {
-        localData[companyName].sentiment = { score: null };
-      }
-      _dbg.enrich.attempted++;
-      if (parsed.value_usd) {
-        _dbg.enrich.succeeded++;
-        _dbgLog('enrich', `✅ ${companyName}: ${fmtMoney(parsed.value_usd) || parsed.label}`);
-        const label = fmtMoney(parsed.value_usd) || parsed.label;
-        localData[companyName].rev = { label, raw: parsed.value_usd, source: 'claude', year: parsed.year, srcNote: parsed.source };
-        localStorage.setItem('ibis_local', JSON.stringify(localData));
-        return { label, raw: parsed.value_usd };
-      } else {
-        _dbgLog('enrich', `⚠️ ${companyName}: no revenue returned`);
-      }
-      localStorage.setItem('ibis_local', JSON.stringify(localData));
-    }
-  } catch(e) {
-    _dbg.enrich.failed++;
-    if (!_dbg.enrich.failedNames.includes(companyName)) _dbg.enrich.failedNames.push(companyName);
-    _dbgLog('enrich', `❌ ${companyName}: ${e.message}`);
-    console.error('Enrichment failed for', companyName, e);
-  }
-  return null;
-}
-
-
 function autoQueueAccounts() {
-  // Tier-1 first, then rest
-  const tier1 = accounts.filter(a => getField(a,'Major Markets Tier') == '1');
-  const rest   = accounts.filter(a => getField(a,'Major Markets Tier') != '1');
-  [...tier1, ...rest].forEach(a => queueClaudeEnrich(getField(a,'Account Name','AccountName')));
+  // Revenue enrichment goes through the Wikidata pipeline (queueClientInsightsRevenue),
+  // which already skips accounts that have a real value cached. Tier-1 first.
+  // The old Claude/Cloudflare-Worker queue was removed — the Worker was never
+  // deployed, so every request failed and the queue re-ran on each page load.
+  // Deferred one tick: the Wikidata module lives in a later part of the page.
+  setTimeout(() => {
+    if (typeof queueClientInsightsRevenue !== 'function') return;
+    const tier1 = accounts.filter(a => getField(a,'Major Markets Tier') == '1');
+    const rest  = accounts.filter(a => getField(a,'Major Markets Tier') != '1');
+    const names = [...tier1, ...rest]
+      .filter(a => !isNoRevAccount(a))
+      .map(a => getField(a,'Account Name','AccountName'))
+      .filter(Boolean);
+    queueClientInsightsRevenue(names);
+  }, 0);
 }
 
 // ── WIKIPEDIA DESCRIPTION ENRICHMENT ─────────────────────────────────────────
@@ -9223,14 +9082,12 @@ function dbgSection(title, rows) {
 function renderDebugContent() {
   const el = document.getElementById('debug-content');
 
-  // Enrichment
-  const en = _dbg.enrich;
+  // Enrichment — Wikidata revenue queue + Wikipedia desc/sentiment queues
   const enrichRows = [
-    ['Worker URL', CLAUDE_PROXY_URL || '—', null],
-    ['Attempted', en.attempted, null],
-    ['Succeeded', en.succeeded, en.succeeded > 0],
-    ['Failed', en.failed, en.failed === 0 ? null : false],
-    ['Failed accounts', en.failedNames.length ? en.failedNames.slice(0,6).join(', ') + (en.failedNames.length > 6 ? ` +${en.failedNames.length - 6} more` : '') : '—', en.failedNames.length === 0 ? null : false],
+    ['Revenue queue (Wikidata)', (typeof wdRevQueue !== 'undefined' && wdRevQueue.length) ? wdRevQueue.length + ' pending' : 'idle', null],
+    ['Revenue cache entries', typeof clientRevCache !== 'undefined' ? Object.keys(clientRevCache).length : '—', null],
+    ['Descriptions', `${_dbg.desc.succeeded} ok / ${_dbg.desc.failed} failed`, _dbg.desc.failed === 0 ? null : false],
+    ['Sentiment', `${_dbg.sent.succeeded} ok / ${_dbg.sent.failed} failed`, _dbg.sent.failed === 0 ? null : false],
   ];
 
   // Storage
@@ -9489,13 +9346,15 @@ function autoQueueGroupEnrichment(owner) {
   // Tier-1 first within this rep's batch
   const t1 = list.filter(a => getField(a,'Major Markets Tier') == '1');
   const rest = list.filter(a => getField(a,'Major Markets Tier') != '1');
+  const revNames = [];
   [...t1, ...rest].forEach(a => {
     const n = getField(a, 'Account Name', 'AccountName');
     if (!n) return;
-    queueClaudeEnrich(n);
+    if (!isNoRevAccount(a)) revNames.push(n);
     queueDescEnrich(n);
     queueSentEnrich(n);
   });
+  queueClientInsightsRevenue(revNames);
 }
 
 /* ─── Per-owner license helpers (mirror personal versions) ─────────────── */
@@ -9901,11 +9760,14 @@ function updateRotationUploadDots() {
 function autoQueueRotationEnrichment() {
   const t1   = rotationAccounts.filter(a => getField(a,'Major Markets Tier') == '1');
   const rest = rotationAccounts.filter(a => getField(a,'Major Markets Tier') != '1');
+  const revNames = [];
   [...t1, ...rest].forEach(a => {
     const n = getField(a, 'Account Name', 'AccountName');
     if (!n) return;
-    queueClaudeEnrich(n); queueDescEnrich(n); queueSentEnrich(n);
+    if (!isNoRevAccount(a)) revNames.push(n);
+    queueDescEnrich(n); queueSentEnrich(n);
   });
+  queueClientInsightsRevenue(revNames);
 }
 
 /* ─── License + PIQ-Rep + Opp helpers ────────────────────────────────────── */
@@ -11030,6 +10892,10 @@ async function runWdRevQueue() {
           saveClientRevCache();
           try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
           saveBatch = 0;
+          // Accounts/Group tabs read localData.rev — refresh so new values appear
+          if (mainView === 'accounts') debouncedRenderAll();
+          else if (mainView === 'group') renderGroup();
+          else if (mainView === 'rotation') renderRotation();
         }
         _normLocalDataIndex = null;
       } else {
