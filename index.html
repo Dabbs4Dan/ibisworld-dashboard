@@ -325,7 +325,6 @@
     transition: opacity 0.15s;
   }
   .stat-item:last-child { border-right: none; }
-  .stat-item:hover { opacity: 0.72; }
 
   .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 500; }
   .stat-value { font-size: 24px; font-weight: 700; color: var(--text-primary); font-family: 'DM Mono', monospace; line-height: 1; }
@@ -1753,7 +1752,7 @@
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search accounts..." id="action-search-input" oninput="renderAction()">
+    <input type="text" placeholder="Search accounts..." id="action-search-input" oninput="debouncedSearch('renderAction')">
   </div>
   <div class="filter-chips" id="action-filter-chips">
     <button class="chip" id="action-filter-workables" onclick="setActionFilter('workables')">🎯 Has Workables</button>
@@ -2057,7 +2056,7 @@
   </div>
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search dead records..." id="dead-search-input" oninput="renderDead()">
+    <input type="text" placeholder="Search dead records..." id="dead-search-input" oninput="debouncedSearch('renderDead')">
   </div>
 </div>
 
@@ -2117,7 +2116,7 @@
 <div class="controls hidden" id="controls-licenses">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search company..." id="lic-search-input" oninput="renderLicenses()">
+    <input type="text" placeholder="Search company..." id="lic-search-input" oninput="debouncedSearch('renderLicenses')">
   </div>
   <select id="lic-sort-select" onchange="onLicSortSelectChange()">
     <option value="churn_recency">Churn Recency</option>
@@ -2141,7 +2140,7 @@
     </div>
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="renderOpps()">
+      <input type="text" placeholder="Search contacts..." id="opp-search-input" oninput="debouncedSearch('renderOpps')">
     </div>
     <div class="filter-chips">
       <button class="chip" id="opp-filter-active"       onclick="setOppFilter('active')">🎯 Active Workables</button>
@@ -2156,45 +2155,52 @@
   <div id="controls-samples-inner" class="hidden">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search samples..." id="samples-search-input" oninput="renderSamples()">
+      <input type="text" placeholder="Search samples..." id="samples-search-input" oninput="debouncedSearch('renderSamples')">
     </div>
   </div>
   <!-- 6QA controls -->
   <div id="controls-sixqa-inner" class="hidden">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search 6QA contacts..." id="sixqa-search-input" oninput="renderSixqa()">
+      <input type="text" placeholder="Search 6QA contacts..." id="sixqa-search-input" oninput="debouncedSearch('renderSixqa')">
     </div>
     <div class="filter-chips">
       <button class="chip" id="sixqa-filter-active-accts" onclick="toggleSixqaActiveFilter()">🟢 Active Accounts Only</button>
+    </div>
+  </div>
+  <!-- Churn controls -->
+  <div id="controls-churn-inner" class="hidden">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search Churn contacts..." id="churn-search-input" oninput="debouncedSearch('renderChurn')">
     </div>
   </div>
   <!-- Net New controls -->
   <div id="controls-netnew-inner" class="hidden">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search Net New contacts..." id="netnew-search-input" oninput="renderNetnew()">
+      <input type="text" placeholder="Search Net New contacts..." id="netnew-search-input" oninput="debouncedSearch('renderNetnew')">
     </div>
   </div>
   <!-- Multithread controls -->
   <div id="controls-multithread-inner" class="hidden">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search Multithread contacts..." id="multithread-search-input" oninput="renderMultithread()">
+      <input type="text" placeholder="Search Multithread contacts..." id="multithread-search-input" oninput="debouncedSearch('renderMultithread')">
     </div>
   </div>
   <!-- Winback controls -->
   <div id="controls-winback-inner" class="hidden">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search Winback contacts..." id="winback-search-input" oninput="renderWinback()">
+      <input type="text" placeholder="Search Winback contacts..." id="winback-search-input" oninput="debouncedSearch('renderWinback')">
     </div>
   </div>
   <!-- Alumni controls -->
   <div id="controls-alumni-inner" class="hidden">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" placeholder="Search Alumni contacts..." id="alumni-search-input" oninput="renderAlumni()">
+      <input type="text" placeholder="Search Alumni contacts..." id="alumni-search-input" oninput="debouncedSearch('renderAlumni')">
     </div>
   </div>
 </div>
@@ -2635,7 +2641,7 @@
 <div class="controls hidden" id="controls-group">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search accounts or vertical..." id="grp-search-input" oninput="renderGroup()">
+    <input type="text" placeholder="Search accounts or vertical..." id="grp-search-input" oninput="debouncedSearch('renderGroup')">
   </div>
   <select id="grp-vertical-filter" class="vertical-filter" onchange="renderGroup()"><option value="">All Verticals</option></select>
   <div class="filter-chips" id="group-filter-chips">
@@ -2784,7 +2790,7 @@
 <div class="controls hidden" id="controls-rotation">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
-    <input type="text" placeholder="Search accounts or vertical..." id="rot-search-input" oninput="renderRotation()">
+    <input type="text" placeholder="Search accounts or vertical..." id="rot-search-input" oninput="debouncedSearch('renderRotation')">
   </div>
   <select id="rot-vertical-filter" class="vertical-filter" onchange="renderRotation()"><option value="">All Verticals</option></select>
   <div class="filter-chips" id="rotation-filter-chips">
@@ -2902,6 +2908,13 @@ let _renderAllTimer = null;
 function debouncedRenderAll() {
   clearTimeout(_renderAllTimer);
   _renderAllTimer = setTimeout(renderAll, 150);
+}
+// Generic search-input debouncer — every table search rebuilds its full tbody,
+// so re-rendering per keystroke on 1,000+ row tables makes typing lag.
+let _searchDebounceT = null;
+function debouncedSearch(fnName) {
+  clearTimeout(_searchDebounceT);
+  _searchDebounceT = setTimeout(() => { try { window[fnName](); } catch(e) { console.warn('search render failed', fnName, e); } }, 200);
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3835,14 +3848,20 @@ function queueDescEnrich(name) {
 
 async function runDescQueue() {
   descRunning = true;
+  let done = 0;
   while (descQueue.length) {
     const name = descQueue.shift();
     if (localData[name]?.desc && localData[name]?.descV === DESC_VERSION) continue;  // fetched while waiting
     await fetchDescFromWiki(name);
-    debouncedRenderAll();
+    // Re-render in batches, and only when the Accounts view is actually visible —
+    // per-item renders rebuilt the whole table every ~150ms for minutes,
+    // killing text selection / input focus and re-firing logo fetches.
+    done++;
+    if (mainView === 'accounts' && (done % 8 === 0 || descQueue.length === 0)) debouncedRenderAll();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   descRunning = false;
+  if (mainView === 'accounts') debouncedRenderAll();
 }
 
 const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|parish|county|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game|mathematical|physics|chemistry|star|stars|constellation|planet|galaxy|nebula|asteroid|comet|celestial|stellar|magnate|tycoon|philanthropist|statesman|diplomat|politician|athlete|footballer|cricketer|basketball|tennis|golfer|actor|actress|musician|singer|composer|painter|sculptor|philosopher|historian|physicist|biologist|river|mountain|lake|island|peninsula|cape)\b/i;
@@ -4025,14 +4044,17 @@ function queueSentEnrich(name) {
 
 async function runSentQueue() {
   sentRunning = true;
+  let done = 0;
   while (sentQueue.length) {
     const name = sentQueue.shift();
     if (localData[name]?.sentiment?.v === SENT_VERSION) continue;
     await fetchSentimentData(name);
-    debouncedRenderAll();
+    done++;
+    if (mainView === 'accounts' && (done % 8 === 0 || sentQueue.length === 0)) debouncedRenderAll();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   sentRunning = false;
+  if (mainView === 'accounts') debouncedRenderAll();
 }
 
 async function fetchSentimentData(companyName) {
@@ -6095,7 +6117,16 @@ function toggleActionStageDropdown(event) {
   document.querySelectorAll('.lic-dropdown:not(.hidden)').forEach(d => d.classList.add('hidden'));
   if (isHidden) {
     dd.classList.remove('hidden');
-    setTimeout(() => document.addEventListener('click', () => dd.classList.add('hidden'), {once:true}), 0);
+    // Close only on clicks OUTSIDE the dropdown — clicking a checkbox inside
+    // must keep the multi-select open (the old {once:true} closed per click)
+    setTimeout(() => {
+      const closer = (e) => {
+        if (dd.contains(e.target)) return;
+        dd.classList.add('hidden');
+        document.removeEventListener('click', closer);
+      };
+      document.addEventListener('click', closer);
+    }, 0);
   }
 }
 
@@ -6421,6 +6452,7 @@ function setMainView(v) {
     document.getElementById('controls-' + tab)?.classList.toggle('hidden', !active);
     document.getElementById('content-' + tab)?.classList.toggle('hidden', !active);
   });
+  if (v === 'accounts') { debouncedRenderAll(); } // pick up enrichment that arrived while hidden
   if (v === 'dead') { renderDead(); markDeadAsSeen(); }
   if (v === 'campaigns') { setCampaign(currentCampaign); }
   if (v === 'action') { renderAction(); }
@@ -7549,12 +7581,16 @@ document.addEventListener('click', function(e) {
   }
 });
 
+let _oppToastTimer = null;
 function showOppToast(msg) {
   const toast = document.getElementById('opp-toast');
   if (!toast) return;
   toast.textContent = msg;
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3500);
+  // Clear the previous timer — otherwise an earlier toast's timeout hides a
+  // newer message early (common during multi-CSV upload sequences)
+  clearTimeout(_oppToastTimer);
+  _oppToastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
 function oppDaysAgo(dateStr) {
@@ -8252,6 +8288,24 @@ function closeContactPreview() {
   const p = document.getElementById('contact-preview-portal');
   if (p) p.style.display = 'none';
 }
+
+// Escape closes whichever floating UI is open — portals, dropdowns, menus,
+// modals. Before this, every overlay could only be dismissed with the mouse.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  ['acct-status-portal','acct-priority-portal','sentiment-card','contact-preview-portal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.style.display && el.style.display !== 'none') el.style.display = 'none';
+  });
+  document.querySelectorAll('.lic-dropdown:not(.hidden)').forEach(d => d.classList.add('hidden'));
+  document.getElementById('campaign-selector-menu')?.classList.add('hidden');
+  document.getElementById('upload-menu')?.classList.add('hidden');
+  document.getElementById('group-upload-menu')?.classList.add('hidden');
+  const abm = document.getElementById('autoback-modal');
+  if (abm && abm.style.display !== 'none') abm.style.display = 'none';
+  const dbg = document.getElementById('debug-overlay');
+  if (dbg && dbg.style.display !== 'none') dbg.style.display = 'none';
+});
 </script>
 <!-- Global portals for account dropdowns — live outside table to avoid stacking context issues -->
 <div id="acct-status-portal"></div>
@@ -9486,7 +9540,8 @@ function renderInsights() {
   if (totalRows === 0) {
     document.getElementById('ins-empty-state')?.classList.remove('hidden');
     document.getElementById('ins-cards')?.classList.add('hidden');
-    ['total','unique','verticals'].forEach(k => { const el = document.getElementById('ins-stat-' + k); if (el) el.textContent = '—'; });
+    setInsStatLabels('Total Group Accounts', 'Unique Accounts', 'Verticals Covered');
+    ['ins-stat-1','ins-stat-2','ins-stat-3'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
     return;
   }
   document.getElementById('ins-empty-state')?.classList.add('hidden');
@@ -9507,11 +9562,12 @@ function renderInsights() {
     byVertical[v].byOwner[o]++;
   }));
 
-  // Update stats bar
+  // Update stats bar — the shared slots are ins-stat-1/2/3 (repurposed per subtab)
+  setInsStatLabels('Total Group Accounts', 'Unique Accounts', 'Verticals Covered');
   const setStat = (id,val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  setStat('ins-stat-total', totalRows);
-  setStat('ins-stat-unique', uniqueAccts.size);
-  setStat('ins-stat-verticals', Object.keys(byVertical).length);
+  setStat('ins-stat-1', totalRows.toLocaleString());
+  setStat('ins-stat-2', uniqueAccts.size.toLocaleString());
+  setStat('ins-stat-3', Object.keys(byVertical).length.toLocaleString());
 
   // ── Render: Accounts by Vertical ────────────────────────────────────
   const sortedVerts = Object.entries(byVertical).sort((a,b) => b[1].total - a[1].total);
@@ -10174,7 +10230,8 @@ function showWdProgress() {
   if (!b) {
     b = document.createElement('div');
     b.id = 'wd-rev-progress';
-    b.style.cssText = "position:fixed;bottom:16px;right:16px;background:#0891b2;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);";
+    // bottom:64px keeps it clear of #opp-toast (bottom:20px) so upload feedback is never covered
+    b.style.cssText = "position:fixed;bottom:64px;right:16px;background:#0891b2;color:white;font-size:12px;padding:8px 14px;border-radius:8px;z-index:999;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:8px;box-shadow:0 2px 12px rgba(0,0,0,0.3);";
     document.body.appendChild(b);
   }
   const remaining = wdRevQueue.length;
