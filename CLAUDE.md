@@ -63,6 +63,11 @@ Every new system, field, tool, or data type built going forward MUST integrate w
   - **CLIENT INSIGHTS KEYS (v36)**:
     - `ibis_client_licenses` — slim rows from SF Active Client Report (~2.6K rows). Schema: `{a:account, d:dept, v:vertical, $:annAmt, e:endDate, act:bool}`
     - `ibis_client_revenue` — **PROTECTED** Wikidata revenue cache, keyed by normName(company). Never touched by Clear Cache. Schema: `{normName: {raw, label, source, year, ts}}`
+  - **ROTATION TAB KEYS (v38)** — single departed-rep dataset (all in `ALL_STORAGE_KEYS`):
+    - `ibis_rotation_accounts` — raw account rows (same shape as SF CSV)
+    - `ibis_rotation_licenses` — decoded license rows (parseLicenseCSV shape, `applyLicenseRules` applied on load)
+    - `ibis_rotation_opps` — raw opportunity rows from the SF opp report
+    - `ibis_rotation_markup` — per-account UI state keyed by `normName`: `{assign, teamSell, star}` (instant-save, like status/priority)
   - **AUTO-BACKUP KEYS (v36)**:
     - `ibis_auto_backup_ring` — last 5 v3 snapshots in-memory (excluded from snapshots themselves to avoid nesting)
     - `ibis_auto_backup_meta` — hashes + timestamps for change detection + file-download throttle
@@ -71,9 +76,9 @@ Every new system, field, tool, or data type built going forward MUST integrate w
 
 ---
 
-## CURRENT STATE — v37 (stable)
+## CURRENT STATE — v38 (stable)
 
-### Seven tabs live:
+### Eight tabs live:
 1. **⚡ Action tab** — accounts Dan is actively working (new in v29)
 2. **📋 Accounts tab** — main territory view (gained Overlap column + Multi-Owner filter + Export button + 🤝 Team Sell priority tier in v36)
 3. **🔑 Licenses tab** — churn/active license data
@@ -81,6 +86,24 @@ Every new system, field, tool, or data type built going forward MUST integrate w
 5. **💀 Dead tab** — accounts/licenses/contacts that have disappeared from CSV uploads
 6. **👥 Group tab** (new v36) — 4-rep enterprise overlap view; data lives in isolation from personal data
 7. **📊 Insights tab** (new v36) — derived analytics; two subpages: Group Accounts + Client Insights
+8. **🔄 Rotation tab** (new v38) — a departed rep's book, to decide which accounts to absorb into the team
+
+### v38 Summary — 🔄 Rotation tab (entire session focus)
+New standalone tab, right of Insights, for triaging a departed rep's book and deciding which accounts each teammate absorbs. Structured like Group/Insights (uploads its own data, shares the `ibis_local` enrichment cache).
+
+- **Upload** — a new **Rotation** section inside the 👥 Group CSV menu: `Rotation · Accounts` (reuses `parseCSV`), `Rotation · Licenses` (reuses `parseLicenseCSV` + territory rules), `Rotation · Opportunities` (SF opp report). Each handler fires `snapshotBeforeAction('Pre-upload · Rotation …')`.
+- **Lightweight accounts list** — 14 columns, all sortable on header click (sort/cluster, Dan's chosen behavior). Left→right: **Assign** ▾ (4-rep colored pill dropdown) · **Team Sell** ▾ (light-blue neon pill) · **PIQ Rep** (auto cross-ref) · **Active Opp** (golden stage · $ bubble) · **Active License** (🔵 PIQ / 🌍 INTL badges) · ⭐**Company** · **Vertical** · **Tier** · **Revenue** · **Key Churns** · **Key Trial** (purple) · **6sense** (Intent Score NA) · **Licenses** (count) · **Opps** (count).
+- **Assign / Team Sell** — instant-save styled `<select>` pills (`rotationMarkup[norm].assign / .teamSell`), matches status/priority immediate-save pattern.
+- **PIQ Rep** (auto) — `getRotationPIQReps(name)` flags Embry/Anthony as the sister-PIQ owner if the account appears in their **Group** account list. No manual entry.
+- **Active Opp** — from opp CSV. Active = Stage not `Closed Won`/`Closed Lost`. Golden bubble `Stage · $Amount`.
+- **Key Trial** — trial = Amount ≤ $1 **OR** `Closed Won`. Purple bubble showing Created Date → Close Date.
+- **Key Churns** — churned (inactive) US-Industry or PIQ licenses with ACV > $20K, bubble ends with License End Date. **Special rule:** if the account still has an active PIQ, show nothing. Color by age/type: pre-2020 grey · 2024+ golden · else PIQ blue / Industry red.
+- **⭐ Star / key accounts** — greyed star left of every company name; click → gold star + subtle gold row (`rot-row-key`, `#fffdf3`). Stored in `rotationMarkup[norm].star`.
+- **6 quick filters** (controls row): 🎯 Assigned · 🤝 Team Sell · 🔵 PIQ Owned · 🟢 Active License · 🔴 Key Churns · ⭐ Favorites. Plus search + vertical filter + tier dropdown.
+- **Export/PDF** (`exportRotationTab`) + **Export Excel** (`exportRotationExcel`) — the Excel path builds an mso HTML workbook (`.xls`, no libraries), preserves the on-screen colors as inline cell fills, respects current sort + filters, **excludes Assign & Team Sell**, ⭐ rows get gold fill + `★` prefix, and the header row has **Excel AutoFilter** enabled (`x:AutoFilter` R1C1 range). Multi-pill cells join with `|` and take the top item's color.
+- **Key functions:** `loadRotationData`, `save*` (accounts/licenses/opps/markup), `handleRotation{Accounts,Licenses,Opps}CSV`, `clearRotationData`, `getRotation{ActiveLicBadges,LicCount,KeyChurns,PIQReps,OppRows,ActiveOpps,Trials,OppCount}`, `rotChurnPillClass`, `setRotation{Assign,TeamSell}`, `toggleRotationStar`, `getFilteredRotationRows`, `renderRotation`, `renderRotationRow`, `exportRotationExcel`, `bootRotation` IIFE. Helpers: `rotMoney`, `rotParseMoney`, `rotParseDate`, `rotShortDate`.
+- **State vars:** `rotationAccounts/Licenses/Opps/Markup`, `rotTierFilters`, `rotActiveLicOn/AssignedOn/TeamSellOn/PiqOwnedOn/KeyChurnsOn/FavoritesOn`, `rotSortCol/Dir`, `ROT_SORT_DEFAULT_DIR`, `ROT_OWNER_ORDER`.
+- **Open at session end:** International churns intentionally excluded from Key Churns (Dan may add later). Key Trial start/end = Created→Close (confirm if wrong).
 
 ### v37 Summary — Bulletproof save & recovery (entire session focus)
 Major reliability + UX work. After v36 we had a 3-layer backup story but multiple gaps caused real data loss for Dan ("I lost notes once, they're too valuable to lose"). This session rebuilt the entire save/recovery story to be impossible to lose data:
@@ -1538,6 +1561,9 @@ Full step-by-step guide lives in `RECOVERY.md` in this repo. Short version:
 
 | Priority | Item | Notes |
 |---|---|---|
+| ✅ Done | 🔄 Rotation tab (v38) | New 8th tab, right of Insights. Single departed-rep dataset (accounts/licenses/opps + markup). 14-col lightweight list: Assign · Team Sell · PIQ Rep (auto from Group Embry/Anthony) · Active Opp · Active License · ⭐Company · Vertical · Tier · Revenue · Key Churns · Key Trial · 6sense · Licenses · Opps. All headers sortable. 6 quick filters. Star = key account (gold row). PDF + Excel export (colors + AutoFilter, excludes Assign/Team Sell). Uploads in the 👥 Group CSV menu → Rotation section. See v38 Summary + ROTATION TAB KEYS. |
+| 🔴 Next | Rotation: confirm opp CSV field mapping live | Wired to SF opp report schema (Account Name · Opportunity Name · Stage · Amount · Close Date · Created Date · Type) from Dan's screenshots. Active = Stage not Closed Won/Lost; Trial = Amount ≤ $1 OR Closed Won. Verify against a real upload; Key Trial dates currently = Created → Close. |
+| 🗺️ Future | Rotation: International churns in Key Churns | Currently Key Churns = Industry/PIQ only (Dan's spec). Add INTL if he wants. Also: multi-pill Excel cells collapse to one color — could split to rows. |
 | ✅ Done | SF permissions verified — Dan can't create Visualforce/Lightning/Apex | Profile "US Major Markets" lacks `Customize Application`; 12 perm sets are all feature add-ons; no "New" button on Setup → Visualforce Pages. Native reports/list views/dashboards only. Memory: `project_sf_permissions.md`. See SALESFORCE NATIVE COCKPIT section. |
 | ✅ Done | Built personal SF list view "DA$ Cockpit – My Territory" | Only-me visibility, "My account teams" territory filter (50+ accounts). Reversible: Accounts → view → gear → Delete. Columns mid-build (not saved). |
 | ⏸️ Paused | SF-native cockpit — PARKED (Dan deprioritized, June 2026 session 2) | Built & saved private: dashboard `DA$ Cockpit` (01ZU1000008Av6uMAC) with Open-Opps-by-Owner table + MY COCKPIT routing widget; removed Accounts-by-Vertical; reports **Active Clients (Licenses)** `00OU1000005tuYAMAY` (33 active, $626K) + **Open Opps by Owner** `00OU1000005u0YjMAI`. Decoded license geography (US/USP=PIQ/CA/AU/UK live only in License Name; no clean geo field). See SALESFORCE NATIVE COCKPIT section for full detail. |
