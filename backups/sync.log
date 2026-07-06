@@ -1463,3 +1463,29 @@
 [2026-07-06 10:53:40] Source is already the mirror -- skipping mirror copy.
 [2026-07-06 10:53:40] Pruned old snapshot: snap-2026-05-28-1456.json
 [2026-07-06 10:53:40] Committing and pushing to GitHub
+[2026-07-06 10:53:46] [main aedfe32] auto-backup: 2026-07-06-1053 (3,670,670 bytes)
+[2026-07-06 10:53:46]  3 files changed, 42 insertions(+), 2 deletions(-)
+[2026-07-06 10:53:46]  rename backups/{snap-2026-05-28-1456.json => snap-2026-07-06-1053.json} (60%)
+[2026-07-06 10:53:47] fatal: unable to access 'https://github.com/Dabbs4Dan/ibisworld-dashboard.git/': Could not resolve host: github.com
+[2026-07-06 10:53:47] PUSH FAILURE: commit is local only, NOT on GitHub (exit 128). Next run will retry via Push-IfBehind.
+[2026-07-06 10:53:47] Cleaned Downloads: ibis-autobackup-2026-07-02-23-38.json
+[2026-07-06 10:59:31] Auto-backup sync starting
+[2026-07-06 10:59:31] Latest backup source: mirror (FSA direct write)
+[2026-07-06 10:59:31] Latest file: latest.json (3,670,670 bytes, modified 07/06/2026 10:53:38)
+[2026-07-06 10:59:31] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-06 10:59:31] Found 1 unpushed commit(s) from a previous run - pushing now
+[2026-07-06 10:59:37] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-07-06 10:59:37]    165ce41..aedfe32  main -> main
+[2026-07-06 10:59:37] Stranded commit(s) pushed successfully.
+[2026-07-06 11:33:07] Auto-backup sync starting
+[2026-07-06 11:33:07] Latest backup source: mirror (FSA direct write)
+[2026-07-06 11:33:07] Latest file: latest.json (3,670,670 bytes, modified 07/06/2026 10:53:38)
+[2026-07-06 11:33:07] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-06 12:36:39] Auto-backup sync starting
+[2026-07-06 12:36:39] Latest backup source: mirror (FSA direct write)
+[2026-07-06 12:36:39] Latest file: latest.json (3,663,716 bytes, modified 07/06/2026 12:00:33)
+[2026-07-06 12:36:40] Copied to backups/latest.json
+[2026-07-06 12:36:40] Saved timestamped snapshot: snap-2026-07-06-1200.json
+[2026-07-06 12:36:40] Source is already the mirror -- skipping mirror copy.
+[2026-07-06 12:36:40] Pruned old snapshot: snap-2026-05-28-1625.json
+[2026-07-06 12:36:40] Committing and pushing to GitHub
