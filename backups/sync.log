@@ -1489,3 +1489,37 @@
 [2026-07-06 12:36:40] Source is already the mirror -- skipping mirror copy.
 [2026-07-06 12:36:40] Pruned old snapshot: snap-2026-05-28-1625.json
 [2026-07-06 12:36:40] Committing and pushing to GitHub
+[2026-07-06 12:36:41] [main ee779dc] auto-backup: 2026-07-06-1200 (3,663,716 bytes)
+[2026-07-06 12:36:41]  4 files changed, 28 insertions(+), 2 deletions(-)
+[2026-07-06 12:36:41]  delete mode 100644 backups/snap-2026-05-28-1625.json
+[2026-07-06 12:36:41]  create mode 100644 backups/snap-2026-07-06-1200.json
+[2026-07-06 12:36:42] fatal: unable to access 'https://github.com/Dabbs4Dan/ibisworld-dashboard.git/': Could not resolve host: github.com
+[2026-07-06 12:36:42] PUSH FAILURE: commit is local only, NOT on GitHub (exit 128). Next run will retry via Push-IfBehind.
+[2026-07-06 13:33:06] Auto-backup sync starting
+[2026-07-06 13:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-06 13:33:06] Latest file: latest.json (3,663,716 bytes, modified 07/06/2026 12:00:33)
+[2026-07-06 13:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-06 13:33:06] Found 1 unpushed commit(s) from a previous run - pushing now
+[2026-07-06 13:33:09] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-07-06 13:33:09]    aedfe32..ee779dc  main -> main
+[2026-07-06 13:33:09] Stranded commit(s) pushed successfully.
+[2026-07-06 14:33:06] Auto-backup sync starting
+[2026-07-06 14:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-06 14:33:06] Latest file: latest.json (3,663,716 bytes, modified 07/06/2026 12:00:33)
+[2026-07-06 14:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-06 15:33:07] Auto-backup sync starting
+[2026-07-06 15:33:07] Latest backup source: mirror (FSA direct write)
+[2026-07-06 15:33:07] Latest file: latest.json (3,663,716 bytes, modified 07/06/2026 12:00:33)
+[2026-07-06 15:33:07] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-06 16:33:06] Auto-backup sync starting
+[2026-07-06 16:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-06 16:33:06] Latest file: latest.json (3,663,716 bytes, modified 07/06/2026 12:00:33)
+[2026-07-06 16:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-06 18:14:22] Auto-backup sync starting
+[2026-07-06 18:14:22] Latest backup source: mirror (FSA direct write)
+[2026-07-06 18:14:22] Latest file: latest.json (3,456,747 bytes, modified 07/06/2026 16:50:52)
+[2026-07-06 18:14:25] Copied to backups/latest.json
+[2026-07-06 18:14:28] Saved timestamped snapshot: snap-2026-07-06-1650.json
+[2026-07-06 18:14:30] Source is already the mirror -- skipping mirror copy.
+[2026-07-06 18:14:30] Pruned old snapshot: snap-2026-05-29-1055.json
+[2026-07-06 18:14:32] Committing and pushing to GitHub
