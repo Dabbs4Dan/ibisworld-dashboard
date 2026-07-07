@@ -2964,6 +2964,19 @@ function debouncedRenderAll() {
   clearTimeout(_renderAllTimer);
   _renderAllTimer = setTimeout(renderAll, 150);
 }
+// Enrichment (revenue/desc/sentiment) streams in — THROTTLE its re-renders to at
+// most once every 1.5s so the table doesn't rebuild under the user while they read
+// or scroll. Unlike a debounce, this still updates periodically under continuous
+// load (with a trailing render for the final batch). User actions keep the 150ms path.
+let _enrichLastRender = 0, _enrichTrailTimer = null;
+function enrichRenderSoon() {
+  if (mainView !== 'accounts') return;
+  const now = performance.now();
+  const since = now - _enrichLastRender;
+  clearTimeout(_enrichTrailTimer);
+  if (since >= 1500) { _enrichLastRender = now; renderAll(); }
+  else { _enrichTrailTimer = setTimeout(() => { _enrichLastRender = performance.now(); renderAll(); }, 1500 - since); }
+}
 // Generic search-input debouncer — every table search rebuilds its full tbody,
 // so re-rendering per keystroke on 1,000+ row tables makes typing lag.
 let _searchDebounceT = null;
@@ -3109,6 +3122,7 @@ function init() {
       l._signal = calcSignal(l);
       return l;
     });
+    invalidateLicIndex();
     renderLicenses();
     document.getElementById('lic-empty-state').classList.add('hidden');
     document.getElementById('lic-table-wrap').classList.remove('hidden');
@@ -3431,6 +3445,7 @@ function renderAll() {
   updateAcctSortArrows();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
   sizeAccountsGrid();
+  updateBodyScrollLock();
 }
 
 // Size the accounts table grid so it fills exactly from its top to the viewport
@@ -3442,7 +3457,13 @@ function sizeAccountsGrid() {
   const top = wrap.getBoundingClientRect().top;
   wrap.style.height = Math.max(220, window.innerHeight - top - 14) + 'px';
 }
-window.addEventListener('resize', sizeAccountsGrid);
+// Lock the PAGE scroll while the accounts grid is on screen so Chrome's wheel
+// scroll can't fight the grid's own scroll. Restored for every other view.
+function updateBodyScrollLock() {
+  const wrap = document.querySelector('#table-view .table-wrap');
+  document.body.style.overflow = (wrap && wrap.offsetParent !== null) ? 'hidden' : '';
+}
+window.addEventListener('resize', () => { sizeAccountsGrid(); });
 
 function getDomain(w) {
   if (!w||w.trim()==='') return null;
@@ -3605,7 +3626,7 @@ function renderTable(list) {
   }).join('');
 }
 
-function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); }
+function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); updateBodyScrollLock(); }
 function toggleChip(el,flag) { el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
 function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+stageVal; if(activeFlags.has(key)) activeFlags.delete(key); else activeFlags.add(key); renderAll(); }
 // Returns the "primary" contact email for an account in ibis_opps (shared with Campaigns)
@@ -3934,11 +3955,11 @@ async function runDescQueue() {
     // per-item renders rebuilt the whole table every ~150ms for minutes,
     // killing text selection / input focus and re-firing logo fetches.
     done++;
-    if (mainView === 'accounts' && (done % 8 === 0 || descQueue.length === 0)) debouncedRenderAll();
+    if (mainView === 'accounts') enrichRenderSoon();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   descRunning = false;
-  if (mainView === 'accounts') debouncedRenderAll();
+  if (mainView === 'accounts') enrichRenderSoon();
 }
 
 const NON_BUSINESS_TERMS = /\b(letter|letters|alphabet|numeral|chemical element|municipality|commune|canton|district|parish|county|surname|given name|fictional|deity|goddess|god|mythology|film|album|song|novel|television|video game|mathematical|physics|chemistry|star|stars|constellation|planet|galaxy|nebula|asteroid|comet|celestial|stellar|magnate|tycoon|philanthropist|statesman|diplomat|politician|athlete|footballer|cricketer|basketball|tennis|golfer|actor|actress|musician|singer|composer|painter|sculptor|philosopher|historian|physicist|biologist|river|mountain|lake|island|peninsula|cape)\b/i;
@@ -4127,11 +4148,11 @@ async function runSentQueue() {
     if (localData[name]?.sentiment?.v === SENT_VERSION) continue;
     await fetchSentimentData(name);
     done++;
-    if (mainView === 'accounts' && (done % 8 === 0 || sentQueue.length === 0)) debouncedRenderAll();
+    if (mainView === 'accounts') enrichRenderSoon();
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   sentRunning = false;
-  if (mainView === 'accounts') debouncedRenderAll();
+  if (mainView === 'accounts') enrichRenderSoon();
 }
 
 async function fetchSentimentData(companyName) {
@@ -4516,6 +4537,7 @@ function handleLicenseCSV(e) {
     // ──────────────────────────────────────────────────────────────────
 
     licenses = newLicenses;
+    invalidateLicIndex();
     // Store slim version — only computed fields to avoid bloat
     const slim = licenses.map(l => ({
       _name: l._name, _licenseName: l._licenseName, _oppName: l._oppName,
@@ -4612,17 +4634,24 @@ function parseDate(str) {
 function normName(s) { return (s || '').toLowerCase().trim(); }
 
 // Count licenses for an account from the loaded licenses array
-function getLicCount(accountName) {
-  if (!licenses.length) return 0;
-  const n = normName(accountName);
-  return licenses.filter(l => normName(l._name) === n).length;
+// ── Perf: index licenses by account name so per-row lookups are O(1), not O(all licenses).
+// Rebuilt lazily; invalidated whenever `licenses` changes (upload / clear / restore).
+let _licIndex = null;
+function invalidateLicIndex() { _licIndex = null; }
+function licsFor(accountName) {
+  if (!_licIndex) {
+    _licIndex = new Map();
+    for (const l of licenses) { const k = normName(l._name); let a = _licIndex.get(k); if (!a) { a = []; _licIndex.set(k, a); } a.push(l); }
+  }
+  return _licIndex.get(normName(accountName)) || [];
 }
+
+function getLicCount(accountName) { return licsFor(accountName).length; }
 
 // Return active-only PIQ / INTL badge HTML for the Active Client column (no churn/trial fallback)
 function getActiveLicBadges(accountName) {
-  if (!licenses.length) return '';
-  const n = normName(accountName);
-  const acctLics = licenses.filter(l => normName(l._name) === n);
+  const acctLics = licsFor(accountName);
+  if (!acctLics.length) return '';
   const badges = [];
   const activePIQ = acctLics.filter(l => l._type === 'PIQ' && l._active);
   if (activePIQ.length) {
@@ -4645,17 +4674,19 @@ function getActiveLicBadges(accountName) {
    Universal relevance cap: nothing that ended before UNIVERSAL_MIN_YEAR is shown.
    ─────────────────────────────────────────────────────────────────────────── */
 const UNIVERSAL_MIN_YEAR = 2016; // universal cap — opps/churns older than this aren't relevant
-function computeKeyChurns(licArray, name) {
-  if (!licArray.length) return [];
-  const n = normName(name);
-  const lics = licArray.filter(l => normName(l._name) === n);
+function computeKeyChurnsFromLics(lics) {
   if (lics.some(l => l._type === 'PIQ' && l._active)) return [];
   return lics
     .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000
       && (!l._endDate || l._endDate.getFullYear() >= UNIVERSAL_MIN_YEAR))
     .sort((a,b) => (b._acv||0) - (a._acv||0));
 }
-function getAccountKeyChurns(name) { return computeKeyChurns(licenses, name); }
+function computeKeyChurns(licArray, name) {
+  if (!licArray.length) return [];
+  const n = normName(name);
+  return computeKeyChurnsFromLics(licArray.filter(l => normName(l._name) === n));
+}
+function getAccountKeyChurns(name) { return computeKeyChurnsFromLics(licsFor(name)); }
 // Weighted score for sorting/filtering Key Churns — recency-boosted ACV so the
 // freshest, most-winnable churns rise to the top. 2024+ = 3×, 2020-23 = 2×, older = 1×.
 function getKeyChurnWeight(name) {
@@ -4718,6 +4749,7 @@ function loadOppReport() {
       oppReport = arr; saveOppReport();
     } else { oppReport = arr; }
   } catch(e) { oppReport = []; }
+  invalidateOppIndex();
 }
 function saveOppReport() {
   try { localStorage.setItem('ibis_opps_report', JSON.stringify(oppReport)); return true; }
@@ -4755,13 +4787,23 @@ function decorateOppRow(o) {
   };
 }
 // All opp rows for an account (universal 2016 relevance cap applied).
+// Perf: decorate each opp row ONCE and index by account. All per-row opp lookups
+// (My/Other/KeyLost/KeyGlobal/KeyTrials/Overlap) then become O(1) map reads.
+let _oppIndex = null;
+function invalidateOppIndex() { _oppIndex = null; }
+function buildOppIndex() {
+  _oppIndex = new Map();
+  for (const raw of oppReport) {
+    const d = decorateOppRow(raw);
+    if (d.closeYear !== 0 && d.closeYear < UNIVERSAL_MIN_YEAR) continue; // universal 2016 cap
+    const k = normName(d.account);
+    let arr = _oppIndex.get(k); if (!arr) { arr = []; _oppIndex.set(k, arr); }
+    arr.push(d);
+  }
+}
 function getOppRowsFor(name) {
-  if (!oppReport.length) return [];
-  const n = normName(name);
-  return oppReport
-    .filter(o => normName(o.acct||'') === n)
-    .map(decorateOppRow)
-    .filter(o => o.closeYear === 0 || o.closeYear >= UNIVERSAL_MIN_YEAR);
+  if (!_oppIndex) buildOppIndex();
+  return _oppIndex.get(normName(name)) || [];
 }
 // My Opps — owner = me, not Closed Lost (active pipeline + Closed Won still-working).
 function getMyOpps(name) { return getOppRowsFor(name).filter(o => o.isMine && !o.closedLost); }
@@ -4895,6 +4937,7 @@ function handleOppReportCSV(e) {
   reader.onload = ev => {
     const raw = parseCSV(ev.target.result);
     oppReport = slimOppRows(raw);
+    invalidateOppIndex();
     let ok = saveOppReport();
     // If the browser rejected the write (storage full), free re-fetchable enrichment and retry once.
     if (!ok) { try { quietFreeStorage(); } catch {} ok = saveOppReport(); }
@@ -4911,6 +4954,7 @@ function handleOppReportCSV(e) {
 function clearOppReport() {
   if (!confirm('Clear Opportunities report data?')) return;
   oppReport = [];
+  invalidateOppIndex();
   localStorage.removeItem('ibis_opps_report');
   updateOppReportDot();
   if (accounts.length) renderAll();
@@ -4946,8 +4990,7 @@ function renderOverlapBadges(accountName) {
 
 // True if account ever had a US Industry license (churn signal / former US client)
 function hasUSLicense(accountName) {
-  const n = normName(accountName);
-  return licenses.some(l => normName(l._name) === n && l._type === 'US');
+  return licsFor(accountName).some(l => l._type === 'US');
 }
 
 // Count active (non-archived) workables for a given account name
@@ -5641,6 +5684,7 @@ function openAccountPage(name, origin, list, idx) {
   document.getElementById('content-account-page').classList.remove('hidden');
   renderAccountPage(name);
   window.scrollTo(0, 0);
+  updateBodyScrollLock(); // account page scrolls normally — release the grid lock
 }
 
 function closeAccountPage() {
@@ -6825,6 +6869,7 @@ function setMainView(v) {
   if (v === 'group') { renderGroup(); }
   if (v === 'insights') { renderInsights(); }
   if (v === 'rotation') { renderRotation(); }
+  updateBodyScrollLock();
 }
 
 
@@ -10563,7 +10608,7 @@ async function runWdRevQueue() {
           try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
           saveBatch = 0;
           // Accounts/Group tabs read localData.rev — refresh so new values appear
-          if (mainView === 'accounts') debouncedRenderAll();
+          if (mainView === 'accounts') enrichRenderSoon();
           else if (mainView === 'group') renderGroup();
           else if (mainView === 'rotation') renderRotation();
         }
