@@ -2259,14 +2259,14 @@
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
             <th onclick="setSortCol('overlap')" style="cursor:pointer;min-width:140px;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
-            <th style="text-align:center;min-width:110px;">Campaigns</th>
+            <th style="text-align:center;min-width:110px;display:none;">Campaigns</th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
             <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
-            <th onclick="setSortCol('days')" style="cursor:pointer;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
+            <th onclick="setSortCol('days')" style="cursor:pointer;display:none;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -3516,14 +3516,14 @@ function renderTable(list) {
       <td style="white-space:nowrap;">${revCell}</td>
       <td style="white-space:nowrap;">${renderOverlapBadges(name)}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
-      <td style="text-align:center;padding:0 8px;">${renderCampCluster(name)}</td>
+      <td style="text-align:center;padding:0 8px;display:none;">${renderCampCluster(name)}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`data-stage="${escHtml(stage)}" onclick="toggleStageFilter(this.dataset.stage)" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;">${intent||'—'}</td>
-      <td><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
+      <td style="display:none;"><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
     </tr>`;
   }).join('');
 }
