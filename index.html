@@ -1121,6 +1121,18 @@
   .myopp-won    { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
   .otheropp-pill { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
   .myopp-tag, .otheropp-tag { font-size:9px; font-weight:700; opacity:0.7; }
+  /* Key Lost / Key Other / Key Trials pills + expansion count pill */
+  .oppkey-cell { display:flex; gap:3px; flex-wrap:wrap; align-items:center; justify-content:center; }
+  .oppkey-pill { display:inline-flex; align-items:center; gap:3px; height:19px; padding:0 7px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10px; font-weight:600; white-space:nowrap; }
+  .oppkey-lost  { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .oppkey-global { background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; }
+  .oppkey-trial-won  { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
+  .oppkey-trial-lost { background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; }
+  .oppkey-count { display:inline-flex; align-items:center; gap:3px; height:20px; padding:0 9px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10px; font-weight:700; cursor:pointer; transition:filter .15s, transform .15s; }
+  .oppkey-count:hover { filter:brightness(0.95); transform:translateY(-1px); }
+  .oppkey-count.oppkey-lost   { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  .oppkey-count.oppkey-global { background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; }
+  .oppkey-count.oppkey-trial  { background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; }
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
   /* Status column collapse toggle */
@@ -2280,6 +2292,9 @@
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;white-space:nowrap;width:1px;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('keyChurn')" style="cursor:pointer;white-space:nowrap;" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></th>
+            <th style="white-space:nowrap;text-align:center;" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ⭐ = you owned it.">Key Lost Opps</th>
+            <th style="white-space:nowrap;text-align:center;" title="Closed-Lost global (non-US) opps over $1 (2016+).">Key Other Opps</th>
+            <th style="white-space:nowrap;text-align:center;" title="Trials (≤$1, closed) across all geographies — labeled Ind/PIQ/geo, won ✓ / lost ✗ (2016+).">Key Trials</th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
@@ -3544,6 +3559,9 @@ function renderTable(list) {
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="white-space:nowrap;width:1px;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="white-space:nowrap;">${renderAccountKeyChurns(name)}</td>
+      <td style="text-align:center;">${renderOppKeyCell(name,'lostUS')}</td>
+      <td style="text-align:center;">${renderOppKeyCell(name,'lostGlobal')}</td>
+      <td style="text-align:center;">${renderOppKeyCell(name,'trials')}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`data-stage="${escHtml(stage)}" onclick="toggleStageFilter(this.dataset.stage)" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
@@ -4685,15 +4703,88 @@ function getOppRowsFor(name) {
 }
 // My Opps — owner = me, not Closed Lost (active pipeline + Closed Won still-working).
 function getMyOpps(name) { return getOppRowsFor(name).filter(o => o.isMine && !o.closedLost); }
-// Other reps' relevant opps — open by another rep, plus $0 Closed-Won ongoing trials.
+// Other reps' LIVE open opps only. Closed-won $0 "ongoing" trials now live in the
+// Key Trials column (all trial history, labeled) — kept out of here to avoid dup.
 function getOtherOpps(name) {
-  return getOppRowsFor(name).filter(o => {
-    if (o.isMine || o.closedLost) return false;
-    if (o.closedWon) return o.amount <= 0; // only $0 closed-won = ongoing trial
-    return true;                            // open/pipeline opp by another rep
-  });
+  return getOppRowsFor(name).filter(o => !o.isMine && !o.closedLost && !o.closedWon);
 }
 function hasMyOpp(name) { return getMyOpps(name).length > 0; }
+
+/* ─── Key Lost Opps · Key Other Opps · Key Trials ──────────────────────────────
+   Key Lost Opps  = Closed Lost · US Industry/Procurement · amount > $1 · 2016+
+   Key Other Opps = Closed Lost · global (non-US) · amount > $1 · 2016+
+   Key Trials     = amount ≤ $1 · closed (won/lost) · ALL geographies · 2016+
+   ⭐ marks opps Dan owned. Ongoing/open trials are excluded (they're active opps). */
+function getKeyLostOpps(name)       { return getOppRowsFor(name).filter(o => o.closedLost && o.isUSProduct && o.amount > 1); }
+function getKeyGlobalLostOpps(name) { return getOppRowsFor(name).filter(o => o.closedLost && !o.isUSProduct && o.amount > 1); }
+function getKeyTrials(name)         { return getOppRowsFor(name).filter(o => o.amount <= 1 && (o.closedWon || o.closedLost)); }
+function oppKeyRows(name, kind) {
+  return kind==='lostUS' ? getKeyLostOpps(name) : kind==='lostGlobal' ? getKeyGlobalLostOpps(name) : getKeyTrials(name);
+}
+const OPP_KEY_KINDS = {
+  lostUS:     { cls:'oppkey-lost',   noun:'lost',   title:'🔴 Key Lost Opps (US Industry / Procurement)' },
+  lostGlobal: { cls:'oppkey-global', noun:'global', title:'🌐 Key Other Opps (Global)' },
+  trials:     { cls:'oppkey-trial',  noun:'trials', title:'🧪 Key Trials' },
+};
+// Tag: US columns → Ind/PIQ; global → country code (UK/AU/CA/DE); trials keep Ind/PIQ but geo for intl.
+function oppTag(o, kind) {
+  if (o.isProcurement) return 'PIQ';
+  if (kind === 'lostGlobal') return (o.business.split(' ')[0] || 'Intl');
+  if (o.isIndustry) return o.isUSProduct ? 'Ind' : (o.business.split(' ')[0] || 'Ind');
+  return o.business.split(' ')[0] || '';
+}
+function oppKeyPill(o, kind) {
+  const amt = oppFmtAmount(o.amount, o.currency);
+  const yr  = o.close ? "'" + String(o.close.getFullYear()).slice(2) : '';
+  const tag = oppTag(o, kind);
+  const star = o.isMine ? '⭐' : '';
+  const tip = `${o.isMine?'(mine) ':''}${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}${o.business?' · '+o.business:''}`;
+  if (kind === 'trials') {
+    const cls = o.closedWon ? 'oppkey-trial-won' : 'oppkey-trial-lost';
+    const wl  = o.closedWon ? '✓' : '✗';
+    return `<span class="oppkey-pill ${cls}" title="${escHtml(tip)}">${star}${tag} ${wl}${yr?' '+yr:''}</span>`;
+  }
+  const cls = kind === 'lostGlobal' ? 'oppkey-global' : 'oppkey-lost';
+  return `<span class="oppkey-pill ${cls}" title="${escHtml(tip)}">${star}${amt} · ${tag}${yr?' · '+yr:''}</span>`;
+}
+// Inline pills when few (≤3); a clean count pill that expands to a popover when many.
+function renderOppKeyCell(name, kind) {
+  const rows = oppKeyRows(name, kind);
+  if (!rows.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  if (rows.length <= 3) return `<div class="oppkey-cell">${rows.map(o=>oppKeyPill(o,kind)).join('')}</div>`;
+  const cfg = OPP_KEY_KINDS[kind];
+  const mine = rows.filter(o=>o.isMine).length;
+  return `<div class="oppkey-cell"><span class="oppkey-count ${cfg.cls}" data-name="${escHtml(name)}" data-kind="${kind}" onclick="event.stopPropagation();openOppKeyPreview(event,this.dataset.name,this.dataset.kind)">${rows.length} ${cfg.noun}${mine?` ⭐${mine}`:''} ▾</span></div>`;
+}
+function openOppKeyPreview(event, name, kind) {
+  event.stopPropagation();
+  const portal = document.getElementById('contact-preview-portal');
+  if (!portal) return;
+  const rows = oppKeyRows(name, kind);
+  const cfg = OPP_KEY_KINDS[kind];
+  let html = `<div class="cprev-header">${cfg.title} · ${escHtml(name)}</div>`;
+  if (!rows.length) html += `<div class="cprev-empty">None</div>`;
+  else html += rows.map(o => {
+    const amt = oppFmtAmount(o.amount, o.currency);
+    const cd  = o.close ? rotShortDate(o.close) : '';
+    const tag = o.isProcurement ? 'PIQ' : (o.isIndustry ? 'Industry' : (o.business||''));
+    const wl  = kind==='trials' ? (o.closedWon ? ' · ✓ won' : ' · ✗ lost') : '';
+    const star = o.isMine ? '⭐ ' : '';
+    const line2 = `${escHtml(o.owner)}${tag?' · '+escHtml(tag):''}${cd?' · '+cd:''}${wl} · ${amt}`;
+    return `<div class="cprev-row"><div style="flex:1;min-width:0;"><div class="cprev-name">${star}${escHtml(o.oppName||amt)}</div><div class="cprev-title">${line2}</div></div></div>`;
+  }).join('');
+  portal.innerHTML = html;
+  portal.style.display = 'block';
+  const rect = event.target.getBoundingClientRect();
+  const pw = portal.offsetWidth || 280;
+  let left = rect.left; if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8; if (left < 8) left = 8;
+  portal.style.top = (rect.bottom + 6) + 'px';
+  portal.style.left = left + 'px';
+  setTimeout(() => {
+    document.addEventListener('click', closeContactPreview, { once: true });
+    document.addEventListener('scroll', closeContactPreview, { once: true, capture: true });
+  }, 0);
+}
 
 // My Opp cell — CSV opps overtake the manual grey-dot; falls back to it when none.
 function renderMyOppCell(name, local) {
