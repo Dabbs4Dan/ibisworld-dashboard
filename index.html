@@ -1114,6 +1114,13 @@
   .ast-drop    { background:#fee2e2; color:#991b1b; }
   .ast-market  { background:#ecfccb; color:#4d7c0f; }
   .ast-entdrop { background:#eaddd6; color:#7c2d12; }
+  /* My Opp / Other Opp pills (from Opportunities report CSV) */
+  .myopp-cell, .otheropp-cell { display:flex; gap:3px; flex-wrap:wrap; align-items:center; justify-content:center; }
+  .myopp-pill, .otheropp-pill { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10px; font-weight:600; white-space:nowrap; }
+  .myopp-active { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .myopp-won    { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
+  .otheropp-pill { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
+  .myopp-tag, .otheropp-tag { font-size:9px; font-weight:700; opacity:0.7; }
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
   /* Status column collapse toggle */
@@ -1635,6 +1642,11 @@
           <span class="upload-menu-dot" id="udot-licenses"></span>
           <span class="upload-menu-x" onclick="event.stopPropagation();clearLicensesData()" title="Clear">✕</span>
         </button>
+        <button class="upload-menu-row" style="background:#fff5f5;" onclick="document.getElementById('oppreport-file-input').click();closeUploadMenu()">
+          <span class="upload-menu-label">📈 Opportunities CSV</span>
+          <span class="upload-menu-dot" id="udot-oppreport"></span>
+          <span class="upload-menu-x" onclick="event.stopPropagation();clearOppReport()" title="Clear">✕</span>
+        </button>
         <hr style="margin:4px 8px;border:none;border-top:1px solid #f3f4f6;">
         <button class="upload-menu-row" onclick="document.getElementById('opp-file-input').click();closeUploadMenu()">
           <span class="upload-menu-label">🎯 Workables CSV</span>
@@ -1685,6 +1697,7 @@
     </div>
     <input type="file" id="file-input" accept=".csv" onchange="handleCSV(event)">
     <input type="file" id="lic-file-input" accept=".csv" onchange="handleLicenseCSV(event)">
+    <input type="file" id="oppreport-file-input" accept=".csv" onchange="handleOppReportCSV(event)" style="display:none;">
     <input type="file" id="opp-file-input" accept=".csv" onchange="handleOppsCSV(event)">
     <input type="file" id="samples-file-input" accept=".csv" onchange="handleSamplesCSV(event)" style="display:none;">
     <input type="file" id="sixqa-file-input" accept=".csv" onchange="handleSixqaCSV(event)" style="display:none;">
@@ -2243,7 +2256,8 @@
             <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
-            <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:center;min-width:120px;">Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
+            <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:center;min-width:120px;" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
+            <th style="text-align:center;min-width:120px;" title="Other reps' active opportunities on this account">Other Opp</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -2991,6 +3005,8 @@ function init() {
     applySeedsToLocalData(); applyTierOverridesToAccounts(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
     document.getElementById('empty-state').classList.add('hidden');
   }
+  // Load Opportunities report (my opps + other reps' opps)
+  loadOppReport(); updateOppReportDot();
   // Load Opportunities (Workables)
   loadOpps();
   if (Object.keys(opps).length > 0) {
@@ -3347,7 +3363,7 @@ function getFiltered() {
     if (sort==='acctStatus') { const ord={truekeep:0,keep:1,market:2,monitor:3,entdrop:4,drop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
     if (sort==='acctPriority') { const ord={quickwinner:0,teamsell:1,legendary:2,veryrare:3,rare:4,uncommon:5,common:6,'':7}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??7)-(ord[bp]??7)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
-    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*((hasActiveOpp(an)?1:0)-(hasActiveOpp(bn)?1:0)); }
+    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*(((hasMyOpp(an)||hasActiveOpp(an))?1:0)-((hasMyOpp(bn)||hasActiveOpp(bn))?1:0)); }
     if (sort==='overlap') {
       const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName');
       return d*(getOtherRepOverlap(an).length - getOtherRepOverlap(bn).length);
@@ -3517,7 +3533,8 @@ function renderTable(list) {
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
-      <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderAcctOppCell(name, local)}</td>
+      <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
+      <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -4573,14 +4590,17 @@ function getActiveLicBadges(accountName) {
    same report that feeds the US Client column. Rules: churned (not active),
    type US-Industry or PIQ, ACV > $20K. Suppressed entirely if the account still
    holds an ACTIVE PIQ (already covered — no need to surface the old churn).
+   Universal relevance cap: nothing that ended before UNIVERSAL_MIN_YEAR is shown.
    ─────────────────────────────────────────────────────────────────────────── */
+const UNIVERSAL_MIN_YEAR = 2016; // universal cap — opps/churns older than this aren't relevant
 function computeKeyChurns(licArray, name) {
   if (!licArray.length) return [];
   const n = normName(name);
   const lics = licArray.filter(l => normName(l._name) === n);
   if (lics.some(l => l._type === 'PIQ' && l._active)) return [];
   return lics
-    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000)
+    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000
+      && (!l._endDate || l._endDate.getFullYear() >= UNIVERSAL_MIN_YEAR))
     .sort((a,b) => (b._acv||0) - (a._acv||0));
 }
 function getAccountKeyChurns(name) { return computeKeyChurns(licenses, name); }
@@ -4603,6 +4623,134 @@ function renderAccountKeyChurns(name) {
     const end = l._endDate ? rotShortDate(l._endDate) : '';
     return `<span class="rot-pill ${rotChurnPillClass(l)}" title="Churned ${lab} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${rotMoney(l._acv||0)}${end?' · '+end:''}</span>`;
   }).join('') + `</div>`;
+}
+
+/* ══════════════ OPPORTUNITIES REPORT — my opps + other reps' opps ═════════════
+   SF "Opportunities" report columns: Owner Role · Opportunity Owner · Account Name ·
+   Opportunity Name · Stage · Fiscal Period · Amount Currency · Amount · Age ·
+   Close Date · Created Date · Next Step · Lead Source · Type · Business.
+   Stored raw in ibis_opps_report. All date logic runs against LIVE today.
+   ─────────────────────────────────────────────────────────────────────────── */
+let oppReport = [];
+const MY_OPP_OWNER = 'daniel starr'; // Opportunity Owner value that means "mine"
+
+function loadOppReport() {
+  try { oppReport = JSON.parse(localStorage.getItem('ibis_opps_report') || '[]'); }
+  catch(e) { oppReport = []; }
+}
+function saveOppReport() {
+  try { localStorage.setItem('ibis_opps_report', JSON.stringify(oppReport)); }
+  catch(e) { console.warn('opp report save failed', e); }
+}
+function oppParseAmount(s) { const n = parseFloat(String(s||'').replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+function oppFmtAmount(n, cur) {
+  const c = cur ? cur + ' ' : '';
+  if (n >= 1000000) return c + (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000)    return c + Math.round(n/1000) + 'K';
+  return c + Math.round(n);
+}
+// Decorate a raw opp row with parsed/derived fields.
+function decorateOppRow(o) {
+  const stage = (getField(o,'Stage')||'').trim();
+  const sl = stage.toLowerCase();
+  const close   = rotParseDate(getField(o,'Close Date'));
+  const created = rotParseDate(getField(o,'Created Date'));
+  const owner   = (getField(o,'Opportunity Owner')||'').trim();
+  const business = (getField(o,'Business')||'').trim();
+  return {
+    owner, isMine: owner.toLowerCase() === MY_OPP_OWNER,
+    account: getField(o,'Account Name','AccountName'),
+    oppName: getField(o,'Opportunity Name')||'',
+    stage, sl, closedWon: sl === 'closed won', closedLost: sl === 'closed lost',
+    amount: oppParseAmount(getField(o,'Amount')),
+    currency: (getField(o,'Amount Currency')||'').trim(),
+    close, created,
+    closeYear: close ? close.getFullYear() : (created ? created.getFullYear() : 0),
+    nextStep: getField(o,'Next Step')||'',
+    type: (getField(o,'Type')||'').trim(),
+    business, biz: business.toLowerCase(),
+    isUSProduct: /^us /i.test(business),   // US Industry / US Procurement
+    isProcurement: /procurement/i.test(business),
+    isIndustry: /industry/i.test(business),
+  };
+}
+// All opp rows for an account (universal 2016 relevance cap applied).
+function getOppRowsFor(name) {
+  if (!oppReport.length) return [];
+  const n = normName(name);
+  return oppReport
+    .filter(o => normName(getField(o,'Account Name','AccountName')) === n)
+    .map(decorateOppRow)
+    .filter(o => o.closeYear === 0 || o.closeYear >= UNIVERSAL_MIN_YEAR);
+}
+// My Opps — owner = me, not Closed Lost (active pipeline + Closed Won still-working).
+function getMyOpps(name) { return getOppRowsFor(name).filter(o => o.isMine && !o.closedLost); }
+// Other reps' relevant opps — open by another rep, plus $0 Closed-Won ongoing trials.
+function getOtherOpps(name) {
+  return getOppRowsFor(name).filter(o => {
+    if (o.isMine || o.closedLost) return false;
+    if (o.closedWon) return o.amount <= 0; // only $0 closed-won = ongoing trial
+    return true;                            // open/pipeline opp by another rep
+  });
+}
+function hasMyOpp(name) { return getMyOpps(name).length > 0; }
+
+// My Opp cell — CSV opps overtake the manual grey-dot; falls back to it when none.
+function renderMyOppCell(name, local) {
+  const mine = getMyOpps(name);
+  if (!mine.length) return renderAcctOppCell(name, local); // no CSV opp → manual widget stays
+  const bubbles = mine.map(o => {
+    const cls = o.closedWon ? 'myopp-won' : 'myopp-active';
+    const amt = oppFmtAmount(o.amount, o.currency);
+    const cd  = o.close ? rotShortDate(o.close) : '';
+    const tag = o.isProcurement ? 'PIQ' : (o.isIndustry ? 'Ind' : '');
+    const label = o.closedWon ? `✓ ${amt}` : `${o.stage} · ${amt}`;
+    const tip = `${o.oppName||''} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · '+cd:''}${o.business?' · '+o.business:''}`;
+    return `<span class="myopp-pill ${cls}" title="${escHtml(tip)}">${escHtml(label)}${tag?` <span class="myopp-tag">${tag}</span>`:''}</span>`;
+  }).join('');
+  return `<div class="myopp-cell">${bubbles}</div>`;
+}
+// Other Opp cell — owner · stage · amount(native currency) · close date · business tag.
+function renderOtherOppCell(name) {
+  const others = getOtherOpps(name);
+  if (!others.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  const bubbles = others.map(o => {
+    const amt = oppFmtAmount(o.amount, o.currency);
+    const cd  = o.close ? rotShortDate(o.close) : '';
+    const first = (o.owner||'').split(' ')[0];
+    const trial = (o.closedWon && o.amount<=0) ? ' · trial' : '';
+    const label = `${escHtml(first)} · ${escHtml(o.stage)} · ${amt}${cd?' · '+cd:''}${trial}`;
+    const tip = `${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · close '+cd:''}${o.business?' · '+o.business:''}${o.nextStep?' · '+o.nextStep:''}`;
+    return `<span class="otheropp-pill" title="${escHtml(tip)}">${label}${o.business?` <span class="otheropp-tag">${escHtml(o.business)}</span>`:''}</span>`;
+  }).join('');
+  return `<div class="otheropp-cell">${bubbles}</div>`;
+}
+
+function updateOppReportDot() {
+  const el = document.getElementById('udot-oppreport');
+  if (el) { el.textContent = oppReport.length ? oppReport.length + ' rows' : ''; el.className = 'upload-menu-dot' + (oppReport.length ? ' has-date' : ''); }
+}
+function handleOppReportCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  snapshotBeforeAction('Pre-upload · Opportunities CSV');
+  const reader = new FileReader();
+  reader.onload = ev => {
+    oppReport = parseCSV(ev.target.result);
+    saveOppReport();
+    updateOppReportDot();
+    if (accounts.length) renderAll();
+    showGroupToast(`✅ ${oppReport.length} opportunities loaded`);
+    checkStorageSize();
+  };
+  readCsvViaReader(reader, file);
+  e.target.value = '';
+}
+function clearOppReport() {
+  if (!confirm('Clear Opportunities report data?')) return;
+  oppReport = [];
+  localStorage.removeItem('ibis_opps_report');
+  updateOppReportDot();
+  if (accounts.length) renderAll();
 }
 
 /* ─── Group overlap lookup — surfaces other reps who also own a given account ─
@@ -6532,7 +6680,7 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats','ibis_fsa_cta_dismissed',
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps_report','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats','ibis_fsa_cta_dismissed',
   'ibis_group_dan_accounts','ibis_group_christian_accounts','ibis_group_embry_accounts','ibis_group_anthony_accounts',
   'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses',
   'ibis_client_licenses',
