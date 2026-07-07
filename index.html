@@ -827,7 +827,7 @@
   /* ── Accounts main table: Salesforce/Attio-style grid ──
      Fixed-height scroll viewport → both scrollbars always reachable in view.
      Sticky header stays pinned. Columns grow-and-scroll instead of squishing. */
-  #table-view .table-wrap { max-height: calc(100vh - 236px); min-height: 320px; overflow: auto; }
+  #table-view .table-wrap { overflow: auto; }  /* height set at runtime by sizeAccountsGrid() so it fills exactly to the viewport bottom */
   .acct-main-table { width: auto; min-width: 100%; }
   .acct-main-table thead th { position: sticky; top: 0; z-index: 6; background: #f9fafb; box-shadow: inset 0 -1px 0 var(--border); }
   .acct-main-table tbody tr { transition: background 120ms ease; }
@@ -1129,14 +1129,17 @@
   .ast-drop    { background:#fee2e2; color:#991b1b; }
   .ast-market  { background:#ecfccb; color:#4d7c0f; }
   .ast-entdrop { background:#eaddd6; color:#7c2d12; }
-  /* My Opp / Other Opp pills (from Opportunities report CSV) — left-aligned, stage bold only */
-  .myopp-cell, .otheropp-cell { display:flex; gap:4px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
-  .myopp-pill, .otheropp-pill { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 10px; border-radius:999px; font-family:'DM Mono',monospace; font-size:11px; font-weight:400; letter-spacing:-0.1px; white-space:nowrap; }
-  .myopp-pill b, .otheropp-pill b { font-weight:700; }
-  .myopp-active { background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe; }
-  .myopp-won    { background:#ecfdf3; color:#15803d; border:1px solid #d1fae5; }
-  .otheropp-pill { background:#faf5ff; color:#6b21a8; border:1px solid #f0e6ff; }
-  .myopp-tag, .otheropp-tag { font-size:9px; font-weight:600; opacity:0.6; text-transform:uppercase; letter-spacing:0.2px; }
+  /* My Opp / Other Opp pills — Attio-style: bold stage, muted amount, mini chip tag */
+  .myopp-cell, .otheropp-cell { display:flex; gap:5px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
+  .myopp-pill, .otheropp-pill { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 5px 0 11px; border-radius:999px; font-family:'DM Mono',monospace; font-size:11px; white-space:nowrap; border:1px solid transparent; }
+  .opp-stage { font-weight:700; letter-spacing:-0.2px; }
+  .opp-amt   { font-weight:400; opacity:0.9; }
+  .opp-owner { font-weight:600; opacity:0.62; }
+  .opp-date  { font-weight:400; opacity:0.52; }
+  .opp-chip  { font-size:8.5px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase; padding:2px 6px; border-radius:999px; background:rgba(15,23,42,0.06); }
+  .myopp-active { background:#eff5ff; color:#1d4ed8; border-color:#dbeafe; }
+  .myopp-won    { background:#eafaf1; color:#15803d; border-color:#c9f0d8; }
+  .otheropp-pill { background:#f8f4ff; color:#6d28d9; border-color:#ece4fb; }
   /* Key Lost / Key Other / Key Trials pills + expansion count pill */
   .oppkey-cell { display:flex; gap:4px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
   .oppkey-pill { display:inline-flex; align-items:center; gap:3px; height:21px; padding:0 9px; border-radius:999px; font-family:'DM Mono',monospace; font-size:11px; font-weight:400; letter-spacing:-0.1px; white-space:nowrap; }
@@ -2262,7 +2265,7 @@
   <span>⚠️</span>
   <span class="swb-msg">Storage is filling up faster than auto-cleanup can clear it. Open Backups for details.</span>
   <button class="swb-clear" onclick="openBackupsPanel()">🛡 Open Backups</button>
-  <button class="swb-dismiss" onclick="document.getElementById('storage-warning-banner').classList.remove('visible')" title="Dismiss">✕</button>
+  <button class="swb-dismiss" onclick="document.getElementById('storage-warning-banner').classList.remove('visible');sizeAccountsGrid()" title="Dismiss">✕</button>
 </div>
 
 <!-- ACCOUNTS CONTENT -->
@@ -3427,7 +3430,19 @@ function renderAll() {
   document.getElementById('acct-count-label').textContent = realAccounts.length ? `${list.length} of ${realAccounts.length} accounts` : '';
   updateAcctSortArrows();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
+  sizeAccountsGrid();
 }
+
+// Size the accounts table grid so it fills exactly from its top to the viewport
+// bottom → the page never needs to scroll (stats/controls/filters stay fixed in
+// view) and the horizontal scrollbar is glued to the bottom of what's visible.
+function sizeAccountsGrid() {
+  const wrap = document.querySelector('#table-view .table-wrap');
+  if (!wrap || wrap.offsetParent === null) return; // not visible (cards view / another tab)
+  const top = wrap.getBoundingClientRect().top;
+  wrap.style.height = Math.max(220, window.innerHeight - top - 14) + 'px';
+}
+window.addEventListener('resize', sizeAccountsGrid);
 
 function getDomain(w) {
   if (!w||w.trim()==='') return null;
@@ -4846,9 +4861,10 @@ function renderMyOppCell(name, local) {
     const amt = oppFmtAmount(o.amount, o.currency);
     const cd  = o.close ? rotShortDate(o.close) : '';
     const tag = o.isProcurement ? 'PIQ' : (o.isIndustry ? 'Ind' : '');
-    const inner = o.closedWon ? `<b>Won</b> · ${escHtml(amt)}` : `<b>${escHtml(o.stage)}</b> · ${escHtml(amt)}`;
+    const stage = o.closedWon ? 'Won' : o.stage;
+    const chip = tag ? `<span class="opp-chip">${escHtml(tag)}</span>` : '';
     const tip = `${o.oppName||''} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · '+cd:''}${o.business?' · '+o.business:''}`;
-    return `<span class="myopp-pill ${cls}" title="${escHtml(tip)}">${inner}${tag?` <span class="myopp-tag">${tag}</span>`:''}</span>`;
+    return `<span class="myopp-pill ${cls}" title="${escHtml(tip)}"><span class="opp-stage">${escHtml(stage)}</span><span class="opp-amt">${escHtml(amt)}</span>${chip}</span>`;
   }).join('');
   return `<div class="myopp-cell">${bubbles}</div>`;
 }
@@ -4860,10 +4876,10 @@ function renderOtherOppCell(name) {
     const amt = oppFmtAmount(o.amount, o.currency);
     const cd  = o.close ? rotShortDate(o.close) : '';
     const first = (o.owner||'').split(' ')[0];
-    const trial = (o.closedWon && o.amount<=0) ? ' · trial' : '';
-    const inner = `${escHtml(first)} · <b>${escHtml(o.stage)}</b> · ${escHtml(amt)}${cd?' · '+escHtml(cd):''}${trial}`;
+    const tag = o.isProcurement ? 'PIQ' : (o.isUSProduct ? 'Ind' : (o.business.split(' ')[0]||''));
+    const chip = tag ? `<span class="opp-chip">${escHtml(tag)}</span>` : '';
     const tip = `${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · close '+cd:''}${o.business?' · '+o.business:''}${o.nextStep?' · '+o.nextStep:''}`;
-    return `<span class="otheropp-pill" title="${escHtml(tip)}">${inner}${o.business?` <span class="otheropp-tag">${escHtml(o.business)}</span>`:''}</span>`;
+    return `<span class="otheropp-pill" title="${escHtml(tip)}"><span class="opp-owner">${escHtml(first)}</span><span class="opp-stage">${escHtml(o.stage)}</span><span class="opp-amt">${escHtml(amt)}</span>${cd?`<span class="opp-date">${escHtml(cd)}</span>`:''}${chip}</span>`;
   }).join('');
   return `<div class="otheropp-cell">${bubbles}</div>`;
 }
@@ -6880,8 +6896,10 @@ function checkStorageSize() {
   const banner = document.getElementById('storage-warning-banner');
   if (banner) {
     const { totalKB: nowKB } = calcStorageUsage();
+    const was = banner.classList.contains('visible');
     if (nowKB > STORAGE_WARN_KB) banner.classList.add('visible');
     else banner.classList.remove('visible');
+    if (was !== banner.classList.contains('visible')) sizeAccountsGrid();
   }
 }
 
