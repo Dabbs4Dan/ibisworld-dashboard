@@ -4652,9 +4652,38 @@ function renderAccountKeyChurns(name) {
 let oppReport = [];
 const MY_OPP_OWNER = 'daniel starr'; // Opportunity Owner value that means "mine"
 
+// Slim projection — only the fields we render, short keys, trimmed long text.
+// Raw SF rows (15 cols, long strings) are ~4× larger; this keeps localStorage lean.
+function slimOppRow(o) {
+  return {
+    own: getField(o,'Opportunity Owner')||'',
+    acct: getField(o,'Account Name','AccountName')||'',
+    nm:  (getField(o,'Opportunity Name')||'').slice(0,100),
+    st:  getField(o,'Stage')||'',
+    cur: getField(o,'Amount Currency')||'',
+    amt: getField(o,'Amount')||'',
+    cd:  getField(o,'Close Date')||'',
+    crd: getField(o,'Created Date')||'',
+    ns:  (getField(o,'Next Step')||'').slice(0,140),
+    biz: getField(o,'Business')||''
+  };
+}
+// Drop rows older than the universal 2016 cap (never shown anyway) at store time.
+function slimOppRows(rows) {
+  return rows.map(slimOppRow).filter(o => {
+    const d = rotParseDate(o.cd) || rotParseDate(o.crd);
+    return !d || d.getFullYear() >= UNIVERSAL_MIN_YEAR;
+  });
+}
 function loadOppReport() {
-  try { oppReport = JSON.parse(localStorage.getItem('ibis_opps_report') || '[]'); }
-  catch(e) { oppReport = []; }
+  try {
+    let arr = JSON.parse(localStorage.getItem('ibis_opps_report') || '[]');
+    // Auto-migrate any old raw-format rows (had 'Stage' key) → slim, then persist to free space.
+    if (arr.length && arr[0] && arr[0].st === undefined && arr[0]['Stage'] !== undefined) {
+      arr = slimOppRows(arr);
+      oppReport = arr; saveOppReport();
+    } else { oppReport = arr; }
+  } catch(e) { oppReport = []; }
 }
 function saveOppReport() {
   try { localStorage.setItem('ibis_opps_report', JSON.stringify(oppReport)); }
@@ -4667,25 +4696,24 @@ function oppFmtAmount(n, cur) {
   if (n >= 1000)    return c + Math.round(n/1000) + 'K';
   return c + Math.round(n);
 }
-// Decorate a raw opp row with parsed/derived fields.
+// Decorate a slim opp row with parsed/derived fields.
 function decorateOppRow(o) {
-  const stage = (getField(o,'Stage')||'').trim();
+  const stage = (o.st||'').trim();
   const sl = stage.toLowerCase();
-  const close   = rotParseDate(getField(o,'Close Date'));
-  const created = rotParseDate(getField(o,'Created Date'));
-  const owner   = (getField(o,'Opportunity Owner')||'').trim();
-  const business = (getField(o,'Business')||'').trim();
+  const close   = rotParseDate(o.cd);
+  const created = rotParseDate(o.crd);
+  const owner   = (o.own||'').trim();
+  const business = (o.biz||'').trim();
   return {
     owner, isMine: owner.toLowerCase() === MY_OPP_OWNER,
-    account: getField(o,'Account Name','AccountName'),
-    oppName: getField(o,'Opportunity Name')||'',
+    account: o.acct||'',
+    oppName: o.nm||'',
     stage, sl, closedWon: sl === 'closed won', closedLost: sl === 'closed lost',
-    amount: oppParseAmount(getField(o,'Amount')),
-    currency: (getField(o,'Amount Currency')||'').trim(),
+    amount: oppParseAmount(o.amt),
+    currency: (o.cur||'').trim(),
     close, created,
     closeYear: close ? close.getFullYear() : (created ? created.getFullYear() : 0),
-    nextStep: getField(o,'Next Step')||'',
-    type: (getField(o,'Type')||'').trim(),
+    nextStep: o.ns||'',
     business, biz: business.toLowerCase(),
     isUSProduct: /^us /i.test(business),   // US Industry / US Procurement
     isProcurement: /procurement/i.test(business),
@@ -4697,7 +4725,7 @@ function getOppRowsFor(name) {
   if (!oppReport.length) return [];
   const n = normName(name);
   return oppReport
-    .filter(o => normName(getField(o,'Account Name','AccountName')) === n)
+    .filter(o => normName(o.acct||'') === n)
     .map(decorateOppRow)
     .filter(o => o.closeYear === 0 || o.closeYear >= UNIVERSAL_MIN_YEAR);
 }
@@ -4826,11 +4854,12 @@ function handleOppReportCSV(e) {
   snapshotBeforeAction('Pre-upload · Opportunities CSV');
   const reader = new FileReader();
   reader.onload = ev => {
-    oppReport = parseCSV(ev.target.result);
+    const raw = parseCSV(ev.target.result);
+    oppReport = slimOppRows(raw);
     saveOppReport();
     updateOppReportDot();
     if (accounts.length) renderAll();
-    showGroupToast(`✅ ${oppReport.length} opportunities loaded`);
+    showGroupToast(`✅ ${oppReport.length} of ${raw.length} opportunities loaded (2016+)`);
     checkStorageSize();
   };
   readCsvViaReader(reader, file);
