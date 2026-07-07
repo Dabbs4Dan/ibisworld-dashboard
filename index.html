@@ -1112,6 +1112,8 @@
   .ast-keep    { background:#d1fae5; color:#065f46; }
   .ast-monitor { background:#fef9c3; color:#854d0e; }
   .ast-drop    { background:#fee2e2; color:#991b1b; }
+  .ast-market  { background:#ecfccb; color:#4d7c0f; }
+  .ast-entdrop { background:#eaddd6; color:#7c2d12; }
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
   /* Status column collapse toggle */
@@ -2257,11 +2259,12 @@
               </div>
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
-            <th onclick="setSortCol('overlap')" style="cursor:pointer;min-width:140px;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
+            <th onclick="setSortCol('overlap')" style="cursor:pointer;white-space:nowrap;width:1px;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th style="text-align:center;min-width:110px;display:none;">Campaigns</th>
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
-            <th onclick="setSortCol('activeClient')" style="cursor:pointer;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
+            <th onclick="setSortCol('activeClient')" style="cursor:pointer;white-space:nowrap;width:1px;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
+            <th style="white-space:nowrap;" title="Significant re-winnable churned licenses (>$20K ACV) — from your Licenses report">Key Churn</th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
@@ -3337,7 +3340,7 @@ function getFiltered() {
     if (sort==='sixqa') return d * (getSixqaCount(getField(a,'Account Name','AccountName')) - getSixqaCount(getField(b,'Account Name','AccountName')));
     if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
-    if (sort==='acctStatus') { const ord={truekeep:0,keep:1,monitor:2,drop:3,'':4}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??4)-(ord[bs]??4)); }
+    if (sort==='acctStatus') { const ord={truekeep:0,keep:1,monitor:2,market:3,drop:4,entdrop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
     if (sort==='acctPriority') { const ord={quickwinner:0,teamsell:1,legendary:2,veryrare:3,rare:4,uncommon:5,common:6,'':7}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??7)-(ord[bp]??7)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*((hasActiveOpp(an)?1:0)-(hasActiveOpp(bn)?1:0)); }
@@ -3514,11 +3517,12 @@ function renderTable(list) {
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
-      <td style="white-space:nowrap;">${renderOverlapBadges(name)}</td>
+      <td style="white-space:nowrap;width:1px;">${renderOverlapBadges(name)}</td>
       <td style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;padding:0 8px;display:none;">${renderCampCluster(name)}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
-      <td>${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td style="white-space:nowrap;width:1px;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td style="white-space:nowrap;">${renderAccountKeyChurns(name)}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`data-stage="${escHtml(stage)}" onclick="toggleStageFilter(this.dataset.stage)" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
@@ -4560,6 +4564,32 @@ function getActiveLicBadges(accountName) {
   return badges.join('');
 }
 
+/* ─── Key Churns — shared rule engine (Rotation + Accounts use the SAME code) ─
+   Significant, still-re-winnable churned licenses from the Licenses CSV — the
+   same report that feeds the US Client column. Rules: churned (not active),
+   type US-Industry or PIQ, ACV > $20K. Suppressed entirely if the account still
+   holds an ACTIVE PIQ (already covered — no need to surface the old churn).
+   ─────────────────────────────────────────────────────────────────────────── */
+function computeKeyChurns(licArray, name) {
+  if (!licArray.length) return [];
+  const n = normName(name);
+  const lics = licArray.filter(l => normName(l._name) === n);
+  if (lics.some(l => l._type === 'PIQ' && l._active)) return [];
+  return lics
+    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000)
+    .sort((a,b) => (b._acv||0) - (a._acv||0));
+}
+function getAccountKeyChurns(name) { return computeKeyChurns(licenses, name); }
+function renderAccountKeyChurns(name) {
+  const churns = getAccountKeyChurns(name);
+  if (!churns.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  return `<div style="display:flex;gap:3px;flex-wrap:wrap;">` + churns.map(l => {
+    const lab = l._type === 'US' ? 'Industry' : 'PIQ';
+    const end = l._endDate ? rotShortDate(l._endDate) : '';
+    return `<span class="rot-pill ${rotChurnPillClass(l)}" title="Churned ${lab} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${rotMoney(l._acv||0)}${end?' · '+end:''}</span>`;
+  }).join('') + `</div>`;
+}
+
 /* ─── Group overlap lookup — surfaces other reps who also own a given account ─
    Used by the personal Accounts tab to show overlap badges + multi-owner filter.
    Excludes 'dan' since Dan IS the personal-tab owner — overlap means OTHER reps.
@@ -4707,7 +4737,9 @@ const ACCT_STATUS_OPTS = [
   { key:'truekeep', label:'🔒 True Keep', cls:'ast-truekeep' },
   { key:'keep',    label:'✓ Keep',    cls:'ast-keep' },
   { key:'monitor', label:'👁 Monitor', cls:'ast-monitor' },
+  { key:'market',  label:'📣 Market',  cls:'ast-market' },
   { key:'drop',    label:'✕ Drop',    cls:'ast-drop' },
+  { key:'entdrop', label:'🏢 Ent Drop', cls:'ast-entdrop' },
   { key:'',        label:'—',         cls:'ast-none' },
 ];
 
@@ -8022,7 +8054,9 @@ function renderDeadAccounts() {
     truekeep: { label:'🔒 True Keep', bg:'#dbeafe', col:'#1e40af' },
     keep:    { label:'✓ Keep',    bg:'#dcfce7', col:'#166534' },
     monitor: { label:'👁 Monitor', bg:'#fef9c3', col:'#854d0e' },
+    market:  { label:'📣 Market',  bg:'#ecfccb', col:'#4d7c0f' },
     drop:    { label:'✕ Drop',    bg:'#fee2e2', col:'#991b1b' },
+    entdrop: { label:'🏢 Ent Drop', bg:'#eaddd6', col:'#7c2d12' },
     '':      { label:'—',         bg:'#f3f4f6', col:'#6b7280' },
   };
 
@@ -8054,7 +8088,7 @@ function renderDeadAccounts() {
 
     // Status badge — reuse portal button classes
     const sd = STATUS_DISPLAY[statusKey] || STATUS_DISPLAY[''];
-    const statusCls = statusKey === 'keep' ? 'ast-keep' : statusKey === 'monitor' ? 'ast-monitor' : statusKey === 'drop' ? 'ast-drop' : 'ast-none';
+    const statusCls = statusKey ? 'ast-' + statusKey : 'ast-none';
     const statusHtml = `<span class="acct-status-trigger ${statusCls}" style="cursor:default;">${sd.label}</span>`;
 
     // Sentiment score (from snapshot) — reuse .sent-badge classes
@@ -9096,15 +9130,7 @@ function getRotationLicCount(name) {
 // Rules: type US (Industry) or PIQ, ACV > $20K, currently churned (not active).
 // Special rule: if the account still has an ACTIVE PIQ license, skip entirely
 // (it's already covered — no need to surface the old churn).
-function getRotationKeyChurns(name) {
-  if (!rotationLicenses.length) return [];
-  const n = normName(name);
-  const lics = rotationLicenses.filter(l => normName(l._name) === n);
-  if (lics.some(l => l._type === 'PIQ' && l._active)) return [];
-  return lics
-    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000)
-    .sort((a,b) => (b._acv||0) - (a._acv||0));
-}
+function getRotationKeyChurns(name) { return computeKeyChurns(rotationLicenses, name); }
 function rotShortDate(d) {
   if (!d) return '';
   const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
