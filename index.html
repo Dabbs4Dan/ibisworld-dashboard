@@ -404,6 +404,8 @@
   .chip-keep.active    { background:#d1fae5; border-color:#6ee7b7; color:#065f46; }
   .chip-monitor.active { background:#fef9c3; border-color:#fde68a; color:#854d0e; }
   .chip-drop.active    { background:#fee2e2; border-color:#fca5a5; color:#991b1b; }
+  .chip-market.active  { background:#ecfccb; border-color:#bef264; color:#4d7c0f; }
+  .chip-entdrop.active { background:#eaddd6; border-color:#d6bfae; color:#7c2d12; }
 
   /* ── BUTTON SYSTEM ───────────────────────────────
      Three semantic variants. Use these for all new buttons.
@@ -572,6 +574,8 @@
   .grp-owner-pill.grp-pill-christian { background:#2563eb; }
   .grp-owner-pill.grp-pill-embry     { background:#059669; }
   .grp-owner-pill.grp-pill-anthony   { background:#7c3aed; }
+  /* Grey person bubble — someone with an active opp who isn't a group-overlap rep */
+  .grp-pill-oppowner { display:inline-flex; align-items:center; border-radius:999px; padding:2px 9px; font-size:10px; font-weight:600; font-family:'DM Sans',sans-serif; background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; white-space:nowrap; }
   /* ── Rotation tab — Assign + Team Sell pill dropdowns ─────────────────── */
   .rot-assign-select, .rot-teamsell-select {
     font-family:'DM Sans',sans-serif; font-size:10px; font-weight:600; letter-spacing:0.2px;
@@ -820,6 +824,11 @@
   .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); background: white; }
 
   table { width: 100%; border-collapse: collapse; }
+  /* ── Accounts main table: grow-and-scroll instead of squish; uniform rows ── */
+  .acct-main-table { width: auto; min-width: 100%; }
+  .acct-main-table .td-name { display:inline-block; max-width:165px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+  .acct-main-table .td-company { max-width:230px; }
+  .acct-main-table .td-company .td-sub-vert { max-width:165px; -webkit-line-clamp:1; }
 
   thead tr { background: var(--surface); border-bottom: 1px solid var(--border); }
   thead th {
@@ -1114,16 +1123,18 @@
   .ast-drop    { background:#fee2e2; color:#991b1b; }
   .ast-market  { background:#ecfccb; color:#4d7c0f; }
   .ast-entdrop { background:#eaddd6; color:#7c2d12; }
-  /* My Opp / Other Opp pills (from Opportunities report CSV) */
-  .myopp-cell, .otheropp-cell { display:flex; gap:3px; flex-wrap:wrap; align-items:center; justify-content:center; }
-  .myopp-pill, .otheropp-pill { display:inline-flex; align-items:center; gap:4px; height:20px; padding:0 8px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10px; font-weight:600; white-space:nowrap; }
-  .myopp-active { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
-  .myopp-won    { background:#dcfce7; color:#15803d; border:1px solid #86efac; }
-  .otheropp-pill { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
-  .myopp-tag, .otheropp-tag { font-size:9px; font-weight:700; opacity:0.7; }
+  /* My Opp / Other Opp pills (from Opportunities report CSV) — left-aligned, stage bold only */
+  .myopp-cell, .otheropp-cell { display:flex; gap:4px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
+  .myopp-pill, .otheropp-pill { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 10px; border-radius:999px; font-family:'DM Mono',monospace; font-size:11px; font-weight:400; letter-spacing:-0.1px; white-space:nowrap; }
+  .myopp-pill b, .otheropp-pill b { font-weight:700; }
+  .myopp-active { background:#eff6ff; color:#1d4ed8; border:1px solid #dbeafe; }
+  .myopp-won    { background:#ecfdf3; color:#15803d; border:1px solid #d1fae5; }
+  .otheropp-pill { background:#faf5ff; color:#6b21a8; border:1px solid #f0e6ff; }
+  .myopp-tag, .otheropp-tag { font-size:9px; font-weight:600; opacity:0.6; text-transform:uppercase; letter-spacing:0.2px; }
   /* Key Lost / Key Other / Key Trials pills + expansion count pill */
-  .oppkey-cell { display:flex; gap:3px; flex-wrap:wrap; align-items:center; justify-content:center; }
-  .oppkey-pill { display:inline-flex; align-items:center; gap:3px; height:19px; padding:0 7px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10px; font-weight:600; white-space:nowrap; }
+  .oppkey-cell { display:flex; gap:4px; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
+  .oppkey-pill { display:inline-flex; align-items:center; gap:3px; height:21px; padding:0 9px; border-radius:999px; font-family:'DM Mono',monospace; font-size:11px; font-weight:400; letter-spacing:-0.1px; white-space:nowrap; }
+  .oppkey-pill b { font-weight:700; }
   .oppkey-lost  { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
   .oppkey-global { background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe; }
   .oppkey-trial-won  { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
@@ -2120,7 +2131,9 @@
   <div class="filter-chips">
     <button class="chip chip-truekeep" onclick="toggleChip(this,'TRUE_KEEP')" data-flag="TRUE_KEEP">🔒 True Keep</button>
     <button class="chip chip-keep" onclick="toggleChip(this,'KEEP')" data-flag="KEEP">✓ Keep</button>
+    <button class="chip chip-market" onclick="toggleChip(this,'MARKET')" data-flag="MARKET">📣 Market</button>
     <button class="chip chip-monitor" onclick="toggleChip(this,'MONITOR')" data-flag="MONITOR">👁 Monitor</button>
+    <button class="chip chip-entdrop" onclick="toggleChip(this,'ENT_DROP')" data-flag="ENT_DROP">🏢 Ent Drop</button>
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
     <button class="chip" onclick="toggleChip(this,'KEY_CHURN')" data-flag="KEY_CHURN" title="Accounts with significant re-winnable churned licenses (>$20K ACV)">🔴 Key Churns</button>
@@ -2262,14 +2275,14 @@
   <div id="cards-view" class="cards-grid hidden"></div>
   <div id="table-view" class="hidden">
     <div class="table-wrap">
-      <table>
+      <table class="acct-main-table">
         <thead>
           <tr>
             <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
-            <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:center;min-width:120px;" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
-            <th style="text-align:center;min-width:120px;" title="Other reps' active opportunities on this account">Other Opp</th>
+            <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:left;min-width:150px;" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
+            <th style="text-align:left;min-width:150px;" title="Other reps' active opportunities on this account">Other Opp</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -2292,9 +2305,9 @@
             <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;white-space:nowrap;width:1px;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
             <th onclick="setSortCol('keyChurn')" style="cursor:pointer;white-space:nowrap;" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></th>
-            <th style="white-space:nowrap;text-align:center;" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ⭐ = you owned it.">Key Lost Opps</th>
-            <th style="white-space:nowrap;text-align:center;" title="Closed-Lost global (non-US) opps over $1 (2016+).">Key Other Opps</th>
-            <th style="white-space:nowrap;text-align:center;" title="Trials (≤$1, closed) across all geographies — labeled Ind/PIQ/geo, won ✓ / lost ✗ (2016+).">Key Trials</th>
+            <th style="white-space:nowrap;text-align:left;" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ⭐ = you owned it.">Key Lost Opps</th>
+            <th style="white-space:nowrap;text-align:left;" title="Closed-Lost global (non-US) opps over $1 (2016+).">Key Other Opps</th>
+            <th style="white-space:nowrap;text-align:left;" title="Trials (≤$1, closed) across all geographies — labeled Ind/PIQ/geo, won ✓ / lost ✗ (2016+).">Key Trials</th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th>Stage</th>
@@ -3321,9 +3334,9 @@ function getFiltered() {
       const acctPriority = localData[aName]?.acctPriority || '';
       const stageVal     = getField(a, '6sense Account Buying Stage NA') || '';
       // Status group — OR within, AND across groups
-      const statusFs = ['TRUE_KEEP','KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f));
+      const statusFs = ['TRUE_KEEP','KEEP','MARKET','MONITOR','ENT_DROP','DROP'].filter(f => activeFlags.has(f));
       if (statusFs.length) {
-        const map = {TRUE_KEEP:'truekeep',KEEP:'keep',MONITOR:'monitor',DROP:'drop'};
+        const map = {TRUE_KEEP:'truekeep',KEEP:'keep',MARKET:'market',MONITOR:'monitor',ENT_DROP:'entdrop',DROP:'drop'};
         if (!statusFs.some(f => map[f] === acctStatus)) return false;
       }
       // Priority group — OR within
@@ -3348,7 +3361,7 @@ function getFiltered() {
       // Multi-Owner — standalone (account also owned by another rep in the group)
       if (activeFlags.has('MULTI_OWNER') && getOtherRepOverlap(aName).length === 0) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['TRUE_KEEP','KEEP','MONITOR','DROP','ACTIVE_LIC','KEY_CHURN','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['TRUE_KEEP','KEEP','MARKET','MONITOR','ENT_DROP','DROP','ACTIVE_LIC','KEY_CHURN','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -3548,8 +3561,8 @@ function renderTable(list) {
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
-      <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
-      <td style="text-align:center;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
+      <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
+      <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
       <td style="white-space:nowrap;">${revCell}</td>
@@ -3559,9 +3572,9 @@ function renderTable(list) {
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="white-space:nowrap;width:1px;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="white-space:nowrap;">${renderAccountKeyChurns(name)}</td>
-      <td style="text-align:center;">${renderOppKeyCell(name,'lostUS')}</td>
-      <td style="text-align:center;">${renderOppKeyCell(name,'lostGlobal')}</td>
-      <td style="text-align:center;">${renderOppKeyCell(name,'trials')}</td>
+      <td style="text-align:left;">${renderOppKeyCell(name,'lostUS')}</td>
+      <td style="text-align:left;">${renderOppKeyCell(name,'lostGlobal')}</td>
+      <td style="text-align:left;">${renderOppKeyCell(name,'trials')}</td>
       <td style="font-family:'DM Mono',monospace;">${sfOppsVal||'0'}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
       <td><span class="stage-tag ${stageClass(stage)}${stage?' stage-clickable':''}${stage&&activeFlags.has('STAGE_'+stage)?' stage-active':''}" ${stage?`data-stage="${escHtml(stage)}" onclick="toggleStageFilter(this.dataset.stage)" title="Click to filter by stage"`:''}>${stage||'—'}</span></td>
@@ -4823,9 +4836,9 @@ function renderMyOppCell(name, local) {
     const amt = oppFmtAmount(o.amount, o.currency);
     const cd  = o.close ? rotShortDate(o.close) : '';
     const tag = o.isProcurement ? 'PIQ' : (o.isIndustry ? 'Ind' : '');
-    const label = o.closedWon ? `✓ ${amt}` : `${o.stage} · ${amt}`;
+    const inner = o.closedWon ? `<b>Won</b> · ${escHtml(amt)}` : `<b>${escHtml(o.stage)}</b> · ${escHtml(amt)}`;
     const tip = `${o.oppName||''} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · '+cd:''}${o.business?' · '+o.business:''}`;
-    return `<span class="myopp-pill ${cls}" title="${escHtml(tip)}">${escHtml(label)}${tag?` <span class="myopp-tag">${tag}</span>`:''}</span>`;
+    return `<span class="myopp-pill ${cls}" title="${escHtml(tip)}">${inner}${tag?` <span class="myopp-tag">${tag}</span>`:''}</span>`;
   }).join('');
   return `<div class="myopp-cell">${bubbles}</div>`;
 }
@@ -4838,9 +4851,9 @@ function renderOtherOppCell(name) {
     const cd  = o.close ? rotShortDate(o.close) : '';
     const first = (o.owner||'').split(' ')[0];
     const trial = (o.closedWon && o.amount<=0) ? ' · trial' : '';
-    const label = `${escHtml(first)} · ${escHtml(o.stage)} · ${amt}${cd?' · '+cd:''}${trial}`;
+    const inner = `${escHtml(first)} · <b>${escHtml(o.stage)}</b> · ${escHtml(amt)}${cd?' · '+escHtml(cd):''}${trial}`;
     const tip = `${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · close '+cd:''}${o.business?' · '+o.business:''}${o.nextStep?' · '+o.nextStep:''}`;
-    return `<span class="otheropp-pill" title="${escHtml(tip)}">${label}${o.business?` <span class="otheropp-tag">${escHtml(o.business)}</span>`:''}</span>`;
+    return `<span class="otheropp-pill" title="${escHtml(tip)}">${inner}${o.business?` <span class="otheropp-tag">${escHtml(o.business)}</span>`:''}</span>`;
   }).join('');
   return `<div class="otheropp-cell">${bubbles}</div>`;
 }
@@ -4887,10 +4900,18 @@ function getOtherRepOverlap(accountName) {
 
 function renderOverlapBadges(accountName) {
   const owners = getOtherRepOverlap(accountName);
-  if (!owners.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-  return '<div class="grp-overlap-bubbles" style="margin:0;flex-wrap:wrap;">'
-       + owners.map(o => `<span class="grp-owner-pill grp-pill-${o} grp-overlap-pill" title="${GROUP_OWNER_LABEL[o]} also owns this account">${GROUP_OWNER_LABEL[o]}</span>`).join('')
-       + '</div>';
+  const groupPills = owners.map(o => `<span class="grp-owner-pill grp-pill-${o} grp-overlap-pill" title="${GROUP_OWNER_LABEL[o]} also owns this account">${GROUP_OWNER_LABEL[o]}</span>`);
+  // One-time rule: anyone with an ACTIVE opp on this account (from the Opportunities
+  // report) who isn't already a group-overlap rep gets a grey person bubble here.
+  const groupLabels = new Set(owners.map(o => GROUP_OWNER_LABEL[o].toLowerCase()));
+  const seen = new Set();
+  const oppPills = getOtherOpps(accountName)
+    .map(o => o.owner).filter(Boolean)
+    .filter(nm => { const k = nm.toLowerCase(); if (seen.has(k) || groupLabels.has(nm.split(' ')[0].toLowerCase())) return false; seen.add(k); return true; })
+    .map(nm => `<span class="grp-overlap-pill grp-pill-oppowner" title="${escHtml(nm)} has an active opportunity on this account">${escHtml(nm.split(' ')[0])}</span>`);
+  const all = [...groupPills, ...oppPills];
+  if (!all.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+  return '<div class="grp-overlap-bubbles" style="margin:0;flex-wrap:wrap;">' + all.join('') + '</div>';
 }
 
 // True if account ever had a US Industry license (churn signal / former US client)
