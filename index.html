@@ -1251,7 +1251,7 @@
   .acct-priority-wrap { position:relative; display:inline-block; }
   .acct-priority-trigger { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; border:none; white-space:nowrap; font-family:'DM Sans',sans-serif; line-height:1.5; min-width:80px; transition:opacity 0.1s; }
   .acct-priority-trigger::after { content:'▾'; font-size:9px; opacity:0.55; margin-left:2px; }
-  #acct-priority-portal { position:fixed; z-index:9501; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.14); padding:6px; min-width:145px; display:none; }
+  #acct-priority-portal { position:fixed; z-index:9501; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.14); padding:6px; min-width:170px; max-height:360px; overflow-y:auto; display:none; }
   .acct-priority-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-priority-opt:last-child { margin-bottom:0; }
   .acct-priority-opt:hover { filter:brightness(0.94); }
@@ -2383,6 +2383,7 @@
             <th class="status-col"><span class="hf-slot" id="hfslot-status"></span></th>
             <th><span class="hf-slot" id="hfslot-priority"></span></th>
             <th></th>
+            <th><span class="hf-slot" id="hfslot-hasheadline"></span></th>
             <th><span class="hf-slot" id="hfslot-myopp"></span></th>
             <th><span class="hf-slot" id="hfslot-otheropp"></span></th>
             <th><span class="hf-slot" id="hfslot-vertical"></span></th>
@@ -2408,6 +2409,7 @@
             <th class="status-col" style="min-width:96px;cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th style="min-width:104px;cursor:pointer;" onclick="setSortCol('acctPriority')">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
+            <th style="min-width:200px;">Action Headline</th>
             <th style="text-align:left;min-width:150px;cursor:pointer;" onclick="setSortCol('opp')" title="My active + won opportunities (from the Opportunities report) + custom typed opps">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
             <th style="text-align:left;min-width:150px;cursor:pointer;" onclick="setSortCol('otherOppClose')" title="Other reps' live open opps. Click to sort by furthest-future close date.">Other Opp <span class="acct-sort-arrow" id="asort-otherOppClose"></span></th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
@@ -3139,6 +3141,32 @@ function vertBubble(acc) {
 }
 
 
+// v41 one-time migration: the Priority column changed from rarity tiers (Legendary/Rare/…)
+// to Action-board stages. Old assignments are backed up to ibis_priority_legacy (recoverable,
+// in the backup set) and then cleared so they don't linger as unrenderable values.
+function migrateLegacyPriority() {
+  if (localStorage.getItem('ibis_prio_migrated_v41') === '1') return;
+  const OLD = new Set(['quickwinner','teamsell','legendary','veryrare','rare','uncommon','common']);
+  const OLD_LABELS = { quickwinner:'⚡ Quick Winner', teamsell:'🤝 Team Sell', legendary:'💎 Legendary', veryrare:'⭐ Very Rare', rare:'🔨 Rare', uncommon:'⛏ Uncommon', common:'🪵 Common' };
+  let legacy = {};
+  try { legacy = JSON.parse(localStorage.getItem('ibis_priority_legacy') || '{}'); } catch(e) { legacy = {}; }
+  let moved = 0;
+  Object.keys(localData || {}).forEach(name => {
+    const p = localData[name] && localData[name].acctPriority;
+    if (p && OLD.has(p)) {
+      legacy[name] = { value: p, label: OLD_LABELS[p] || p, ts: Date.now() };
+      delete localData[name].acctPriority;
+      moved++;
+    }
+  });
+  if (moved > 0) {
+    try { localStorage.setItem('ibis_priority_legacy', JSON.stringify(legacy)); } catch(e) {}
+    try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e) {}
+    console.log('[ibis] Backed up + cleared ' + moved + ' legacy priority values → ibis_priority_legacy');
+  }
+  localStorage.setItem('ibis_prio_migrated_v41', '1');
+}
+
 function init() {
   loadCsvStats();
   loadDead();
@@ -3155,6 +3183,7 @@ function init() {
     try { localStorage.setItem('ibis_local_corrupt_backup', savedLocal); } catch(e2) {}
     localData = {};
   }
+  migrateLegacyPriority(); // v41: back up + clear old rarity-tier priorities before the new stage options
   if (saved) {
     try { accounts = JSON.parse(saved); } catch(e) { console.error('ibis_accounts corrupted, resetting:', e); accounts = []; }
     applySeedsToLocalData(); applyTierOverridesToAccounts(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
@@ -3527,9 +3556,9 @@ function getFiltered() {
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='keyChurn') return d * (getKeyChurnWeight(getField(a,'Account Name','AccountName')) - getKeyChurnWeight(getField(b,'Account Name','AccountName')));
     if (sort==='acctStatus') { const ord={truekeep:0,keep:1,market:2,monitor:3,entdrop:4,drop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
-    if (sort==='acctPriority') { const ord={quickwinner:0,teamsell:1,legendary:2,veryrare:3,rare:4,uncommon:5,common:6,'':7}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??7)-(ord[bp]??7)); }
+    if (sort==='acctPriority') { const ord={new_sequence:0,multithreading:1,active_opp:2,active_proposal:3,stalled:4,future_reconnect:5,internal_support:6,tabled:7,unresponsive:8,won:9,nurture:10,'':11}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??11)-(ord[bp]??11)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
-    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); const v=n=>(hasMyOpp(n)||hasActiveOpp(n))?2:(hasCustomOpp(n)?1:0); return d*(v(an)-v(bn)); } // SF opps rank above custom opps
+    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); const v=n=>hasMyOpp(n)?2:(hasCustomOpp(n)?1:0); return d*(v(an)-v(bn)); } // matches the My Opp column: SF my-opps rank above custom opps; everything else 0
     if (sort==='otherOppClose') return d*(otherOppMaxClose(getField(a,'Account Name','AccountName')) - otherOppMaxClose(getField(b,'Account Name','AccountName')));
     if (sort==='overlap') {
       const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName');
@@ -3712,7 +3741,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map(acc => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -3732,6 +3761,7 @@ function renderTable(list) {
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
+      <td style="padding:6px 10px;" onclick="event.stopPropagation()"><input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
       <td>${vertBubble(acc)}</td>
@@ -4666,7 +4696,7 @@ let acctTierFilters = new Set(); // values: '1','2','3','4','' (CARDS view only)
 let acctColFilters = {
   status: new Set(), priority: new Set(), tier: new Set(), otheropp: new Set(),
   stage: new Set(), vertical: new Set(), revenueband: new Set(), myopp: new Set(),
-  usclient:false, activeclient:false, overlap:false,
+  hasheadline:false, usclient:false, activeclient:false, overlap:false,
   keychurn:false, keylost:false, otherlost:false, keytrials:false,
   hasworkables:false, inaction:false, activeopp:false
 };
@@ -4679,12 +4709,17 @@ const ACCT_STATUS_FILTER_OPTS = [
   {key:'drop',    label:'✕ Drop',       css:'background:#fee2e2;color:#b91c1c;'}
 ];
 const ACCT_PRIORITY_FILTER_OPTS = [
-  {key:'quickwinner',label:'⚡ Quick Winner', css:'background:#1e3a8a;color:#ffffff;'},
-  {key:'teamsell',   label:'🤝 Team Sell',    css:'background:#ccfbf1;color:#115e59;'},
-  {key:'legendary',  label:'💎 Legendary',    css:'background:#fef3c7;color:#92400e;'},
-  {key:'veryrare',   label:'⭐ Very Rare',     css:'background:#ede9fe;color:#5b21b6;'},
-  {key:'rare',       label:'🔨 Rare',         css:'background:#dbeafe;color:#1e40af;'},
-  {key:'uncommon',   label:'⛏ Uncommon',      css:'background:#d1fae5;color:#065f46;'}
+  {key:'new_sequence',     label:'🚀 New Sequence',     css:'background:#dcfce7;color:#15803d;'},
+  {key:'multithreading',   label:'👥 Multi-threading',  css:'background:#eef2ff;color:#4338ca;'},
+  {key:'active_opp',       label:'💼 Active Opp',       css:'background:#fef3c7;color:#92400e;'},
+  {key:'active_proposal',  label:'📋 Active Proposal',  css:'background:#ede9fe;color:#6d28d9;'},
+  {key:'stalled',          label:'⏸ Stalled',           css:'background:#fff7ed;color:#9a3412;'},
+  {key:'future_reconnect', label:'🔮 Future Reconnect', css:'background:#f1f5f9;color:#475569;'},
+  {key:'internal_support', label:'🛟 Internal Support', css:'background:#e0f2fe;color:#0369a1;'},
+  {key:'tabled',           label:'🗄 Tabled',           css:'background:#f3f4f6;color:#6b7280;'},
+  {key:'unresponsive',     label:'🚫 Unresponsive',     css:'background:#fee2e2;color:#be123c;'},
+  {key:'won',              label:'🏆 Won',              css:'background:#fef08a;color:#854d0e;'},
+  {key:'nurture',          label:'🌱 Nurture',          css:'background:#d1fae5;color:#047857;'}
 ];
 const ACCT_TIER_FILTER_OPTS = [
   {key:'1',label:'Tier 1', css:'background:#dbeafe;color:#1e3a8a;'},
@@ -4755,6 +4790,7 @@ const ACCT_HF = {
   revenueband: {kind:'multi',  opts:ACCT_REVENUE_FILTER_OPTS},
   stage:       {kind:'multi',  opts:acctStageFilterOpts},
   myopp:       {kind:'multi',  opts:ACCT_MYOPP_FILTER_OPTS},
+  hasheadline: {kind:'toggle', label:'Has Headline'},
   usclient:    {kind:'toggle', label:'US Client'},
   activeclient:{kind:'toggle', label:'Active Client'},
   overlap:     {kind:'toggle', label:'Multi-Owner'},
@@ -4824,6 +4860,7 @@ function passesColFilters(a, aName) {
   if (cf.stage.size    && !cf.stage.has(getField(a,'6sense Account Buying Stage NA') || '')) return false;
   if (cf.otheropp.size) { const cats = new Set(getOtherOpps(aName).map(o => otherOppCat(o).key)); if (![...cf.otheropp].some(k => cats.has(k))) return false; }
   if (cf.myopp.size) { const ok = [...cf.myopp].some(k => k === 'sf' ? getMyOpps(aName).length > 0 : (k === 'custom' ? hasCustomOpp(aName) : false)); if (!ok) return false; }
+  if (cf.hasheadline  && !(localData[aName]?.actionHeadline || '').trim()) return false;
   if (cf.usclient     && !hasUSLicense(aName)) return false;
   if (cf.activeclient && !getActiveLicBadges(aName)) return false;
   if (cf.overlap      && getOtherRepOverlap(aName).length === 0) return false;
@@ -5703,23 +5740,31 @@ function toggleStatusCol() {
 }
 
 // Account Priority custom dropdown — stored in ibis_local[name].acctPriority
+// Priority column options — mirror the Action-board stages (same colours + emojis),
+// plus a few states not in the action pipeline. Colours applied inline (no per-option CSS class).
+// '' = entirely unselected (most accounts should be blank here).
 const ACCT_PRIORITY_OPTS = [
-  { key:'quickwinner', label:'⚡ Quick Winner', cls:'apr-quickwinner' },
-  { key:'teamsell',    label:'🤝 Team Sell',   cls:'apr-teamsell' },
-  { key:'legendary',   label:'💎 Legendary',   cls:'apr-legendary' },
-  { key:'veryrare',    label:'⭐ Very Rare',   cls:'apr-veryrare' },
-  { key:'rare',        label:'🔨 Rare',        cls:'apr-rare' },
-  { key:'uncommon',    label:'⛏ Uncommon',    cls:'apr-uncommon' },
-  { key:'common',      label:'🪵 Common',      cls:'apr-common' },
-  { key:'',            label:'—',              cls:'apr-none' },
+  { key:'new_sequence',     label:'🚀 New Sequence',     bg:'#dcfce7', color:'#15803d' },
+  { key:'multithreading',   label:'👥 Multi-threading',  bg:'#eef2ff', color:'#4338ca' },
+  { key:'active_opp',       label:'💼 Active Opp',       bg:'#fef3c7', color:'#92400e' },
+  { key:'active_proposal',  label:'📋 Active Proposal',  bg:'#ede9fe', color:'#6d28d9' },
+  { key:'stalled',          label:'⏸ Stalled',           bg:'#fff7ed', color:'#9a3412' },
+  { key:'future_reconnect', label:'🔮 Future Reconnect', bg:'#f1f5f9', color:'#475569' },
+  { key:'internal_support', label:'🛟 Internal Support', bg:'#e0f2fe', color:'#0369a1' },
+  { key:'tabled',           label:'🗄 Tabled',           bg:'#f3f4f6', color:'#6b7280' },
+  { key:'unresponsive',     label:'🚫 Unresponsive',     bg:'#fee2e2', color:'#be123c' },
+  { key:'won',              label:'🏆 Won',              bg:'#fef08a', color:'#854d0e' },
+  { key:'nurture',          label:'🌱 Nurture',          bg:'#d1fae5', color:'#047857' },
+  { key:'',                 label:'—',                   bg:'#f9fafb', color:'#9ca3af' },
 ];
+function prioStyle(o) { return `background:${o.bg};color:${o.color};`; }
 
 function renderAcctPrioritySelect(name) {
   const priority = (localData[name]?.acctPriority) || '';
   const safeId = 'apw-' + name.replace(/[^a-z0-9]/gi,'_');
   const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS.find(o => o.key === '');
   return `<div class="acct-priority-wrap" id="${safeId}" data-acct-name="${escHtml(name)}" onclick="event.stopPropagation()">
-    <button class="acct-priority-trigger ${cur.cls}" onclick="event.stopPropagation();openAcctPriorityPortal('${safeId}',this)">${cur.label}</button>
+    <button class="acct-priority-trigger" style="${prioStyle(cur)}" onclick="event.stopPropagation();openAcctPriorityPortal('${safeId}',this)">${cur.label}</button>
   </div>`;
 }
 
@@ -5734,7 +5779,7 @@ function openAcctPriorityPortal(id, triggerBtn) {
   portal.dataset.wrapId = id;
   portal.dataset.acctName = wrap?.dataset.acctName || '';
   portal.innerHTML = ACCT_PRIORITY_OPTS.map(o =>
-    `<button class="acct-priority-opt ${o.cls}" onclick="event.stopPropagation();applyPortalPriority('${o.key}')">${o.label}</button>`
+    `<button class="acct-priority-opt" style="${prioStyle(o)}" onclick="event.stopPropagation();applyPortalPriority('${o.key}')">${o.label}</button>`
   ).join('');
   const rect = triggerBtn.getBoundingClientRect();
   portal.style.left = Math.max(4, rect.left) + 'px';
@@ -5756,7 +5801,7 @@ function applyPortalPriority(priority) {
   if (wrap) {
     const cur = ACCT_PRIORITY_OPTS.find(o => o.key === priority) || ACCT_PRIORITY_OPTS.find(o => o.key === '');
     const trigger = wrap.querySelector('.acct-priority-trigger');
-    if (trigger) { trigger.className = 'acct-priority-trigger ' + cur.cls; trigger.innerHTML = cur.label; }
+    if (trigger) { trigger.className = 'acct-priority-trigger'; trigger.style.cssText = prioStyle(cur); trigger.innerHTML = cur.label; }
   }
   portal.style.display = 'none'; portal.dataset.wrapId = '';
 }
@@ -6544,7 +6589,7 @@ function renderAPHeader(acc, local, name) {
   const prioOpt       = ACCT_PRIORITY_OPTS.find(o => o.key === (local.acctPriority || ''));
 
   // Priority badge with color bubble
-  const PRIO_COLORS = { quickwinner:'background:#1e3a8a;color:#ffffff;', teamsell:'background:#ccfbf1;color:#115e59;', legendary:'background:#fef3c7;color:#92400e;', veryrare:'background:#ede9fe;color:#5b21b6;', rare:'background:#dbeafe;color:#1e40af;', uncommon:'background:#d1fae5;color:#065f46;', common:'background:#f3f4f6;color:#4b5563;' };
+  const PRIO_COLORS = { new_sequence:'background:#dcfce7;color:#15803d;', multithreading:'background:#eef2ff;color:#4338ca;', active_opp:'background:#fef3c7;color:#92400e;', active_proposal:'background:#ede9fe;color:#6d28d9;', stalled:'background:#fff7ed;color:#9a3412;', future_reconnect:'background:#f1f5f9;color:#475569;', internal_support:'background:#e0f2fe;color:#0369a1;', tabled:'background:#f3f4f6;color:#6b7280;', unresponsive:'background:#fee2e2;color:#be123c;', won:'background:#fef08a;color:#854d0e;', nurture:'background:#d1fae5;color:#047857;' };
   const prioBadgeEl = (prioOpt && prioOpt.key)
     ? `<span style="display:inline-flex;align-items:center;${PRIO_COLORS[prioOpt.key]||''}border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">${prioOpt.label}</span>`
     : '<span style="color:var(--text-muted);">—</span>';
@@ -7421,6 +7466,7 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   'ibis_client_licenses',
   'ibis_client_revenue',
   'ibis_rotation_accounts','ibis_rotation_licenses','ibis_rotation_opps','ibis_rotation_markup',
+  'ibis_priority_legacy','ibis_prio_migrated_v41',
   'ibis_auto_backup_meta'];
   // Note: the snapshot ring lives in IndexedDB (not localStorage), so it never
   // counts against the localStorage quota and can't nest inside a snapshot.
