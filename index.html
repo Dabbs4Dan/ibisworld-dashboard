@@ -666,6 +666,7 @@
   .rot-churn-piq  { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }  /* PIQ churn = blue */
   .rot-churn-old  { background:#f3f4f6; color:#6b7280; border-color:#e5e7eb; }  /* pre-2020 = grey */
   .rot-churn-new  { background:#fef9c3; color:#a16207; border-color:#fde68a; }  /* 2024+ = golden */
+  .rot-churn-intl { background:#ecfdf5; color:#047857; border-color:#a7f3d0; }  /* International = green */
   .rot-opp-pill   { background:#fef9c3; color:#a16207; border-color:#fde68a; }  /* active opp = golden */
   .rot-trial-pill { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }  /* trial = purple */
   .rot-star { cursor:pointer; font-size:15px; line-height:1; color:#cbd5e1; margin-right:7px;
@@ -2212,8 +2213,8 @@
     <option value="licenses">Licenses</option>
     <option value="workables">Workables</option>
     <option value="samples">Samples</option>
-    <option value="usClient">US Client</option>
     <option value="activeClient">Active Client</option>
+    <option value="keyClient">Key Client</option>
   </select>
   <select id="vertical-filter" onchange="renderAll()">
     <option value="">All Verticals</option>
@@ -2238,8 +2239,8 @@
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
     <button class="chip" onclick="toggleChip(this,'KEY_CHURN')" data-flag="KEY_CHURN" title="Accounts with significant re-winnable churned licenses (>$20K ACV)">🔴 Key Churns</button>
     <button class="chip" onclick="toggleOtherOppFilter()" data-flag="OTHER_OPP" title="Accounts where another rep has an active opp — sorted by furthest-future close date">👥 Other Opp</button>
-    <button class="chip" onclick="toggleChip(this,'KEY_LOST')" data-flag="KEY_LOST" title="Accounts with lost US Industry/Procurement opps">💔 Key Lost</button>
-    <button class="chip" onclick="toggleChip(this,'KEY_OTHER')" data-flag="KEY_OTHER" title="Accounts with lost global (non-US) opps">🌐 Other Lost</button>
+    <button class="chip" onclick="toggleChip(this,'KEY_CLIENT')" data-flag="KEY_CLIENT" title="Accounts we've won before (Closed-Won history)">🏆 Key Client</button>
+    <button class="chip" onclick="toggleChip(this,'KEY_LOST')" data-flag="KEY_LOST" title="Accounts with Closed-Lost opps (US + International)">💔 Key Opps</button>
     <button class="chip" onclick="toggleChip(this,'KEY_TRIALS')" data-flag="KEY_TRIALS" title="Accounts with trial history">🧪 Key Trials</button>
     <button class="chip" onclick="toggleChip(this,'HAS_OPP')" data-flag="HAS_OPP">💼 Active Opp</button>
     <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
@@ -2392,11 +2393,10 @@
             <th><span class="hf-slot" id="hfslot-overlap"></span></th>
             <th></th>
             <th style="display:none;"></th>
-            <th><span class="hf-slot" id="hfslot-usclient"></span></th>
             <th><span class="hf-slot" id="hfslot-activeclient"></span></th>
+            <th><span class="hf-slot" id="hfslot-keyclient"></span></th>
             <th><span class="hf-slot" id="hfslot-keychurn"></span></th>
             <th><span class="hf-slot" id="hfslot-keylost"></span></th>
-            <th><span class="hf-slot" id="hfslot-otherlost"></span></th>
             <th><span class="hf-slot" id="hfslot-keytrials"></span></th>
             <th></th>
             <th></th>
@@ -2418,12 +2418,11 @@
             <th onclick="setSortCol('overlap')" style="cursor:pointer;white-space:nowrap;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th style="text-align:center;min-width:110px;display:none;">Campaigns</th>
-            <th onclick="setSortCol('usClient')" style="cursor:pointer;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
             <th onclick="setSortCol('activeClient')" style="cursor:pointer;white-space:nowrap;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
-            <th onclick="setSortCol('keyChurn')" style="cursor:pointer;white-space:nowrap;" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></th>
-            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ★ = you owned it.">Key Lost Opps</th>
-            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost global (non-US) opps over $1 (2016+).">Other Lost</th>
-            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Trials (≤$1, closed) across all geographies (2016+).">Key Trials</th>
+            <th onclick="setSortCol('keyClient')" style="cursor:pointer;white-space:nowrap;" title="Closed-Won opps — the times we won this client (2014+). ★ = you owned it.">Key Client <span class="acct-sort-arrow" id="asort-keyClient"></span></th>
+            <th onclick="setSortCol('keyChurn')" style="cursor:pointer;white-space:nowrap;" title="Every churned license — US Industry / PIQ / International. The times we lost the license.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></th>
+            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost opps (US Industry/PIQ + International), over $1.">Key Opps</th>
+            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Trials (≤$1, closed) across all geographies.">Key Trials</th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
             <th style="min-width:120px;">Stage</th>
@@ -3516,8 +3515,8 @@ function getFiltered() {
       if (activeFlags.has('KEY_CHURN') && getAccountKeyChurns(aName).length === 0) return false;
       // Opportunity-report standalone filters
       if (activeFlags.has('OTHER_OPP') && getOtherOpps(aName).length === 0) return false;
+      if (activeFlags.has('KEY_CLIENT') && getKeyClient(aName).length === 0) return false;
       if (activeFlags.has('KEY_LOST') && getKeyLostOpps(aName).length === 0) return false;
-      if (activeFlags.has('KEY_OTHER') && getKeyGlobalLostOpps(aName).length === 0) return false;
       if (activeFlags.has('KEY_TRIALS') && getKeyTrials(aName).length === 0) return false;
       // Active Opp — standalone
       if (activeFlags.has('HAS_OPP') && !hasActiveOpp(aName)) return false;
@@ -3528,7 +3527,7 @@ function getFiltered() {
       // Multi-Owner — standalone (account also owned by another rep in the group)
       if (activeFlags.has('MULTI_OWNER') && getOtherRepOverlap(aName).length === 0) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['TRUE_KEEP','KEEP','MARKET','MONITOR','ENT_DROP','DROP','ACTIVE_LIC','KEY_CHURN','OTHER_OPP','KEY_LOST','KEY_OTHER','KEY_TRIALS','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['TRUE_KEEP','KEEP','MARKET','MONITOR','ENT_DROP','DROP','ACTIVE_LIC','KEY_CHURN','OTHER_OPP','KEY_CLIENT','KEY_LOST','KEY_TRIALS','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -3552,7 +3551,7 @@ function getFiltered() {
     if (sort==='workables') return d * (getWorkableCount(getField(a,'Account Name','AccountName')) - getWorkableCount(getField(b,'Account Name','AccountName')));
     if (sort==='samples') return d * (getSampleCount(getField(a,'Account Name','AccountName')) - getSampleCount(getField(b,'Account Name','AccountName')));
     if (sort==='sixqa') return d * (getSixqaCount(getField(a,'Account Name','AccountName')) - getSixqaCount(getField(b,'Account Name','AccountName')));
-    if (sort==='usClient') return d * ((hasUSLicense(getField(a,'Account Name','AccountName'))?1:0) - (hasUSLicense(getField(b,'Account Name','AccountName'))?1:0));
+    if (sort==='keyClient') return d * (getKeyClient(getField(a,'Account Name','AccountName')).length - getKeyClient(getField(b,'Account Name','AccountName')).length);
     if (sort==='activeClient') { const aH=getActiveLicBadges(getField(a,'Account Name','AccountName'))?1:0, bH=getActiveLicBadges(getField(b,'Account Name','AccountName'))?1:0; return d*(aH-bH); }
     if (sort==='keyChurn') return d * (getKeyChurnWeight(getField(a,'Account Name','AccountName')) - getKeyChurnWeight(getField(b,'Account Name','AccountName')));
     if (sort==='acctStatus') { const ord={truekeep:0,keep:1,market:2,monitor:3,entdrop:4,drop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
@@ -3770,11 +3769,10 @@ function renderTable(list) {
       <td style="white-space:nowrap;width:1px;">${renderOverlapBadges(name)}</td>
       <td class="js-score" style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;padding:0 8px;display:none;">${renderCampCluster(name)}</td>
-      <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="white-space:nowrap;width:1px;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
+      <td style="text-align:left;">${renderKeyClientCell(name)}</td>
       <td style="white-space:nowrap;">${renderAccountKeyChurns(name)}</td>
-      <td style="text-align:left;">${renderOppKeyCell(name,'lostUS')}</td>
-      <td style="text-align:left;">${renderOppKeyCell(name,'lostGlobal')}</td>
+      <td style="text-align:left;">${renderOppKeyCell(name,'lost')}</td>
       <td style="text-align:left;">${renderOppKeyCell(name,'trials')}</td>
       <td style="font-family:'DM Mono',monospace;">${oppReport.length ? getOppRowsFor(name).length : (sfOppsVal||'0')}</td>
       <td style="font-family:'DM Mono',monospace;">${getLicCount(name)||'—'}</td>
@@ -4618,10 +4616,10 @@ let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
 let currentAccountPageName = null;  // name of account currently shown on the deep-dive page (null if closed)
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', usClient:'desc', activeClient:'desc', keyChurn:'desc', opp:'desc', otherOppClose:'desc', overlap:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', keyClient:'desc', activeClient:'desc', keyChurn:'desc', opp:'desc', otherOppClose:'desc', overlap:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','usClient','activeClient','keyChurn','opp','otherOppClose','overlap','acctStatus','acctPriority'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','keyClient','activeClient','keyChurn','opp','otherOppClose','overlap','acctStatus','acctPriority'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -4696,8 +4694,8 @@ let acctTierFilters = new Set(); // values: '1','2','3','4','' (CARDS view only)
 let acctColFilters = {
   status: new Set(), priority: new Set(), tier: new Set(), otheropp: new Set(),
   stage: new Set(), vertical: new Set(), revenueband: new Set(), myopp: new Set(),
-  hasheadline:false, usclient:false, activeclient:false, overlap:false,
-  keychurn:false, keylost:false, otherlost:false, keytrials:false,
+  hasheadline:false, activeclient:false, keyclient:false, overlap:false,
+  keychurn:false, keylost:false, keytrials:false,
   hasworkables:false, inaction:false, activeopp:false
 };
 const ACCT_STATUS_FILTER_OPTS = [
@@ -4791,12 +4789,11 @@ const ACCT_HF = {
   stage:       {kind:'multi',  opts:acctStageFilterOpts},
   myopp:       {kind:'multi',  opts:ACCT_MYOPP_FILTER_OPTS},
   hasheadline: {kind:'toggle', label:'Has Headline'},
-  usclient:    {kind:'toggle', label:'US Client'},
   activeclient:{kind:'toggle', label:'Active Client'},
+  keyclient:   {kind:'toggle', label:'Key Client'},
   overlap:     {kind:'toggle', label:'Multi-Owner'},
   keychurn:    {kind:'toggle', label:'Key Churn'},
-  keylost:     {kind:'toggle', label:'Key Lost'},
-  otherlost:   {kind:'toggle', label:'Other Lost'},
+  keylost:     {kind:'toggle', label:'Key Opps'},
   keytrials:   {kind:'toggle', label:'Key Trials'},
   hasworkables:{kind:'toggle', label:'🎯 Has Workables'},
   inaction:    {kind:'toggle', label:'⚡ In Action'},
@@ -4861,12 +4858,11 @@ function passesColFilters(a, aName) {
   if (cf.otheropp.size) { const cats = new Set(getOtherOpps(aName).map(o => otherOppCat(o).key)); if (![...cf.otheropp].some(k => cats.has(k))) return false; }
   if (cf.myopp.size) { const ok = [...cf.myopp].some(k => k === 'sf' ? getMyOpps(aName).length > 0 : (k === 'custom' ? hasCustomOpp(aName) : false)); if (!ok) return false; }
   if (cf.hasheadline  && !(localData[aName]?.actionHeadline || '').trim()) return false;
-  if (cf.usclient     && !hasUSLicense(aName)) return false;
   if (cf.activeclient && !getActiveLicBadges(aName)) return false;
+  if (cf.keyclient    && getKeyClient(aName).length === 0) return false;
   if (cf.overlap      && getOtherRepOverlap(aName).length === 0) return false;
   if (cf.keychurn     && getAccountKeyChurns(aName).length === 0) return false;
   if (cf.keylost      && getKeyLostOpps(aName).length === 0) return false;
-  if (cf.otherlost    && getKeyGlobalLostOpps(aName).length === 0) return false;
   if (cf.keytrials    && getKeyTrials(aName).length === 0) return false;
   if (cf.hasworkables && getWorkableCount(aName) === 0) return false;
   if (cf.inaction     && !localData[aName]?.hasAction) return false;
@@ -5076,13 +5072,25 @@ function getActiveLicBadges(accountName) {
    holds an ACTIVE PIQ (already covered — no need to surface the old churn).
    Universal relevance cap: nothing that ended before UNIVERSAL_MIN_YEAR is shown.
    ─────────────────────────────────────────────────────────────────────────── */
-const UNIVERSAL_MIN_YEAR = 2016; // universal cap — opps/churns older than this aren't relevant
+const UNIVERSAL_MIN_YEAR = 2010; // universal cap — nothing older than this is stored/shown (was 2016)
+// Unified history colour system (Key Client / Key Churn / Key Opps / Key Trials all share it):
+//   gold = super recent (2024→now) · grey = too old (<2014) · else by product type
+//   🔴 IND = US Industry · 🔵 PIQ = Procurement IQ · 🟢 INTL = International
+const HIST_GOLD_YEAR = 2024, HIST_GREY_YEAR = 2014;
+function histClass(type, year) {
+  if (year && year >= HIST_GOLD_YEAR) return 'rot-churn-new';  // gold — recent
+  if (year && year <  HIST_GREY_YEAR) return 'rot-churn-old';  // grey — too old
+  if (type === 'PIQ')  return 'rot-churn-piq';                 // blue
+  if (type === 'INTL') return 'rot-churn-intl';                // green
+  return 'rot-churn-ind';                                      // red — US Industry
+}
+// Key Churn — every churned license (US Industry / PIQ / International), full history,
+// no dollar floor, no active-PIQ suppression. "The times we lost the license."
 function computeKeyChurnsFromLics(lics) {
-  if (lics.some(l => l._type === 'PIQ' && l._active)) return [];
   return lics
-    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ') && (l._acv || 0) > 20000
+    .filter(l => !l._active && (l._type === 'US' || l._type === 'PIQ' || l._type === 'INTL')
       && (!l._endDate || l._endDate.getFullYear() >= UNIVERSAL_MIN_YEAR))
-    .sort((a,b) => (b._acv||0) - (a._acv||0));
+    .sort((a,b) => (b._endDate?.getTime()||0) - (a._endDate?.getTime()||0));
 }
 function computeKeyChurns(licArray, name) {
   if (!licArray.length) return [];
@@ -5102,10 +5110,13 @@ function getKeyChurnWeight(name) {
   }, 0);
 }
 function keyChurnPill(l) {
-  const lab = l._type === 'US' ? 'Ind' : 'PIQ';
-  const end = l._endDate ? rotShortDate(l._endDate) : '';
-  const sep = '<span class="ib-sep"></span>';
-  return `<span class="ib-solid ${rotChurnPillClass(l)}" title="Churned ${l._type==='US'?'Industry':'PIQ'} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}"><span class="ib-lead">${lab}</span>${sep}${rotMoney(l._acv||0)}${end?sep+end:''}</span>`;
+  const type = l._type === 'PIQ' ? 'PIQ' : l._type === 'INTL' ? 'INTL' : 'IND';
+  const lab  = type === 'PIQ' ? 'PIQ' : type === 'INTL' ? 'Intl' : 'Ind';
+  const full = type === 'PIQ' ? 'PIQ' : type === 'INTL' ? 'International' : 'US Industry';
+  const yr   = l._endDate ? l._endDate.getFullYear() : 0;
+  const end  = l._endDate ? rotShortDate(l._endDate) : '';
+  const sep  = '<span class="ib-sep"></span>';
+  return `<span class="ib-solid ${histClass(type, yr)}" title="Churned ${full} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}"><span class="ib-lead">${lab}</span>${sep}${rotMoney(l._acv||0)}${end?sep+end:''}</span>`;
 }
 // 2×2 in-cell, most-recent first, "+N · $total" expands the cell in place.
 function renderAccountKeyChurns(name) {
@@ -5298,29 +5309,26 @@ function getOtherOpps(name) {
 }
 function hasMyOpp(name) { return getMyOpps(name).length > 0; }
 
-/* ─── Key Lost Opps · Key Other Opps · Key Trials ──────────────────────────────
-   Key Lost Opps  = Closed Lost · US Industry/Procurement · amount > $1 · 2016+
-   Key Other Opps = Closed Lost · global (non-US) · amount > $1 · 2016+
-   Key Trials     = amount ≤ $1 · closed (won/lost) · ALL geographies · 2016+
-   ⭐ marks opps Dan owned. Ongoing/open trials are excluded (they're active opps). */
-function getKeyLostOpps(name)       { return getOppRowsFor(name).filter(o => o.closedLost && o.isUSProduct && o.amount > 1); }
-function getKeyGlobalLostOpps(name) { return getOppRowsFor(name).filter(o => o.closedLost && !o.isUSProduct && o.amount > 1); }
-function getKeyTrials(name)         { return getOppRowsFor(name).filter(o => o.amount <= 1 && (o.closedWon || o.closedLost)); }
+/* ─── Key Client · Key Opps · Key Trials — full relationship history ───────────
+   Key Client = Closed WON opps (amount > $1) — "the times we won them"
+   Key Opps   = Closed LOST opps (amount > $1) — US Industry/PIQ + International merged
+   Key Trials = amount ≤ $1 · closed (won/lost) · all geographies
+   All three share the unified histClass() colour system (gold recent / grey old /
+   red Ind · blue PIQ · green Intl). ⭐ marks opps Dan owned. */
+function getKeyClient(name)   { return getOppRowsFor(name).filter(o => o.closedWon  && o.amount > 1); }
+function getKeyLostOpps(name) { return getOppRowsFor(name).filter(o => o.closedLost && o.amount > 1); }
+function getKeyTrials(name)   { return getOppRowsFor(name).filter(o => o.amount <= 1 && (o.closedWon || o.closedLost)); }
 function oppKeyRows(name, kind) {
-  return kind==='lostUS' ? getKeyLostOpps(name) : kind==='lostGlobal' ? getKeyGlobalLostOpps(name) : getKeyTrials(name);
+  return kind==='keyclient' ? getKeyClient(name) : kind==='lost' ? getKeyLostOpps(name) : getKeyTrials(name);
 }
 const OPP_KEY_KINDS = {
-  lostUS:     { cls:'oppkey-lost',   noun:'lost',   title:'🔴 Key Lost Opps (US Industry / Procurement)' },
-  lostGlobal: { cls:'oppkey-global', noun:'global', title:'🌐 Key Other Opps (Global)' },
-  trials:     { cls:'oppkey-trial',  noun:'trials', title:'🧪 Key Trials' },
+  keyclient: { title:'🏆 Key Client (Closed-Won history)' },
+  lost:      { title:'💔 Key Opps (Closed Lost)' },
+  trials:    { title:'🧪 Key Trials' },
 };
-// Tag: US columns → Ind/PIQ; global → country code (UK/AU/CA/DE); trials keep Ind/PIQ but geo for intl.
-function oppTag(o, kind) {
-  if (o.isProcurement) return 'PIQ';
-  if (kind === 'lostGlobal') return (o.business.split(' ')[0] || 'Intl');
-  if (o.isIndustry) return o.isUSProduct ? 'Ind' : (o.business.split(' ')[0] || 'Ind');
-  return o.business.split(' ')[0] || '';
-}
+// Product/geography for an opp → drives the unified colour + tag. International wins the green.
+function oppGeoType(o) { return !o.isUSProduct ? 'INTL' : (o.isProcurement ? 'PIQ' : 'IND'); }
+function oppGeoTag(o)  { return !o.isUSProduct ? (o.business.split(' ')[0] || 'Intl') : (o.isProcurement ? 'PIQ' : 'Ind'); }
 /* ══ Unified expandable bubble cell ══
    Caps at 4 bubbles (2×2 grid), then a dark-grey "+N" that expands the cell IN
    PLACE (grows the row). Collapses on re-click, a header sort, or a filter change. */
@@ -5343,39 +5351,35 @@ function renderBubbleCell(name, kind, items, pillFn, moreLabel, oneCol) {
 function splitPill(stageText, bodyHtml, cat, tip) {
   return `<span class="ib-pill" style="background:${cat.light};border-color:${cat.light};color:${cat.text};" title="${escHtml(tip)}"><span class="ib-stg" style="background:${cat.dark};">${escHtml(stageText||'—')}</span><span class="ib-bdy">${bodyHtml}</span></span>`;
 }
-// Key-churn colour system reused for lost opps: gold 2024+, blue PIQ, red industry, grey pre-2020.
-function oppChurnClass(o) {
-  const yr = o.close ? o.close.getFullYear() : 0;
-  if (yr && yr < 2020) return 'rot-churn-old';
-  if (yr >= 2024) return 'rot-churn-new';
-  return o.isProcurement ? 'rot-churn-piq' : 'rot-churn-ind';
-}
 const SEP = '<span class="ib-sep"></span>';
-// Key Lost — type (Ind/PIQ) leads and is the only bold part. Churn colours.
+// Key Client — Closed-Won history. Geo/type leads (bold), unified colours, ⭐ if mine.
+function keyClientPill(o) {
+  const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
+  const y = o.close ? o.close.getFullYear() : 0;
+  const tip = `${o.isMine?'(mine) ':''}${o.owner} · ${o.oppName} · Closed Won · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
+  return `<span class="ib-solid ${histClass(oppGeoType(o), y)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${oppGeoTag(o)}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
+}
+// Key Opps — Closed-Lost (US Industry/PIQ + International merged). Unified colours.
 function keyLostPill(o) {
   const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
+  const y = o.close ? o.close.getFullYear() : 0;
   const tip = `${o.isMine?'(mine) ':''}${o.owner} · ${o.oppName} · Closed Lost · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ${oppChurnClass(o)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${oppTag(o,'lostUS')}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
+  return `<span class="ib-solid ${histClass(oppGeoType(o), y)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${oppGeoTag(o)}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
 }
-function keyGlobalPill(o) {
-  const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
-  const tip = `${o.owner} · ${o.oppName} · Closed Lost · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ib-global" title="${escHtml(tip)}"><span class="ib-lead">${oppTag(o,'lostGlobal')}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
-}
-// Key Trials — Rotation style: one purple colour, created → close date range, no ✓/✗.
+// Key Trials — created → close range, coloured by type (was flat purple).
 function keyTrialPill(o) {
   const s = o.created ? rotShortDate(o.created) : '?';
   const e = o.close ? rotShortDate(o.close) : '?';
-  const tag = o.isProcurement ? 'PIQ' : (o.isUSProduct ? 'Ind' : (o.business.split(' ')[0]||''));
-  const tip = `${o.owner} · ${o.oppName} · ${tag} trial · ${s} → ${e}`;
-  return `<span class="ib-solid ib-trial" title="${escHtml(tip)}"><span class="ib-lead">${tag}</span>${SEP}${s} → ${e}</span>`;
+  const y = (o.close||o.created) ? (o.close||o.created).getFullYear() : 0;
+  const tip = `${o.owner} · ${o.oppName} · ${oppGeoTag(o)} trial · ${s} → ${e}`;
+  return `<span class="ib-solid ${histClass(oppGeoType(o), y)}" title="${escHtml(tip)}"><span class="ib-lead">${oppGeoTag(o)}</span>${SEP}${s} → ${e}</span>`;
 }
 const byCloseDesc = (a,b) => (b.close?.getTime()||0) - (a.close?.getTime()||0);
 function moreWithTotal(extra, items) { return `+${extra} · ${rotMoney(items.reduce((s,o)=>s+(o.amount||0),0))}`; }
+function renderKeyClientCell(name) { return renderBubbleCell(name,'keyclient', getKeyClient(name).slice().sort(byCloseDesc), keyClientPill, moreWithTotal); }
 function renderOppKeyCell(name, kind) {
-  if (kind === 'lostGlobal') return renderBubbleCell(name,'lostGlobal', getKeyGlobalLostOpps(name).slice().sort(byCloseDesc), keyGlobalPill, moreWithTotal);
-  if (kind === 'trials')     return renderBubbleCell(name,'trials',     getKeyTrials(name).slice().sort(byCloseDesc), keyTrialPill);
-  return renderBubbleCell(name,'lostUS', getKeyLostOpps(name).slice().sort(byCloseDesc), keyLostPill, moreWithTotal);
+  if (kind === 'trials') return renderBubbleCell(name,'trials', getKeyTrials(name).slice().sort(byCloseDesc), keyTrialPill);
+  return renderBubbleCell(name,'lost', getKeyLostOpps(name).slice().sort(byCloseDesc), keyLostPill, moreWithTotal);
 }
 function openOppKeyPreview(event, name, kind) {
   event.stopPropagation();
@@ -10100,7 +10104,7 @@ function rotChurnPillClass(l) {
   const yr = l._endDate ? l._endDate.getFullYear() : 0;
   if (yr && yr < 2020) return 'rot-churn-old';
   if (yr >= 2024) return 'rot-churn-new';
-  return l._type === 'PIQ' ? 'rot-churn-piq' : 'rot-churn-ind';
+  return l._type === 'PIQ' ? 'rot-churn-piq' : l._type === 'INTL' ? 'rot-churn-intl' : 'rot-churn-ind';
 }
 
 /* ─── Opportunities (schema: Account Name · Opportunity Name · Stage · Amount ·
@@ -11442,7 +11446,7 @@ function exportAccountsTab() {
     if (cf.tier.size)        parts.push('Tier: '      + lbls('tier', cf.tier).join('/'));
     if (cf.revenueband.size) parts.push('Revenue: '   + lbls('revenueband', cf.revenueband).join('/'));
     if (cf.stage.size)       parts.push('Stage: '     + [...cf.stage].join('/'));
-    [['usclient','US Client'],['activeclient','Active Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Lost'],['otherlost','Other Lost'],['keytrials','Key Trials'],['hasworkables','Has Workables'],['inaction','In Action'],['activeopp','Active Opp']].forEach(([k,l]) => { if (cf[k]) parts.push(l); });
+    [['activeclient','Active Client'],['keyclient','Key Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Opps'],['keytrials','Key Trials'],['hasworkables','Has Workables'],['inaction','In Action'],['activeopp','Active Opp']].forEach(([k,l]) => { if (cf[k]) parts.push(l); });
     const vertT = document.getElementById('vertical-filter')?.value; if (vertT) parts.push('Vertical: ' + vertT);
     const searchT = (document.getElementById('search-input')?.value || '').trim(); if (searchT) parts.push('Search: "' + searchT + '"');
     parts.push((document.querySelectorAll('#table-body tr').length) + ' rows');
