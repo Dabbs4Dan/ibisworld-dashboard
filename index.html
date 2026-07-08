@@ -1132,31 +1132,29 @@
   .ast-drop    { background:#fee2e2; color:#991b1b; }
   .ast-market  { background:#ecfccb; color:#4d7c0f; }
   .ast-entdrop { background:#eaddd6; color:#7c2d12; }
-  /* ══ Unified opportunity / churn bubble system (Accounts tab) ══
-     One pill size + font everywhere. Cells cap at 2×2 = 4 bubbles, then a
-     dark-grey "+N" that expands the cell IN PLACE (grows the row). */
+  /* ══ Unified bubble system (Accounts tab) — mirrors the Rotation tab's clean
+     look: DM Sans, only the LEAD label bold, thin separator lines, one colour
+     per pill. Cells cap at 2×2 = 4 bubbles, then a dark-grey "+N" expander. */
   .ib-cell { display:inline-flex; align-items:flex-start; gap:5px; vertical-align:middle; }
-  /* Two columns sized to CONTENT (never clip). Cell = at most 2 bubbles wide. */
   .ib-bubbles { display:grid; grid-template-columns:repeat(2, max-content); gap:4px; }
   .ib-dash { color:var(--text-muted); font-size:12px; }
-  /* Split pill — dark type/stage segment (white text) + light body. Sizes to content. */
-  .ib-pill { display:inline-flex; align-items:stretch; height:22px; border-radius:999px; overflow:hidden; font-family:'DM Mono',monospace; font-size:10.5px; white-space:nowrap; border:1px solid transparent; }
-  .ib-pill .ib-stg { display:inline-flex; align-items:center; padding:0 8px; font-weight:700; color:#fff; flex-shrink:0; }
-  .ib-pill .ib-bdy { display:inline-flex; align-items:center; gap:5px; padding:0 9px; }
-  .ib-amt { font-weight:400; }
-  .ib-dim { opacity:0.5; font-weight:400; }
-  .ib-own { opacity:0.62; font-weight:600; }
-  .ib-tag { font-size:8.5px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; opacity:0.7; }
-  /* Solid pill — single background (my opp / key churn / lost / other / trials) */
-  .ib-solid { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 10px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10.5px; font-weight:600; white-space:nowrap; border:1px solid transparent; }
-  .ib-solid .ib-star { color:#f59e0b; }
+  .ib-sep { display:inline-block; width:1px; height:10px; background:currentColor; opacity:0.22; flex-shrink:0; }
+  .ib-lead { font-weight:700; }
+  .ib-dim { opacity:0.6; }
+  .ib-own { font-weight:600; opacity:0.72; }
+  .ib-star { color:#f59e0b; margin-right:1px; }
+  /* Split pill (Other Opp) — dark TYPE segment (white) + light body */
+  .ib-pill { display:inline-flex; align-items:stretch; height:21px; border-radius:999px; overflow:hidden; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
+  .ib-pill .ib-stg { display:inline-flex; align-items:center; padding:0 9px; font-weight:700; color:#fff; flex-shrink:0; }
+  .ib-pill .ib-bdy { display:inline-flex; align-items:center; gap:6px; padding:0 10px; }
+  /* Solid pill — single background, DM Sans, lead label bold */
+  .ib-solid { display:inline-flex; align-items:center; gap:6px; height:21px; padding:0 10px; border-radius:999px; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
   .ib-myopp-active { background:#eff5ff; color:#1d4ed8; border-color:#dbeafe; }
   .ib-myopp-won    { background:#eafaf1; color:#15803d; border-color:#c9f0d8; }
   .ib-global { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
-  .ib-trial-won  { background:#dcfce7; color:#15803d; border-color:#bbf7d0; }
-  .ib-trial-lost { background:#f5f3ff; color:#7c3aed; border-color:#ddd6fe; }
+  .ib-trial { background:#f5f3ff; color:#6d28d9; border-color:#ddd6fe; }
   /* Dark-grey expansion control (same for every column) */
-  .ib-more { align-self:center; display:inline-flex; align-items:center; height:20px; padding:0 9px; border-radius:999px; font-family:'DM Mono',monospace; font-size:10px; font-weight:700; background:#475569; color:#fff; cursor:pointer; white-space:nowrap; transition:background .15s; }
+  .ib-more { align-self:center; display:inline-flex; align-items:center; height:19px; padding:0 9px; border-radius:999px; font-family:'DM Sans',sans-serif; font-size:10px; font-weight:700; background:#475569; color:#fff; cursor:pointer; white-space:nowrap; transition:background .15s; }
   .ib-more:hover { background:#334155; }
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
@@ -4736,7 +4734,8 @@ function getKeyChurnWeight(name) {
 function keyChurnPill(l) {
   const lab = l._type === 'US' ? 'Ind' : 'PIQ';
   const end = l._endDate ? rotShortDate(l._endDate) : '';
-  return `<span class="ib-solid ${rotChurnPillClass(l)}" title="Churned ${l._type==='US'?'Industry':'PIQ'} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${rotMoney(l._acv||0)}${end?' · '+end:''}</span>`;
+  const sep = '<span class="ib-sep"></span>';
+  return `<span class="ib-solid ${rotChurnPillClass(l)}" title="Churned ${l._type==='US'?'Industry':'PIQ'} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}"><span class="ib-lead">${lab}</span>${sep}${rotMoney(l._acv||0)}${end?sep+end:''}</span>`;
 }
 // 2×2 in-cell, most-recent first, "+N · $total" expands the cell in place.
 function renderAccountKeyChurns(name) {
@@ -4952,22 +4951,25 @@ function oppChurnClass(o) {
   if (yr >= 2024) return 'rot-churn-new';
   return o.isProcurement ? 'rot-churn-piq' : 'rot-churn-ind';
 }
+const SEP = '<span class="ib-sep"></span>';
+// Key Lost — type (Ind/PIQ) leads and is the only bold part. Churn colours.
 function keyLostPill(o) {
   const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
   const tip = `${o.isMine?'(mine) ':''}${o.owner} · ${o.oppName} · Closed Lost · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ${oppChurnClass(o)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}${escHtml(amt)} · ${oppTag(o,'lostUS')}${yr?' · '+yr:''}</span>`;
+  return `<span class="ib-solid ${oppChurnClass(o)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${oppTag(o,'lostUS')}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
 }
 function keyGlobalPill(o) {
   const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
   const tip = `${o.owner} · ${o.oppName} · Closed Lost · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ib-global" title="${escHtml(tip)}">${escHtml(amt)} · ${oppTag(o,'lostGlobal')}${yr?' · '+yr:''}</span>`;
+  return `<span class="ib-solid ib-global" title="${escHtml(tip)}"><span class="ib-lead">${oppTag(o,'lostGlobal')}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
 }
+// Key Trials — Rotation style: one purple colour, created → close date range, no ✓/✗.
 function keyTrialPill(o) {
-  const yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
-  const cls = o.closedWon ? 'ib-trial-won' : 'ib-trial-lost', wl = o.closedWon ? '✓' : '✗';
-  const tag = o.isProcurement ? 'PIQ' : (o.isUSProduct ? 'IND' : (o.business.split(' ')[0]||''));
-  const tip = `${o.owner} · ${o.oppName} · ${o.closedWon?'Closed Won — trial taken':'Closed Lost — trial declined'}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ${cls}" title="${escHtml(tip)}">${tag} ${wl}${yr?' '+yr:''}</span>`;
+  const s = o.created ? rotShortDate(o.created) : '?';
+  const e = o.close ? rotShortDate(o.close) : '?';
+  const tag = o.isProcurement ? 'PIQ' : (o.isUSProduct ? 'Ind' : (o.business.split(' ')[0]||''));
+  const tip = `${o.owner} · ${o.oppName} · ${tag} trial · ${s} → ${e}`;
+  return `<span class="ib-solid ib-trial" title="${escHtml(tip)}"><span class="ib-lead">${tag}</span>${SEP}${s} → ${e}</span>`;
 }
 const byCloseDesc = (a,b) => (b.close?.getTime()||0) - (a.close?.getTime()||0);
 function moreWithTotal(extra, items) { return `+${extra} · ${rotMoney(items.reduce((s,o)=>s+(o.amount||0),0))}`; }
@@ -5016,7 +5018,7 @@ function renderMyOppCell(name, local) {
     const tag = o.isProcurement ? 'PIQ' : (o.isIndustry ? 'IND' : '');
     const stage = o.closedWon ? 'Won' : o.stage;
     const tip = `${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}${o.business?' · '+o.business:''}`;
-    return `<span class="ib-solid ${cls}" title="${escHtml(tip)}">${escHtml(stage)} · ${escHtml(amt)}${tag?` <span class="ib-tag">${tag}</span>`:''}</span>`;
+    return `<span class="ib-solid ${cls}" title="${escHtml(tip)}"><span class="ib-lead">${escHtml(stage)}</span>${SEP}${escHtml(amt)}${tag?SEP+escHtml(tag):''}</span>`;
   });
 }
 // Other Opp — split pill: dark segment = OPP TYPE (colour-coded), light body = stage · $ · date · person.
@@ -5040,8 +5042,8 @@ function renderOtherOppCell(name) {
     const amt = oppFmtAmount(o.amount, o.currency);
     const cd  = o.close ? rotShortDate(o.close) : '';
     const first = (o.owner||'').split(' ')[0];
-    const body = `<span class="ib-amt">${escHtml(o.stage)}</span><span class="ib-amt">${escHtml(amt)}</span>${cd?`<span class="ib-dim">${escHtml(cd)}</span>`:''}<span class="ib-own">${escHtml(first)}</span>`;
-    const tip = `${cat.label} · ${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · '+cd:''}${o.nextStep?' · '+o.nextStep:''}`;
+    const body = `${escHtml(o.stage)}${SEP}${escHtml(amt)}${cd?SEP+`<span class="ib-dim">${escHtml(cd)}</span>`:''}${SEP}<span class="ib-own">${escHtml(first)}</span>`;
+    const tip = `${cat.label} · ${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · close '+cd:''}${o.nextStep?' · '+o.nextStep:''}`;
     return splitPill(cat.label, body, cat, tip);
   });
 }
