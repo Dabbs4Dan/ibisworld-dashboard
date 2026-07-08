@@ -318,7 +318,7 @@
   }
 
   .stat-item {
-    padding: 14px 32px 14px 0;
+    padding: 9px 32px 9px 0;
     margin-right: 32px;
     border-right: 1px solid var(--border);
     white-space: nowrap;
@@ -331,7 +331,7 @@
   .stat-value.red { color: var(--ibis-red); }
 
   .controls {
-    padding: 12px 24px;
+    padding: 9px 24px;
     display: flex;
     gap: 8px;
     align-items: center;
@@ -456,7 +456,7 @@
     color: #065f46;
   }
 
-  .content { padding: 16px 24px; }
+  .content { padding: 8px 24px 16px; }
 
   .cards-grid {
     display: grid;
@@ -972,7 +972,7 @@
     font-family: 'DM Sans', sans-serif;
   }
   .upload-menu-x:hover { opacity: 1; color: var(--ibis-red); }
-  .above-table-label { padding: 6px 0 4px; text-align: right; font-size: 12px; color: var(--text-muted); font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .above-table-label { padding: 2px 0; text-align: right; font-size: 12px; color: var(--text-muted); font-family: 'DM Sans', sans-serif; white-space: nowrap; }
 
   /* === SPLASH SCREEN === */
   #splash-overlay {
@@ -3455,7 +3455,7 @@ function sizeAccountsGrid() {
   const wrap = document.querySelector('#table-view .table-wrap');
   if (!wrap || wrap.offsetParent === null) return; // not visible (cards view / another tab)
   const top = wrap.getBoundingClientRect().top;
-  wrap.style.height = Math.max(220, window.innerHeight - top - 14) + 'px';
+  wrap.style.height = Math.max(220, window.innerHeight - top - 6) + 'px';
 }
 // Lock the PAGE scroll while the accounts grid is on screen so Chrome's wheel
 // scroll can't fight the grid's own scroll. Restored for every other view.
@@ -3595,11 +3595,10 @@ function renderTable(list) {
       : _res ? `<img src="${_res}" style="width:100%;height:100%;object-fit:contain;padding:2px;" alt="${name}">`
       : `<img src="https://logo.uplead.com/${domain}" ${logoFallbackChain(domain, initials)} alt="${name}">`;
     const tierClass = tier=='1'?'tier-1':tier=='2'?'tier-2':tier=='3'?'tier-3':tier=='4'?'tier-4':'tier-other';
-    const revInfo = getRevDisplay(acc);
-    const revCell = revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+    const revCell = revCellHtml(acc);
     const droppedBadge = isDropped ? `<span style="color:#ea580c;font-size:10px;font-weight:600;background:#fff7ed;border-radius:999px;padding:1px 7px;margin-left:6px;border:1px solid #fed7aa;">dropped from CSV</span>` : '';
     const nameDisplay = `<span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}`;
-    return `<tr class="${flags.includes('🆕')?'new-account':''}${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}${isDropped?' dropped-row':''}">
+    return `<tr data-acct="${escHtml(name)}" class="${flags.includes('🆕')?'new-account':''}${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}${isDropped?' dropped-row':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
@@ -3607,9 +3606,9 @@ function renderTable(list) {
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
       <td>${vertBubble(acc)}</td>
       <td><span class="tier-badge ${tierClass}"><span>${tier||'—'}</span></span></td>
-      <td style="white-space:nowrap;">${revCell}</td>
+      <td class="js-rev" style="white-space:nowrap;">${revCell}</td>
       <td style="white-space:nowrap;width:1px;">${renderOverlapBadges(name)}</td>
-      <td style="text-align:center;">${renderSentimentBadge(name)}</td>
+      <td class="js-score" style="text-align:center;">${renderSentimentBadge(name)}</td>
       <td style="text-align:center;padding:0 8px;display:none;">${renderCampCluster(name)}</td>
       <td style="text-align:center;">${hasUSLicense(name)?'<span class="us-check">✓</span>':'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
       <td style="white-space:nowrap;width:1px;">${getActiveLicBadges(name)||'<span style="color:var(--text-muted);font-size:12px;">—</span>'}</td>
@@ -3624,6 +3623,27 @@ function renderTable(list) {
       <td style="display:none;"><span class="days-val ${daysColor(days)}">${days||'—'}</span></td>
     </tr>`;
   }).join('');
+}
+
+function revCellHtml(acc) {
+  const revInfo = getRevDisplay(acc);
+  return revInfo ? `<span class="revenue-val">${revInfo.label}</span> ${sourceBadge(revInfo.source)}` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+}
+// Enrichment arrives per-account — patch ONLY that row's revenue/score/description
+// cells in place. Instant + cheap, and it never rebuilds the table or reshuffles
+// rows under the user (which is what made streaming enrichment feel clunky).
+function patchEnrichedRow(name) {
+  if (mainView !== 'accounts' || currentView !== 'table') return;
+  const tbody = document.getElementById('table-body'); if (!tbody) return;
+  let tr = null;
+  for (const r of tbody.children) { if (r.dataset && r.dataset.acct === name) { tr = r; break; } }
+  if (!tr) return;
+  const acc = accounts.find(a => getField(a,'Account Name','AccountName') === name);
+  if (!acc) return;
+  const rev = tr.querySelector('.js-rev');   if (rev) rev.innerHTML = revCellHtml(acc);
+  const sc  = tr.querySelector('.js-score'); if (sc)  sc.innerHTML = renderSentimentBadge(name);
+  const local = localData[name];
+  if (local && local.desc) { const sub = tr.querySelector('.td-sub-vert'); if (sub) sub.textContent = local.desc; }
 }
 
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); updateBodyScrollLock(); }
@@ -3955,7 +3975,7 @@ async function runDescQueue() {
     // per-item renders rebuilt the whole table every ~150ms for minutes,
     // killing text selection / input focus and re-firing logo fetches.
     done++;
-    if (mainView === 'accounts') enrichRenderSoon();
+    patchEnrichedRow(name);
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   descRunning = false;
@@ -4148,7 +4168,7 @@ async function runSentQueue() {
     if (localData[name]?.sentiment?.v === SENT_VERSION) continue;
     await fetchSentimentData(name);
     done++;
-    if (mainView === 'accounts') enrichRenderSoon();
+    patchEnrichedRow(name);
     await new Promise(r => setTimeout(r, DESC_DELAY_MS));
   }
   sentRunning = false;
@@ -4698,14 +4718,43 @@ function getKeyChurnWeight(name) {
     return s + (l._acv||0) * recency;
   }, 0);
 }
+function keyChurnPill(l) {
+  const lab = l._type === 'US' ? 'Industry' : 'PIQ';
+  const end = l._endDate ? rotShortDate(l._endDate) : '';
+  return `<span class="rot-pill ${rotChurnPillClass(l)}" title="Churned ${lab} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${rotMoney(l._acv||0)}${end?' · '+end:''}</span>`;
+}
+// Keeps the row ONE line: show the 3 most-recent churns, then a value-summary pill
+// ("+9 · $1.2M ▾") that expands to the full list. Never fills the whole row.
 function renderAccountKeyChurns(name) {
   const churns = getAccountKeyChurns(name);
   if (!churns.length) return '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-  return `<div style="display:flex;gap:3px;flex-wrap:wrap;">` + churns.map(l => {
+  const byRecent = churns.slice().sort((a,b) => (b._endDate?.getTime()||0) - (a._endDate?.getTime()||0));
+  const shown = byRecent.slice(0, 3).map(keyChurnPill).join('');
+  const extra = churns.length - 3;
+  if (extra <= 0) return `<div class="oppkey-cell">${shown}</div>`;
+  const total = churns.reduce((s,l) => s + (l._acv||0), 0);
+  const more = `<span class="oppkey-count oppkey-lost" data-name="${escHtml(name)}" onclick="event.stopPropagation();openKeyChurnPreview(event,this.dataset.name)" title="${churns.length} churned licenses · ${rotMoney(total)} total churned business">+${extra} · ${rotMoney(total)} ▾</span>`;
+  return `<div class="oppkey-cell">${shown}${more}</div>`;
+}
+function openKeyChurnPreview(event, name) {
+  event.stopPropagation();
+  const portal = document.getElementById('contact-preview-portal'); if (!portal) return;
+  const churns = getAccountKeyChurns(name).slice().sort((a,b) => (b._endDate?.getTime()||0) - (a._endDate?.getTime()||0));
+  const total = churns.reduce((s,l) => s + (l._acv||0), 0);
+  let html = `<div class="cprev-header">🔴 Key Churns · ${escHtml(name)}</div>`;
+  html += `<div style="padding:9px 14px;font-size:11px;color:#6b7280;border-bottom:1px solid #f3f4f6;">${churns.length} churned licenses · <b style="color:#991b1b;">${rotMoney(total)}</b> total churned business</div>`;
+  html += churns.map(l => {
     const lab = l._type === 'US' ? 'Industry' : 'PIQ';
     const end = l._endDate ? rotShortDate(l._endDate) : '';
-    return `<span class="rot-pill ${rotChurnPillClass(l)}" title="Churned ${lab} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}">${lab} · ${rotMoney(l._acv||0)}${end?' · '+end:''}</span>`;
-  }).join('') + `</div>`;
+    return `<div class="cprev-row"><div style="flex:1;min-width:0;"><div class="cprev-name">${lab} · ${rotMoney(l._acv||0)}</div><div class="cprev-title">${end?'ended '+end:'—'}</div></div></div>`;
+  }).join('');
+  portal.innerHTML = html;
+  portal.style.display = 'block';
+  const rect = event.target.getBoundingClientRect();
+  const pw = portal.offsetWidth || 280;
+  let left = rect.left; if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8; if (left < 8) left = 8;
+  portal.style.top = (rect.bottom + 6) + 'px'; portal.style.left = left + 'px';
+  setTimeout(() => { document.addEventListener('click', closeContactPreview, { once:true }); document.addEventListener('scroll', closeContactPreview, { once:true, capture:true }); }, 0);
 }
 
 /* ══════════════ OPPORTUNITIES REPORT — my opps + other reps' opps ═════════════
@@ -4740,21 +4789,47 @@ function slimOppRows(rows) {
     return !d || d.getFullYear() >= UNIVERSAL_MIN_YEAR;
   });
 }
-function loadOppReport() {
+// ── Opportunity report lives in IndexedDB, NOT localStorage ──────────────────
+// 1,000+ rows would blow the ~5 MB localStorage quota (and silently vanish on
+// refresh, which is exactly what kept happening). IndexedDB has ample room and is
+// durable. This also removes the opp report from localStorage pressure entirely.
+const OPP_DB_NAME = 'ibis_opps_db', OPP_STORE = 'opps';
+function _oppOpenDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(OPP_DB_NAME, 1);
+    req.onupgradeneeded = e => { const db = e.target.result; if (!db.objectStoreNames.contains(OPP_STORE)) db.createObjectStore(OPP_STORE); };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = e => reject(e.target.error);
+  });
+}
+async function idbSaveOpps(arr) {
+  try { const db = await _oppOpenDB(); await new Promise((res,rej)=>{ const tx=db.transaction(OPP_STORE,'readwrite'); tx.objectStore(OPP_STORE).put(arr,'report'); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); return true; }
+  catch(e){ console.warn('opp idb save failed', e); return false; }
+}
+async function idbLoadOpps() {
+  try { const db = await _oppOpenDB(); return await new Promise((res,rej)=>{ const tx=db.transaction(OPP_STORE,'readonly'); const r=tx.objectStore(OPP_STORE).get('report'); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
+  catch(e){ return []; }
+}
+async function idbClearOpps() {
+  try { const db = await _oppOpenDB(); await new Promise(res=>{ const tx=db.transaction(OPP_STORE,'readwrite'); tx.objectStore(OPP_STORE).delete('report'); tx.oncomplete=()=>res(); }); } catch {}
+}
+async function loadOppReport() {
+  // One-time migration: if a legacy copy is still in localStorage, move it to IDB and free the space.
   try {
-    let arr = JSON.parse(localStorage.getItem('ibis_opps_report') || '[]');
-    // Auto-migrate any old raw-format rows (had 'Stage' key) → slim, then persist to free space.
-    if (arr.length && arr[0] && arr[0].st === undefined && arr[0]['Stage'] !== undefined) {
-      arr = slimOppRows(arr);
-      oppReport = arr; saveOppReport();
-    } else { oppReport = arr; }
-  } catch(e) { oppReport = []; }
+    const legacy = localStorage.getItem('ibis_opps_report');
+    if (legacy) {
+      let arr = JSON.parse(legacy);
+      if (arr.length && arr[0] && arr[0].st === undefined && arr[0]['Stage'] !== undefined) arr = slimOppRows(arr);
+      await idbSaveOpps(arr);
+      localStorage.removeItem('ibis_opps_report');
+    }
+  } catch {}
+  oppReport = await idbLoadOpps();
   invalidateOppIndex();
+  updateOppReportDot();
+  if (mainView === 'accounts' && accounts.length) renderAll();
 }
-function saveOppReport() {
-  try { localStorage.setItem('ibis_opps_report', JSON.stringify(oppReport)); return true; }
-  catch(e) { console.warn('opp report save failed', e); return false; }
-}
+async function saveOppReport() { return idbSaveOpps(oppReport); }
 function oppParseAmount(s) { const n = parseFloat(String(s||'').replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
 function oppFmtAmount(n, cur) {
   const c = cur ? cur + ' ' : '';
@@ -4934,19 +5009,15 @@ function handleOppReportCSV(e) {
   const file = e.target.files[0]; if (!file) return;
   snapshotBeforeAction('Pre-upload · Opportunities CSV');
   const reader = new FileReader();
-  reader.onload = ev => {
+  reader.onload = async ev => {
     const raw = parseCSV(ev.target.result);
     oppReport = slimOppRows(raw);
     invalidateOppIndex();
-    let ok = saveOppReport();
-    // If the browser rejected the write (storage full), free re-fetchable enrichment and retry once.
-    if (!ok) { try { quietFreeStorage(); } catch {} ok = saveOppReport(); }
-    const persisted = ok && (localStorage.getItem('ibis_opps_report')||'').length > 2;
     updateOppReportDot();
     if (accounts.length) renderAll();
-    if (persisted) showGroupToast(`✅ ${oppReport.length} of ${raw.length} opportunities loaded (2016+)`);
-    else showGroupToast(`⚠️ Loaded ${oppReport.length} opps, but storage is full — they won't survive a refresh. Open 🛡 Backups → Free space, then re-upload.`);
-    checkStorageSize();
+    const ok = await idbSaveOpps(oppReport); // durable — IndexedDB, not localStorage
+    if (ok) showGroupToast(`✅ ${oppReport.length} of ${raw.length} opportunities loaded (2016+)`);
+    else showGroupToast(`⚠️ Loaded ${oppReport.length} opps but couldn't save them (IndexedDB error) — they won't survive a refresh.`);
   };
   readCsvViaReader(reader, file);
   e.target.value = '';
@@ -4955,7 +5026,8 @@ function clearOppReport() {
   if (!confirm('Clear Opportunities report data?')) return;
   oppReport = [];
   invalidateOppIndex();
-  localStorage.removeItem('ibis_opps_report');
+  idbClearOpps();
+  localStorage.removeItem('ibis_opps_report'); // clear any legacy copy too
   updateOppReportDot();
   if (accounts.length) renderAll();
 }
@@ -6896,7 +6968,7 @@ function clearLicensesData() {
 }
 
 // Single source of truth for all localStorage keys used by the dashboard
-const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps_report','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats','ibis_fsa_cta_dismissed',
+const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opps','ibis_samples','ibis_6qa','ibis_churn','ibis_netnew','ibis_multithread','ibis_winback','ibis_alumni','ibis_dead','ibis_sort','ibis_updated','ibis_dead_seen','ibis_csv_stats','ibis_fsa_cta_dismissed',
   'ibis_group_dan_accounts','ibis_group_christian_accounts','ibis_group_embry_accounts','ibis_group_anthony_accounts',
   'ibis_group_dan_licenses','ibis_group_christian_licenses','ibis_group_embry_licenses','ibis_group_anthony_licenses',
   'ibis_client_licenses',
@@ -10601,15 +10673,15 @@ async function runWdRevQueue() {
         if (!localData[name].rev || localData[name].rev.raw === 0) {
           localData[name].rev = { raw: result.raw, label: result.label, source: 'wikidata', year: result.year };
         }
+        patchEnrichedRow(name); // instant per-row update, no full re-render
         saveBatch++;
         // Persist every 5 results or last one — minimize repeated stringify of localData
         if (saveBatch >= 5 || wdRevQueue.length === 0) {
           saveClientRevCache();
           try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
           saveBatch = 0;
-          // Accounts/Group tabs read localData.rev — refresh so new values appear
-          if (mainView === 'accounts') enrichRenderSoon();
-          else if (mainView === 'group') renderGroup();
+          // Accounts rows already patched per-item above; refresh the other tabs.
+          if (mainView === 'group') renderGroup();
           else if (mainView === 'rotation') renderRotation();
         }
         _normLocalDataIndex = null;
