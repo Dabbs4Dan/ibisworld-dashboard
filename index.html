@@ -385,6 +385,41 @@
 
   .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
+  /* ── Column-header filter bubbles (Table view) ───────────────────────── */
+  .hf-th { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .hf-th .hf-label { display: inline-flex; align-items: center; gap: 3px; }
+  .hf-slot { display: inline-flex; }
+  .hf-bubble {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 22px; padding: 0 9px; border-radius: 999px;
+    border: 1px solid var(--border); background: #fff; color: var(--text-muted);
+    font: 600 10px/1 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none;
+    cursor: pointer; white-space: nowrap; max-width: 160px; transition: 150ms ease;
+  }
+  .hf-bubble > span.hf-txt { overflow: hidden; text-overflow: ellipsis; }
+  .hf-bubble:hover { border-color: var(--border-hover); color: var(--text-secondary); background: #f9fafb; }
+  .hf-bubble.active { background: #fef2f4; border-color: var(--ibis-red); color: var(--ibis-red); }
+  .hf-bubble .hf-caret { font-size: 8px; opacity: .65; }
+  .hf-bubble.active .hf-caret { opacity: 1; }
+  /* overflow bubbles next to All Verticals share the bubble look but taller to match controls */
+  #acct-table-overflow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  #acct-table-overflow .hf-bubble { height: 30px; padding: 0 12px; font-size: 12px; }
+
+  #hf-portal {
+    position: fixed; z-index: 9600; background: #fff;
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.10); padding: 6px; min-width: 156px;
+  }
+  #hf-portal .hf-opt { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; font: 500 12px 'DM Sans', sans-serif; color: var(--text-primary); }
+  #hf-portal .hf-opt:hover { background: #f9fafb; }
+  #hf-portal .hf-opt input { cursor: pointer; margin: 0; }
+  #hf-portal .hf-portal-actions { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; text-align: right; }
+  #hf-portal .hf-portal-actions button { background: none; border: none; color: var(--ibis-red); font: 600 11px 'DM Sans', sans-serif; cursor: pointer; padding: 2px 6px; }
+  /* Tight gap between the controls bar and the table (no big white band) */
+  #content-accounts .content { padding-top: 2px; }
+  #acct-count-label { padding: 0; line-height: 1.3; margin-bottom: 2px; }
+  table.status-col-collapsed .status-col .hf-slot { display: none; }
+
   .chip {
     padding: 4px 12px;
     border-radius: 999px;
@@ -2141,7 +2176,16 @@
   <select id="vertical-filter" onchange="renderAll()">
     <option value="">All Verticals</option>
   </select>
-  <div class="filter-chips">
+  <!-- TABLE view: overflow bubbles that have no natural column (rendered by renderAcctHeaderBubbles) -->
+  <div id="acct-table-overflow">
+    <span class="hf-slot" id="hfslot-hasworkables"></span>
+    <span class="hf-slot" id="hfslot-inaction"></span>
+    <span class="hf-slot" id="hfslot-activeopp"></span>
+  </div>
+  <span style="flex:1 1 auto;"></span>
+  <button class="export-btn" onclick="exportAccountsTab()" title="Print or save current view as PDF (respects active filters + search + vertical)">🖨 Export / PDF</button>
+  <!-- CARDS view: the classic chip filter bar -->
+  <div class="filter-chips" id="acct-cards-chips">
     <button class="chip chip-truekeep" onclick="toggleChip(this,'TRUE_KEEP')" data-flag="TRUE_KEEP">🔒 True Keep</button>
     <button class="chip chip-keep" onclick="toggleChip(this,'KEEP')" data-flag="KEEP">✓ Keep</button>
     <button class="chip chip-market" onclick="toggleChip(this,'MARKET')" data-flag="MARKET">📣 Market</button>
@@ -2165,8 +2209,6 @@
     <button class="chip chip-veryrare" onclick="toggleChip(this,'PRIO_VERYRARE')" data-flag="PRIO_VERYRARE">⭐ Very Rare</button>
     <button class="chip chip-rare" onclick="toggleChip(this,'PRIO_RARE')" data-flag="PRIO_RARE">🔨 Rare</button>
     <button class="chip chip-uncommon" onclick="toggleChip(this,'PRIO_UNCOMMON')" data-flag="PRIO_UNCOMMON">⛏ Uncommon</button>
-    <span style="flex:1 1 auto;"></span>
-    <button class="export-btn" onclick="exportAccountsTab()" title="Print or save current view as PDF (respects active filters + search + vertical + tier)">🖨 Export / PDF</button>
   </div>
 </div>
 
@@ -2295,39 +2337,91 @@
       <table class="acct-main-table">
         <thead>
           <tr>
-            <th class="status-col" onclick="setSortCol('acctStatus')" style="cursor:pointer;min-width:90px;"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
-            <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
-            <th>Company</th>
-            <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:left;min-width:150px;" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
-            <th onclick="toggleOtherOppFilter()" style="cursor:pointer;text-align:left;min-width:150px;" title="Click to filter to accounts with other reps' opps, sorted by furthest-future close date. Dark segment = opp TYPE (New PIQ / PIQ Renew / New UK / UK Renew…)">Other Opp</th>
-            <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
-            <th style="cursor:pointer;position:relative;" id="ath-tier">
-              <div class="lic-th-inner">
-                <span onclick="setSortCol('tier')">Tier <span class="acct-sort-arrow" id="asort-tier"></span></span>
-                <button class="lic-filter-trigger" id="atfbtn-tier" onclick="toggleTierDropdown(event)" title="Filter by tier">▾</button>
+            <th class="status-col" style="min-width:96px;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-status"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></span>
               </div>
-              <div class="lic-dropdown hidden" id="acct-dropdown-tier">
-                <label><input type="checkbox" value="1" onchange="applyTierFilter()"> Tier 1</label>
-                <label><input type="checkbox" value="2" onchange="applyTierFilter()"> Tier 2</label>
-                <label><input type="checkbox" value="3" onchange="applyTierFilter()"> Tier 3</label>
-                <label><input type="checkbox" value="4" onchange="applyTierFilter()"> Tier 4</label>
-                <label><input type="checkbox" value="" onchange="applyTierFilter()"> — (No tier)</label>
-                <div class="lic-dropdown-actions"><button onclick="clearTierFilter()">Clear</button></div>
+            </th>
+            <th style="min-width:104px;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-priority"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('acctPriority')">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></span>
+              </div>
+            </th>
+            <th>Company</th>
+            <th style="text-align:left;min-width:150px;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-myopp"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('opp')" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></span>
+              </div>
+            </th>
+            <th style="text-align:left;min-width:150px;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-otheropp"></span>
+                <span class="hf-label" title="Other reps' live open opps. Dark segment = opp TYPE (New PIQ / PIQ Renew / New UK / UK Renew…)">Other Opp</span>
+              </div>
+            </th>
+            <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
+            <th style="min-width:90px;" id="ath-tier">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-tier"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('tier')">Tier <span class="acct-sort-arrow" id="asort-tier"></span></span>
               </div>
             </th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
-            <th onclick="setSortCol('overlap')" style="cursor:pointer;white-space:nowrap;width:1px;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
+            <th style="white-space:nowrap;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-overlap"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('overlap')" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></span>
+              </div>
+            </th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th style="text-align:center;min-width:110px;display:none;">Campaigns</th>
-            <th onclick="setSortCol('usClient')" style="cursor:pointer;text-align:center;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
-            <th onclick="setSortCol('activeClient')" style="cursor:pointer;white-space:nowrap;width:1px;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
-            <th onclick="setSortCol('keyChurn')" style="cursor:pointer;white-space:nowrap;" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></th>
-            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ★ = you owned it.">Key Lost Opps</th>
-            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost global (non-US) opps over $1 (2016+).">Other Lost</th>
-            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Trials (≤$1, closed) across all geographies — labeled Ind/PIQ/geo, won ✓ / lost ✗ (2016+).">Key Trials</th>
+            <th style="text-align:center;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-usclient"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('usClient')">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></span>
+              </div>
+            </th>
+            <th style="white-space:nowrap;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-activeclient"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('activeClient')">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></span>
+              </div>
+            </th>
+            <th style="white-space:nowrap;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-keychurn"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('keyChurn')" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></span>
+              </div>
+            </th>
+            <th style="white-space:nowrap;text-align:left;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-keylost"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="collapseAllCells();renderAll()" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ★ = you owned it.">Key Lost Opps</span>
+              </div>
+            </th>
+            <th style="white-space:nowrap;text-align:left;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-otherlost"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="collapseAllCells();renderAll()" title="Closed-Lost global (non-US) opps over $1 (2016+).">Other Lost</span>
+              </div>
+            </th>
+            <th style="white-space:nowrap;text-align:left;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-keytrials"></span>
+                <span class="hf-label" style="cursor:pointer;" onclick="collapseAllCells();renderAll()" title="Trials (≤$1, closed) across all geographies (2016+).">Key Trials</span>
+              </div>
+            </th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
-            <th>Stage</th>
+            <th style="min-width:120px;">
+              <div class="hf-th">
+                <span class="hf-slot" id="hfslot-stage"></span>
+                <span class="hf-label">Stage</span>
+              </div>
+            </th>
             <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
             <th onclick="setSortCol('days')" style="cursor:pointer;display:none;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
           </tr>
@@ -3355,6 +3449,10 @@ function getFiltered() {
     const name = aName.toLowerCase();
     if (q && !name.includes(q) && !getField(a,'Vertical').toLowerCase().includes(q)) return false;
     if (vert && getTrueVertical(a) !== vert) return false;
+    // TABLE view uses the column-header filter bubbles; Cards view keeps the chip system.
+    if (currentView === 'table') {
+      return passesColFilters(a, aName);
+    }
     if (acctTierFilters.size > 0) {
       const tierVal = getField(a,'Major Markets Tier') || '';
       if (!acctTierFilters.has(tierVal)) return false;
@@ -3457,6 +3555,8 @@ function renderAll() {
   const realAccounts = accounts.filter(a => !a._isSkeletonAccount && !a._droppedFromCSV);
   document.getElementById('acct-count-label').textContent = realAccounts.length ? `${list.length} of ${realAccounts.length} accounts` : '';
   updateAcctSortArrows();
+  renderAcctHeaderBubbles();
+  updateAcctFilterUIVisibility();
   if (currentView === 'cards') renderCards(list); else renderTable(list);
   sizeAccountsGrid();
   updateBodyScrollLock();
@@ -3488,6 +3588,8 @@ function sizeActiveGrid() {
 function sizeAccountsGrid() { sizeActiveGrid(); }
 function updateBodyScrollLock() { sizeActiveGrid(); }
 window.addEventListener('resize', () => { sizeActiveGrid(); });
+// Close the column-header filter portal when anything scrolls (incl. the grid's own scroll)
+window.addEventListener('scroll', () => { const p = document.getElementById('hf-portal'); if (p && !p.classList.contains('hidden')) { p.classList.add('hidden'); hfOpenId = null; } }, true);
 
 function getDomain(w) {
   if (!w||w.trim()==='') return null;
@@ -4550,7 +4652,130 @@ function restoreSortPref() {
 
 let licenses = [];
 let licLatestMode   = false;
-let acctTierFilters = new Set(); // values: '1','2','3','4',''
+let acctTierFilters = new Set(); // values: '1','2','3','4','' (CARDS view only)
+
+/* ── TABLE-VIEW column-header filters (independent from the Cards-view chip system) ──
+   Multi filters hold a Set of selected option keys; toggle filters hold a boolean.
+   OR within a filter, AND across filters — same semantics as the old chip groups.   */
+let acctColFilters = {
+  status: new Set(), priority: new Set(), tier: new Set(), otheropp: new Set(), stage: new Set(),
+  myopp:false, usclient:false, activeclient:false, overlap:false,
+  keychurn:false, keylost:false, otherlost:false, keytrials:false,
+  hasworkables:false, inaction:false, activeopp:false
+};
+const ACCT_STATUS_FILTER_OPTS = [
+  {key:'truekeep',label:'🔒 True Keep'},{key:'keep',label:'✓ Keep'},{key:'market',label:'📣 Market'},
+  {key:'monitor',label:'👁 Monitor'},{key:'entdrop',label:'🏢 Ent Drop'},{key:'drop',label:'✕ Drop'}
+];
+const ACCT_PRIORITY_FILTER_OPTS = [
+  {key:'quickwinner',label:'⚡ Quick Winner'},{key:'teamsell',label:'🤝 Team Sell'},{key:'legendary',label:'💎 Legendary'},
+  {key:'veryrare',label:'⭐ Very Rare'},{key:'rare',label:'🔨 Rare'},{key:'uncommon',label:'⛏ Uncommon'}
+];
+const ACCT_TIER_FILTER_OPTS = [
+  {key:'1',label:'Tier 1'},{key:'2',label:'Tier 2'},{key:'3',label:'Tier 3'},{key:'4',label:'Tier 4'},{key:'',label:'— No tier'}
+];
+const ACCT_OTHEROPP_FILTER_OPTS = [
+  {key:'piq_new',label:'New PIQ'},{key:'piq_cs',label:'PIQ Renew'},{key:'intl_new',label:'New Intl'},
+  {key:'intl_cs',label:'Intl Renew'},{key:'ind_new',label:'New Ind'},{key:'ind_cs',label:'Ind Renew'}
+];
+// Distinct 6sense buying stages present in the data, ordered Awareness→Purchase.
+function acctStageFilterOpts() {
+  const set = new Set();
+  accounts.forEach(a => { if (a._isSkeletonAccount || a._droppedFromCSV) return; const s = getField(a,'6sense Account Buying Stage NA'); if (s) set.add(s); });
+  const order = ['Awareness','Consideration','Decision','Purchase'];
+  return [...set].sort((x,y) => {
+    const ix = order.findIndex(o => x.includes(o)), iy = order.findIndex(o => y.includes(o));
+    return (ix<0?99:ix) - (iy<0?99:iy) || x.localeCompare(y);
+  }).map(s => ({key:s,label:s}));
+}
+// Filter descriptor. kind 'multi' = checkbox dropdown; kind 'toggle' = on/off bubble.
+const ACCT_HF = {
+  status:      {kind:'multi',  opts:ACCT_STATUS_FILTER_OPTS},
+  priority:    {kind:'multi',  opts:ACCT_PRIORITY_FILTER_OPTS},
+  tier:        {kind:'multi',  opts:ACCT_TIER_FILTER_OPTS},
+  otheropp:    {kind:'multi',  opts:ACCT_OTHEROPP_FILTER_OPTS, sortOnApply:true},
+  stage:       {kind:'multi',  opts:acctStageFilterOpts},
+  myopp:       {kind:'toggle', label:'My Opp'},
+  usclient:    {kind:'toggle', label:'US Client'},
+  activeclient:{kind:'toggle', label:'Active'},
+  overlap:     {kind:'toggle', label:'Multi-Owner'},
+  keychurn:    {kind:'toggle', label:'Key Churn'},
+  keylost:     {kind:'toggle', label:'Key Lost'},
+  otherlost:   {kind:'toggle', label:'Other Lost'},
+  keytrials:   {kind:'toggle', label:'Key Trials'},
+  hasworkables:{kind:'toggle', label:'🎯 Has Workables'},
+  inaction:    {kind:'toggle', label:'⚡ In Action'},
+  activeopp:   {kind:'toggle', label:'💼 Active Opp'}
+};
+let hfOpenId = null;
+function hfOptsFor(id) { const o = ACCT_HF[id].opts; return typeof o === 'function' ? o() : o; }
+// Build one bubble's HTML (preview label = highest selected option, else first option muted).
+function hfBubbleHtml(id) {
+  const cfg = ACCT_HF[id];
+  if (cfg.kind === 'toggle') {
+    const active = !!acctColFilters[id];
+    return `<button class="hf-bubble${active?' active':''}" onclick="toggleHf('${id}')" title="Filter: ${escHtml(cfg.label)}"><span class="hf-txt">${escHtml(cfg.label)}</span></button>`;
+  }
+  const opts = hfOptsFor(id), sel = acctColFilters[id];
+  let label, active = false;
+  if (sel.size) { active = true; const first = opts.find(o => sel.has(o.key)); label = (first?first.label:'') + (sel.size>1?` +${sel.size-1}`:''); }
+  else { label = opts.length ? opts[0].label : '—'; }
+  return `<button class="hf-bubble${active?' active':''}" onclick="openHfMenu('${id}',this)" title="Filter"><span class="hf-txt">${escHtml(label)}</span><span class="hf-caret">▾</span></button>`;
+}
+// Fill every header/overflow bubble slot (called from renderAll).
+function renderAcctHeaderBubbles() {
+  Object.keys(ACCT_HF).forEach(id => { const slot = document.getElementById('hfslot-'+id); if (slot) slot.innerHTML = hfBubbleHtml(id); });
+}
+function toggleHf(id) { collapseAllCells(); acctColFilters[id] = !acctColFilters[id]; renderAll(); }
+function openHfMenu(id, btn) {
+  const portal = document.getElementById('hf-portal');
+  const opts = hfOptsFor(id), sel = acctColFilters[id];
+  portal.innerHTML = opts.map(o =>
+    `<label class="hf-opt"><input type="checkbox" data-k="${escHtml(o.key)}" ${sel.has(o.key)?'checked':''} onchange="hfSetMulti('${id}',this.dataset.k,this.checked)"> ${escHtml(o.label)}</label>`
+  ).join('') + `<div class="hf-portal-actions"><button onclick="hfClear('${id}')">Clear</button></div>`;
+  const r = btn.getBoundingClientRect();
+  portal.style.top = (r.bottom + 4) + 'px';
+  portal.style.left = Math.min(r.left, window.innerWidth - 180) + 'px';
+  portal.classList.remove('hidden');
+  hfOpenId = id;
+}
+function hfSetMulti(id, key, checked) {
+  const s = acctColFilters[id];
+  if (checked) s.add(key); else s.delete(key);
+  if (id === 'otheropp' && ACCT_HF.otheropp.sortOnApply && s.size) { acctSortCol = 'otherOppClose'; acctSortDir = 'desc'; frozenSortOrder = null; }
+  collapseAllCells(); renderAll();
+}
+function hfClear(id) { acctColFilters[id] = new Set(); document.getElementById('hf-portal').classList.add('hidden'); hfOpenId = null; collapseAllCells(); renderAll(); }
+// TABLE-view predicate: OR within a filter, AND across filters.
+function passesColFilters(a, aName) {
+  const cf = acctColFilters;
+  if (cf.status.size   && !cf.status.has(localData[aName]?.acctStatus || '')) return false;
+  if (cf.priority.size && !cf.priority.has(localData[aName]?.acctPriority || '')) return false;
+  if (cf.tier.size     && !cf.tier.has(getField(a,'Major Markets Tier') || '')) return false;
+  if (cf.stage.size    && !cf.stage.has(getField(a,'6sense Account Buying Stage NA') || '')) return false;
+  if (cf.otheropp.size) { const cats = new Set(getOtherOpps(aName).map(o => otherOppCat(o).key)); if (![...cf.otheropp].some(k => cats.has(k))) return false; }
+  if (cf.myopp        && getMyOpps(aName).length === 0) return false;
+  if (cf.usclient     && !hasUSLicense(aName)) return false;
+  if (cf.activeclient && !getActiveLicBadges(aName)) return false;
+  if (cf.overlap      && getOtherRepOverlap(aName).length === 0) return false;
+  if (cf.keychurn     && getAccountKeyChurns(aName).length === 0) return false;
+  if (cf.keylost      && getKeyLostOpps(aName).length === 0) return false;
+  if (cf.otherlost    && getKeyGlobalLostOpps(aName).length === 0) return false;
+  if (cf.keytrials    && getKeyTrials(aName).length === 0) return false;
+  if (cf.hasworkables && getWorkableCount(aName) === 0) return false;
+  if (cf.inaction     && !localData[aName]?.hasAction) return false;
+  if (cf.activeopp    && !hasActiveOpp(aName)) return false;
+  return true;
+}
+// Show the Cards chip bar in Cards view, the Table overflow bubbles in Table view.
+function updateAcctFilterUIVisibility() {
+  const isTable = currentView === 'table';
+  const cards = document.getElementById('acct-cards-chips');
+  const over  = document.getElementById('acct-table-overflow');
+  if (cards) cards.style.display = isTable ? 'none' : '';
+  if (over)  over.style.display  = isTable ? '' : 'none';
+}
+
 let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
 let licStatusFilters = new Set(); // values: 'active','newchurn','churned','dead'
 let openLicDropdown = null;
@@ -8420,6 +8645,11 @@ function updateTierFilterIndicator(active) {
 }
 
 document.addEventListener('click', function(e) {
+  // Close the column-header filter portal on outside click
+  const hfp = document.getElementById('hf-portal');
+  if (hfp && !hfp.classList.contains('hidden') && !hfp.contains(e.target) && !e.target.closest('.hf-bubble')) {
+    hfp.classList.add('hidden'); hfOpenId = null;
+  }
   // Close upload menu on outside click
   const menu = document.getElementById('upload-menu');
   const trigger = document.getElementById('upload-menu-trigger');
@@ -8901,6 +9131,7 @@ document.addEventListener('keydown', e => {
 <div id="acct-priority-portal"></div>
 <div id="sentiment-card"></div>
 <div id="contact-preview-portal"></div>
+<div id="hf-portal" class="hidden"></div>
 
 <!-- ── Dead Action Confirm Modal ─────────────────────────────────────────── -->
 <div id="dead-action-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.35);align-items:center;justify-content:center;" onclick="if(event.target===this)closeDeadActionModal()">
@@ -11033,6 +11264,22 @@ function exportAccountsTab() {
   if (!content) return;
   // Build a human-readable subtitle describing every active filter
   const parts = [];
+  // TABLE view uses the column-header filter bubbles
+  if (currentView === 'table') {
+    const cf = acctColFilters;
+    const lbls = (id, set) => hfOptsFor(id).filter(o => set.has(o.key)).map(o => o.label);
+    if (cf.status.size)   parts.push('Status: '   + lbls('status', cf.status).join('/'));
+    if (cf.priority.size) parts.push('Priority: ' + lbls('priority', cf.priority).join('/'));
+    if (cf.tier.size)     parts.push('Tier: '     + lbls('tier', cf.tier).join('/'));
+    if (cf.otheropp.size) parts.push('Other Opp: '+ lbls('otheropp', cf.otheropp).join('/'));
+    if (cf.stage.size)    parts.push('Stage: '    + [...cf.stage].join('/'));
+    [['myopp','My Opp'],['usclient','US Client'],['activeclient','Active Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Lost'],['otherlost','Other Lost'],['keytrials','Key Trials'],['hasworkables','Has Workables'],['inaction','In Action'],['activeopp','Active Opp']].forEach(([k,l]) => { if (cf[k]) parts.push(l); });
+    const vertT = document.getElementById('vertical-filter')?.value; if (vertT) parts.push('Vertical: ' + vertT);
+    const searchT = (document.getElementById('search-input')?.value || '').trim(); if (searchT) parts.push('Search: "' + searchT + '"');
+    parts.push((document.querySelectorAll('#table-body tr').length) + ' rows');
+    _printWithBanner('Accounts', parts.length > 1 ? parts.join(' · ') : (parts[0] || 'All accounts'), content);
+    return;
+  }
   // Status group
   const statusLabels = { TRUE_KEEP:'True Keep', KEEP:'Keep', MONITOR:'Monitor', DROP:'Drop' };
   const statusOn = ['TRUE_KEEP','KEEP','MONITOR','DROP'].filter(f => activeFlags.has(f)).map(f => statusLabels[f]);
