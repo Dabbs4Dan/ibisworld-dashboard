@@ -392,34 +392,35 @@
     position: sticky; top: 0; z-index: 32;
     background: var(--bg, #f0f2f5);       /* floats in the page's grey space */
     box-shadow: none; border: none;
-    padding: 4px 14px 4px; vertical-align: bottom;
+    padding: 5px 14px 9px; vertical-align: bottom;   /* extra bottom room before the white label row */
     text-transform: none; cursor: default;
   }
   .acct-main-table thead tr.hf-row th:hover { background: var(--bg, #f0f2f5); }
-  .acct-main-table thead tr.hf-labels th { top: 38px; z-index: 31; }  /* stack below the bubble strip */
+  .acct-main-table thead tr.hf-labels th { top: 42px; z-index: 31; }  /* stack below the bubble strip */
   .hf-slot { display: inline-flex; }
 
   .hf-bubble {
     display: inline-flex; align-items: center;
-    height: 30px; border-radius: 999px;
-    border: 1px solid #e2e8f0; background: #fff;
+    height: 28px; border-radius: 999px;
+    border: 1.5px solid #cbd5e1; background: #fff;
     font-family: 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none;
-    cursor: pointer; white-space: nowrap; max-width: 200px; transition: 150ms ease;
+    cursor: pointer; white-space: nowrap; max-width: 210px; transition: 150ms ease;
   }
-  .hf-bubble:hover { border-color: #cbd5e1; background: #f8fafc; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
-  .hf-bubble.active { border-color: var(--ibis-red); background: #fff; box-shadow: 0 0 0 3px rgba(200,16,46,.10); }
-  /* toggle bubbles: neutral, turn red when on */
+  /* Toggle bubbles: neutral with a hard border, red when on */
   .hf-toggle { padding: 0 13px; color: #475569; font-weight: 600; font-size: 12px; }
   .hf-toggle .hf-txt { overflow: hidden; text-overflow: ellipsis; }
+  .hf-toggle:hover { border-color: #94a3b8; background: #f8fafc; }
   .hf-toggle.active { background: #fef2f4; border-color: var(--ibis-red); color: var(--ibis-red); }
-  /* multi bubbles: real coloured pill of the top selection + a divided caret (select-like) */
-  .hf-multi { padding: 0 0 0 4px; gap: 0; }
-  .hf-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font: 700 11px/1 'DM Sans', sans-serif; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-  .hf-multi .hf-dim .hf-pill { opacity: .5; }       /* nothing selected → dimmed preview */
-  .hf-more-n { font: 700 10px 'DM Mono', monospace; color: #94a3b8; margin: 0 2px 0 4px; }
-  .hf-caret { font-size: 9px; color: #94a3b8; line-height: 1; display: flex; align-items: center; align-self: stretch; padding: 0 9px 0 7px; margin-left: 4px; border-left: 1px solid #e6e9ee; }
-  .hf-multi:hover .hf-caret { border-left-color: #d7dce3; }
-  .hf-multi.active .hf-caret { color: var(--ibis-red); border-left-color: rgba(200,16,46,.18); }
+  /* Multi bubbles: the WHOLE chip takes the filter's colour theme; currentColor = themed border + caret */
+  .hf-multi { padding: 0; border-color: currentColor; }
+  .hf-multi .hf-txt { padding: 0 5px 0 11px; font: 700 11px/1 'DM Sans', sans-serif; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .hf-multi.hf-dim { opacity: .48; }                 /* nothing selected → dimmed placeholder */
+  .hf-multi:hover { filter: brightness(.97); box-shadow: 0 1px 3px rgba(15,23,42,.14); }
+  .hf-multi.active { box-shadow: 0 1px 3px rgba(15,23,42,.16); }
+  .hf-more-n { font: 700 10px 'DM Mono', monospace; opacity: .7; padding-right: 3px; }
+  .hf-caret { font-size: 9px; line-height: 1; display: flex; align-items: center; align-self: stretch; padding: 0 9px 0 8px; border-left: 1.5px solid currentColor; opacity: .85; }
+  /* Dropdown option pills keep the standalone look */
+  .hf-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font: 700 11px/1 'DM Sans', sans-serif; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
   /* overflow bubbles next to All Verticals — same size as header bubbles */
   #acct-table-overflow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   /* inline "N of M accounts" — right side of the controls bar (no grey line above the table) */
@@ -1218,12 +1219,14 @@
   .ib-dim { opacity:0.6; }
   .ib-own { font-weight:600; opacity:0.72; }
   .ib-star { color:#f59e0b; margin-right:1px; }
-  /* Split pill (Other Opp) — dark TYPE segment (white) + light body */
-  .ib-pill { display:inline-flex; align-items:stretch; height:21px; border-radius:999px; overflow:hidden; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
-  .ib-pill .ib-stg { display:inline-flex; align-items:center; padding:0 9px; font-weight:700; color:#fff; flex-shrink:0; }
-  .ib-pill .ib-bdy { display:inline-flex; align-items:center; gap:6px; padding:0 10px; }
-  /* Solid pill — single background, DM Sans, lead label bold */
-  .ib-solid { display:inline-flex; align-items:center; gap:6px; height:21px; padding:0 10px; border-radius:999px; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
+  /* Split pill (Other Opp) — dark TYPE segment (white) + light body. Slim, matches Active Client badge. */
+  .ib-pill { display:inline-flex; align-items:stretch; height:18px; border-radius:999px; overflow:hidden; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
+  .ib-pill .ib-stg { display:inline-flex; align-items:center; padding:0 8px; font-weight:700; color:#fff; flex-shrink:0; }
+  .ib-pill .ib-bdy { display:inline-flex; align-items:center; gap:6px; padding:0 9px; }
+  /* Solid pill — single background, DM Sans, lead label bold. Slim to match Active Client. */
+  .ib-solid { display:inline-flex; align-items:center; gap:6px; height:18px; padding:0 8px; border-radius:999px; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; white-space:nowrap; border:1px solid transparent; }
+  /* Active-opp (My Opp) pills stay at the original taller size — Dan's exception */
+  .ib-solid.ib-myopp-active, .ib-solid.ib-myopp-won { height:21px; padding:0 10px; }
   .ib-myopp-active { background:#eff5ff; color:#1d4ed8; border-color:#dbeafe; }
   .ib-myopp-won    { background:#eafaf1; color:#15803d; border-color:#c9f0d8; }
   .ib-global { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
@@ -3526,7 +3529,7 @@ function getFiltered() {
     if (sort==='acctStatus') { const ord={truekeep:0,keep:1,market:2,monitor:3,entdrop:4,drop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
     if (sort==='acctPriority') { const ord={quickwinner:0,teamsell:1,legendary:2,veryrare:3,rare:4,uncommon:5,common:6,'':7}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??7)-(ord[bp]??7)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
-    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); const v=n=>(hasMyOpp(n)||hasActiveOpp(n)||hasCustomOpp(n))?1:0; return d*(v(an)-v(bn)); }
+    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); const v=n=>(hasMyOpp(n)||hasActiveOpp(n))?2:(hasCustomOpp(n)?1:0); return d*(v(an)-v(bn)); } // SF opps rank above custom opps
     if (sort==='otherOppClose') return d*(otherOppMaxClose(getField(a,'Account Name','AccountName')) - otherOppMaxClose(getField(b,'Account Name','AccountName')));
     if (sort==='overlap') {
       const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName');
@@ -4774,16 +4777,17 @@ function hfBubbleHtml(id) {
     return `<button class="hf-bubble hf-toggle${active?' active':''}" onclick="toggleHf('${id}')" title="Filter: ${escHtml(cfg.label)}"><span class="hf-txt">${escHtml(cfg.label)}</span></button>`;
   }
   const opts = hfOptsFor(id), sel = acctColFilters[id];
-  let pill, active = false, extra = '';
+  let opt, active = false, extra = '';
   if (sel.size) {
     active = true;
-    const first = opts.find(o => sel.has(o.key)) || opts[0];
-    pill = first ? hfPill(first, false) : '';
+    opt = opts.find(o => sel.has(o.key)) || opts[0];
     if (sel.size > 1) extra = `<span class="hf-more-n">+${sel.size-1}</span>`;
   } else {
-    pill = opts.length ? hfPill(opts[0], false) : '<span class="hf-pill" style="background:#f3f4f6;color:#9ca3af;">—</span>';
+    opt = opts[0] || { label:'—', css:'background:#f3f4f6;color:#9ca3af;' };
   }
-  return `<button class="hf-bubble hf-multi${active?' active':''}" onclick="openHfMenu('${id}',this)" title="Filter">${active?'':'<span class="hf-dim">'}${pill}${active?'':'</span>'}${extra}<span class="hf-caret">▾</span></button>`;
+  const css = opt.css || 'background:#f3f4f6;color:#6b7280;';
+  // The whole bubble takes the option's colour theme; currentColor drives the themed border + caret.
+  return `<button class="hf-bubble hf-multi${active?' active':''}${active?'':' hf-dim'}" style="${css}" onclick="openHfMenu('${id}',this)" title="Filter"><span class="hf-txt">${escHtml(opt.label)}</span>${extra}<span class="hf-caret">▾</span></button>`;
 }
 // Fill every header/overflow bubble slot (called from renderAll).
 function renderAcctHeaderBubbles() {
@@ -5246,6 +5250,7 @@ function startCustomOpp(name) {
   setTimeout(() => { const el = document.querySelector(`.myopp-custom[data-acctname="${(name||'').replace(/"/g,'&quot;')}"]`); if (el) { el.focus(); } }, 30);
 }
 function removeCustomOpp(name) {
+  clearTimeout(saveCustomOppDebounced._t); // kill any pending debounced write so it can't re-save after removal
   if (localData[name]) { delete localData[name].customOpp; try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e){} }
   renderAll();
 }
@@ -5392,7 +5397,7 @@ function renderMyOppCell(name, local) {
       oninput="saveCustomOppDebounced(this.dataset.acctname,this.innerText)"
       onblur="onCustomOppBlur(this.dataset.acctname,this.innerText)"
       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${escHtml(local.customOpp)}</span>`;
-  const removeBtn = `<button class="myopp-x" data-acctname="${esc}" title="Remove custom opp" onclick="event.stopPropagation();removeCustomOpp(this.dataset.acctname)">×</button>`;
+  const removeBtn = `<button class="myopp-x" data-acctname="${esc}" title="Remove custom opp" onmousedown="event.preventDefault()" onclick="event.stopPropagation();removeCustomOpp(this.dataset.acctname)">×</button>`;
   return `<div class="ib-cell"><div class="ib-bubbles ib-1col">${sfPills}<span class="myopp-custom-row">${customBubble}${removeBtn}</span></div></div>`;
 }
 function onCustomOppBlur(name, text) {
