@@ -392,35 +392,38 @@
     position: sticky; top: 0; z-index: 32;
     background: var(--bg, #f0f2f5);       /* floats in the page's grey space */
     box-shadow: none; border: none;
-    padding: 8px 14px 5px; vertical-align: bottom;
-    text-transform: none; cursor: default; height: 40px;
+    padding: 4px 14px 4px; vertical-align: bottom;
+    text-transform: none; cursor: default;
   }
   .acct-main-table thead tr.hf-row th:hover { background: var(--bg, #f0f2f5); }
-  .acct-main-table thead tr.hf-labels th { top: 40px; z-index: 31; }  /* stack below the bubble strip */
+  .acct-main-table thead tr.hf-labels th { top: 38px; z-index: 31; }  /* stack below the bubble strip */
   .hf-slot { display: inline-flex; }
 
   .hf-bubble {
-    display: inline-flex; align-items: center; gap: 5px;
-    height: 30px; padding: 0 10px; border-radius: 999px;
-    border: 1px solid var(--border); background: #fff;
+    display: inline-flex; align-items: center;
+    height: 30px; border-radius: 999px;
+    border: 1px solid #e2e8f0; background: #fff;
     font-family: 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none;
-    cursor: pointer; white-space: nowrap; max-width: 190px; transition: 150ms ease;
+    cursor: pointer; white-space: nowrap; max-width: 200px; transition: 150ms ease;
   }
-  .hf-bubble:hover { border-color: var(--border-hover); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .hf-bubble.active { border-color: var(--ibis-red); box-shadow: 0 0 0 2px rgba(200,16,46,.12); }
+  .hf-bubble:hover { border-color: #cbd5e1; background: #f8fafc; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+  .hf-bubble.active { border-color: var(--ibis-red); background: #fff; box-shadow: 0 0 0 3px rgba(200,16,46,.10); }
   /* toggle bubbles: neutral, turn red when on */
-  .hf-toggle { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+  .hf-toggle { padding: 0 13px; color: #475569; font-weight: 600; font-size: 12px; }
   .hf-toggle .hf-txt { overflow: hidden; text-overflow: ellipsis; }
   .hf-toggle.active { background: #fef2f4; border-color: var(--ibis-red); color: var(--ibis-red); }
-  /* multi bubbles: show the real coloured pill of the top selection */
-  .hf-pill { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font: 700 11px 'DM Sans', sans-serif; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
-  .hf-multi { padding: 0 8px 0 4px; }
-  .hf-multi .hf-dim { opacity: .5; }               /* nothing selected → dimmed preview */
-  .hf-more-n { font: 700 10px 'DM Mono', monospace; color: var(--text-muted); margin-left: 2px; }
-  .hf-caret { font-size: 11px; color: var(--text-secondary); line-height: 1; margin-left: 1px; }
-  .hf-multi.active .hf-caret { color: var(--ibis-red); }
+  /* multi bubbles: real coloured pill of the top selection + a divided caret (select-like) */
+  .hf-multi { padding: 0 0 0 4px; gap: 0; }
+  .hf-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font: 700 11px/1 'DM Sans', sans-serif; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .hf-multi .hf-dim .hf-pill { opacity: .5; }       /* nothing selected → dimmed preview */
+  .hf-more-n { font: 700 10px 'DM Mono', monospace; color: #94a3b8; margin: 0 2px 0 4px; }
+  .hf-caret { font-size: 9px; color: #94a3b8; line-height: 1; display: flex; align-items: center; align-self: stretch; padding: 0 9px 0 7px; margin-left: 4px; border-left: 1px solid #e6e9ee; }
+  .hf-multi:hover .hf-caret { border-left-color: #d7dce3; }
+  .hf-multi.active .hf-caret { color: var(--ibis-red); border-left-color: rgba(200,16,46,.18); }
   /* overflow bubbles next to All Verticals — same size as header bubbles */
   #acct-table-overflow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  /* inline "N of M accounts" — right side of the controls bar (no grey line above the table) */
+  .acct-count-inline { font: 500 12px 'DM Sans', sans-serif; color: var(--text-muted); white-space: nowrap; margin-right: 4px; }
 
   #hf-portal {
     position: fixed; z-index: 9600; background: #fff;
@@ -434,17 +437,21 @@
   #hf-portal .hf-portal-actions { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; text-align: right; }
   #hf-portal .hf-portal-actions button { background: none; border: none; color: var(--ibis-red); font: 600 11px 'DM Sans', sans-serif; cursor: pointer; padding: 2px 6px; }
 
-  /* Custom (typed) My Opp bubble */
+  /* Custom (typed) My Opp bubble — a defined, popping note pill */
   .ib-myopp-custom {
-    min-width: 120px; min-height: 22px; padding: 3px 9px; border-radius: 999px;
-    background: #eef0f3; color: #374151; border: 1px dashed #cbd2da;
+    min-width: 110px; min-height: 24px; padding: 4px 11px; border-radius: 999px;
+    background: #f8fafc; color: #334155; border: 1.5px solid #94a3b8;
+    box-shadow: 0 1px 2px rgba(15,23,42,.08);
     font: 600 11px 'DM Sans', sans-serif; outline: none; cursor: text;
     white-space: normal; word-break: break-word; display: inline-block; line-height: 1.35;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
   }
-  .ib-myopp-custom:focus { background: #fff; border-style: solid; border-color: #22d3ee; box-shadow: 0 0 0 2px rgba(34,211,238,.15); }
+  .ib-myopp-custom:hover { border-color: #64748b; }
+  .ib-myopp-custom:focus { background: #fff; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18); }
   .ib-myopp-custom:empty:before { content: attr(data-ph); color: #9ca3af; font-weight: 500; }
-  .myopp-custom-row { display: inline-flex; align-items: center; gap: 3px; }
-  .myopp-x { border: none; background: none; color: #9ca3af; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; border-radius: 4px; }
+  .myopp-custom-row { display: inline-flex; align-items: center; gap: 4px; }
+  .myopp-custom-row::before { content: '✎'; font-size: 12px; color: #6366f1; line-height: 1; }
+  .myopp-x { border: none; background: none; color: #9ca3af; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 3px; border-radius: 999px; transition: 150ms ease; }
   .myopp-x:hover { color: var(--ibis-red); background: #fef2f4; }
 
   /* Tight gap between the controls bar and the table (no big white band) */
@@ -2215,6 +2222,7 @@
     <span class="hf-slot" id="hfslot-activeopp"></span>
   </div>
   <span style="flex:1 1 auto;"></span>
+  <span id="acct-count-label" class="acct-count-inline"></span>
   <button class="export-btn" onclick="exportAccountsTab()" title="Print or save current view as PDF (respects active filters + search + vertical)">🖨 Export / PDF</button>
   <!-- CARDS view: the classic chip filter bar -->
   <div class="filter-chips" id="acct-cards-chips">
@@ -2362,7 +2370,6 @@
       <button class="upload-btn" onclick="document.getElementById('file-input').click()">↑ Upload Accounts CSV</button>
     </div>
   </div>
-  <div id="acct-count-label" class="above-table-label"></div>
   <div id="cards-view" class="cards-grid hidden"></div>
   <div id="table-view" class="hidden">
     <div class="table-wrap">
@@ -4700,7 +4707,7 @@ const ACCT_REVENUE_FILTER_OPTS = [
   {key:'none',  label:'No revenue', css:'background:#f3f4f6;color:#9ca3af;'}
 ];
 const ACCT_MYOPP_FILTER_OPTS = [
-  {key:'sf',     label:'SalesForce Opps', full:'SalesForce opps (from report)', css:'background:#eff5ff;color:#1d4ed8;'},
+  {key:'sf',     label:'Salesforce Opps', full:'Salesforce opps (from report)', css:'background:#eff5ff;color:#1d4ed8;'},
   {key:'custom', label:'Custom Opps',     full:'Custom opps (typed by me)',     css:'background:#f3f4f6;color:#4b5563;'}
 ];
 function stageCssFor(s) {
@@ -5381,7 +5388,7 @@ function renderMyOppCell(name, local) {
   }
   // Custom opp present (± SF opps) → stack SF pills, then the editable custom bubble
   const sfPills = mine.map(pillFor).join('');
-  const customBubble = `<span class="ib-solid ib-myopp-custom myopp-custom" contenteditable="true" spellcheck="false" data-acctname="${esc}" data-ph="Type an opp note…"
+  const customBubble = `<span class="ib-myopp-custom myopp-custom" contenteditable="true" spellcheck="false" data-acctname="${esc}" data-ph="Type an opp note…"
       oninput="saveCustomOppDebounced(this.dataset.acctname,this.innerText)"
       onblur="onCustomOppBlur(this.dataset.acctname,this.innerText)"
       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${escHtml(local.customOpp)}</span>`;
