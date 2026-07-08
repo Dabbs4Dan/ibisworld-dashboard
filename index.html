@@ -385,36 +385,68 @@
 
   .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
-  /* ── Column-header filter bubbles (Table view) ───────────────────────── */
-  .hf-th { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-  .hf-th .hf-label { display: inline-flex; align-items: center; gap: 3px; }
-  .hf-slot { display: inline-flex; }
-  .hf-bubble {
-    display: inline-flex; align-items: center; gap: 4px;
-    height: 22px; padding: 0 9px; border-radius: 999px;
-    border: 1px solid var(--border); background: #fff; color: var(--text-muted);
-    font: 600 10px/1 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none;
-    cursor: pointer; white-space: nowrap; max-width: 160px; transition: 150ms ease;
+  /* ── Column-header filter bubbles (Table view): two-row sticky header ─────
+     Row 1 (.hf-row) = grey strip holding the filter bubbles, flush-left per column.
+     Row 2 (.hf-labels) = the sortable column labels, all baselines aligned.        */
+  .acct-main-table thead tr.hf-row th {
+    position: sticky; top: 0; z-index: 32;
+    background: var(--bg, #f0f2f5);       /* floats in the page's grey space */
+    box-shadow: none; border: none;
+    padding: 8px 14px 5px; vertical-align: bottom;
+    text-transform: none; cursor: default; height: 40px;
   }
-  .hf-bubble > span.hf-txt { overflow: hidden; text-overflow: ellipsis; }
-  .hf-bubble:hover { border-color: var(--border-hover); color: var(--text-secondary); background: #f9fafb; }
-  .hf-bubble.active { background: #fef2f4; border-color: var(--ibis-red); color: var(--ibis-red); }
-  .hf-bubble .hf-caret { font-size: 8px; opacity: .65; }
-  .hf-bubble.active .hf-caret { opacity: 1; }
-  /* overflow bubbles next to All Verticals share the bubble look but taller to match controls */
+  .acct-main-table thead tr.hf-row th:hover { background: var(--bg, #f0f2f5); }
+  .acct-main-table thead tr.hf-labels th { top: 40px; z-index: 31; }  /* stack below the bubble strip */
+  .hf-slot { display: inline-flex; }
+
+  .hf-bubble {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 30px; padding: 0 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: #fff;
+    font-family: 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none;
+    cursor: pointer; white-space: nowrap; max-width: 190px; transition: 150ms ease;
+  }
+  .hf-bubble:hover { border-color: var(--border-hover); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .hf-bubble.active { border-color: var(--ibis-red); box-shadow: 0 0 0 2px rgba(200,16,46,.12); }
+  /* toggle bubbles: neutral, turn red when on */
+  .hf-toggle { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+  .hf-toggle .hf-txt { overflow: hidden; text-overflow: ellipsis; }
+  .hf-toggle.active { background: #fef2f4; border-color: var(--ibis-red); color: var(--ibis-red); }
+  /* multi bubbles: show the real coloured pill of the top selection */
+  .hf-pill { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font: 700 11px 'DM Sans', sans-serif; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+  .hf-multi { padding: 0 8px 0 4px; }
+  .hf-multi .hf-dim { opacity: .5; }               /* nothing selected → dimmed preview */
+  .hf-more-n { font: 700 10px 'DM Mono', monospace; color: var(--text-muted); margin-left: 2px; }
+  .hf-caret { font-size: 11px; color: var(--text-secondary); line-height: 1; margin-left: 1px; }
+  .hf-multi.active .hf-caret { color: var(--ibis-red); }
+  /* overflow bubbles next to All Verticals — same size as header bubbles */
   #acct-table-overflow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  #acct-table-overflow .hf-bubble { height: 30px; padding: 0 12px; font-size: 12px; }
 
   #hf-portal {
     position: fixed; z-index: 9600; background: #fff;
     border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,.10); padding: 6px; min-width: 156px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.10); padding: 6px; min-width: 180px; max-height: 340px; overflow-y: auto;
   }
-  #hf-portal .hf-opt { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; font: 500 12px 'DM Sans', sans-serif; color: var(--text-primary); }
-  #hf-portal .hf-opt:hover { background: #f9fafb; }
-  #hf-portal .hf-opt input { cursor: pointer; margin: 0; }
+  #hf-portal .hf-opt { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+  #hf-portal .hf-opt:hover { background: #f6f7f9; }
+  #hf-portal .hf-opt input { cursor: pointer; margin: 0; width: 15px; height: 15px; accent-color: var(--ibis-red); flex: 0 0 auto; }
+  #hf-portal .hf-opt .hf-pill { max-width: 200px; }
   #hf-portal .hf-portal-actions { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; text-align: right; }
   #hf-portal .hf-portal-actions button { background: none; border: none; color: var(--ibis-red); font: 600 11px 'DM Sans', sans-serif; cursor: pointer; padding: 2px 6px; }
+
+  /* Custom (typed) My Opp bubble */
+  .ib-myopp-custom {
+    min-width: 120px; min-height: 22px; padding: 3px 9px; border-radius: 999px;
+    background: #eef0f3; color: #374151; border: 1px dashed #cbd2da;
+    font: 600 11px 'DM Sans', sans-serif; outline: none; cursor: text;
+    white-space: normal; word-break: break-word; display: inline-block; line-height: 1.35;
+  }
+  .ib-myopp-custom:focus { background: #fff; border-style: solid; border-color: #22d3ee; box-shadow: 0 0 0 2px rgba(34,211,238,.15); }
+  .ib-myopp-custom:empty:before { content: attr(data-ph); color: #9ca3af; font-weight: 500; }
+  .myopp-custom-row { display: inline-flex; align-items: center; gap: 3px; }
+  .myopp-x { border: none; background: none; color: #9ca3af; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; border-radius: 4px; }
+  .myopp-x:hover { color: var(--ibis-red); background: #fef2f4; }
+
   /* Tight gap between the controls bar and the table (no big white band) */
   #content-accounts .content { padding-top: 2px; }
   #acct-count-label { padding: 0; line-height: 1.3; margin-bottom: 2px; }
@@ -2336,92 +2368,53 @@
     <div class="table-wrap">
       <table class="acct-main-table">
         <thead>
-          <tr>
-            <th class="status-col" style="min-width:96px;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-status"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></span>
-              </div>
-            </th>
-            <th style="min-width:104px;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-priority"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('acctPriority')">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></span>
-              </div>
-            </th>
+          <!-- Filter-bubble row: floats in the grey strip above the labels, flush-left per column -->
+          <tr class="hf-row">
+            <th class="status-col"><span class="hf-slot" id="hfslot-status"></span></th>
+            <th><span class="hf-slot" id="hfslot-priority"></span></th>
+            <th></th>
+            <th><span class="hf-slot" id="hfslot-myopp"></span></th>
+            <th><span class="hf-slot" id="hfslot-otheropp"></span></th>
+            <th><span class="hf-slot" id="hfslot-vertical"></span></th>
+            <th><span class="hf-slot" id="hfslot-tier"></span></th>
+            <th><span class="hf-slot" id="hfslot-revenueband"></span></th>
+            <th><span class="hf-slot" id="hfslot-overlap"></span></th>
+            <th></th>
+            <th style="display:none;"></th>
+            <th><span class="hf-slot" id="hfslot-usclient"></span></th>
+            <th><span class="hf-slot" id="hfslot-activeclient"></span></th>
+            <th><span class="hf-slot" id="hfslot-keychurn"></span></th>
+            <th><span class="hf-slot" id="hfslot-keylost"></span></th>
+            <th><span class="hf-slot" id="hfslot-otherlost"></span></th>
+            <th><span class="hf-slot" id="hfslot-keytrials"></span></th>
+            <th></th>
+            <th></th>
+            <th><span class="hf-slot" id="hfslot-stage"></span></th>
+            <th></th>
+            <th style="display:none;"></th>
+          </tr>
+          <!-- Label row: single line, all baselines aligned; click to sort -->
+          <tr class="hf-labels">
+            <th class="status-col" style="min-width:96px;cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
+            <th style="min-width:104px;cursor:pointer;" onclick="setSortCol('acctPriority')">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
-            <th style="text-align:left;min-width:150px;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-myopp"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('opp')" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></span>
-              </div>
-            </th>
-            <th style="text-align:left;min-width:150px;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-otheropp"></span>
-                <span class="hf-label" title="Other reps' live open opps. Dark segment = opp TYPE (New PIQ / PIQ Renew / New UK / UK Renew…)">Other Opp</span>
-              </div>
-            </th>
+            <th style="text-align:left;min-width:150px;cursor:pointer;" onclick="setSortCol('opp')" title="My active + won opportunities (from the Opportunities report) + custom typed opps">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
+            <th style="text-align:left;min-width:150px;cursor:pointer;" onclick="setSortCol('otherOppClose')" title="Other reps' live open opps. Click to sort by furthest-future close date.">Other Opp <span class="acct-sort-arrow" id="asort-otherOppClose"></span></th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
-            <th style="min-width:90px;" id="ath-tier">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-tier"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('tier')">Tier <span class="acct-sort-arrow" id="asort-tier"></span></span>
-              </div>
-            </th>
+            <th id="ath-tier" onclick="setSortCol('tier')" style="cursor:pointer;min-width:90px;">Tier <span class="acct-sort-arrow" id="asort-tier"></span></th>
             <th onclick="setSortCol('revenue')" style="cursor:pointer;">Revenue <span class="acct-sort-arrow" id="asort-revenue"></span></th>
-            <th style="white-space:nowrap;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-overlap"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('overlap')" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></span>
-              </div>
-            </th>
+            <th onclick="setSortCol('overlap')" style="cursor:pointer;white-space:nowrap;" title="Other reps in the group who also own this account">Overlap <span class="acct-sort-arrow" id="asort-overlap"></span></th>
             <th onclick="setSortCol('sentiment')" style="cursor:pointer;text-align:center;">Score <span class="acct-sort-arrow" id="asort-sentiment"></span></th>
             <th style="text-align:center;min-width:110px;display:none;">Campaigns</th>
-            <th style="text-align:center;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-usclient"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('usClient')">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></span>
-              </div>
-            </th>
-            <th style="white-space:nowrap;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-activeclient"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('activeClient')">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></span>
-              </div>
-            </th>
-            <th style="white-space:nowrap;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-keychurn"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="setSortCol('keyChurn')" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></span>
-              </div>
-            </th>
-            <th style="white-space:nowrap;text-align:left;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-keylost"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="collapseAllCells();renderAll()" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ★ = you owned it.">Key Lost Opps</span>
-              </div>
-            </th>
-            <th style="white-space:nowrap;text-align:left;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-otherlost"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="collapseAllCells();renderAll()" title="Closed-Lost global (non-US) opps over $1 (2016+).">Other Lost</span>
-              </div>
-            </th>
-            <th style="white-space:nowrap;text-align:left;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-keytrials"></span>
-                <span class="hf-label" style="cursor:pointer;" onclick="collapseAllCells();renderAll()" title="Trials (≤$1, closed) across all geographies (2016+).">Key Trials</span>
-              </div>
-            </th>
+            <th onclick="setSortCol('usClient')" style="cursor:pointer;">US Client <span class="acct-sort-arrow" id="asort-usClient"></span></th>
+            <th onclick="setSortCol('activeClient')" style="cursor:pointer;white-space:nowrap;">Active Client <span class="acct-sort-arrow" id="asort-activeClient"></span></th>
+            <th onclick="setSortCol('keyChurn')" style="cursor:pointer;white-space:nowrap;" title="Significant re-winnable churned licenses (>$20K ACV) — recency-weighted. Click to sort.">Key Churn <span class="acct-sort-arrow" id="asort-keyChurn"></span></th>
+            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost US Industry/Procurement opps over $1 (2016+). ★ = you owned it.">Key Lost Opps</th>
+            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Closed-Lost global (non-US) opps over $1 (2016+).">Other Lost</th>
+            <th onclick="collapseAllCells();renderAll()" style="cursor:pointer;white-space:nowrap;text-align:left;" title="Trials (≤$1, closed) across all geographies (2016+).">Key Trials</th>
             <th onclick="setSortCol('opps')" style="cursor:pointer;">Opps <span class="acct-sort-arrow" id="asort-opps"></span></th>
             <th onclick="setSortCol('licenses')" style="cursor:pointer;">Licenses <span class="acct-sort-arrow" id="asort-licenses"></span></th>
-            <th style="min-width:120px;">
-              <div class="hf-th">
-                <span class="hf-slot" id="hfslot-stage"></span>
-                <span class="hf-label">Stage</span>
-              </div>
-            </th>
+            <th style="min-width:120px;">Stage</th>
             <th onclick="setSortCol('intent')" style="cursor:pointer;">Intent <span class="acct-sort-arrow" id="asort-intent"></span></th>
             <th onclick="setSortCol('days')" style="cursor:pointer;display:none;">Days Inactive <span class="acct-sort-arrow" id="asort-days"></span></th>
           </tr>
@@ -3392,7 +3385,8 @@ function pruneStaleLocalData() {
     const hasPriority = !!(entry.acctPriority);
     const hasPlan   = !!(entry.accountPlan && entry.accountPlan.trim());
     const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate || entry.actionNotes || entry.acctOpp || entry.acctActionStage);
-    if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction) return; // has real user data — keep
+    const hasCustomOppData = !!(entry.customOpp && entry.customOpp.trim());
+    if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction || hasCustomOppData) return; // has real user data — keep
     delete localData[name];
     pruned++;
   });
@@ -3448,11 +3442,11 @@ function getFiltered() {
     const aName = getField(a,'Account Name','AccountName');
     const name = aName.toLowerCase();
     if (q && !name.includes(q) && !getField(a,'Vertical').toLowerCase().includes(q)) return false;
-    if (vert && getTrueVertical(a) !== vert) return false;
     // TABLE view uses the column-header filter bubbles; Cards view keeps the chip system.
     if (currentView === 'table') {
       return passesColFilters(a, aName);
     }
+    if (vert && getTrueVertical(a) !== vert) return false; // toolbar All Verticals = Cards view only
     if (acctTierFilters.size > 0) {
       const tierVal = getField(a,'Major Markets Tier') || '';
       if (!acctTierFilters.has(tierVal)) return false;
@@ -3525,7 +3519,7 @@ function getFiltered() {
     if (sort==='acctStatus') { const ord={truekeep:0,keep:1,market:2,monitor:3,entdrop:4,drop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
     if (sort==='acctPriority') { const ord={quickwinner:0,teamsell:1,legendary:2,veryrare:3,rare:4,uncommon:5,common:6,'':7}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??7)-(ord[bp]??7)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
-    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); return d*(((hasMyOpp(an)||hasActiveOpp(an))?1:0)-((hasMyOpp(bn)||hasActiveOpp(bn))?1:0)); }
+    if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); const v=n=>(hasMyOpp(n)||hasActiveOpp(n)||hasCustomOpp(n))?1:0; return d*(v(an)-v(bn)); }
     if (sort==='otherOppClose') return d*(otherOppMaxClose(getField(a,'Account Name','AccountName')) - otherOppMaxClose(getField(b,'Account Name','AccountName')));
     if (sort==='overlap') {
       const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName');
@@ -4584,10 +4578,10 @@ let accountPageOrigin = 'accounts'; // which tab we came from
 let accountPageList = [];           // snapshot of filtered account names at click time
 let accountPageIdx = -1;            // current position in that list
 let currentAccountPageName = null;  // name of account currently shown on the deep-dive page (null if closed)
-const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', usClient:'desc', activeClient:'desc', keyChurn:'desc', opp:'desc', overlap:'desc', acctStatus:'asc', acctPriority:'asc' };
+const ACCT_SORT_DEFAULT_DIR = { vertical:'asc', tier:'asc', name:'asc', revenue:'desc', sentiment:'desc', intent:'desc', days:'desc', opps:'desc', licenses:'desc', workables:'desc', samples:'desc', sixqa:'desc', usClient:'desc', activeClient:'desc', keyChurn:'desc', opp:'desc', otherOppClose:'desc', overlap:'desc', acctStatus:'asc', acctPriority:'asc' };
 
 function updateAcctSortArrows() {
-  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','usClient','activeClient','keyChurn','opp','overlap','acctStatus','acctPriority'].forEach(c => {
+  ['vertical','tier','revenue','sentiment','intent','days','opps','licenses','workables','samples','sixqa','usClient','activeClient','keyChurn','opp','otherOppClose','overlap','acctStatus','acctPriority'].forEach(c => {
     const el = document.getElementById('asort-' + c);
     if (!el) return;
     if (c === acctSortCol) {
@@ -4656,29 +4650,67 @@ let acctTierFilters = new Set(); // values: '1','2','3','4','' (CARDS view only)
 
 /* ── TABLE-VIEW column-header filters (independent from the Cards-view chip system) ──
    Multi filters hold a Set of selected option keys; toggle filters hold a boolean.
-   OR within a filter, AND across filters — same semantics as the old chip groups.   */
+   OR within a filter, AND across filters — same semantics as the old chip groups.
+   Each multi option carries { key, label (short, for the bubble), full? (spelled out,
+   for the dropdown), css (data-encoded pill colours) } so it renders as a real pill.  */
 let acctColFilters = {
-  status: new Set(), priority: new Set(), tier: new Set(), otheropp: new Set(), stage: new Set(),
-  myopp:false, usclient:false, activeclient:false, overlap:false,
+  status: new Set(), priority: new Set(), tier: new Set(), otheropp: new Set(),
+  stage: new Set(), vertical: new Set(), revenueband: new Set(), myopp: new Set(),
+  usclient:false, activeclient:false, overlap:false,
   keychurn:false, keylost:false, otherlost:false, keytrials:false,
   hasworkables:false, inaction:false, activeopp:false
 };
 const ACCT_STATUS_FILTER_OPTS = [
-  {key:'truekeep',label:'🔒 True Keep'},{key:'keep',label:'✓ Keep'},{key:'market',label:'📣 Market'},
-  {key:'monitor',label:'👁 Monitor'},{key:'entdrop',label:'🏢 Ent Drop'},{key:'drop',label:'✕ Drop'}
+  {key:'truekeep',label:'🔒 True Keep', css:'background:#dbeafe;color:#1e40af;'},
+  {key:'keep',    label:'✓ Keep',       css:'background:#dcfce7;color:#15803d;'},
+  {key:'market',  label:'📣 Market',    css:'background:#ecfccb;color:#4d7c0f;'},
+  {key:'monitor', label:'👁 Monitor',   css:'background:#fef9c3;color:#854d0e;'},
+  {key:'entdrop', label:'🏢 Ent Drop',  css:'background:#eaddd6;color:#7c2d12;'},
+  {key:'drop',    label:'✕ Drop',       css:'background:#fee2e2;color:#b91c1c;'}
 ];
 const ACCT_PRIORITY_FILTER_OPTS = [
-  {key:'quickwinner',label:'⚡ Quick Winner'},{key:'teamsell',label:'🤝 Team Sell'},{key:'legendary',label:'💎 Legendary'},
-  {key:'veryrare',label:'⭐ Very Rare'},{key:'rare',label:'🔨 Rare'},{key:'uncommon',label:'⛏ Uncommon'}
+  {key:'quickwinner',label:'⚡ Quick Winner', css:'background:#1e3a8a;color:#ffffff;'},
+  {key:'teamsell',   label:'🤝 Team Sell',    css:'background:#ccfbf1;color:#115e59;'},
+  {key:'legendary',  label:'💎 Legendary',    css:'background:#fef3c7;color:#92400e;'},
+  {key:'veryrare',   label:'⭐ Very Rare',     css:'background:#ede9fe;color:#5b21b6;'},
+  {key:'rare',       label:'🔨 Rare',         css:'background:#dbeafe;color:#1e40af;'},
+  {key:'uncommon',   label:'⛏ Uncommon',      css:'background:#d1fae5;color:#065f46;'}
 ];
 const ACCT_TIER_FILTER_OPTS = [
-  {key:'1',label:'Tier 1'},{key:'2',label:'Tier 2'},{key:'3',label:'Tier 3'},{key:'4',label:'Tier 4'},{key:'',label:'— No tier'}
+  {key:'1',label:'Tier 1', css:'background:#dbeafe;color:#1e3a8a;'},
+  {key:'2',label:'Tier 2', css:'background:#d1fae5;color:#065f46;'},
+  {key:'3',label:'Tier 3', css:'background:#ffedd5;color:#9a3412;'},
+  {key:'4',label:'Tier 4', css:'background:#e5e7eb;color:#374151;'},
+  {key:'', label:'No tier', full:'— No tier', css:'background:#f3f4f6;color:#6b7280;'}
 ];
 const ACCT_OTHEROPP_FILTER_OPTS = [
-  {key:'piq_new',label:'New PIQ'},{key:'piq_cs',label:'PIQ Renew'},{key:'intl_new',label:'New Intl'},
-  {key:'intl_cs',label:'Intl Renew'},{key:'ind_new',label:'New Ind'},{key:'ind_cs',label:'Ind Renew'}
+  {key:'piq_new', label:'New PIQ',    full:'New Procurement IQ',      css:'background:#eafaf1;color:#15803d;'},
+  {key:'piq_cs',  label:'PIQ Renew',  full:'Procurement IQ Renewal',  css:'background:#eff5ff;color:#1d4ed8;'},
+  {key:'intl_new',label:'New Intl',   full:'New International',        css:'background:#f5f3ff;color:#7c3aed;'},
+  {key:'intl_cs', label:'Intl Renew', full:'International Renewal',    css:'background:#ecfeff;color:#0e7490;'},
+  {key:'ind_new', label:'New Ind',    full:'New US Industry',          css:'background:#f5f5f4;color:#57534e;'},
+  {key:'ind_cs',  label:'Ind Renew',  full:'US Industry Renewal',      css:'background:#fffbeb;color:#b45309;'}
 ];
-// Distinct 6sense buying stages present in the data, ordered Awareness→Purchase.
+const ACCT_REVENUE_FILTER_OPTS = [
+  {key:'gt50b', label:'$50B+',      css:'background:#dcfce7;color:#15803d;'},
+  {key:'10b50b',label:'$10B–$50B',  css:'background:#ddd6fe;color:#5b21b6;'},
+  {key:'1b10b', label:'$1B–$10B',   css:'background:#dbeafe;color:#1e40af;'},
+  {key:'50m1b', label:'$50M–$1B',   css:'background:#e0f2fe;color:#0369a1;'},
+  {key:'lt50m', label:'< $50M',     css:'background:#f1f5f9;color:#475569;'},
+  {key:'none',  label:'No revenue', css:'background:#f3f4f6;color:#9ca3af;'}
+];
+const ACCT_MYOPP_FILTER_OPTS = [
+  {key:'sf',     label:'SalesForce Opps', full:'SalesForce opps (from report)', css:'background:#eff5ff;color:#1d4ed8;'},
+  {key:'custom', label:'Custom Opps',     full:'Custom opps (typed by me)',     css:'background:#f3f4f6;color:#4b5563;'}
+];
+function stageCssFor(s) {
+  if (/Decision/.test(s))      return 'background:#dbeafe;color:#1d4ed8;';
+  if (/Consideration/.test(s)) return 'background:#fef3c7;color:#92400e;';
+  if (/Awareness/.test(s))     return 'background:#f3f4f6;color:#6b7280;';
+  if (/Purchase/.test(s))      return 'background:#dcfce7;color:#15803d;';
+  return 'background:#f3f4f6;color:#6b7280;';
+}
+// Distinct 6sense buying stages present, ordered Awareness→Purchase, each with a pill colour.
 function acctStageFilterOpts() {
   const set = new Set();
   accounts.forEach(a => { if (a._isSkeletonAccount || a._droppedFromCSV) return; const s = getField(a,'6sense Account Buying Stage NA'); if (s) set.add(s); });
@@ -4686,18 +4718,35 @@ function acctStageFilterOpts() {
   return [...set].sort((x,y) => {
     const ix = order.findIndex(o => x.includes(o)), iy = order.findIndex(o => y.includes(o));
     return (ix<0?99:ix) - (iy<0?99:iy) || x.localeCompare(y);
-  }).map(s => ({key:s,label:s}));
+  }).map(s => ({key:s, label:s, css:stageCssFor(s)}));
 }
-// Filter descriptor. kind 'multi' = checkbox dropdown; kind 'toggle' = on/off bubble.
+// Distinct verticals present, coloured from the vertical palette.
+function acctVerticalFilterOpts() {
+  const verts = [...new Set(accounts.filter(a => !a._isSkeletonAccount && !a._droppedFromCSV).map(a => getTrueVertical(a)).filter(Boolean))].sort();
+  return verts.map(v => ({key:v, label:v, css:`background:${VERT_COLORS[v]||'#f3f4f6'};color:#374151;`}));
+}
+// Which revenue band an account falls into (USD).
+function revBandKey(a) {
+  const rd = getRevDisplay(a); const raw = (rd && rd.raw) ? rd.raw : 0;
+  if (!raw) return 'none';
+  if (raw < 50e6)  return 'lt50m';
+  if (raw < 1e9)   return '50m1b';
+  if (raw < 10e9)  return '1b10b';
+  if (raw < 50e9)  return '10b50b';
+  return 'gt50b';
+}
+// Filter descriptor. kind 'multi' = coloured-pill checkbox dropdown; kind 'toggle' = on/off bubble.
 const ACCT_HF = {
   status:      {kind:'multi',  opts:ACCT_STATUS_FILTER_OPTS},
   priority:    {kind:'multi',  opts:ACCT_PRIORITY_FILTER_OPTS},
   tier:        {kind:'multi',  opts:ACCT_TIER_FILTER_OPTS},
   otheropp:    {kind:'multi',  opts:ACCT_OTHEROPP_FILTER_OPTS, sortOnApply:true},
+  vertical:    {kind:'multi',  opts:acctVerticalFilterOpts},
+  revenueband: {kind:'multi',  opts:ACCT_REVENUE_FILTER_OPTS},
   stage:       {kind:'multi',  opts:acctStageFilterOpts},
-  myopp:       {kind:'toggle', label:'My Opp'},
+  myopp:       {kind:'multi',  opts:ACCT_MYOPP_FILTER_OPTS},
   usclient:    {kind:'toggle', label:'US Client'},
-  activeclient:{kind:'toggle', label:'Active'},
+  activeclient:{kind:'toggle', label:'Active Client'},
   overlap:     {kind:'toggle', label:'Multi-Owner'},
   keychurn:    {kind:'toggle', label:'Key Churn'},
   keylost:     {kind:'toggle', label:'Key Lost'},
@@ -4709,18 +4758,25 @@ const ACCT_HF = {
 };
 let hfOpenId = null;
 function hfOptsFor(id) { const o = ACCT_HF[id].opts; return typeof o === 'function' ? o() : o; }
-// Build one bubble's HTML (preview label = highest selected option, else first option muted).
+function hfPill(opt, useFull) { return `<span class="hf-pill" style="${opt.css||'background:#f3f4f6;color:#6b7280;'}">${escHtml((useFull && opt.full) ? opt.full : opt.label)}</span>`; }
+// Build one bubble's HTML. Multi = coloured pill preview (top selected, or first dimmed) + caret.
 function hfBubbleHtml(id) {
   const cfg = ACCT_HF[id];
   if (cfg.kind === 'toggle') {
     const active = !!acctColFilters[id];
-    return `<button class="hf-bubble${active?' active':''}" onclick="toggleHf('${id}')" title="Filter: ${escHtml(cfg.label)}"><span class="hf-txt">${escHtml(cfg.label)}</span></button>`;
+    return `<button class="hf-bubble hf-toggle${active?' active':''}" onclick="toggleHf('${id}')" title="Filter: ${escHtml(cfg.label)}"><span class="hf-txt">${escHtml(cfg.label)}</span></button>`;
   }
   const opts = hfOptsFor(id), sel = acctColFilters[id];
-  let label, active = false;
-  if (sel.size) { active = true; const first = opts.find(o => sel.has(o.key)); label = (first?first.label:'') + (sel.size>1?` +${sel.size-1}`:''); }
-  else { label = opts.length ? opts[0].label : '—'; }
-  return `<button class="hf-bubble${active?' active':''}" onclick="openHfMenu('${id}',this)" title="Filter"><span class="hf-txt">${escHtml(label)}</span><span class="hf-caret">▾</span></button>`;
+  let pill, active = false, extra = '';
+  if (sel.size) {
+    active = true;
+    const first = opts.find(o => sel.has(o.key)) || opts[0];
+    pill = first ? hfPill(first, false) : '';
+    if (sel.size > 1) extra = `<span class="hf-more-n">+${sel.size-1}</span>`;
+  } else {
+    pill = opts.length ? hfPill(opts[0], false) : '<span class="hf-pill" style="background:#f3f4f6;color:#9ca3af;">—</span>';
+  }
+  return `<button class="hf-bubble hf-multi${active?' active':''}" onclick="openHfMenu('${id}',this)" title="Filter">${active?'':'<span class="hf-dim">'}${pill}${active?'':'</span>'}${extra}<span class="hf-caret">▾</span></button>`;
 }
 // Fill every header/overflow bubble slot (called from renderAll).
 function renderAcctHeaderBubbles() {
@@ -4731,11 +4787,11 @@ function openHfMenu(id, btn) {
   const portal = document.getElementById('hf-portal');
   const opts = hfOptsFor(id), sel = acctColFilters[id];
   portal.innerHTML = opts.map(o =>
-    `<label class="hf-opt"><input type="checkbox" data-k="${escHtml(o.key)}" ${sel.has(o.key)?'checked':''} onchange="hfSetMulti('${id}',this.dataset.k,this.checked)"> ${escHtml(o.label)}</label>`
+    `<label class="hf-opt"><input type="checkbox" data-k="${escHtml(o.key)}" ${sel.has(o.key)?'checked':''} onchange="hfSetMulti('${id}',this.dataset.k,this.checked)">${hfPill(o, true)}</label>`
   ).join('') + `<div class="hf-portal-actions"><button onclick="hfClear('${id}')">Clear</button></div>`;
   const r = btn.getBoundingClientRect();
-  portal.style.top = (r.bottom + 4) + 'px';
-  portal.style.left = Math.min(r.left, window.innerWidth - 180) + 'px';
+  portal.style.top = (r.bottom + 5) + 'px';
+  portal.style.left = Math.min(r.left, window.innerWidth - 220) + 'px';
   portal.classList.remove('hidden');
   hfOpenId = id;
 }
@@ -4752,9 +4808,11 @@ function passesColFilters(a, aName) {
   if (cf.status.size   && !cf.status.has(localData[aName]?.acctStatus || '')) return false;
   if (cf.priority.size && !cf.priority.has(localData[aName]?.acctPriority || '')) return false;
   if (cf.tier.size     && !cf.tier.has(getField(a,'Major Markets Tier') || '')) return false;
+  if (cf.vertical.size && !cf.vertical.has(getTrueVertical(a))) return false;
+  if (cf.revenueband.size && !cf.revenueband.has(revBandKey(a))) return false;
   if (cf.stage.size    && !cf.stage.has(getField(a,'6sense Account Buying Stage NA') || '')) return false;
   if (cf.otheropp.size) { const cats = new Set(getOtherOpps(aName).map(o => otherOppCat(o).key)); if (![...cf.otheropp].some(k => cats.has(k))) return false; }
-  if (cf.myopp        && getMyOpps(aName).length === 0) return false;
+  if (cf.myopp.size) { const ok = [...cf.myopp].some(k => k === 'sf' ? getMyOpps(aName).length > 0 : (k === 'custom' ? hasCustomOpp(aName) : false)); if (!ok) return false; }
   if (cf.usclient     && !hasUSLicense(aName)) return false;
   if (cf.activeclient && !getActiveLicBadges(aName)) return false;
   if (cf.overlap      && getOtherRepOverlap(aName).length === 0) return false;
@@ -4767,13 +4825,16 @@ function passesColFilters(a, aName) {
   if (cf.activeopp    && !hasActiveOpp(aName)) return false;
   return true;
 }
-// Show the Cards chip bar in Cards view, the Table overflow bubbles in Table view.
+// Show the Cards chip bar in Cards view; the Table overflow bubbles + column bubbles in Table view.
+// The toolbar "All Verticals" dropdown is hidden in Table view (the Vertical column bubble handles it).
 function updateAcctFilterUIVisibility() {
   const isTable = currentView === 'table';
   const cards = document.getElementById('acct-cards-chips');
   const over  = document.getElementById('acct-table-overflow');
+  const vsel  = document.getElementById('vertical-filter');
   if (cards) cards.style.display = isTable ? 'none' : '';
   if (over)  over.style.display  = isTable ? '' : 'none';
+  if (vsel)  vsel.style.display  = isTable ? 'none' : '';
 }
 
 let licTypeFilters  = new Set(); // values: 'US','PIQ','INTL','TRIAL','UNKNOWN'
@@ -5155,6 +5216,32 @@ function getOppRowsFor(name) {
 }
 // My Opps — owner = me, not Closed Lost (active pipeline + Closed Won still-working).
 function getMyOpps(name) { return getOppRowsFor(name).filter(o => o.isMine && !o.closedLost); }
+// Custom (manually-typed) My Opp — free text stored in ibis_local[name].customOpp.
+function hasCustomOpp(name) { const v = localData[name]?.customOpp; return typeof v === 'string' && v.trim() !== ''; }
+// Triple-protected save (input debounce + blur + beforeunload flush covers it since it's in ibis_local).
+function saveCustomOppDebounced(name, value) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].customOpp = value;
+  clearTimeout(saveCustomOppDebounced._t);
+  saveCustomOppDebounced._t = setTimeout(() => { try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e){ console.warn('[ibis] customOpp save failed', e); } }, 400);
+}
+function saveCustomOppNow(name, value) {
+  if (!localData[name]) localData[name] = {};
+  localData[name].customOpp = value;
+  try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e){ console.warn('[ibis] customOpp save failed', e); }
+}
+// Grey-dot click → create an empty custom opp and re-render so the editable bubble appears + focuses.
+function startCustomOpp(name) {
+  if (!localData[name]) localData[name] = {};
+  if (typeof localData[name].customOpp !== 'string') localData[name].customOpp = '';
+  saveCustomOppNow(name, localData[name].customOpp);
+  renderAll();
+  setTimeout(() => { const el = document.querySelector(`.myopp-custom[data-acctname="${(name||'').replace(/"/g,'&quot;')}"]`); if (el) { el.focus(); } }, 30);
+}
+function removeCustomOpp(name) {
+  if (localData[name]) { delete localData[name].customOpp; try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e){} }
+  renderAll();
+}
 // Other reps' LIVE open opps only. Closed-won $0 "ongoing" trials now live in the
 // Key Trials column (all trial history, labeled) — kept out of here to avoid dup.
 function getOtherOpps(name) {
@@ -5274,15 +5361,36 @@ function openOppKeyPreview(event, name, kind) {
 // My Opp — solid one-colour pill. Blue = active, green = won.
 function renderMyOppCell(name, local) {
   const mine = getMyOpps(name);
-  if (!mine.length) return renderAcctOppCell(name, local); // no CSV opp → manual widget stays
-  return renderBubbleCell(name, 'myopp', mine, o => {
+  const hasCustom = local && typeof local.customOpp === 'string';
+  const esc = escHtml(name);
+  const pillFor = o => {
     const cls = o.closedWon ? 'ib-myopp-won' : 'ib-myopp-active';
     const amt = oppFmtAmount(o.amount, o.currency);
     const tag = o.isProcurement ? 'PIQ' : (o.isIndustry ? 'IND' : '');
     const stage = o.closedWon ? 'Won' : o.stage;
     const tip = `${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}${o.business?' · '+o.business:''}`;
     return `<span class="ib-solid ${cls}" title="${escHtml(tip)}"><span class="ib-lead">${escHtml(stage)}</span>${SEP}${escHtml(amt)}${tag?SEP+escHtml(tag):''}</span>`;
-  });
+  };
+  // No SF opp and no custom yet → grey dot that creates a custom (typed) opp
+  if (!mine.length && !hasCustom) {
+    return `<button class="opp-dot-btn" data-acctname="${esc}" onclick="event.stopPropagation();startCustomOpp(this.dataset.acctname)" title="Click to add a custom opp note"><span class="opp-dot"></span></button>`;
+  }
+  // SF opps only → tidy expandable bubble cell (unchanged)
+  if (mine.length && !hasCustom) {
+    return renderBubbleCell(name, 'myopp', mine, pillFor);
+  }
+  // Custom opp present (± SF opps) → stack SF pills, then the editable custom bubble
+  const sfPills = mine.map(pillFor).join('');
+  const customBubble = `<span class="ib-solid ib-myopp-custom myopp-custom" contenteditable="true" spellcheck="false" data-acctname="${esc}" data-ph="Type an opp note…"
+      oninput="saveCustomOppDebounced(this.dataset.acctname,this.innerText)"
+      onblur="onCustomOppBlur(this.dataset.acctname,this.innerText)"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${escHtml(local.customOpp)}</span>`;
+  const removeBtn = `<button class="myopp-x" data-acctname="${esc}" title="Remove custom opp" onclick="event.stopPropagation();removeCustomOpp(this.dataset.acctname)">×</button>`;
+  return `<div class="ib-cell"><div class="ib-bubbles ib-1col">${sfPills}<span class="myopp-custom-row">${customBubble}${removeBtn}</span></div></div>`;
+}
+function onCustomOppBlur(name, text) {
+  if (!text || !text.trim()) { removeCustomOpp(name); }
+  else { saveCustomOppNow(name, text); }
 }
 // Other Opp categorisation — driven by OWNER ROLE (the Business column is unreliable:
 // a "ProQ CRM" owner selling Procurement IQ can show Business "US Industry"). Rules:
@@ -11268,12 +11376,15 @@ function exportAccountsTab() {
   if (currentView === 'table') {
     const cf = acctColFilters;
     const lbls = (id, set) => hfOptsFor(id).filter(o => set.has(o.key)).map(o => o.label);
-    if (cf.status.size)   parts.push('Status: '   + lbls('status', cf.status).join('/'));
-    if (cf.priority.size) parts.push('Priority: ' + lbls('priority', cf.priority).join('/'));
-    if (cf.tier.size)     parts.push('Tier: '     + lbls('tier', cf.tier).join('/'));
-    if (cf.otheropp.size) parts.push('Other Opp: '+ lbls('otheropp', cf.otheropp).join('/'));
-    if (cf.stage.size)    parts.push('Stage: '    + [...cf.stage].join('/'));
-    [['myopp','My Opp'],['usclient','US Client'],['activeclient','Active Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Lost'],['otherlost','Other Lost'],['keytrials','Key Trials'],['hasworkables','Has Workables'],['inaction','In Action'],['activeopp','Active Opp']].forEach(([k,l]) => { if (cf[k]) parts.push(l); });
+    if (cf.status.size)      parts.push('Status: '    + lbls('status', cf.status).join('/'));
+    if (cf.priority.size)    parts.push('Priority: '  + lbls('priority', cf.priority).join('/'));
+    if (cf.myopp.size)       parts.push('My Opp: '    + lbls('myopp', cf.myopp).join('/'));
+    if (cf.otheropp.size)    parts.push('Other Opp: ' + lbls('otheropp', cf.otheropp).join('/'));
+    if (cf.vertical.size)    parts.push('Vertical: '  + [...cf.vertical].join('/'));
+    if (cf.tier.size)        parts.push('Tier: '      + lbls('tier', cf.tier).join('/'));
+    if (cf.revenueband.size) parts.push('Revenue: '   + lbls('revenueband', cf.revenueband).join('/'));
+    if (cf.stage.size)       parts.push('Stage: '     + [...cf.stage].join('/'));
+    [['usclient','US Client'],['activeclient','Active Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Lost'],['otherlost','Other Lost'],['keytrials','Key Trials'],['hasworkables','Has Workables'],['inaction','In Action'],['activeopp','Active Opp']].forEach(([k,l]) => { if (cf[k]) parts.push(l); });
     const vertT = document.getElementById('vertical-filter')?.value; if (vertT) parts.push('Vertical: ' + vertT);
     const searchT = (document.getElementById('search-input')?.value || '').trim(); if (searchT) parts.push('Search: "' + searchT + '"');
     parts.push((document.querySelectorAll('#table-body tr').length) + ' rows');
