@@ -64,7 +64,8 @@ Runs hourly, copies the most recent dashboard backup here from Downloads.
 
 Files:
   latest.json     — the most recent full snapshot
-  snap-*.json     — last 30 hourly snapshots (oldest auto-pruned)
+  snap-*.json     — last 5 hourly snapshots in the repo (kept small so GitHub
+                    Pages deploys stay fast); the local mirror keeps 30
 
 To restore: open the dashboard, click "Backups & Restore" (upload menu or
 bottom-left pill), then "Restore from a file" and pick any snap-*.json
@@ -182,10 +183,13 @@ if (-not $fromMirror) {
     Log "Source is already the mirror -- skipping mirror copy."
 }
 
-# Prune old timestamped snapshots - keep only newest 30 (in BOTH locations)
+# Prune old timestamped snapshots.
+# REPO (committed to GitHub) keeps only the newest 5 — GitHub Pages rebuilds the
+# whole repo on every push, so a large backups/ folder stalls deploys. Full history
+# still lives in git history + the local mirror below (kept at 30).
 $old = Get-ChildItem -Path $BackupDir -Filter 'snap-*.json' |
     Sort-Object LastWriteTime -Descending |
-    Select-Object -Skip 30
+    Select-Object -Skip 5
 foreach ($f in $old) { Remove-Item $f.FullName -Force; Log "Pruned old snapshot: $($f.Name)" }
 $oldMirror = Get-ChildItem -Path $MirrorDir -Filter 'snap-*.json' -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending |
