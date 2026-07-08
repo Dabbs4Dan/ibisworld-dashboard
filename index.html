@@ -440,11 +440,12 @@
 
   /* Custom (typed) My Opp bubble — a defined, popping note pill */
   .ib-myopp-custom {
-    min-width: 110px; min-height: 24px; padding: 4px 11px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 64px; min-height: 21px; padding: 2px 11px; border-radius: 999px;
     background: #f8fafc; color: #334155; border: 1.5px solid #94a3b8;
     box-shadow: 0 1px 2px rgba(15,23,42,.08);
     font: 600 11px 'DM Sans', sans-serif; outline: none; cursor: text;
-    white-space: normal; word-break: break-word; display: inline-block; line-height: 1.35;
+    white-space: normal; word-break: break-word; text-align: center; line-height: 1.25;
     transition: border-color 150ms ease, box-shadow 150ms ease;
   }
   .ib-myopp-custom:hover { border-color: #64748b; }
@@ -627,6 +628,11 @@
   .actn-pill-active .actn-pill-btn { background:#22d3ee; border-left-color:#22d3ee; }
   .actn-pill-active .actn-bolt { filter:none; }
   .actn-pill-active .actn-pill-btn:hover { background:#06b6d4; }
+  /* Action favorite button — small standalone circle + bolt (grey → gold circle / blue bolt when saved) */
+  .act-fav { width:22px; height:22px; border-radius:50%; border:1.5px solid #d1d5db; background:#f3f4f6; color:#9ca3af; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:150ms ease; }
+  .act-fav:hover { border-color:#9ca3af; background:#e5e7eb; }
+  .act-fav.on { background:#fef3c7; border-color:#f59e0b; color:#2563eb; box-shadow:0 0 0 2px rgba(245,158,11,.15); }
+  .act-fav svg { display:block; }
   /* Card action button — top-right rounded square */
   .card-actn-btn { position:absolute; top:10px; right:10px; width:28px; height:28px; border-radius:6px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; }
   .card-actn-btn:hover { background:#cffafe; }
@@ -2220,11 +2226,7 @@
     <option value="">All Verticals</option>
   </select>
   <!-- TABLE view: overflow bubbles that have no natural column (rendered by renderAcctHeaderBubbles) -->
-  <div id="acct-table-overflow">
-    <span class="hf-slot" id="hfslot-hasworkables"></span>
-    <span class="hf-slot" id="hfslot-inaction"></span>
-    <span class="hf-slot" id="hfslot-activeopp"></span>
-  </div>
+  <div id="acct-table-overflow"></div>
   <span style="flex:1 1 auto;"></span>
   <span id="acct-count-label" class="acct-count-inline"></span>
   <button class="export-btn" onclick="exportAccountsTab()" title="Print or save current view as PDF (respects active filters + search + vertical)">🖨 Export / PDF</button>
@@ -2237,14 +2239,11 @@
     <button class="chip chip-entdrop" onclick="toggleChip(this,'ENT_DROP')" data-flag="ENT_DROP">🏢 Ent Drop</button>
     <button class="chip chip-drop" onclick="toggleChip(this,'DROP')" data-flag="DROP">✕ Drop</button>
     <button class="chip" onclick="toggleChip(this,'ACTIVE_LIC')" data-flag="ACTIVE_LIC">🔵 Active License</button>
-    <button class="chip" onclick="toggleChip(this,'KEY_CHURN')" data-flag="KEY_CHURN" title="Accounts with significant re-winnable churned licenses (>$20K ACV)">🔴 Key Churns</button>
+    <button class="chip" onclick="toggleChip(this,'KEY_CHURN')" data-flag="KEY_CHURN" title="Accounts with churned licenses (US Industry / PIQ / International)">🔴 Key Churns</button>
     <button class="chip" onclick="toggleOtherOppFilter()" data-flag="OTHER_OPP" title="Accounts where another rep has an active opp — sorted by furthest-future close date">👥 Other Opp</button>
     <button class="chip" onclick="toggleChip(this,'KEY_CLIENT')" data-flag="KEY_CLIENT" title="Accounts we've won before (Closed-Won history)">🏆 Key Client</button>
     <button class="chip" onclick="toggleChip(this,'KEY_LOST')" data-flag="KEY_LOST" title="Accounts with Closed-Lost opps (US + International)">💔 Key Opps</button>
     <button class="chip" onclick="toggleChip(this,'KEY_TRIALS')" data-flag="KEY_TRIALS" title="Accounts with trial history">🧪 Key Trials</button>
-    <button class="chip" onclick="toggleChip(this,'HAS_OPP')" data-flag="HAS_OPP">💼 Active Opp</button>
-    <button class="chip" onclick="toggleChip(this,'HAS_WORKABLES')" data-flag="HAS_WORKABLES">🎯 Has Workables</button>
-    <button class="chip chip-action" onclick="toggleChip(this,'HAS_ACTION')" data-flag="HAS_ACTION">⚡ In Action</button>
     <button class="chip" onclick="toggleChip(this,'MULTI_OWNER')" data-flag="MULTI_OWNER" title="Show only my accounts that another rep also owns">🔁 Multi-Owner</button>
     <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 4px;align-self:center;"></span>
     <button class="chip chip-quickwinner" onclick="toggleChip(this,'PRIO_QUICKWINNER')" data-flag="PRIO_QUICKWINNER">⚡ Quick Winner</button>
@@ -2383,6 +2382,7 @@
           <tr class="hf-row">
             <th class="status-col"><span class="hf-slot" id="hfslot-status"></span></th>
             <th><span class="hf-slot" id="hfslot-priority"></span></th>
+            <th><span class="hf-slot" id="hfslot-action"></span></th>
             <th></th>
             <th><span class="hf-slot" id="hfslot-hasheadline"></span></th>
             <th><span class="hf-slot" id="hfslot-myopp"></span></th>
@@ -2408,6 +2408,7 @@
           <tr class="hf-labels">
             <th class="status-col" style="min-width:96px;cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th style="min-width:104px;cursor:pointer;" onclick="setSortCol('acctPriority')">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
+            <th style="width:52px;min-width:52px;text-align:center;" title="Save accounts to the ⚡ Action tab (favorite)">Action</th>
             <th>Company</th>
             <th style="min-width:200px;">Action Headline</th>
             <th style="text-align:left;min-width:150px;cursor:pointer;" onclick="setSortCol('opp')" title="My active + won opportunities (from the Opportunities report) + custom typed opps">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
@@ -3520,14 +3521,12 @@ function getFiltered() {
       if (activeFlags.has('KEY_TRIALS') && getKeyTrials(aName).length === 0) return false;
       // Active Opp — standalone
       if (activeFlags.has('HAS_OPP') && !hasActiveOpp(aName)) return false;
-      // Has Workables — standalone
-      if (activeFlags.has('HAS_WORKABLES') && getWorkableCount(aName) === 0) return false;
       // In Action — standalone
       if (activeFlags.has('HAS_ACTION') && !localData[aName]?.hasAction) return false;
       // Multi-Owner — standalone (account also owned by another rep in the group)
       if (activeFlags.has('MULTI_OWNER') && getOtherRepOverlap(aName).length === 0) return false;
       // Emoji flags (legacy ibis_local.flags array — still filtered for backwards compat)
-      const knownFlags = new Set(['TRUE_KEEP','KEEP','MARKET','MONITOR','ENT_DROP','DROP','ACTIVE_LIC','KEY_CHURN','OTHER_OPP','KEY_CLIENT','KEY_LOST','KEY_TRIALS','HAS_OPP','HAS_WORKABLES','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
+      const knownFlags = new Set(['TRUE_KEEP','KEEP','MARKET','MONITOR','ENT_DROP','DROP','ACTIVE_LIC','KEY_CHURN','OTHER_OPP','KEY_CLIENT','KEY_LOST','KEY_TRIALS','HAS_OPP','HAS_ACTION','MULTI_OWNER','PRIO_QUICKWINNER','PRIO_TEAMSELL','PRIO_LEGENDARY','PRIO_VERYRARE','PRIO_RARE','PRIO_UNCOMMON']);
       for (const f of activeFlags) {
         if (!knownFlags.has(f) && !f.startsWith('STAGE_') && !flags.includes(f)) return false;
       }
@@ -3759,7 +3758,8 @@ function renderTable(list) {
     return `<tr data-acct="${escHtml(name)}" class="${flags.includes('🆕')?'new-account':''}${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}${isDropped?' dropped-row':''}">
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td><div class="actn-pill${local.hasAction?' actn-pill-active':''}"><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div><button class="actn-pill-btn" onclick="toggleAction(event)" data-name="${escHtml(name)}" title="Add to ⚡ Action tab"><span class="actn-bolt">⚡</span></button></div></td>
+      <td style="text-align:center;padding:0 2px;" onclick="event.stopPropagation()"><button class="act-fav${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Save to ⚡ Action tab"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></button></td>
+      <td><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()"><input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
@@ -4000,6 +4000,16 @@ function toggleAction(e) {
   if (pill) pill.classList.toggle('actn-pill-active', !!localData[name].hasAction);
   // Update button (card view)
   e.currentTarget.classList.toggle('card-actn-active', !!localData[name].hasAction);
+}
+// Action column favorite toggle (Accounts table). Grey circle → gold + blue bolt when saved.
+function toggleActionFav(e) {
+  e.stopPropagation();
+  const name = e.currentTarget.dataset.name;
+  if (!localData[name]) localData[name] = {};
+  localData[name].hasAction = !localData[name].hasAction;
+  localStorage.setItem('ibis_local', JSON.stringify(localData));
+  if (acctColFilters.action) renderAll();  // Action filter on → this row's visibility changes
+  else e.currentTarget.classList.toggle('on', !!localData[name].hasAction);
 }
 /* ============================================================
    REVENUE ENGINE
@@ -4694,9 +4704,8 @@ let acctTierFilters = new Set(); // values: '1','2','3','4','' (CARDS view only)
 let acctColFilters = {
   status: new Set(), priority: new Set(), tier: new Set(), otheropp: new Set(),
   stage: new Set(), vertical: new Set(), revenueband: new Set(), myopp: new Set(),
-  hasheadline:false, activeclient:false, keyclient:false, overlap:false,
-  keychurn:false, keylost:false, keytrials:false,
-  hasworkables:false, inaction:false, activeopp:false
+  action:false, hasheadline:false, activeclient:false, keyclient:false, overlap:false,
+  keychurn:false, keylost:false, keytrials:false
 };
 const ACCT_STATUS_FILTER_OPTS = [
   {key:'truekeep',label:'🔒 True Keep', css:'background:#dbeafe;color:#1e40af;'},
@@ -4788,16 +4797,14 @@ const ACCT_HF = {
   revenueband: {kind:'multi',  opts:ACCT_REVENUE_FILTER_OPTS},
   stage:       {kind:'multi',  opts:acctStageFilterOpts},
   myopp:       {kind:'multi',  opts:ACCT_MYOPP_FILTER_OPTS},
+  action:      {kind:'toggle', label:'⚡'},
   hasheadline: {kind:'toggle', label:'Has Headline'},
   activeclient:{kind:'toggle', label:'Active Client'},
   keyclient:   {kind:'toggle', label:'Key Client'},
   overlap:     {kind:'toggle', label:'Multi-Owner'},
   keychurn:    {kind:'toggle', label:'Key Churn'},
   keylost:     {kind:'toggle', label:'Key Opps'},
-  keytrials:   {kind:'toggle', label:'Key Trials'},
-  hasworkables:{kind:'toggle', label:'🎯 Has Workables'},
-  inaction:    {kind:'toggle', label:'⚡ In Action'},
-  activeopp:   {kind:'toggle', label:'💼 Active Opp'}
+  keytrials:   {kind:'toggle', label:'Key Trials'}
 };
 let hfOpenId = null;
 function hfOptsFor(id) { const o = ACCT_HF[id].opts; return typeof o === 'function' ? o() : o; }
@@ -4857,6 +4864,7 @@ function passesColFilters(a, aName) {
   if (cf.stage.size    && !cf.stage.has(getField(a,'6sense Account Buying Stage NA') || '')) return false;
   if (cf.otheropp.size) { const cats = new Set(getOtherOpps(aName).map(o => otherOppCat(o).key)); if (![...cf.otheropp].some(k => cats.has(k))) return false; }
   if (cf.myopp.size) { const ok = [...cf.myopp].some(k => k === 'sf' ? getMyOpps(aName).length > 0 : (k === 'custom' ? hasCustomOpp(aName) : false)); if (!ok) return false; }
+  if (cf.action       && !localData[aName]?.hasAction) return false;
   if (cf.hasheadline  && !(localData[aName]?.actionHeadline || '').trim()) return false;
   if (cf.activeclient && !getActiveLicBadges(aName)) return false;
   if (cf.keyclient    && getKeyClient(aName).length === 0) return false;
@@ -4864,9 +4872,6 @@ function passesColFilters(a, aName) {
   if (cf.keychurn     && getAccountKeyChurns(aName).length === 0) return false;
   if (cf.keylost      && getKeyLostOpps(aName).length === 0) return false;
   if (cf.keytrials    && getKeyTrials(aName).length === 0) return false;
-  if (cf.hasworkables && getWorkableCount(aName) === 0) return false;
-  if (cf.inaction     && !localData[aName]?.hasAction) return false;
-  if (cf.activeopp    && !hasActiveOpp(aName)) return false;
   return true;
 }
 // Show the Cards chip bar in Cards view; the Table overflow bubbles + column bubbles in Table view.
@@ -5109,13 +5114,17 @@ function getKeyChurnWeight(name) {
     return s + (l._acv||0) * recency;
   }, 0);
 }
+// Country code from an international license name (- CA -, - AU -, - UK - …).
+function licCountry(l) { const m = (l._licenseName||'').match(/ - ([A-Z]{2}) - /i); return m ? m[1].toUpperCase() : ''; }
 function keyChurnPill(l) {
-  const type = l._type === 'PIQ' ? 'PIQ' : l._type === 'INTL' ? 'INTL' : 'IND';
-  const lab  = type === 'PIQ' ? 'PIQ' : type === 'INTL' ? 'Intl' : 'Ind';
-  const full = type === 'PIQ' ? 'PIQ' : type === 'INTL' ? 'International' : 'US Industry';
-  const yr   = l._endDate ? l._endDate.getFullYear() : 0;
-  const end  = l._endDate ? rotShortDate(l._endDate) : '';
-  const sep  = '<span class="ib-sep"></span>';
+  const country = l._type === 'INTL' ? licCountry(l) : '';
+  const isCA    = country === 'CA';                       // Canada = US-Industry jurisdiction → red, keep "CA" label
+  const type    = l._type === 'PIQ' ? 'PIQ' : (l._type === 'INTL' && !isCA) ? 'INTL' : 'IND';
+  const lab     = l._type === 'PIQ' ? 'PIQ' : l._type === 'INTL' ? (country || 'Intl') : 'Ind';
+  const full    = l._type === 'PIQ' ? 'PIQ' : l._type === 'INTL' ? (country ? country+' (International)' : 'International') : 'US Industry';
+  const yr      = l._endDate ? l._endDate.getFullYear() : 0;
+  const end     = l._endDate ? rotShortDate(l._endDate) : '';
+  const sep     = '<span class="ib-sep"></span>';
   return `<span class="ib-solid ${histClass(type, yr)}" title="Churned ${full} license · ${rotMoney(l._acv||0)}${end?' · ended '+end:''}"><span class="ib-lead">${lab}</span>${sep}${rotMoney(l._acv||0)}${end?sep+end:''}</span>`;
 }
 // 2×2 in-cell, most-recent first, "+N · $total" expands the cell in place.
@@ -5326,9 +5335,16 @@ const OPP_KEY_KINDS = {
   lost:      { title:'💔 Key Opps (Closed Lost)' },
   trials:    { title:'🧪 Key Trials' },
 };
-// Product/geography for an opp → drives the unified colour + tag. International wins the green.
-function oppGeoType(o) { return !o.isUSProduct ? 'INTL' : (o.isProcurement ? 'PIQ' : 'IND'); }
-function oppGeoTag(o)  { return !o.isUSProduct ? (o.business.split(' ')[0] || 'Intl') : (o.isProcurement ? 'PIQ' : 'Ind'); }
+// Product/geography for an opp → {type (colour), tag (label)}. International = green, but
+// Canada (CA) counts as US-Industry jurisdiction → red, keeping its "CA" label.
+function oppGeoInfo(o) {
+  if (!o.isUSProduct) {
+    const country = o.business.split(' ')[0] || 'Intl';
+    if (/^ca$|^canada$/i.test(country)) return { type:'IND', tag:'CA' };
+    return { type:'INTL', tag:country };
+  }
+  return o.isProcurement ? { type:'PIQ', tag:'PIQ' } : { type:'IND', tag:'Ind' };
+}
 /* ══ Unified expandable bubble cell ══
    Caps at 4 bubbles (2×2 grid), then a dark-grey "+N" that expands the cell IN
    PLACE (grows the row). Collapses on re-click, a header sort, or a filter change. */
@@ -5355,24 +5371,24 @@ const SEP = '<span class="ib-sep"></span>';
 // Key Client — Closed-Won history. Geo/type leads (bold), unified colours, ⭐ if mine.
 function keyClientPill(o) {
   const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
-  const y = o.close ? o.close.getFullYear() : 0;
+  const y = o.close ? o.close.getFullYear() : 0, g = oppGeoInfo(o);
   const tip = `${o.isMine?'(mine) ':''}${o.owner} · ${o.oppName} · Closed Won · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ${histClass(oppGeoType(o), y)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${oppGeoTag(o)}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
+  return `<span class="ib-solid ${histClass(g.type, y)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${escHtml(g.tag)}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
 }
 // Key Opps — Closed-Lost (US Industry/PIQ + International merged). Unified colours.
 function keyLostPill(o) {
   const amt = oppFmtAmount(o.amount, o.currency), yr = o.close ? "'"+String(o.close.getFullYear()).slice(2) : '';
-  const y = o.close ? o.close.getFullYear() : 0;
+  const y = o.close ? o.close.getFullYear() : 0, g = oppGeoInfo(o);
   const tip = `${o.isMine?'(mine) ':''}${o.owner} · ${o.oppName} · Closed Lost · ${o.currency} ${o.amount}${o.close?' · '+rotShortDate(o.close):''}`;
-  return `<span class="ib-solid ${histClass(oppGeoType(o), y)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${oppGeoTag(o)}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
+  return `<span class="ib-solid ${histClass(g.type, y)}" title="${escHtml(tip)}">${o.isMine?'<span class="ib-star">★</span>':''}<span class="ib-lead">${escHtml(g.tag)}</span>${SEP}${escHtml(amt)}${yr?SEP+yr:''}</span>`;
 }
 // Key Trials — created → close range, coloured by type (was flat purple).
 function keyTrialPill(o) {
   const s = o.created ? rotShortDate(o.created) : '?';
   const e = o.close ? rotShortDate(o.close) : '?';
-  const y = (o.close||o.created) ? (o.close||o.created).getFullYear() : 0;
-  const tip = `${o.owner} · ${o.oppName} · ${oppGeoTag(o)} trial · ${s} → ${e}`;
-  return `<span class="ib-solid ${histClass(oppGeoType(o), y)}" title="${escHtml(tip)}"><span class="ib-lead">${oppGeoTag(o)}</span>${SEP}${s} → ${e}</span>`;
+  const y = (o.close||o.created) ? (o.close||o.created).getFullYear() : 0, g = oppGeoInfo(o);
+  const tip = `${o.owner} · ${o.oppName} · ${g.tag} trial · ${s} → ${e}`;
+  return `<span class="ib-solid ${histClass(g.type, y)}" title="${escHtml(tip)}"><span class="ib-lead">${escHtml(g.tag)}</span>${SEP}${s} → ${e}</span>`;
 }
 const byCloseDesc = (a,b) => (b.close?.getTime()||0) - (a.close?.getTime()||0);
 function moreWithTotal(extra, items) { return `+${extra} · ${rotMoney(items.reduce((s,o)=>s+(o.amount||0),0))}`; }
@@ -11466,9 +11482,6 @@ function exportAccountsTab() {
   if (stageOn.length) parts.push('Stage: ' + stageOn.join('/'));
   // Standalone flags
   if (activeFlags.has('ACTIVE_LIC'))    parts.push('Active License');
-  if (activeFlags.has('HAS_OPP'))       parts.push('Active Opp');
-  if (activeFlags.has('HAS_WORKABLES')) parts.push('Has Workables');
-  if (activeFlags.has('HAS_ACTION'))    parts.push('In Action');
   if (activeFlags.has('MULTI_OWNER'))   parts.push('Multi-Owner');
   // Tier dropdown
   if (typeof acctTierFilters !== 'undefined' && acctTierFilters.size > 0) {
