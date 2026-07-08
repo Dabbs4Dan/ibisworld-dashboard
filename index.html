@@ -1137,6 +1137,7 @@
      per pill. Cells cap at 2×2 = 4 bubbles, then a dark-grey "+N" expander. */
   .ib-cell { display:inline-flex; align-items:flex-start; gap:5px; vertical-align:middle; }
   .ib-bubbles { display:grid; grid-template-columns:repeat(2, max-content); gap:4px; }
+  .ib-bubbles.ib-1col { grid-template-columns:max-content; }  /* Other Opp: one bubble wide, stack extras */
   .ib-dash { color:var(--text-muted); font-size:12px; }
   .ib-sep { display:inline-block; width:1px; height:10px; background:currentColor; opacity:0.22; flex-shrink:0; }
   .ib-lead { font-weight:700; }
@@ -2298,7 +2299,7 @@
             <th onclick="setSortCol('acctPriority')" style="cursor:pointer;min-width:100px;">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th>Company</th>
             <th onclick="setSortCol('opp')" style="cursor:pointer;text-align:left;min-width:150px;" title="My active + won opportunities (from the Opportunities report)">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
-            <th style="text-align:left;min-width:210px;" title="Other reps' active opportunities on this account — dark segment is the opp TYPE (New PIQ / PIQ Renew / New Intl / Ind Renew)">Other Opp</th>
+            <th onclick="toggleFlagFilter('OTHER_OPP')" style="cursor:pointer;text-align:left;min-width:150px;" title="Click to filter to accounts with other reps' opps. Dark segment = opp TYPE (New PIQ / PIQ Renew / New UK / UK Renew…)">Other Opp</th>
             <th onclick="setSortCol('vertical')" style="cursor:pointer;">Vertical <span class="acct-sort-arrow" id="asort-vertical"></span></th>
             <th style="cursor:pointer;position:relative;" id="ath-tier">
               <div class="lic-th-inner">
@@ -3670,6 +3671,14 @@ function patchEnrichedRow(name) {
 
 function setView(v) { currentView=v; document.getElementById('btn-cards').classList.toggle('active',v==='cards'); document.getElementById('btn-table').classList.toggle('active',v==='table'); if(accounts.length) renderAll(); updateBodyScrollLock(); }
 function toggleChip(el,flag) { collapseAllCells(); el.classList.toggle('active'); if(activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag); renderAll(); }
+// Toggle a filter flag from a column header (keeps the matching chip's state in sync).
+function toggleFlagFilter(flag) {
+  collapseAllCells();
+  if (activeFlags.has(flag)) activeFlags.delete(flag); else activeFlags.add(flag);
+  const chip = document.querySelector(`.chip[data-flag="${flag}"]`);
+  if (chip) chip.classList.toggle('active', activeFlags.has(flag));
+  renderAll();
+}
 function toggleStageFilter(stageVal) { if(!stageVal) return; const key='STAGE_'+stageVal; if(activeFlags.has(key)) activeFlags.delete(key); else activeFlags.add(key); renderAll(); }
 // Returns the "primary" contact email for an account in ibis_opps (shared with Campaigns)
 // Prefers contacts with sfOpp=true, falls back to first non-archived contact
@@ -4796,7 +4805,8 @@ function slimOppRow(o) {
     crd: getField(o,'Created Date')||'',
     ns:  (getField(o,'Next Step')||'').slice(0,140),
     biz: getField(o,'Business')||'',
-    ty:  getField(o,'Type')||''   // New Sales | Client Services — drives Other Opp category
+    ty:  getField(o,'Type')||'',     // New Sales | Client Services
+    orole: getField(o,'Owner Role')||'' // e.g. "ProQ CRM 3", "UK Ind BDM" — the RELIABLE product/country/new-vs-renewal signal
   };
 }
 // Drop rows older than the universal 2016 cap (never shown anyway) at store time.
@@ -4873,6 +4883,7 @@ function decorateOppRow(o) {
     closeYear: close ? close.getFullYear() : (created ? created.getFullYear() : 0),
     nextStep: o.ns||'',
     business, biz: business.toLowerCase(),
+    ownerRole: (o.orole||'').trim(),
     type: (o.ty||'').trim(),
     isNew: /new/i.test(o.ty||''),          // New Sales
     isCS:  /client\s*service/i.test(o.ty||''), // Client Services (renewal)
@@ -4938,9 +4949,9 @@ function oppTag(o, kind) {
 let expandedCells = new Set();
 function toggleCellExpand(key) { if (expandedCells.has(key)) expandedCells.delete(key); else expandedCells.add(key); renderAll(); }
 function collapseAllCells() { expandedCells.clear(); }
-function renderBubbleCell(name, kind, items, pillFn, moreLabel) {
+function renderBubbleCell(name, kind, items, pillFn, moreLabel, oneCol) {
   if (!items.length) return '<span class="ib-dash">—</span>';
-  const CAP = 4, key = kind + '::' + name, expanded = expandedCells.has(key);
+  const CAP = oneCol ? 3 : 4, key = kind + '::' + name, expanded = expandedCells.has(key);
   const pills = (expanded ? items : items.slice(0, CAP)).map(pillFn).join('');
   let ctrl = '';
   if (items.length > CAP) {
@@ -4948,7 +4959,7 @@ function renderBubbleCell(name, kind, items, pillFn, moreLabel) {
     const label = expanded ? '▲' : (moreLabel ? moreLabel(extra, items) : `+${extra}`);
     ctrl = `<span class="ib-more" data-k="${escHtml(key)}" onclick="event.stopPropagation();toggleCellExpand(this.dataset.k)" title="${expanded?'Collapse':'Show all '+items.length}">${label}</span>`;
   }
-  return `<div class="ib-cell"><div class="ib-bubbles">${pills}</div>${ctrl}</div>`;
+  return `<div class="ib-cell"><div class="ib-bubbles${oneCol?' ib-1col':''}">${pills}</div>${ctrl}</div>`;
 }
 // Split pill: dark stage segment (white) + light body. cat = {dark,light,text}.
 function splitPill(stageText, bodyHtml, cat, tip) {
@@ -5031,31 +5042,48 @@ function renderMyOppCell(name, local) {
     return `<span class="ib-solid ${cls}" title="${escHtml(tip)}"><span class="ib-lead">${escHtml(stage)}</span>${SEP}${escHtml(amt)}${tag?SEP+escHtml(tag):''}</span>`;
   });
 }
-// Other Opp — split pill: dark segment = OPP TYPE (colour-coded), light body = stage · $ · date · person.
-const OTHER_OPP_CATS = {
-  piq_cs:   { label:'PIQ Renew',  dark:'#1d4ed8', light:'#eff5ff', text:'#1d4ed8' }, // blue — Procurement IQ client-service renewal
-  ind_cs:   { label:'Ind Renew',  dark:'#b45309', light:'#fffbeb', text:'#b45309' }, // amber — US Industry client-service renewal
-  piq_new:  { label:'New PIQ',    dark:'#15803d', light:'#eafaf1', text:'#15803d' }, // green — new Procurement IQ license
-  intl_new: { label:'New Intl',   dark:'#7c3aed', light:'#f5f3ff', text:'#7c3aed' }, // purple — new international license
-  other:    { label:'Other',      dark:'#475569', light:'#f1f5f9', text:'#475569' }, // grey — anything else
+// Other Opp categorisation — driven by OWNER ROLE (the Business column is unreliable:
+// a "ProQ CRM" owner selling Procurement IQ can show Business "US Industry"). Rules:
+//   ProQ role  → Procurement IQ  → BDM = New PIQ, else PIQ Renew
+//   Ind role   → country prefix (US/UK/AU/FR/DE/CA…) confirmed by currency:
+//        US    → US Industry (renewals shouldn't exist by default — off-case only)
+//        other → International → BDM = "New <Country>", else "<Country> Renew"
+const CUR_COUNTRY = { GBP:'UK', AUD:'AU', EUR:'EU', CAD:'CA', USD:'US', NZD:'NZ', INR:'IN', CHF:'CH', JPY:'JP' };
+function oppRoleInfo(o) {
+  const role = o.ownerRole || '';
+  const isProQ = /pro\s*q|proiq|procurement/i.test(role);
+  const isNew  = /bdm/i.test(role); // BDM = new business; CRM / Growth Mgr / etc = renewal / service
+  let country = '';
+  if (!isProQ) { const m = role.match(/^\s*([A-Za-z]{2})\s+ind/i); if (m) country = m[1].toUpperCase(); }
+  if (!country) country = CUR_COUNTRY[(o.currency||'').toUpperCase()] || (o.isUSProduct ? 'US' : '');
+  return { isProQ, isNew, country };
+}
+const OTHER_OPP_COLORS = {
+  piq_cs:   { dark:'#1d4ed8', light:'#eff5ff', text:'#1d4ed8' }, // blue
+  piq_new:  { dark:'#15803d', light:'#eafaf1', text:'#15803d' }, // green
+  intl_new: { dark:'#7c3aed', light:'#f5f3ff', text:'#7c3aed' }, // purple
+  intl_cs:  { dark:'#0e7490', light:'#ecfeff', text:'#0e7490' }, // cyan
+  ind_cs:   { dark:'#b45309', light:'#fffbeb', text:'#b45309' }, // amber (rare off-case)
+  ind_new:  { dark:'#57534e', light:'#f5f5f4', text:'#57534e' }, // stone
 };
 function otherOppCat(o) {
-  if (o.isProcurement && o.isCS)  return 'piq_cs';
-  if (o.isUSProduct && o.isIndustry && o.isCS) return 'ind_cs';
-  if (o.isProcurement && o.isNew) return 'piq_new';
-  if (!o.isUSProduct && o.isNew)  return 'intl_new';
-  return 'other';
+  const { isProQ, isNew, country } = oppRoleInfo(o);
+  if (isProQ) return isNew ? { key:'piq_new', label:'New PIQ' } : { key:'piq_cs', label:'PIQ Renew' };
+  if (!country || country === 'US') return isNew ? { key:'ind_new', label:'New Ind' } : { key:'ind_cs', label:'Ind Renew' };
+  return isNew ? { key:'intl_new', label:'New '+country } : { key:'intl_cs', label:country+' Renew' };
 }
 function renderOtherOppCell(name) {
   return renderBubbleCell(name, 'otheropp', getOtherOpps(name), o => {
-    const cat = OTHER_OPP_CATS[otherOppCat(o)];
+    const cat = otherOppCat(o);
+    const col = OTHER_OPP_COLORS[cat.key] || OTHER_OPP_COLORS.ind_cs;
     const amt = oppFmtAmount(o.amount, o.currency);
     const cd  = o.close ? rotShortDate(o.close) : '';
     const first = (o.owner||'').split(' ')[0];
-    const body = `${escHtml(o.stage)}${SEP}${escHtml(amt)}${cd?SEP+`<span class="ib-dim">${escHtml(cd)}</span>`:''}${SEP}<span class="ib-own">${escHtml(first)}</span>`;
-    const tip = `${cat.label} · ${o.owner} · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · close '+cd:''}${o.nextStep?' · '+o.nextStep:''}`;
-    return splitPill(cat.label, body, cat, tip);
-  });
+    // uniform body — every field same weight/opacity, thin separators, close date always shown
+    const body = `${escHtml(o.stage)}${SEP}${escHtml(amt)}${cd?SEP+escHtml(cd):''}${SEP}${escHtml(first)}`;
+    const tip = `${cat.label} · ${o.owner} (${o.ownerRole||'?'}) · ${o.oppName} · ${o.stage} · ${o.currency} ${o.amount}${cd?' · close '+cd:''}${o.nextStep?' · '+o.nextStep:''}`;
+    return splitPill(cat.label, body, col, tip);
+  }, null, true); // oneCol → stack multiple opps vertically (never widens the row)
 }
 
 function updateOppReportDot() {
