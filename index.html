@@ -398,6 +398,16 @@
   .acct-main-table thead tr.hf-row th:hover { background: var(--bg, #f0f2f5); }
   .acct-main-table thead tr.hf-labels th { top: 42px; z-index: 31; }  /* stack below the bubble strip */
   .hf-slot { display: inline-flex; }
+  /* Row-number sidebar — sticky leftmost column, freezes to the left edge on horizontal scroll */
+  .acct-main-table .row-num-cell {
+    position: sticky; left: 0; z-index: 15;
+    width: 30px; min-width: 30px; max-width: 30px; padding: 0 4px;
+    text-align: center; vertical-align: middle;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: #9ca3af; background: #f9fafb; border-right: 1px solid var(--border);
+  }
+  .acct-main-table thead tr.hf-row th.row-num-cell    { z-index: 42; background: var(--bg, #f0f2f5); }
+  .acct-main-table thead tr.hf-labels th.row-num-cell { z-index: 41; top: 42px; background: #f9fafb; }
 
   .hf-bubble {
     display: inline-flex; align-items: center;
@@ -2380,6 +2390,7 @@
         <thead>
           <!-- Filter-bubble row: floats in the grey strip above the labels, flush-left per column -->
           <tr class="hf-row">
+            <th class="row-num-cell"></th>
             <th class="status-col"><span class="hf-slot" id="hfslot-status"></span></th>
             <th><span class="hf-slot" id="hfslot-priority"></span></th>
             <th><span class="hf-slot" id="hfslot-action"></span></th>
@@ -2406,6 +2417,7 @@
           </tr>
           <!-- Label row: single line, all baselines aligned; click to sort -->
           <tr class="hf-labels">
+            <th class="row-num-cell" title="Row number">#</th>
             <th class="status-col" style="min-width:96px;cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th style="min-width:104px;cursor:pointer;" onclick="setSortCol('acctPriority')">Priority <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
             <th style="width:52px;min-width:52px;text-align:center;" title="Save accounts to the ⚡ Action tab (favorite)">Action</th>
@@ -3739,8 +3751,8 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="23" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
-  tbody.innerHTML = list.map(acc => {
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  tbody.innerHTML = list.map((acc, _rowIdx) => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
     const tier=getField(acc,'Major Markets Tier'), days=getField(acc,'US Days Since Last Activity'), intent=getField(acc,'6sense Account Intent Score NA'), sfOppsVal=getField(acc,'# Core Opportunities'), clients=parseFloat(getField(acc,'# Core Clients')||0), stage=getField(acc,'6sense Account Buying Stage NA'), vertical=getField(acc,'Vertical');
@@ -3756,6 +3768,7 @@ function renderTable(list) {
     const droppedBadge = isDropped ? `<span style="color:#ea580c;font-size:10px;font-weight:600;background:#fff7ed;border-radius:999px;padding:1px 7px;margin-left:6px;border:1px solid #fed7aa;">dropped from CSV</span>` : '';
     const nameDisplay = `<span class="td-name acct-name-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${escHtml(name)}</span>${droppedBadge}`;
     return `<tr data-acct="${escHtml(name)}" class="${flags.includes('🆕')?'new-account':''}${(local.acctOpp||hasAnyContactOpp(name))?' tr-opp-active':''}${isDropped?' dropped-row':''}">
+      <td class="row-num-cell">${_rowIdx+1}</td>
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
       <td style="text-align:center;padding:0 2px;" onclick="event.stopPropagation()"><button class="act-fav${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Save to ⚡ Action tab"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></button></td>
