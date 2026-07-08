@@ -3460,22 +3460,32 @@ function renderAll() {
   updateBodyScrollLock();
 }
 
-// Size the accounts table grid so it fills exactly from its top to the viewport
-// bottom → the page never needs to scroll (stats/controls/filters stay fixed in
-// view) and the horizontal scrollbar is glued to the bottom of what's visible.
-function sizeAccountsGrid() {
-  const wrap = document.querySelector('#table-view .table-wrap');
-  if (!wrap || wrap.offsetParent === null) return; // not visible (cards view / another tab)
+// UNIVERSAL grid sizing (Accounts + Licenses + Group + Rotation + Dead).
+// The visible table tab's scroll region is sized to fill exactly from its top to
+// the viewport bottom → the page never scrolls (stats/controls/filters stay fixed),
+// and BOTH scrollbars (the grid's own up/down + left/right) are always reachable at
+// the bottom of what's on screen. On any non-table view the page scrolls normally.
+const GRID_TABS = ['accounts','licenses','group','rotation','dead'];
+function activeGridWrap() {
+  for (const t of GRID_TABS) {
+    const c = document.getElementById('content-' + t);
+    if (!c || c.classList.contains('hidden')) continue;
+    const w = [...c.querySelectorAll('.table-wrap')].find(el => el.offsetParent !== null);
+    if (w) return w;
+  }
+  return null;
+}
+function sizeActiveGrid() {
+  const wrap = activeGridWrap();
+  if (!wrap) { document.body.style.overflow = ''; return; } // non-table view → normal page scroll
   const top = wrap.getBoundingClientRect().top;
   wrap.style.height = Math.max(220, window.innerHeight - top - 6) + 'px';
+  document.body.style.overflow = 'hidden';
 }
-// Lock the PAGE scroll while the accounts grid is on screen so Chrome's wheel
-// scroll can't fight the grid's own scroll. Restored for every other view.
-function updateBodyScrollLock() {
-  const wrap = document.querySelector('#table-view .table-wrap');
-  document.body.style.overflow = (wrap && wrap.offsetParent !== null) ? 'hidden' : '';
-}
-window.addEventListener('resize', () => { sizeAccountsGrid(); });
+// Back-compat aliases — existing call sites keep working.
+function sizeAccountsGrid() { sizeActiveGrid(); }
+function updateBodyScrollLock() { sizeActiveGrid(); }
+window.addEventListener('resize', () => { sizeActiveGrid(); });
 
 function getDomain(w) {
   if (!w||w.trim()==='') return null;
