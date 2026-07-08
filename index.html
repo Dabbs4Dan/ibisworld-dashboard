@@ -4744,8 +4744,9 @@ let acctTierFilters = new Set(); // values: '1','2','3','4','' (CARDS view only)
 let acctColFilters = {
   status: new Set(), priority: new Set(), actstage: new Set(), tier: new Set(), otheropp: new Set(),
   stage: new Set(), vertical: new Set(), revenueband: new Set(), myopp: new Set(), hasheadline: new Set(),
-  action:false, activeclient:false, keyclient:false, overlap:false,
-  keychurn:false, keylost:false, keytrials:false
+  activeclient: new Set(), keyclient: new Set(), overlap: new Set(),
+  keychurn: new Set(), keylost: new Set(), keytrials: new Set(),
+  action:false
 };
 const ACCT_STATUS_FILTER_OPTS = [
   {key:'truekeep',label:'🔒 True Keep', css:'background:#dbeafe;color:#1e40af;'},
@@ -4778,6 +4779,18 @@ const ACCT_PRIO_FILTER_OPTS = [
 const ACCT_HEADLINE_FILTER_OPTS = [
   {key:'hot', label:'🔥 Hot',         css:'background:#ffedd5;color:#c2410c;'},
   {key:'has', label:'Has Headline',   css:'background:#f3f4f6;color:#374151;'}
+];
+// Product/geo type filters (v42) — shared by Key Client / Key Churn / Key Opps / Key Trials.
+// Has-any (OR) within the filter: an account passes if it has ≥1 bubble of a selected type.
+const ACCT_GEO_FILTER_OPTS = [
+  {key:'IND',  label:'🔴 Industry',       css:'background:#fef2f2;color:#b91c1c;'},
+  {key:'PIQ',  label:'🔵 Procurement IQ', css:'background:#eff6ff;color:#1d4ed8;'},
+  {key:'INTL', label:'🟢 International',   css:'background:#ecfdf5;color:#047857;'}
+];
+// Active Client — current holdings are only PIQ or International.
+const ACCT_ACTIVECLIENT_FILTER_OPTS = [
+  {key:'PIQ',  label:'🔵 PIQ',           css:'background:#eff6ff;color:#1d4ed8;'},
+  {key:'INTL', label:'🌍 International',  css:'background:#ecfdf5;color:#047857;'}
 ];
 const ACCT_TIER_FILTER_OPTS = [
   {key:'1',label:'Tier 1', css:'background:#dbeafe;color:#1e3a8a;'},
@@ -4851,12 +4864,12 @@ const ACCT_HF = {
   myopp:       {kind:'multi',  opts:ACCT_MYOPP_FILTER_OPTS},
   action:      {kind:'toggle', label:'⚡'},
   hasheadline: {kind:'multi',  opts:ACCT_HEADLINE_FILTER_OPTS},
-  activeclient:{kind:'toggle', label:'Active Client'},
-  keyclient:   {kind:'toggle', label:'Key Client'},
-  overlap:     {kind:'toggle', label:'Multi-Owner'},
-  keychurn:    {kind:'toggle', label:'Key Churn'},
-  keylost:     {kind:'toggle', label:'Key Opps'},
-  keytrials:   {kind:'toggle', label:'Key Trials'}
+  activeclient:{kind:'multi', opts:ACCT_ACTIVECLIENT_FILTER_OPTS},
+  keyclient:   {kind:'multi', opts:ACCT_GEO_FILTER_OPTS},
+  overlap:     {kind:'multi', opts:acctOwnerFilterOpts},
+  keychurn:    {kind:'multi', opts:ACCT_GEO_FILTER_OPTS},
+  keylost:     {kind:'multi', opts:ACCT_GEO_FILTER_OPTS},
+  keytrials:   {kind:'multi', opts:ACCT_GEO_FILTER_OPTS}
 };
 let hfOpenId = null;
 function hfOptsFor(id) { const o = ACCT_HF[id].opts; return typeof o === 'function' ? o() : o; }
@@ -4883,6 +4896,11 @@ function hfBubbleHtml(id) {
 }
 // Fill every header/overflow bubble slot (called from renderAll).
 function renderAcctHeaderBubbles() {
+  // Keep the dynamic owner filter fresh — drop any selected owner no longer present in the data.
+  if (acctColFilters.overlap && acctColFilters.overlap.size) {
+    const valid = new Set(acctOwnerFilterOpts().map(o => o.key));
+    [...acctColFilters.overlap].forEach(k => { if (!valid.has(k)) acctColFilters.overlap.delete(k); });
+  }
   Object.keys(ACCT_HF).forEach(id => { const slot = document.getElementById('hfslot-'+id); if (slot) slot.innerHTML = hfBubbleHtml(id); });
 }
 function toggleHf(id) { collapseAllCells(); acctColFilters[id] = !acctColFilters[id]; renderAll(); }
@@ -4923,12 +4941,12 @@ function passesColFilters(a, aName) {
     const ok = [...cf.hasheadline].some(k => k === 'hot' ? !!hl.headlineHot : (k === 'has' ? !!(hl.actionHeadline||'').trim() : false));
     if (!ok) return false;
   }
-  if (cf.activeclient && !getActiveLicBadges(aName)) return false;
-  if (cf.keyclient    && getKeyClient(aName).length === 0) return false;
-  if (cf.overlap      && getOtherRepOverlap(aName).length === 0) return false;
-  if (cf.keychurn     && getAccountKeyChurns(aName).length === 0) return false;
-  if (cf.keylost      && getKeyLostOpps(aName).length === 0) return false;
-  if (cf.keytrials    && getKeyTrials(aName).length === 0) return false;
+  if (cf.activeclient.size) { const t = activeClientTypes(aName); if (![...cf.activeclient].some(k => t.has(k))) return false; }
+  if (cf.keyclient.size)    { const t = keyClientTypes(aName);    if (![...cf.keyclient].some(k => t.has(k))) return false; }
+  if (cf.overlap.size)      { const ks = acctOwnerKeys(aName);    if (![...cf.overlap].some(k => ks.has(k))) return false; }
+  if (cf.keychurn.size)     { const t = keyChurnTypes(aName);     if (![...cf.keychurn].some(k => t.has(k))) return false; }
+  if (cf.keylost.size)      { const t = keyLostTypes(aName);      if (![...cf.keylost].some(k => t.has(k))) return false; }
+  if (cf.keytrials.size)    { const t = keyTrialTypes(aName);     if (![...cf.keytrials].some(k => t.has(k))) return false; }
   return true;
 }
 // Show the Cards chip bar in Cards view; the Table overflow bubbles + column bubbles in Table view.
@@ -5401,6 +5419,54 @@ function oppGeoInfo(o) {
     return { type:'INTL', tag:country };
   }
   return o.isProcurement ? { type:'PIQ', tag:'PIQ' } : { type:'IND', tag:'Ind' };
+}
+// ── Column type-sets (v42) — which product types {IND,PIQ,INTL} each column holds for an account.
+// Drives the has-any multi filters. Churn/opp CA counts as IND; Active Client keeps CA as its 🌍 badge.
+function churnGeoType(l) {
+  if (l._type === 'PIQ')  return 'PIQ';
+  if (l._type === 'INTL') return licCountry(l) === 'CA' ? 'IND' : 'INTL';
+  return 'IND';
+}
+function keyClientTypes(name) { return new Set(getKeyClient(name).map(o => oppGeoInfo(o).type)); }
+function keyLostTypes(name)   { return new Set(getKeyLostOpps(name).map(o => oppGeoInfo(o).type)); }
+function keyTrialTypes(name)  { return new Set(getKeyTrials(name).map(o => oppGeoInfo(o).type)); }
+function keyChurnTypes(name)  { return new Set(getAccountKeyChurns(name).map(churnGeoType)); }
+function activeClientTypes(name) {
+  const s = new Set();
+  licsFor(name).forEach(l => { if (l._active) { if (l._type === 'PIQ') s.add('PIQ'); else if (l._type === 'INTL') s.add('INTL'); } });
+  return s;
+}
+// Owner display-name keys shown in the Overlap column (group reps + active-opp owners), lowercased.
+function acctOwnerKeys(name) {
+  const keys = new Set(), grpFirst = new Set();
+  getOtherRepOverlap(name).forEach(o => { const lbl = GROUP_OWNER_LABEL[o]; keys.add(lbl.toLowerCase()); grpFirst.add(lbl.split(' ')[0].toLowerCase()); });
+  const seen = new Set();
+  getOtherOpps(name).map(o => o.owner).filter(Boolean).forEach(nm => {
+    const k = nm.split(' ')[0].toLowerCase();
+    if (grpFirst.has(k) || seen.has(k)) return; seen.add(k); keys.add(k);
+  });
+  return keys;
+}
+// Dynamic owner filter options — rebuilt from current data every render, so reps added by an
+// opp/license upload appear, and reps no longer in any account drop off automatically (stays fresh).
+function acctOwnerFilterOpts() {
+  const map = new Map();
+  accounts.forEach(a => {
+    if (a._isSkeletonAccount || a._droppedFromCSV) return;
+    const name = getField(a, 'Account Name', 'AccountName');
+    const grpFirst = new Set();
+    getOtherRepOverlap(name).forEach(o => {
+      const lbl = GROUP_OWNER_LABEL[o], key = lbl.toLowerCase(); grpFirst.add(lbl.split(' ')[0].toLowerCase());
+      if (!map.has(key)) { const c = GROUP_OWNER_COLOR[o] || '#6b7280'; map.set(key, {key, label:lbl, css:`background:${c}1a;color:${c};`}); }
+    });
+    const seen = new Set();
+    getOtherOpps(name).map(o => o.owner).filter(Boolean).forEach(nm => {
+      const first = nm.split(' ')[0], key = first.toLowerCase();
+      if (grpFirst.has(key) || seen.has(key)) return; seen.add(key);
+      if (!map.has(key)) map.set(key, {key, label:first, css:'background:#f3f4f6;color:#6b7280;'});
+    });
+  });
+  return [...map.values()].sort((a,b) => a.label.localeCompare(b.label));
 }
 /* ══ Unified expandable bubble cell ══
    Caps at 4 bubbles (2×2 grid), then a dark-grey "+N" that expands the cell IN
@@ -11586,7 +11652,7 @@ function exportAccountsTab() {
     if (cf.tier.size)        parts.push('Tier: '      + lbls('tier', cf.tier).join('/'));
     if (cf.revenueband.size) parts.push('Revenue: '   + lbls('revenueband', cf.revenueband).join('/'));
     if (cf.stage.size)       parts.push('Stage: '     + [...cf.stage].join('/'));
-    [['activeclient','Active Client'],['keyclient','Key Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Opps'],['keytrials','Key Trials'],['hasworkables','Has Workables'],['inaction','In Action'],['activeopp','Active Opp']].forEach(([k,l]) => { if (cf[k]) parts.push(l); });
+    [['action','Action'],['hasheadline','Headline'],['activeclient','Active Client'],['keyclient','Key Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Opps'],['keytrials','Key Trials']].forEach(([k,l]) => { const v = cf[k]; if (v instanceof Set ? v.size : v) parts.push(l); });
     const vertT = document.getElementById('vertical-filter')?.value; if (vertT) parts.push('Vertical: ' + vertT);
     const searchT = (document.getElementById('search-input')?.value || '').trim(); if (searchT) parts.push('Search: "' + searchT + '"');
     parts.push((document.querySelectorAll('#table-body tr').length) + ' rows');
