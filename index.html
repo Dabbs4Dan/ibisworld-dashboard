@@ -1263,8 +1263,9 @@
   .ast-none    { background:#f3f4f6; color:#9ca3af; }
 
   /* Status column collapse toggle */
-  .status-col-toggle { background:#e9eaec; border:none; cursor:pointer; font-size:11px; color:#6b7280; padding:2px 6px; margin-left:6px; border-radius:4px; line-height:1.4; vertical-align:middle; transition:background 0.15s, color 0.15s; font-weight:600; }
-  .status-col-toggle:hover { background:#d1d5db; color:#374151; }
+  .status-col-toggle { background:#f3f4f6; border:1px solid #d1d5db; cursor:pointer; font-size:11px; color:#6b7280; padding:1px 6px; margin-left:6px; border-radius:5px; line-height:1.4; vertical-align:middle; transition:background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.08s ease; font-weight:600; }
+  .status-col-toggle:hover { background:#e5e7eb; color:#374151; border-color:#9ca3af; }
+  .status-col-toggle:active { transform:scale(0.9); }
   /* Collapsed: shrink to a narrow strip with just the expand button */
   table.status-col-collapsed th.status-col { width:28px !important; min-width:28px !important; max-width:28px !important; padding:4px 2px !important; overflow:hidden; text-align:center; }
   table.status-col-collapsed th.status-col .status-col-label,
@@ -5979,10 +5980,14 @@ function applyPortalStatus(status) {
 let statusColCollapsed = false;
 function toggleStatusCol() {
   statusColCollapsed = !statusColCollapsed;
-  const table = document.querySelector('#table-view table');
-  if (table) table.classList.toggle('status-col-collapsed', statusColCollapsed);
+  // Update the button glyph immediately (instant feedback) …
   const btn = document.getElementById('status-col-toggle');
   if (btn) { btn.textContent = statusColCollapsed ? '›' : '‹'; btn.title = statusColCollapsed ? 'Show Status column' : 'Hide Status column'; }
+  // … then defer the heavy full-table reflow to the next frame so the click never feels frozen.
+  requestAnimationFrame(() => {
+    const table = document.querySelector('#table-view table');
+    if (table) table.classList.toggle('status-col-collapsed', statusColCollapsed);
+  });
 }
 
 // Account Priority custom dropdown — stored in ibis_local[name].acctPriority
