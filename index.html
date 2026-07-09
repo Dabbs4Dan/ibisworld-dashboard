@@ -1272,7 +1272,9 @@
   table.status-col-collapsed th.status-col .acct-sort-arrow { display:none; }
   table.status-col-collapsed th.status-col .status-col-toggle { margin-left:0; display:block; width:100%; padding:3px 2px; font-size:12px; }
   table.status-col-collapsed td.status-col { width:28px !important; min-width:28px !important; max-width:28px !important; padding:0 !important; overflow:hidden; background:#f9fafb; }
-  table.status-col-collapsed td.status-col > * { display:none !important; }
+  /* content-visibility (not display:none) so the 176 status widgets keep their cached layout —
+     collapse still shrinks the column (hidden content sizes to 0) but EXPAND is instant, no relayout. */
+  table.status-col-collapsed td.status-col > * { content-visibility:hidden; }
 
   /* Account Priority dropdown — portal pattern mirrors status */
   .acct-priority-wrap { position:relative; display:inline-block; }
