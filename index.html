@@ -450,20 +450,22 @@
 
   /* Custom (typed) My Opp bubble — a defined, popping note pill */
   .ib-myopp-custom {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 64px; min-height: 21px; padding: 2px 11px; border-radius: 999px;
-    background: #f8fafc; color: #334155; border: 1.5px solid #94a3b8;
-    box-shadow: 0 1px 2px rgba(15,23,42,.08);
+    display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+    min-width: 56px; min-height: 21px; padding: 0 10px; border-radius: 999px;
+    background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;
     font: 600 11px 'DM Sans', sans-serif; outline: none; cursor: text;
-    white-space: normal; word-break: break-word; text-align: center; line-height: 1.25;
+    white-space: normal; word-break: break-word; text-align: center; line-height: 1.15;
     transition: border-color 150ms ease, box-shadow 150ms ease;
   }
-  .ib-myopp-custom:hover { border-color: #64748b; }
+  .ib-myopp-custom:hover { border-color: #94a3b8; }
   .ib-myopp-custom:focus { background: #fff; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.18); }
   .ib-myopp-custom:empty:before { content: attr(data-ph); color: #9ca3af; font-weight: 500; }
-  .myopp-custom-row { display: inline-flex; align-items: center; gap: 4px; }
-  .myopp-custom-row::before { content: '✎'; font-size: 12px; color: #6366f1; line-height: 1; }
-  .myopp-x { border: none; background: none; color: #9ca3af; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 3px; border-radius: 999px; transition: 150ms ease; }
+  .myopp-custom-row { display: inline-flex; align-items: center; gap: 0; }
+  /* ✎ + × appear only on hover / while editing, and collapse otherwise so the bubble is flush-left like a regular opp */
+  .myopp-custom-row::before { content: '✎'; font-size: 12px; color: #6366f1; line-height: 1; width: 0; opacity: 0; overflow: hidden; transition: opacity 120ms ease, width 120ms ease, margin 120ms ease; }
+  .myopp-custom-row:hover::before, .myopp-custom-row:focus-within::before { width: 12px; opacity: 1; margin-right: 4px; }
+  .myopp-x { border: none; background: none; color: #9ca3af; font-size: 15px; line-height: 1; cursor: pointer; width: 0; padding: 0; opacity: 0; overflow: hidden; border-radius: 999px; transition: opacity 120ms ease, width 120ms ease; }
+  .myopp-custom-row:hover .myopp-x, .myopp-custom-row:focus-within .myopp-x { width: 16px; padding: 0 3px; opacity: 1; }
   .myopp-x:hover { color: var(--ibis-red); background: #fef2f4; }
 
   /* Tight gap between the controls bar and the table (no big white band) */
@@ -638,12 +640,11 @@
   .actn-pill-active .actn-pill-btn { background:#22d3ee; border-left-color:#22d3ee; }
   .actn-pill-active .actn-bolt { filter:none; }
   .actn-pill-active .actn-pill-btn:hover { background:#06b6d4; }
-  /* Action favorite button — small standalone circle + bolt (grey → gold circle / blue bolt when saved) */
-  /* Favorite star — sits next to the company logo. Grey circle/white star off → gold circle/blue star on. */
-  .fav-star { width:20px; height:20px; border-radius:50%; border:1px solid #d1d5db; background:#9ca3af; color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex-shrink:0; transition:150ms ease; }
-  .fav-star:hover { background:#6b7280; border-color:#9ca3af; }
-  .fav-star.on { background:#f59e0b; border-color:#d97706; color:#2563eb; box-shadow:0 0 0 2px rgba(245,158,11,.18); }
-  .fav-star svg { display:block; }
+  /* Favorite star — sits next to the company logo. Light grey circle/white star off → gold circle/blue star on. */
+  .fav-star { width:20px; height:20px; border-radius:50%; border:1px solid #c7cdd8; background:#bcc4d0; color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex-shrink:0; font-size:11px; line-height:1; transition:150ms ease; }
+  .fav-star:hover { background:#a7b0be; }
+  .fav-star.on { background:#f4b829; border-color:#b45309; color:#3b82f6; }
+  .fav-star.on:hover { background:#eaad14; }
   /* Card action button — top-right rounded square */
   .card-actn-btn { position:absolute; top:10px; right:10px; width:28px; height:28px; border-radius:6px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; }
   .card-actn-btn:hover { background:#cffafe; }
@@ -1273,16 +1274,16 @@
   /* 🔥 Action-headline hot toggle — tight, sits left of the headline input */
   /* Action-priority pillbox — a segmented "pillbox" of toggle buttons in the Action Headline cell.
      Rounded ends, thin score-line separators (nubs), dark colour fill when on, greyed when off. */
-  .act-pillbox { display:inline-flex; align-items:stretch; height:22px; border-radius:999px; overflow:hidden; border:1px solid #cbd5e1; background:#cbd5e1; box-shadow:0 1px 2px rgba(0,0,0,.08); flex-shrink:0; }
-  .act-seg { display:inline-flex; align-items:center; justify-content:center; width:22px; font-size:11px; line-height:1; cursor:pointer; background:#f1f5f9; border-right:1px solid #cbd5e1; transition:150ms ease; filter:grayscale(.85) opacity(.5); }
+  .act-pillbox { display:inline-flex; align-items:stretch; height:19px; border-radius:6px; overflow:hidden; border:1px solid #e2e8f0; background:#e2e8f0; flex-shrink:0; }
+  .act-seg { display:inline-flex; align-items:center; justify-content:center; width:19px; font-size:11px; line-height:1; cursor:pointer; background:#f8fafc; border-right:1px solid #e2e8f0; transition:120ms ease; filter:grayscale(.35) opacity(.72); }
   .act-seg:last-child { border-right:none; }
-  .act-seg:hover { filter:grayscale(.25) opacity(.9); background:#e2e8f0; }
+  .act-seg:hover { filter:none; background:#eef2f7; }
   .act-seg.on { filter:none; }
-  .act-seg.on.seg-fire     { background:#b91c1c; }
-  .act-seg.on.seg-wait     { background:#b45309; }
-  .act-seg.on.seg-internal { background:#15803d; }
-  .act-seg.on.seg-chill    { background:#1d4ed8; }
-  .act-seg.on.seg-won      { background:#7e22ce; }
+  .act-seg.on.seg-fire     { background:#dc2626; }
+  .act-seg.on.seg-wait     { background:#d97706; }
+  .act-seg.on.seg-internal { background:#16a34a; }
+  .act-seg.on.seg-chill    { background:#2563eb; }
+  .act-seg.on.seg-won      { background:#9333ea; }
   .acct-priority-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-priority-opt:last-child { margin-bottom:0; }
   .acct-priority-opt:hover { filter:brightness(0.94); }
@@ -3823,7 +3824,7 @@ function renderTable(list) {
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td><div class="td-company"><button class="fav-star${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Favorite — adds to ⚡ Action tab"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.6-5.2 4.5 1.6 6.8L12 17.3 5.8 20.7l1.6-6.8L2.2 8.9l6.9-.6z"/></svg></button><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
+      <td><div class="td-company"><button class="fav-star${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Favorite — adds to ⚡ Action tab">★</button><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:8px;"><span class="act-pillbox">${ACT_FLAGS.map(f=>`<span class="act-seg seg-${f.key}${(local.actFlags||[]).includes(f.key)?' on':''}" onclick="toggleActFlag(event,this.dataset.n,'${f.key}')" data-n="${escHtml(name)}" title="${f.title}">${f.emoji}</span>`).join('')}</span><input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div></td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
