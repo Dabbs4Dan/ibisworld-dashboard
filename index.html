@@ -409,28 +409,36 @@
   .acct-main-table thead tr.hf-row th.row-num-cell    { z-index: 42; background: var(--bg, #f0f2f5); }
   .acct-main-table thead tr.hf-labels th.row-num-cell { z-index: 41; top: 42px; background: #f9fafb; }
 
+  /* Uniform capsule for every header filter bubble — same grey base + border, only the text/emoji carry colour */
   .hf-bubble {
     display: inline-flex; align-items: center;
-    height: 28px; border-radius: 999px;
-    border: 1.5px solid #cbd5e1; background: #fff;
+    height: 26px; border-radius: 999px;
+    border: 1px solid #e5e7eb; background: #f4f5f7;
     font-family: 'DM Sans', sans-serif; letter-spacing: 0; text-transform: none;
-    cursor: pointer; white-space: nowrap; max-width: 210px; transition: 150ms ease;
+    cursor: pointer; white-space: nowrap; max-width: 210px; transition: 120ms ease;
   }
-  /* Toggle bubbles: neutral with a hard border, red when on */
-  .hf-toggle { padding: 0 13px; color: #475569; font-weight: 600; font-size: 12px; }
+  .hf-bubble:hover { background: #eceef1; border-color: #d1d5db; }
+  /* Toggle bubbles: neutral, red when on */
+  .hf-toggle { padding: 0 12px; color: #64748b; font-weight: 600; font-size: 11px; }
   .hf-toggle .hf-txt { overflow: hidden; text-overflow: ellipsis; }
-  .hf-toggle:hover { border-color: #94a3b8; background: #f8fafc; }
-  .hf-toggle.active { background: #fef2f4; border-color: var(--ibis-red); color: var(--ibis-red); }
-  /* Multi bubbles: the WHOLE chip takes the filter's colour theme; currentColor = themed border + caret */
-  .hf-multi { padding: 0; border-color: currentColor; }
-  .hf-multi .hf-txt { padding: 0 5px 0 11px; font: 700 11px/1 'DM Sans', sans-serif; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
-  .hf-multi.hf-dim { opacity: .48; }                 /* nothing selected → dimmed placeholder */
-  .hf-multi:hover { filter: brightness(.97); box-shadow: 0 1px 3px rgba(15,23,42,.14); }
-  .hf-multi.active { box-shadow: 0 1px 3px rgba(15,23,42,.16); }
-  .hf-more-n { font: 700 10px 'DM Mono', monospace; opacity: .7; padding-right: 3px; }
-  .hf-caret { font-size: 9px; line-height: 1; display: flex; align-items: center; align-self: stretch; padding: 0 9px 0 8px; border-left: 1.5px solid currentColor; opacity: .85; }
-  /* Dropdown option pills keep the standalone look */
-  .hf-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font: 700 11px/1 'DM Sans', sans-serif; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .hf-toggle.active { background: #fef2f4; border-color: #f3b4c1; color: var(--ibis-red); }
+  /* Favorites toggle — gold star treatment */
+  .hf-fav .hf-star { font-size: 13px; margin-right: 5px; line-height: 1; color: #cbd5e1; }
+  .hf-fav:hover .hf-star { color: #f4b829; }
+  .hf-fav.active { background: #fff9ed; border-color: #f0c674; color: #b45309; }
+  .hf-fav.active .hf-star { color: #f4b829; }
+  /* Multi bubbles: uniform grey capsule, the TEXT takes the option's colour; active = white + coloured border */
+  .hf-multi { padding: 0 2px 0 0; }
+  .hf-multi .hf-txt { padding: 0 5px 0 11px; font: 600 11px/1 'DM Sans', sans-serif; overflow: hidden; text-overflow: ellipsis; max-width: 155px; }
+  .hf-multi .hf-caret { font-size: 8px; line-height: 1; padding: 0 8px 0 4px; color: #94a3b8; opacity: .8; }
+  .hf-multi.hf-dim .hf-txt { opacity: .6; }          /* nothing selected → slightly muted (uniform) */
+  .hf-multi.active { background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+  .hf-multi.active .hf-txt { font-weight: 700; }
+  .hf-more-n { font: 700 9px 'DM Mono', monospace; background: rgba(0,0,0,.06); border-radius: 999px; padding: 1px 5px; margin-left: 1px; color: inherit; }
+  /* Dropdown option pills keep the standalone look + a right-aligned result-count preview */
+  .hf-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font: 700 11px/1 'DM Sans', sans-serif; white-space: nowrap; max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+  .hf-opt-count { margin-left: auto; padding-left: 10px; font: 600 10px 'DM Mono', monospace; color: #9ca3af; flex: 0 0 auto; }
+  .hf-opt-count.zero { opacity: .45; }
   /* overflow bubbles next to All Verticals — same size as header bubbles */
   #acct-table-overflow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   /* inline "N of M accounts" — right side of the controls bar (no grey line above the table) */
@@ -640,11 +648,10 @@
   .actn-pill-active .actn-pill-btn { background:#22d3ee; border-left-color:#22d3ee; }
   .actn-pill-active .actn-bolt { filter:none; }
   .actn-pill-active .actn-pill-btn:hover { background:#06b6d4; }
-  /* Favorite star — sits next to the company logo. Light grey circle/white star off → gold circle/blue star on. */
-  .fav-star { width:20px; height:20px; border-radius:50%; border:1px solid #c7cdd8; background:#bcc4d0; color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex-shrink:0; font-size:11px; line-height:1; transition:150ms ease; }
-  .fav-star:hover { background:#a7b0be; }
-  .fav-star.on { background:#f4b829; border-color:#b45309; color:#3b82f6; }
-  .fav-star.on:hover { background:#eaad14; }
+  /* Favorite star — Rotation-tab style star glyph (grey outline → gold), a touch larger. Sits by the logo. */
+  .fav-star { cursor:pointer; font-size:17px; line-height:1; color:#cbd5e1; background:none; border:none; padding:0; flex-shrink:0; user-select:none; transition:150ms ease; }
+  .fav-star:hover { color:#f4b829; transform:scale(1.12); }
+  .fav-star.on { color:#f4b829; }
   /* Card action button — top-right rounded square */
   .card-actn-btn { position:absolute; top:10px; right:10px; width:28px; height:28px; border-radius:6px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; }
   .card-actn-btn:hover { background:#cffafe; }
@@ -3824,7 +3831,7 @@ function renderTable(list) {
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td><div class="td-company"><button class="fav-star${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Favorite — adds to ⚡ Action tab">★</button><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
+      <td><div class="td-company"><button class="fav-star${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Favorite — adds to ⚡ Action tab">${local.hasAction?'★':'☆'}</button><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:8px;"><span class="act-pillbox">${ACT_FLAGS.map(f=>`<span class="act-seg seg-${f.key}${(local.actFlags||[]).includes(f.key)?' on':''}" onclick="toggleActFlag(event,this.dataset.n,'${f.key}')" data-n="${escHtml(name)}" title="${f.title}">${f.emoji}</span>`).join('')}</span><input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div></td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
@@ -4074,7 +4081,7 @@ function toggleActionFav(e) {
   localData[name].hasAction = !localData[name].hasAction;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
   if (acctColFilters.favorites) renderAll();  // Favorites filter on → this row's visibility changes
-  else e.currentTarget.classList.toggle('on', !!localData[name].hasAction);
+  else { const on = !!localData[name].hasAction; e.currentTarget.classList.toggle('on', on); e.currentTarget.textContent = on ? '★' : '☆'; }
 }
 /* ============================================================
    REVENUE ENGINE
@@ -4914,11 +4921,55 @@ const ACCT_HF = {
 let hfOpenId = null;
 function hfOptsFor(id) { const o = ACCT_HF[id].opts; return typeof o === 'function' ? o() : o; }
 function hfPill(opt, useFull) { return `<span class="hf-pill" style="${opt.css||'background:#f3f4f6;color:#6b7280;'}">${escHtml((useFull && opt.full) ? opt.full : opt.label)}</span>`; }
+// Readable text colour for a uniform grey bubble: the darker of the option's bg / text colour.
+function optColor(opt) {
+  const css = opt.css || '';
+  const m1 = css.match(/background:\s*(#[0-9a-fA-F]{3,6})/), m2 = css.match(/color:\s*(#[0-9a-fA-F]{3,6})/);
+  const cand = [m1&&m1[1], m2&&m2[1]].filter(Boolean);
+  if (!cand.length) return '#6b7280';
+  const lum = h => { let s=h.slice(1); if(s.length===3)s=s.split('').map(c=>c+c).join(''); return 0.299*parseInt(s.slice(0,2),16)+0.587*parseInt(s.slice(2,4),16)+0.114*parseInt(s.slice(4,6),16); };
+  return cand.sort((a,b)=>lum(a)-lum(b))[0];
+}
+// Does account `a` match one option value of filter `id`? (mirrors passesColFilters per-option logic)
+function hfMatch(id, key, a, name) {
+  const ld = localData[name] || {};
+  switch (id) {
+    case 'status':      return (ld.acctStatus||'') === key;
+    case 'priority':    return (ld.acctPrio||'') === key;
+    case 'actstage':    return (ld.acctPriority||'') === key;
+    case 'tier':        return (getField(a,'Major Markets Tier')||'') === key;
+    case 'vertical':    return getTrueVertical(a) === key;
+    case 'revenueband': return revBandKey(a) === key;
+    case 'stage':       return (getField(a,'6sense Account Buying Stage NA')||'') === key;
+    case 'myopp':       return key==='sf' ? getMyOpps(name).length>0 : (key==='custom' ? hasCustomOpp(name) : false);
+    case 'otheropp':    return getOtherOpps(name).some(o => otherOppCat(o).key === key);
+    case 'hasheadline': return key==='has' ? !!(ld.actionHeadline||'').trim() : (ld.actFlags||[]).includes(key);
+    case 'activeclient':return activeClientTypes(name).has(key);
+    case 'keyclient':   return keyClientTypes(name).has(key);
+    case 'keychurn':    return keyChurnTypes(name).has(key);
+    case 'keylost':     return keyLostTypes(name).has(key);
+    case 'keytrials':   return keyTrialTypes(name).has(key);
+    case 'overlap':     return acctOwnerKeys(name).has(key);
+    default: return false;
+  }
+}
+// Faceted result-count per option: rows you'd get if you picked that option, given all OTHER active filters.
+function hfOptionCounts(id) {
+  const cf = acctColFilters, saved = cf[id];
+  cf[id] = (saved instanceof Set) ? new Set() : false;
+  let base; try { base = getFiltered(); } finally { cf[id] = saved; }
+  const counts = {}, opts = hfOptsFor(id);
+  base.forEach(a => { const name = getField(a,'Account Name','AccountName'); opts.forEach(o => { if (hfMatch(id, o.key, a, name)) counts[o.key] = (counts[o.key]||0)+1; }); });
+  return counts;
+}
 // Build one bubble's HTML. Multi = coloured pill preview (top selected, or first dimmed) + caret.
 function hfBubbleHtml(id) {
   const cfg = ACCT_HF[id];
   if (cfg.kind === 'toggle') {
     const active = !!acctColFilters[id];
+    if (id === 'favorites') {
+      return `<button class="hf-bubble hf-toggle hf-fav${active?' active':''}" onclick="toggleHf('${id}')" title="Show only favorited accounts"><span class="hf-star">${active?'★':'☆'}</span><span class="hf-txt">Favorites</span></button>`;
+    }
     return `<button class="hf-bubble hf-toggle${active?' active':''}" onclick="toggleHf('${id}')" title="Filter: ${escHtml(cfg.label)}"><span class="hf-txt">${escHtml(cfg.label)}</span></button>`;
   }
   const opts = hfOptsFor(id), sel = acctColFilters[id];
@@ -4928,11 +4979,11 @@ function hfBubbleHtml(id) {
     opt = opts.find(o => sel.has(o.key)) || opts[0];
     if (sel.size > 1) extra = `<span class="hf-more-n">+${sel.size-1}</span>`;
   } else {
-    opt = opts[0] || { label:'—', css:'background:#f3f4f6;color:#9ca3af;' };
+    opt = opts[0] || { label:'—', css:'' };
   }
-  const css = opt.css || 'background:#f3f4f6;color:#6b7280;';
-  // The whole bubble takes the option's colour theme; currentColor drives the themed border + caret.
-  return `<button class="hf-bubble hf-multi${active?' active':''}${active?'':' hf-dim'}" style="${css}" onclick="openHfMenu('${id}',this)" title="Filter"><span class="hf-txt">${escHtml(opt.label)}</span>${extra}<span class="hf-caret">▾</span></button>`;
+  // Uniform grey capsule; the text/emoji carry the option's colour. Active adds a matching border + white fill.
+  const col = optColor(opt);
+  return `<button class="hf-bubble hf-multi${active?' active':' hf-dim'}" style="color:${col};${active?`border-color:${col};`:''}" onclick="openHfMenu('${id}',this)" title="Filter"><span class="hf-txt">${escHtml(opt.label)}</span>${extra}<span class="hf-caret">▾</span></button>`;
 }
 // Fill every header/overflow bubble slot (called from renderAll).
 function renderAcctHeaderBubbles() {
@@ -4946,10 +4997,11 @@ function renderAcctHeaderBubbles() {
 function toggleHf(id) { collapseAllCells(); acctColFilters[id] = !acctColFilters[id]; renderAll(); }
 function openHfMenu(id, btn) {
   const portal = document.getElementById('hf-portal');
-  const opts = hfOptsFor(id), sel = acctColFilters[id];
-  portal.innerHTML = opts.map(o =>
-    `<label class="hf-opt"><input type="checkbox" data-k="${escHtml(o.key)}" ${sel.has(o.key)?'checked':''} onchange="hfSetMulti('${id}',this.dataset.k,this.checked)">${hfPill(o, true)}</label>`
-  ).join('') + `<div class="hf-portal-actions"><button onclick="hfClear('${id}')">Clear</button></div>`;
+  const opts = hfOptsFor(id), sel = acctColFilters[id], counts = hfOptionCounts(id);
+  portal.innerHTML = opts.map(o => {
+    const c = counts[o.key] || 0;
+    return `<label class="hf-opt"><input type="checkbox" data-k="${escHtml(o.key)}" ${sel.has(o.key)?'checked':''} onchange="hfSetMulti('${id}',this.dataset.k,this.checked)">${hfPill(o, true)}<span class="hf-opt-count${c===0?' zero':''}" title="rows if selected">${c}</span></label>`;
+  }).join('') + `<div class="hf-portal-actions"><button onclick="hfClear('${id}')">Clear</button></div>`;
   const r = btn.getBoundingClientRect();
   portal.style.top = (r.bottom + 5) + 'px';
   portal.style.left = Math.min(r.left, window.innerWidth - 220) + 'px';
