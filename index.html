@@ -5829,6 +5829,20 @@ function renderAcctStatusSelect(name) {
   </div>`;
 }
 
+// Position a fixed portal under its trigger; flip above + clamp so it never spills off-screen
+// (fixes the bottom rows whose menus were cut off by the window edge).
+function placePortal(portal, rect) {
+  portal.style.visibility = 'hidden';
+  portal.style.display = 'block';
+  const ph = portal.offsetHeight || 200, pw = portal.offsetWidth || 180;
+  let top = rect.bottom + 4;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, rect.top - ph - 4); // flip above
+  let left = Math.max(4, rect.left);
+  if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+  portal.style.top = top + 'px';
+  portal.style.left = left + 'px';
+  portal.style.visibility = 'visible';
+}
 function openAcctStatusPortal(id, triggerBtn) {
   const portal = document.getElementById('acct-status-portal');
   if (!portal) return;
@@ -5845,10 +5859,7 @@ function openAcctStatusPortal(id, triggerBtn) {
   portal.innerHTML = ACCT_STATUS_OPTS.map(o =>
     `<button class="acct-status-opt ${o.cls}" onclick="event.stopPropagation();applyPortalStatus('${o.key}')">${o.label}</button>`
   ).join('');
-  const rect = triggerBtn.getBoundingClientRect();
-  portal.style.left = Math.max(4, rect.left) + 'px';
-  portal.style.top  = (rect.bottom + 4) + 'px';
-  portal.style.display = 'block';
+  placePortal(portal, triggerBtn.getBoundingClientRect());
 }
 
 function applyPortalStatus(status) {
@@ -5931,10 +5942,7 @@ function openAcctPriorityPortal(id, triggerBtn) {
   portal.innerHTML = ACCT_PRIORITY_OPTS.map(o =>
     `<button class="acct-priority-opt" style="${prioStyle(o)}" onclick="event.stopPropagation();applyPortalPriority('${o.key}')">${o.label}</button>`
   ).join('');
-  const rect = triggerBtn.getBoundingClientRect();
-  portal.style.left = Math.max(4, rect.left) + 'px';
-  portal.style.top  = (rect.bottom + 4) + 'px';
-  portal.style.display = 'block';
+  placePortal(portal, triggerBtn.getBoundingClientRect());
 }
 
 function applyPortalPriority(priority) {
@@ -5976,10 +5984,7 @@ function openAcctPrioPortal(id, triggerBtn) {
   portal.innerHTML = ACCT_PRIO_OPTS.map(o =>
     `<button class="acct-priority-opt" style="${prioStyle(o)}" onclick="event.stopPropagation();applyPortalPrio('${o.key}')">${o.label}</button>`
   ).join('');
-  const rect = triggerBtn.getBoundingClientRect();
-  portal.style.left = Math.max(4, rect.left) + 'px';
-  portal.style.top  = (rect.bottom + 4) + 'px';
-  portal.style.display = 'block';
+  placePortal(portal, triggerBtn.getBoundingClientRect());
 }
 function applyPortalPrio(prio) {
   const portal = document.getElementById('acct-prio-portal');
