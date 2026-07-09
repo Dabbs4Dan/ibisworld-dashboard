@@ -318,8 +318,8 @@
   }
 
   .stat-item {
-    padding: 9px 32px 9px 0;
-    margin-right: 32px;
+    padding: 9px 22px 9px 0;
+    margin-right: 22px;
     border-right: 1px solid var(--border);
     white-space: nowrap;
     transition: opacity 0.15s;
@@ -396,7 +396,7 @@
     text-transform: none; cursor: default;
   }
   .acct-main-table thead tr.hf-row th:hover { background: var(--bg, #f0f2f5); }
-  .acct-main-table thead tr.hf-labels th { top: 42px; z-index: 31; }  /* stack below the bubble strip */
+  .acct-main-table thead tr.hf-labels th { top: 40px; z-index: 31; }  /* touch the bubble strip (41px) — slight overlap avoids a 1px gap where body cells peek through */
   .hf-slot { display: inline-flex; }
   /* Row-number sidebar — sticky leftmost column, freezes to the left edge on horizontal scroll */
   .acct-main-table .row-num-cell {
@@ -407,7 +407,7 @@
     color: #9ca3af; background: #f9fafb; border-right: 1px solid var(--border);
   }
   .acct-main-table thead tr.hf-row th.row-num-cell    { z-index: 42; background: var(--bg, #f0f2f5); }
-  .acct-main-table thead tr.hf-labels th.row-num-cell { z-index: 41; top: 42px; background: #f9fafb; }
+  .acct-main-table thead tr.hf-labels th.row-num-cell { z-index: 41; top: 40px; background: #f9fafb; }
 
   /* Uniform capsule for every header filter bubble — same grey base + border, only the text/emoji carry colour */
   .hf-bubble {
@@ -1046,13 +1046,13 @@
   .upload-menu-dot.has-date { color: #16a34a; }
   /* CSV Stats Panel — far-right of stats bars */
   .csv-upload-stat {
-    margin-left: auto !important;
+    margin-left: 0 !important;
     border-left: 1px solid var(--border);
     border-right: none !important;
-    padding-left: 32px !important;
+    padding-left: 22px !important;
     padding-right: 0 !important;
     margin-right: 0 !important;
-    min-width: 160px;
+    min-width: 150px;
   }
   .csv-upload-stat:hover { opacity: 1 !important; }
   .csv-stat-date {
@@ -1270,11 +1270,11 @@
   .status-col-toggle:hover { background:#e5e7eb; color:#374151; border-color:#9ca3af; }
   .status-col-toggle:active { transform:scale(0.9); }
   /* Collapsed: shrink to a narrow strip with just the expand button */
-  table.status-col-collapsed th.status-col { width:28px !important; min-width:28px !important; max-width:28px !important; padding:4px 2px !important; overflow:hidden; text-align:center; }
+  table.status-col-collapsed th.status-col { width:20px !important; min-width:20px !important; max-width:20px !important; padding:4px 2px !important; overflow:hidden; text-align:center; }
   table.status-col-collapsed th.status-col .status-col-label,
   table.status-col-collapsed th.status-col .acct-sort-arrow { display:none; }
-  table.status-col-collapsed th.status-col .status-col-toggle { margin-left:0; display:block; width:100%; padding:3px 2px; font-size:12px; }
-  table.status-col-collapsed td.status-col { width:28px !important; min-width:28px !important; max-width:28px !important; padding:0 !important; overflow:hidden; background:#f9fafb; }
+  table.status-col-collapsed th.status-col .status-col-toggle { margin-left:0; display:block; width:100%; padding:2px 0; font-size:11px; border-radius:4px; }
+  table.status-col-collapsed td.status-col { width:20px !important; min-width:20px !important; max-width:20px !important; padding:0 !important; overflow:hidden; background:#f9fafb; }
   table.status-col-collapsed td.status-col > * { display:none !important; }
 
   /* Account Priority dropdown — portal pattern mirrors status */
@@ -2000,20 +2000,20 @@
     <div class="stat-value red" id="stat-total">—</div>
   </div>
   <div class="stat-item">
-    <div class="stat-label">Tier 1</div>
-    <div class="stat-value" id="stat-tier1">—</div>
+    <div class="stat-label">✓ Keep</div>
+    <div class="stat-value" id="stat-keep">—</div>
   </div>
   <div class="stat-item">
-    <div class="stat-label">Active Opps</div>
-    <div class="stat-value" id="stat-opps">—</div>
+    <div class="stat-label">My Opps</div>
+    <div class="stat-value" id="stat-myopps">—</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-label">Other Opps</div>
+    <div class="stat-value" id="stat-otheropps">—</div>
   </div>
   <div class="stat-item">
     <div class="stat-label">Existing Clients</div>
     <div class="stat-value" id="stat-clients">—</div>
-  </div>
-  <div class="stat-item">
-    <div class="stat-label">Avg Intent Score</div>
-    <div class="stat-value" id="stat-intent">—</div>
   </div>
   <div class="stat-item csv-upload-stat" id="csv-stat-accounts">
     <div class="stat-label">Last Import</div>
@@ -3525,11 +3525,11 @@ function detectChanges(old, newArr) {
 function updateStats() {
   const ra = accounts.filter(a => !a._isSkeletonAccount && !a._droppedFromCSV); // live territory only
   document.getElementById('stat-total').textContent = ra.length;
-  document.getElementById('stat-tier1').textContent = ra.filter(a => getField(a,'Major Markets Tier') == '1').length;
-  document.getElementById('stat-opps').textContent = ra.filter(a => parseFloat(getField(a,'# Core Opportunities')||0) > 0).length;
+  const raNames = ra.map(a => getField(a,'Account Name','AccountName'));
+  document.getElementById('stat-keep').textContent = raNames.filter(n => { const s = localData[n]?.acctStatus; return s === 'keep' || s === 'truekeep'; }).length;
+  document.getElementById('stat-myopps').textContent = raNames.reduce((s,n) => s + getMyOpps(n).length, 0);
+  document.getElementById('stat-otheropps').textContent = raNames.reduce((s,n) => s + getOtherOpps(n).length, 0);
   document.getElementById('stat-clients').textContent = ra.filter(a => parseFloat(getField(a,'# Core Clients')||0) > 0).length;
-  const scores = ra.map(a => parseFloat(getField(a,'6sense Account Intent Score NA')||0)).filter(v => v > 0);
-  document.getElementById('stat-intent').textContent = scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : '—';
   renderCsvStatPanel('accounts', 'accounts');
 }
 
@@ -3643,6 +3643,7 @@ function getFiltered() {
 }
 
 function renderAll() {
+  if (accounts.length) updateStats();  // keep stats fresh (Keep count, My/Other Opps) — cheap, O(1) opp lookups
   let list = getFiltered();
   if (frozenSortOrder === null) {
     // First render after an explicit sort — lock this order in
