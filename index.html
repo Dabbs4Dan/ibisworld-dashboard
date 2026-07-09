@@ -2243,6 +2243,7 @@
   <div id="acct-table-overflow"></div>
   <span style="flex:1 1 auto;"></span>
   <span id="acct-count-label" class="acct-count-inline"></span>
+  <button class="export-btn" onclick="exportAccountsExcel()" title="Export the accounts currently in view (Account + Status) to Excel — respects active filters + search">📊 Export Excel</button>
   <button class="export-btn" onclick="exportAccountsTab()" title="Print or save current view as PDF (respects active filters + search + vertical)">🖨 Export / PDF</button>
   <!-- CARDS view: the classic chip filter bar -->
   <div class="filter-chips" id="acct-cards-chips">
@@ -11640,6 +11641,41 @@ function _printWithBanner(title, subtitle, sourceElement) {
   });
 }
 
+// Export the accounts currently in view (all active filters + search) to Excel.
+// Two columns for rev-ops routing: Account · Status — status labels fully spelled out
+// (abbreviations like "Ent" → "Enterprise") so routing is unambiguous.
+const ACCT_STATUS_EXPORT = {
+  truekeep: { label:'True Keep',       bg:'#dbeafe', color:'#1e40af' },
+  keep:     { label:'Keep',            bg:'#dcfce7', color:'#15803d' },
+  market:   { label:'Marketing',       bg:'#ecfccb', color:'#4d7c0f' },
+  monitor:  { label:'Monitor',         bg:'#fef9c3', color:'#854d0e' },
+  entdrop:  { label:'Enterprise Drop', bg:'#eaddd6', color:'#7c2d12' },
+  drop:     { label:'Drop',            bg:'#fee2e2', color:'#b91c1c' }
+};
+function exportAccountsExcel() {
+  const names = getFilteredOrderedNames();
+  if (!names.length) { showGroupToast('Nothing to export — no accounts match your filters'); return; }
+  const th = t => `<td style="background:#C8102E;color:#fff;font-weight:bold;text-align:left;border:1px solid #a50d24;padding:6px 8px;font-family:Calibri,Arial,sans-serif;font-size:11px;">${escHtml(t)}</td>`;
+  const headRow = '<tr>' + th('Account') + th('Status') + '</tr>';
+  const body = names.map(name => {
+    const st = (localData[name]?.acctStatus) || '';
+    const info = ACCT_STATUS_EXPORT[st];
+    const nameCell = _xlCell(name, {});
+    const statusCell = info ? _xlCell(info.label, { bg:info.bg, color:info.color, bold:true }) : _xlCell('', {});
+    return '<tr>' + nameCell + statusCell + '</tr>';
+  }).join('');
+  const table = `<table style="border-collapse:collapse;">${headRow}${body}</table>`;
+  const filterRange = `R1C1:R${names.length + 1}C2`;
+  const wb = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Accounts</x:Name><x:WorksheetOptions><x:AutoFilter x:Range="${filterRange}"/><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
+  const blob = new Blob(['﻿' + wb], { type:'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const stamp = new Date().toISOString().slice(0,10);
+  const dl = document.createElement('a');
+  dl.href = url; dl.download = `accounts-export-${stamp}.xls`;
+  document.body.appendChild(dl); dl.click();
+  setTimeout(() => { URL.revokeObjectURL(url); dl.remove(); }, 150);
+  showGroupToast(`📊 Exported ${names.length} accounts to Excel`);
+}
 function exportAccountsTab() {
   const content = document.getElementById('content-accounts');
   if (!content) return;
