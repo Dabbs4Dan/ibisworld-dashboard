@@ -639,10 +639,11 @@
   .actn-pill-active .actn-bolt { filter:none; }
   .actn-pill-active .actn-pill-btn:hover { background:#06b6d4; }
   /* Action favorite button — small standalone circle + bolt (grey → gold circle / blue bolt when saved) */
-  .act-fav { width:22px; height:22px; border-radius:50%; border:1.5px solid #d1d5db; background:#f3f4f6; color:#9ca3af; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:150ms ease; }
-  .act-fav:hover { border-color:#9ca3af; background:#e5e7eb; }
-  .act-fav.on { background:#fef3c7; border-color:#f59e0b; color:#2563eb; box-shadow:0 0 0 2px rgba(245,158,11,.15); }
-  .act-fav svg { display:block; }
+  /* Favorite star — sits next to the company logo. Grey circle/white star off → gold circle/blue star on. */
+  .fav-star { width:20px; height:20px; border-radius:50%; border:1px solid #d1d5db; background:#9ca3af; color:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; flex-shrink:0; transition:150ms ease; }
+  .fav-star:hover { background:#6b7280; border-color:#9ca3af; }
+  .fav-star.on { background:#f59e0b; border-color:#d97706; color:#2563eb; box-shadow:0 0 0 2px rgba(245,158,11,.18); }
+  .fav-star svg { display:block; }
   /* Card action button — top-right rounded square */
   .card-actn-btn { position:absolute; top:10px; right:10px; width:28px; height:28px; border-radius:6px; background:#f3f4f6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 150ms ease, box-shadow 150ms ease; }
   .card-actn-btn:hover { background:#cffafe; }
@@ -1270,9 +1271,18 @@
   .acct-priority-trigger::after { content:'▾'; font-size:9px; opacity:0.55; margin-left:2px; }
   #acct-priority-portal, #acct-prio-portal { position:fixed; z-index:9501; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.14); padding:6px; min-width:170px; max-height:360px; overflow-y:auto; display:none; }
   /* 🔥 Action-headline hot toggle — tight, sits left of the headline input */
-  .hl-hot { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:6px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:11px; line-height:1; flex-shrink:0; transition:150ms ease; filter:grayscale(1); opacity:.45; }
-  .hl-hot:hover { border-color:#fdba74; filter:none; opacity:1; }
-  .hl-hot.on { background:#fff7ed; border-color:#fb923c; filter:none; opacity:1; box-shadow:0 0 0 2px rgba(251,146,60,.15); }
+  /* Action-priority pillbox — a segmented "pillbox" of toggle buttons in the Action Headline cell.
+     Rounded ends, thin score-line separators (nubs), dark colour fill when on, greyed when off. */
+  .act-pillbox { display:inline-flex; align-items:stretch; height:22px; border-radius:999px; overflow:hidden; border:1px solid #cbd5e1; background:#cbd5e1; box-shadow:0 1px 2px rgba(0,0,0,.08); flex-shrink:0; }
+  .act-seg { display:inline-flex; align-items:center; justify-content:center; width:22px; font-size:11px; line-height:1; cursor:pointer; background:#f1f5f9; border-right:1px solid #cbd5e1; transition:150ms ease; filter:grayscale(.85) opacity(.5); }
+  .act-seg:last-child { border-right:none; }
+  .act-seg:hover { filter:grayscale(.25) opacity(.9); background:#e2e8f0; }
+  .act-seg.on { filter:none; }
+  .act-seg.on.seg-fire     { background:#b91c1c; }
+  .act-seg.on.seg-wait     { background:#b45309; }
+  .act-seg.on.seg-internal { background:#15803d; }
+  .act-seg.on.seg-chill    { background:#1d4ed8; }
+  .act-seg.on.seg-won      { background:#7e22ce; }
   .acct-priority-opt { display:flex; align-items:center; justify-content:center; width:100%; padding:6px 14px; border:none; border-radius:999px; font-size:11px; font-weight:600; cursor:pointer; text-align:center; margin-bottom:3px; font-family:'DM Sans',sans-serif; box-sizing:border-box; transition:filter 0.1s; gap:5px; }
   .acct-priority-opt:last-child { margin-bottom:0; }
   .acct-priority-opt:hover { filter:brightness(0.94); }
@@ -2399,8 +2409,7 @@
             <th class="status-col"><span class="hf-slot" id="hfslot-status"></span></th>
             <th><span class="hf-slot" id="hfslot-priority"></span></th>
             <th><span class="hf-slot" id="hfslot-actstage"></span></th>
-            <th><span class="hf-slot" id="hfslot-action"></span></th>
-            <th></th>
+            <th><span class="hf-slot" id="hfslot-favorites"></span></th>
             <th><span class="hf-slot" id="hfslot-hasheadline"></span></th>
             <th><span class="hf-slot" id="hfslot-myopp"></span></th>
             <th><span class="hf-slot" id="hfslot-otheropp"></span></th>
@@ -2427,7 +2436,6 @@
             <th class="status-col" style="min-width:96px;cursor:pointer;" onclick="setSortCol('acctStatus')"><span class="status-col-label">Status </span><span class="acct-sort-arrow" id="asort-acctStatus"></span><button class="status-col-toggle" id="status-col-toggle" onclick="event.stopPropagation();toggleStatusCol()" title="Hide Status column">‹</button></th>
             <th style="min-width:104px;cursor:pointer;" onclick="setSortCol('acctPrio')" title="Outreach priority">Priority <span class="acct-sort-arrow" id="asort-acctPrio"></span></th>
             <th style="min-width:104px;cursor:pointer;" onclick="setSortCol('acctPriority')" title="Action-board stage">Stage <span class="acct-sort-arrow" id="asort-acctPriority"></span></th>
-            <th style="width:34px;min-width:34px;text-align:left;padding-left:8px;cursor:pointer;" onclick="toggleHf('action')" title="Click to show only your ⚡ Action-saved accounts">Action</th>
             <th>Company</th>
             <th style="min-width:200px;cursor:pointer;" onclick="setSortCol('headline')" title="Sort: 🔥 hot headlines first, then any headline">Action Headline <span class="acct-sort-arrow" id="asort-headline"></span></th>
             <th style="text-align:left;min-width:150px;cursor:pointer;" onclick="setSortCol('opp')" title="My active + won opportunities (from the Opportunities report) + custom typed opps">My Opp <span class="acct-sort-arrow" id="asort-opp"></span></th>
@@ -3202,6 +3210,21 @@ function migrateStageSplit() {
   if (moved > 0) { try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e) {} console.log('[ibis] Moved ' + moved + ' Tabled markings Stage→Priority'); }
   localStorage.setItem('ibis_prio_split_v42', '1');
 }
+// v43 one-time migration: the single 🔥 "hot" headline flag became the Fire action-priority button.
+// Carry any existing headlineHot:true into actFlags:['fire'].
+function migrateActFlags() {
+  if (localStorage.getItem('ibis_actflags_v43') === '1') return;
+  let moved = 0;
+  Object.keys(localData || {}).forEach(name => {
+    const e = localData[name];
+    if (e && e.headlineHot) {
+      const set = new Set(e.actFlags || []); set.add('fire'); e.actFlags = [...set];
+      delete e.headlineHot; moved++;
+    }
+  });
+  if (moved > 0) { try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch(e) {} console.log('[ibis] Migrated ' + moved + ' hot headlines → Fire action flag'); }
+  localStorage.setItem('ibis_actflags_v43', '1');
+}
 
 function init() {
   loadCsvStats();
@@ -3221,6 +3244,7 @@ function init() {
   }
   migrateLegacyPriority(); // v41: back up + clear old rarity-tier priorities before the new stage options
   migrateStageSplit();     // v42: move existing Tabled markings from Stage → the new Priority column
+  migrateActFlags();       // v43: carry the old 🔥 hot headline flag into the Fire action-priority button
   if (saved) {
     try { accounts = JSON.parse(saved); } catch(e) { console.error('ibis_accounts corrupted, resetting:', e); accounts = []; }
     applySeedsToLocalData(); applyTierOverridesToAccounts(); restoreSortPref(); clearStaleDescs(); updateStats(); populateVerticals(); renderAll(); autoQueueAccounts(); autoQueueDescriptions(); autoQueueSentiment();
@@ -3460,7 +3484,7 @@ function pruneStaleLocalData() {
     const hasStatus = !!(entry.acctStatus);
     const hasPriority = !!(entry.acctPriority || entry.acctPrio);
     const hasPlan   = !!(entry.accountPlan && entry.accountPlan.trim());
-    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate || entry.actionNotes || entry.acctOpp || entry.acctActionStage || entry.headlineHot);
+    const hasAction = !!(entry.hasAction || entry.actionHeadline || entry.actionNextDate || entry.actionNotes || entry.acctOpp || entry.acctActionStage || (entry.actFlags && entry.actFlags.length));
     const hasCustomOppData = !!(entry.customOpp && entry.customOpp.trim());
     if (hasNotes || userFlags.length > 0 || hasStatus || hasPriority || hasPlan || hasAction || hasCustomOppData) return; // has real user data — keep
     delete localData[name];
@@ -3592,8 +3616,8 @@ function getFiltered() {
     if (sort==='keyChurn') return d * (getKeyChurnWeight(getField(a,'Account Name','AccountName')) - getKeyChurnWeight(getField(b,'Account Name','AccountName')));
     if (sort==='acctStatus') { const ord={truekeep:0,keep:1,market:2,monitor:3,entdrop:4,drop:5,'':6}; const as=localData[getField(a,'Account Name','AccountName')]?.acctStatus||'', bs=localData[getField(b,'Account Name','AccountName')]?.acctStatus||''; return d*((ord[as]??6)-(ord[bs]??6)); }
     if (sort==='acctPriority') { const ord={new_sequence:0,multithreading:1,active_opp:2,active_proposal:3,stalled:4,future_reconnect:5,internal_support:6,unresponsive:7,won:8,nurture:9,'':10}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPriority||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPriority||''; return d*((ord[ap]??10)-(ord[bp]??10)); }
-    if (sort==='acctPrio') { const ord={urgent:0,prioritize:1,working:2,tabled:3,'':4}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPrio||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPrio||''; return d*((ord[ap]??4)-(ord[bp]??4)); }
-    if (sort==='headline') { const hv=x=>{ const l=localData[getField(x,'Account Name','AccountName')]||{}; return l.headlineHot?0:((l.actionHeadline||'').trim()?1:2); }; return d*(hv(a)-hv(b)); }
+    if (sort==='acctPrio') { const ord={immediate:0,urgent:1,prioritize:2,working:3,teamsell:4,tabled:5,'':6}; const ap=localData[getField(a,'Account Name','AccountName')]?.acctPrio||'', bp=localData[getField(b,'Account Name','AccountName')]?.acctPrio||''; return d*((ord[ap]??6)-(ord[bp]??6)); }
+    if (sort==='headline') { const ord={fire:0,wait:1,internal:2,chill:3,won:4}; const hv=x=>{ const l=localData[getField(x,'Account Name','AccountName')]||{}; const fs=l.actFlags||[]; if(fs.length) return Math.min(...fs.map(f=>ord[f]??8)); return (l.actionHeadline||'').trim()?5:8; }; return d*(hv(a)-hv(b)); }
     if (sort==='sentiment') { const sa=getSentiment(getField(a,'Account Name','AccountName'))?.score??-1, sb=getSentiment(getField(b,'Account Name','AccountName'))?.score??-1; return d*(sa-sb); }
     if (sort==='opp') { const an=getField(a,'Account Name','AccountName'), bn=getField(b,'Account Name','AccountName'); const v=n=>hasMyOpp(n)?2:(hasCustomOpp(n)?1:0); return d*(v(an)-v(bn)); } // matches the My Opp column: SF my-opps rank above custom opps; everything else 0
     if (sort==='otherOppClose') return d*(otherOppMaxClose(getField(a,'Account Name','AccountName')) - otherOppMaxClose(getField(b,'Account Name','AccountName')));
@@ -3778,7 +3802,7 @@ function renderCards(list) {
 function renderTable(list) {
   document.getElementById('cards-view').classList.add('hidden'); document.getElementById('table-view').classList.remove('hidden');
   const tbody = document.getElementById('table-body');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="25" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="24" style="text-align:center;color:var(--text-muted);padding:40px;">No accounts match your filters</td></tr>'; return; }
   tbody.innerHTML = list.map((acc, _rowIdx) => {
     const name = getField(acc,'Account Name','AccountName'), key = name;
     const local = localData[key]||{}, flags = local.flags||[];
@@ -3799,9 +3823,8 @@ function renderTable(list) {
       <td class="status-col" style="padding:6px 10px;" onclick="event.stopPropagation();if(!event.target.closest('.acct-status-wrap'))document.querySelectorAll('.acct-status-wrap.open').forEach(w=>w.classList.remove('open'))">${renderAcctStatusSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioSelect(name)}</td>
       <td style="padding:6px 10px;" onclick="event.stopPropagation()">${renderAcctPrioritySelect(name)}</td>
-      <td style="text-align:left;padding:0 0 0 8px;" onclick="event.stopPropagation()"><button class="act-fav${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Save to ⚡ Action tab"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></button></td>
-      <td><div class="td-company"><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
-      <td style="padding:6px 10px;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;"><button class="hl-hot${local.headlineHot?' on':''}" onclick="toggleHeadlineHot(event)" data-name="${escHtml(name)}" title="Mark headline as 🔥 hot">🔥</button><input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div></td>
+      <td><div class="td-company"><button class="fav-star${local.hasAction?' on':''}" onclick="toggleActionFav(event)" data-name="${escHtml(name)}" title="Favorite — adds to ⚡ Action tab"><svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.6-5.2 4.5 1.6 6.8L12 17.3 5.8 20.7l1.6-6.8L2.2 8.9l6.9-.6z"/></svg></button><div class="td-logo acct-logo-link" onclick="event.stopPropagation();goToAccount(this.dataset.name)" data-name="${escHtml(name)}">${tdLogoHtml}</div><div>${nameDisplay}${(local.desc||getField(acc,'Sub-Vertical'))?`<div class="td-sub-vert">${local.desc||getField(acc,'Sub-Vertical')}</div>`:''}</div></div></td>
+      <td style="padding:6px 10px;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:8px;"><span class="act-pillbox">${ACT_FLAGS.map(f=>`<span class="act-seg seg-${f.key}${(local.actFlags||[]).includes(f.key)?' on':''}" onclick="toggleActFlag(event,this.dataset.n,'${f.key}')" data-n="${escHtml(name)}" title="${f.title}">${f.emoji}</span>`).join('')}</span><input class="action-headline-input" type="text" value="${escHtml(local.actionHeadline||'')}" placeholder="Add headline…" data-acctname="${escHtml(name)}" oninput="saveActionFieldDebounced(this.dataset.acctname,'actionHeadline',this.value)" onblur="saveActionField(this.dataset.acctname,'actionHeadline',this.value)" onkeydown="if(event.key==='Enter')this.blur()"></div></td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderMyOppCell(name, local)}</td>
       <td style="text-align:left;padding:0 8px;vertical-align:middle;">${renderOtherOppCell(name)}</td>
       <td>${vertBubble(acc)}</td>
@@ -4049,7 +4072,7 @@ function toggleActionFav(e) {
   if (!localData[name]) localData[name] = {};
   localData[name].hasAction = !localData[name].hasAction;
   localStorage.setItem('ibis_local', JSON.stringify(localData));
-  if (acctColFilters.action) renderAll();  // Action filter on → this row's visibility changes
+  if (acctColFilters.favorites) renderAll();  // Favorites filter on → this row's visibility changes
   else e.currentTarget.classList.toggle('on', !!localData[name].hasAction);
 }
 /* ============================================================
@@ -4747,7 +4770,7 @@ let acctColFilters = {
   stage: new Set(), vertical: new Set(), revenueband: new Set(), myopp: new Set(), hasheadline: new Set(),
   activeclient: new Set(), keyclient: new Set(), overlap: new Set(),
   keychurn: new Set(), keylost: new Set(), keytrials: new Set(),
-  action:false
+  favorites:false
 };
 const ACCT_STATUS_FILTER_OPTS = [
   {key:'truekeep',label:'🔒 True Keep', css:'background:#dbeafe;color:#1e40af;'},
@@ -4771,15 +4794,30 @@ const ACCT_PRIORITY_FILTER_OPTS = [
 ];
 // NEW Priority filter opts (v42) — sort order: Urgent → Prioritize → Working → Tabled.
 const ACCT_PRIO_FILTER_OPTS = [
+  {key:'immediate',  label:'🆘 Immediate',  css:'background:#b91c1c;color:#ffffff;'},
   {key:'urgent',     label:'🚨 Urgent',     css:'background:#fee2e2;color:#b91c1c;'},
   {key:'prioritize', label:'📌 Prioritize', css:'background:#ffedd5;color:#c2410c;'},
   {key:'working',    label:'🛠 Working',     css:'background:#dbeafe;color:#1d4ed8;'},
+  {key:'teamsell',   label:'🤝 Team-Sell',  css:'background:#ccfbf1;color:#115e59;'},
   {key:'tabled',     label:'🗄 Tabled',      css:'background:#e2e8f0;color:#475569;'}
 ];
 // Action Headline filter opts (v42) — 🔥 Hot rows or any headline text.
+// Action-priority buttons (segmented pillbox in the Action Headline cell). Toggle any combination.
+// Order = display/sort priority (left→right).
+const ACT_FLAGS = [
+  { key:'fire',     emoji:'🔥', title:'Act now (immediate)' },
+  { key:'wait',     emoji:'⏳', title:'Act soon — can wait' },
+  { key:'internal', emoji:'🌿', title:'Reach out internally' },
+  { key:'chill',    emoji:'🥶', title:'Actioned — awaiting response' },
+  { key:'won',      emoji:'🎉', title:'Client responded / achieved' },
+];
 const ACCT_HEADLINE_FILTER_OPTS = [
-  {key:'hot', label:'🔥 Hot',         css:'background:#ffedd5;color:#c2410c;'},
-  {key:'has', label:'Has Headline',   css:'background:#f3f4f6;color:#374151;'}
+  {key:'fire',     label:'🔥 Fire',      css:'background:#fef2f2;color:#b91c1c;'},
+  {key:'wait',     label:'⏳ Wait',      css:'background:#fffbeb;color:#b45309;'},
+  {key:'internal', label:'🌿 Internal',  css:'background:#f0fdf4;color:#15803d;'},
+  {key:'chill',    label:'🥶 Chill',     css:'background:#eff6ff;color:#1d4ed8;'},
+  {key:'won',      label:'🎉 Won',       css:'background:#faf5ff;color:#7e22ce;'},
+  {key:'has',      label:'Has Headline', css:'background:#f3f4f6;color:#374151;'}
 ];
 // Product/geo type filters (v42) — shared by Key Client / Key Churn / Key Opps / Key Trials.
 // Has-any (OR) within the filter: an account passes if it has ≥1 bubble of a selected type.
@@ -4863,7 +4901,7 @@ const ACCT_HF = {
   revenueband: {kind:'multi',  opts:ACCT_REVENUE_FILTER_OPTS},
   stage:       {kind:'multi',  opts:acctStageFilterOpts},
   myopp:       {kind:'multi',  opts:ACCT_MYOPP_FILTER_OPTS},
-  action:      {kind:'toggle', label:'⚡'},
+  favorites:   {kind:'toggle', label:'⭐ Favorites'},
   hasheadline: {kind:'multi',  opts:ACCT_HEADLINE_FILTER_OPTS},
   activeclient:{kind:'multi', opts:ACCT_ACTIVECLIENT_FILTER_OPTS},
   keyclient:   {kind:'multi', opts:ACCT_GEO_FILTER_OPTS},
@@ -4936,10 +4974,10 @@ function passesColFilters(a, aName) {
   if (cf.stage.size    && !cf.stage.has(getField(a,'6sense Account Buying Stage NA') || '')) return false;
   if (cf.otheropp.size) { const cats = new Set(getOtherOpps(aName).map(o => otherOppCat(o).key)); if (![...cf.otheropp].some(k => cats.has(k))) return false; }
   if (cf.myopp.size) { const ok = [...cf.myopp].some(k => k === 'sf' ? getMyOpps(aName).length > 0 : (k === 'custom' ? hasCustomOpp(aName) : false)); if (!ok) return false; }
-  if (cf.action       && !localData[aName]?.hasAction) return false;
+  if (cf.favorites    && !localData[aName]?.hasAction) return false;
   if (cf.hasheadline.size) {
-    const hl = localData[aName] || {};
-    const ok = [...cf.hasheadline].some(k => k === 'hot' ? !!hl.headlineHot : (k === 'has' ? !!(hl.actionHeadline||'').trim() : false));
+    const hl = localData[aName] || {}, flags = hl.actFlags || [];
+    const ok = [...cf.hasheadline].some(k => k === 'has' ? !!(hl.actionHeadline||'').trim() : flags.includes(k));
     if (!ok) return false;
   }
   if (cf.activeclient.size) { const t = activeClientTypes(aName); if (![...cf.activeclient].some(k => t.has(k))) return false; }
@@ -5913,9 +5951,11 @@ const ACCT_PRIORITY_OPTS = [
 ];
 // NEW Priority column (v42) — outreach urgency, 4 states + unselected. Tabled kept here (not moved to Stage).
 const ACCT_PRIO_OPTS = [
+  { key:'immediate',  label:'🆘 Immediate',  bg:'#b91c1c', color:'#ffffff' },
   { key:'urgent',     label:'🚨 Urgent',     bg:'#fee2e2', color:'#b91c1c' },
   { key:'prioritize', label:'📌 Prioritize', bg:'#ffedd5', color:'#c2410c' },
   { key:'working',    label:'🛠 Working',     bg:'#dbeafe', color:'#1d4ed8' },
+  { key:'teamsell',   label:'🤝 Team-Sell',  bg:'#ccfbf1', color:'#115e59' },
   { key:'tabled',     label:'🗄 Tabled',      bg:'#e2e8f0', color:'#475569' },
   { key:'',           label:'—',              bg:'#f9fafb', color:'#9ca3af' },
 ];
@@ -6004,14 +6044,15 @@ function applyPortalPrio(prio) {
   portal.style.display = 'none'; portal.dataset.wrapId = '';
 }
 // Mark an Action Headline as 🔥 hot (drives the header filter + headline sort).
-function toggleHeadlineHot(e) {
+function toggleActFlag(e, name, key) {
   e.stopPropagation();
-  const name = e.currentTarget.dataset.name;
   if (!localData[name]) localData[name] = {};
-  localData[name].headlineHot = !localData[name].headlineHot;
+  const set = new Set(localData[name].actFlags || []);
+  if (set.has(key)) set.delete(key); else set.add(key);
+  localData[name].actFlags = [...set];
   localStorage.setItem('ibis_local', JSON.stringify(localData));
   if (acctColFilters.hasheadline && acctColFilters.hasheadline.size) renderAll();
-  else e.currentTarget.classList.toggle('on', !!localData[name].headlineHot);
+  else e.currentTarget.classList.toggle('on', set.has(key));
 }
 
 // Build license badge spans for a given account (inner HTML only — no wrapper)
@@ -7674,7 +7715,7 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   'ibis_client_licenses',
   'ibis_client_revenue',
   'ibis_rotation_accounts','ibis_rotation_licenses','ibis_rotation_opps','ibis_rotation_markup',
-  'ibis_priority_legacy','ibis_prio_migrated_v41','ibis_prio_split_v42',
+  'ibis_priority_legacy','ibis_prio_migrated_v41','ibis_prio_split_v42','ibis_actflags_v43',
   'ibis_auto_backup_meta'];
   // Note: the snapshot ring lives in IndexedDB (not localStorage), so it never
   // counts against the localStorage quota and can't nest inside a snapshot.
@@ -8816,7 +8857,7 @@ function handleLocalRestore(event) {
       // 1) ibis_local — always smart-merge so we preserve fresh enrichment (revenue/desc/sentiment)
       //    on accounts that exist in both current and backup. User markup fields always win from backup.
       const current = JSON.parse(localStorage.getItem('ibis_local') || '{}');
-      const USER_FIELDS = ['hasAction','acctStatus','acctPriority','acctPrio','acctActionStage','headlineHot',
+      const USER_FIELDS = ['hasAction','acctStatus','acctPriority','acctPrio','acctActionStage','actFlags',
         'actionHeadline','actionNextDate','actionNotes','actionKeyContact','accountPlan','acctOpp','acctOppAmt','acctOppClose','customOpp','flags','notes','_lastSeen'];
       if (backup.ibis_local) {
         Object.entries(backup.ibis_local).forEach(([name, bval]) => {
@@ -11693,7 +11734,7 @@ function exportAccountsTab() {
     if (cf.tier.size)        parts.push('Tier: '      + lbls('tier', cf.tier).join('/'));
     if (cf.revenueband.size) parts.push('Revenue: '   + lbls('revenueband', cf.revenueband).join('/'));
     if (cf.stage.size)       parts.push('Stage: '     + [...cf.stage].join('/'));
-    [['action','Action'],['hasheadline','Headline'],['activeclient','Active Client'],['keyclient','Key Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Opps'],['keytrials','Key Trials']].forEach(([k,l]) => { const v = cf[k]; if (v instanceof Set ? v.size : v) parts.push(l); });
+    [['favorites','Favorites'],['hasheadline','Action'],['activeclient','Active Client'],['keyclient','Key Client'],['overlap','Multi-Owner'],['keychurn','Key Churn'],['keylost','Key Opps'],['keytrials','Key Trials']].forEach(([k,l]) => { const v = cf[k]; if (v instanceof Set ? v.size : v) parts.push(l); });
     const vertT = document.getElementById('vertical-filter')?.value; if (vertT) parts.push('Vertical: ' + vertT);
     const searchT = (document.getElementById('search-input')?.value || '').trim(); if (searchT) parts.push('Search: "' + searchT + '"');
     parts.push((document.querySelectorAll('#table-body tr').length) + ' rows');
