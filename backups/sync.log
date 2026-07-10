@@ -1950,3 +1950,73 @@
 [2026-07-09 15:33:09] Source is already the mirror -- skipping mirror copy.
 [2026-07-09 15:33:09] Pruned old snapshot: snap-2026-07-09-1019.json
 [2026-07-09 15:33:11] Committing and pushing to GitHub
+[2026-07-09 15:33:29] [main fcb34b6] auto-backup: 2026-07-09-1512 (3,524,964 bytes)
+[2026-07-09 15:33:29]  4 files changed, 18 insertions(+), 2 deletions(-)
+[2026-07-09 15:33:29]  delete mode 100644 backups/snap-2026-07-09-1019.json
+[2026-07-09 15:33:30]  create mode 100644 backups/snap-2026-07-09-1512.json
+[2026-07-09 15:33:41] To https://github.com/Dabbs4Dan/ibisworld-dashboard.git
+[2026-07-09 15:33:41]    3dcd132..fcb34b6  main -> main
+[2026-07-09 15:33:43] Auto-backup sync complete.
+[2026-07-09 16:33:07] Auto-backup sync starting
+[2026-07-09 16:33:07] Latest backup source: mirror (FSA direct write)
+[2026-07-09 16:33:07] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-09 16:33:07] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-09 17:41:03] Auto-backup sync starting
+[2026-07-09 17:41:04] Latest backup source: mirror (FSA direct write)
+[2026-07-09 17:41:12] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-09 17:41:27] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-09 18:37:22] Auto-backup sync starting
+[2026-07-09 18:37:22] Latest backup source: mirror (FSA direct write)
+[2026-07-09 18:37:22] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-09 18:37:22] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-09 22:37:37] Auto-backup sync starting
+[2026-07-09 22:37:37] Latest backup source: mirror (FSA direct write)
+[2026-07-09 22:37:37] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-09 22:37:37] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-09 23:40:00] Auto-backup sync starting
+[2026-07-09 23:40:00] Latest backup source: mirror (FSA direct write)
+[2026-07-09 23:40:00] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 00:49:53] Auto-backup sync starting
+[2026-07-10 00:49:53] Latest backup source: mirror (FSA direct write)
+[2026-07-10 00:49:53] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 00:49:53] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 10:16:08] Auto-backup sync starting
+[2026-07-10 10:16:08] Latest backup source: mirror (FSA direct write)
+[2026-07-10 10:16:08] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 10:16:08] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 10:21:51] Auto-backup sync starting
+[2026-07-10 10:21:51] Latest backup source: mirror (FSA direct write)
+[2026-07-10 10:21:51] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 10:21:51] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 10:33:06] Auto-backup sync starting
+[2026-07-10 10:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-10 10:33:06] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 10:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 12:28:23] Auto-backup sync starting
+[2026-07-10 12:28:24] Latest backup source: mirror (FSA direct write)
+[2026-07-10 12:28:24] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 12:28:24] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 12:33:06] Auto-backup sync starting
+[2026-07-10 12:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-10 12:33:06] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 12:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 13:33:07] Auto-backup sync starting
+[2026-07-10 13:33:07] Latest backup source: mirror (FSA direct write)
+[2026-07-10 13:33:07] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 13:33:07] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 14:33:06] Auto-backup sync starting
+[2026-07-10 14:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-10 14:33:06] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 14:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 15:33:06] Auto-backup sync starting
+[2026-07-10 15:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-10 15:33:06] Latest file: latest.json (3,524,964 bytes, modified 07/09/2026 15:12:14)
+[2026-07-10 15:33:06] Latest download is older than committed latest.json. Nothing new to sync.
+[2026-07-10 16:33:06] Auto-backup sync starting
+[2026-07-10 16:33:06] Latest backup source: mirror (FSA direct write)
+[2026-07-10 16:33:06] Latest file: latest.json (3,521,867 bytes, modified 07/10/2026 16:27:06)
+[2026-07-10 16:33:06] Copied to backups/latest.json
+[2026-07-10 16:33:06] Saved timestamped snapshot: snap-2026-07-10-1627.json
+[2026-07-10 16:33:06] Source is already the mirror -- skipping mirror copy.
+[2026-07-10 16:33:06] Pruned old snapshot: snap-2026-07-09-1126.json
+[2026-07-10 16:33:06] Committing and pushing to GitHub
