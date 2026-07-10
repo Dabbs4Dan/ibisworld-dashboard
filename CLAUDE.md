@@ -84,7 +84,7 @@ Every new system, field, tool, or data type built going forward MUST integrate w
 
 ---
 
-## CURRENT STATE — v44 (stable)
+## CURRENT STATE — v44.2 (stable)
 
 ### v44 Summary — 🛡 DATA GUARDIAN: self-healing save/recovery + native GitHub push (entire session focus)
 A dedicated session hardening data safety end-to-end after a full 3-part audit (save path / recovery path / backup independence). All code in the **second `<script>` block** (near the existing auto-backup module) + a boot-order fix. Verified live in the local preview: healthy load = zero overhead; a simulated markup-wipe auto-recovered all 223 accounts of markup from the freshest source. **✅ Native GitHub push is CONNECTED as of v44.1** (see the v44.1 note below) — both independent cloud systems (browser push + Windows task) confirmed pushing to `origin/main`.
@@ -108,6 +108,12 @@ Continuation session verifying v44 live + closing the loop. **GitHub direct back
 - **Recovery robustness:** `_gatherRecoveryCandidates` now scans ALL ring snapshots (was top-3) so thin pre-recovery/pre-upload snapshots can't hide the good full snapshot underneath.
 - Commits `bfa2274` (no-download + hardier recovery) → `f4f058a` (panel + reconnect). ⚠️ **`git push` note:** the browser native push + Windows task both auto-commit `backups/latest.json` to `origin/main`, so a local push often needs `git pull --rebase` first (index.html changes rebase cleanly over the data commits; stash the auto-generated `backups/sync.log` + `.claude/settings.local.json` noise before rebasing).
 
+### v44.2 — deep-dive "is it saving everything?" audit + guardian now protects ALL hand-entered data (same-day continuation, commit `1aac321`)
+Dan asked for a triple-check that the system saves the very things it protects. **3 parallel forensic audits** (every editable surface→key; snapshot/restore/fingerprint completeness; CSV add/drop/dead lifecycles) — **verdict: SAVING is 100% complete.** Every hand-entered surface across every tab writes to a key in `ALL_STORAGE_KEYS`, captured in every snapshot + GitHub push; no blur-only bugs; all CSV/add/drop/dead/resurrect flows persist; pre-upload snapshots universal; only the Opportunities report is outside the backup (IndexedDB, by design, re-uploadable SF data with nothing hand-entered).
+- **Two gaps found — both about DETECTION scope, not saving.** (1) legacy `notes` field wasn't in `_MARKUP_FIELDS` → added. (2) the bigger one: the fingerprint / sanity-gate / boot-brain only *watched* `ibis_accounts`+`ibis_local`, so a wipe of **Rotation markup / campaign contacts / the Dead list** (all saved & backed up) wasn't auto-detected and could overwrite the good cloud copy.
+- **Fix — generalized the guardian to protect ALL hand-entered stores.** New `_PROTECTED_EXTRA` (ibis_rotation_markup, all 8 campaign keys, ibis_dead) with per-key count fns + floors; `_extraCounts`/`_extraShrunk`/`_parseKey` helpers. Fingerprint now stores `ex:{per-key counts}` (per-component last-known-good). Sanity gate freezes on ANY protected-store shrink. `autoRecoverIfNeeded` detects any-key shrink and heals each affected key in place (ibis_local = richer-merge; extra keys = replace-with-freshest-richer-candidate). **Verified live:** wiped a Rotation key + a campaign key together → both auto-recovered (21 items) from the ring; ibis_local recovery unchanged; no false positives; floors respected. Efficiency preserved (counts only run debounced / per-backup / per-boot).
+- Added the **🔬 DIAGNOSTIC & RECOVERY PLAYBOOK** below (Dan's 3rd ask) — console one-liners for a future Claude to diagnose every layer + force-recover, incl. git-history recovery if `latest.json` were ever bad.
+
 ### 🛡 RECOVERY RUNBOOK — how Claude force-recovers Dan's data (READ THIS if data looks lost)
 Dan's rule: *"I barely wanna have to lift a finger for Claude to truly recover all of my data, fresh recent data, with no excuses."* The system self-heals on load; this runbook is for when Claude must intervene. **Backup sources, freshest → most durable:** (1) **IndexedDB ring** — 5 snapshots, near real-time, local to the browser profile (dies on a Chrome data wipe). (2) **Local file** `Documents\IBIS-Backups\latest.json` (FSA, OneDrive-synced) — hourly, survives a browser wipe. (3) **GitHub** `backups/latest.json` — hourly (Windows task) + real-time IF the native push token is set; public, survives machine loss; restore needs no auth.
 
@@ -119,6 +125,52 @@ Dan's rule: *"I barely wanna have to lift a finger for Claude to truly recover a
 - **GitHub direct backup — DONE (connected v44.1).** Token = fine-grained PAT "IBIS Dashboard Auto-Backup" (Dabbs4Dan, repo `ibisworld-dashboard`, **Contents: Read and write**, no expiration), stored in `localStorage['ibis_gh_token']` (never in a backup). To re-create if ever lost: GitHub → Settings → Developer settings → Fine-grained tokens → the existing one → **Regenerate token** (or Generate new with the same settings) → copy → dashboard 🛡 → **Connect GitHub** → paste. **After a full-restore recovery** the token is wiped with the browser — the dashboard shows a one-tap "🔑 Reconnect" nudge; data already recovered without it (cloud read needs no token).
 - **Claude-in-Chrome token flow (for next time):** creating the PAT needs Dan's GitHub login (Claude can't enter credentials). Once logged in, Claude can drive the token form + Regenerate via the chrome MCP, but **can't copy the token** (GitHub's copy button + `navigator.clipboard` both need OS window focus, which the background MCP tab lacks; the classifier also blocks reading the token into transcript). So the last inch is Dan's: click GitHub's 📋 copy, then dashboard 🛡 → Connect GitHub → Ctrl+V. `javascript_tool` DOES work on the live `dabbs4dan.github.io` (the Outreach extension wasn't blocking this session).
 - **Never** let a suspiciously-empty state get committed/pushed — the sanity gate blocks it automatically, but if editing that path, preserve the fingerprint-vs-current-markup check.
+
+### 🔬 DIAGNOSTIC & RECOVERY PLAYBOOK — for a future Claude session (Dan's "3rd recovery layer")
+Dan's ask: *"worst case you're the third recovery layer and you know how to recover stuff because it's saving."* This is the step-by-step for a future Claude to diagnose the save/backup system and force a recovery. **`javascript_tool` works on the live `dabbs4dan.github.io` in Claude-in-Chrome** (the Outreach extension has NOT been blocking it) — run these in that console. If Chrome isn't available, have Dan open DevTools and run them, or use the Backups panel UI.
+
+**① HOW IT WORKS (30-second model).** Data lives in `localStorage` (the ~37 `ALL_STORAGE_KEYS`). Three places hold copies: (a) **IndexedDB ring** — 5 near-real-time snapshots, local; (b) **GitHub** `backups/latest.json` — pushed live by the dashboard (`_ghPushBackup`, needs `ibis_gh_token`) AND hourly by a Windows task; (c) **local file** `Documents\IBIS-Backups\latest.json` (FSA, if granted). The **Data Guardian** (2nd `<script>` block) protects it: a health **fingerprint** (`ibis_health` = `{ts, acct, mk, ex:{per-key counts}}`) records last-known-good; a **sanity gate** in `runAutoBackup` freezes all backups if any protected store shrinks >50%; a **boot brain** (`autoRecoverIfNeeded`, runs before `init()`) auto-detects blank/partial loss and heals from the freshest source. Protected stores = `ibis_local` markup (`_MARKUP_FIELDS`/`_countUserMarkup`) + `_PROTECTED_EXTRA` (rotation markup, 8 campaigns, dead).
+
+**② DIAGNOSE — run these to see the whole picture:**
+```js
+// What data is currently in the browser + how it compares to last-known-good
+JSON.stringify({ accounts: accounts?.length, markup: _countUserMarkup(localData),
+  fingerprint: _loadHealthFingerprint(), ghConnected: _ghConfigured(),
+  writeHealth: WRITE_HEALTH, extraNow: _extraCounts(k=>localStorage.getItem(k)) })
+// Every backup source + its age + how much data each holds (the master diagnostic)
+(await _gatherRecoveryCandidates()).map(c => ({ source:c.source, ageMin: Math.round((Date.now()-c.ts)/60000), accounts:c.acct, markup:c.mk }))
+// The in-browser ring directly (newest first): timestamps + labels
+(await _ringAll()).map(e => ({ ts:new Date(e.ts).toLocaleString(), reason:e.reason, sizeKB:Math.round((e.snapJson||'').length/1024) }))
+// GitHub cloud freshness (commit age)
+await fetchCloudBackupStatus()
+```
+Read `backups/sync.log` (tail) for the Windows task; a stale `latest.json` timestamp there = FSA permission lapsed OR browser closed (the token push is the fix).
+
+**③ FORCE A RECOVERY — pick the situation:**
+```js
+// A) Restore the FRESHEST source that has real data (the go-to; replace-not-merge + reload)
+{ const c=(await _gatherRecoveryCandidates()).filter(x=>x.acct>0||x.mk>0).sort((a,b)=>b.ts-a.ts)[0];
+  await _autoBackupSaveToRing(_buildBackupSnapshot(),'Pre-recovery (manual)'); _applyBackupToStorage(c.snap); location.reload(); }
+// B) Restore ONE lost key (e.g. rotation) without touching the rest — freshest richer copy:
+{ const key='ibis_rotation_markup'; const cands=await _gatherRecoveryCandidates();
+  const best=cands.map(c=>({ts:c.ts,v:(typeof c.snap[key]==='string'?JSON.parse(c.snap[key]):c.snap[key])})).filter(o=>o.v&&Object.keys(o.v).length).sort((a,b)=>b.ts-a.ts)[0];
+  localStorage.setItem(key, JSON.stringify(best.v)); location.reload(); }
+// C) Pull straight from GitHub (public, no token needed) — the built-in button in code form:
+restoreFromCloud()
+// D) Roll back to a specific ring snapshot by timestamp (from step ②):
+restoreAutoBackup(<ts>)
+```
+
+**④ IF THE BROWSER/RING IS GONE (fresh machine, cache wiped):** the data is safe in GitHub. Open the dashboard → the boot brain auto-detects blank and pulls `backups/latest.json` itself (no token, no clicks). If it doesn't (offline/loop-guard), click **☁️ Restore Everything from Cloud** on the empty state, or run `restoreFromCloud()`. The token is wiped too → a **🔑 Reconnect** nudge appears; data is already back, just reconnect to resume cloud *writes*.
+
+**⑤ IF `latest.json` WAS OVERWRITTEN with a bad/thin copy** (shouldn't happen — the sanity gate prevents it — but if it did): git history has every hourly + browser push. From the repo:
+```bash
+git log --oneline -- backups/latest.json          # find a good older commit
+git show <commit>:backups/latest.json > good.json  # extract it
+```
+Then paste `good.json`'s content via the Backups panel "📥 Restore from a file", or `_applyBackupToStorage(JSON.parse(<contents>))` in console. The IndexedDB ring (5 local snapshots) is another independent copy if git is unavailable.
+
+**⑥ INVARIANTS to preserve when editing the guardian** (don't regress these): (1) any NEW hand-entered `ibis_local` field → add to `_MARKUP_FIELDS`; any NEW hand-entered top-level key → add to `_PROTECTED_EXTRA` AND `ALL_STORAGE_KEYS`. (2) The fingerprint must NOT advance on a suspicious shrink (that's what preserves last-known-good). (3) `autoRecoverIfNeeded` MUST run before `init()` (it's at the end of the 2nd `<script>`; init is called from there, not script 1). (4) The GitHub token key `ibis_gh_token` must stay OUT of `ALL_STORAGE_KEYS` (never commit a secret to the public repo). (5) Recovery reads are public/no-auth — never make recovery depend on the token.
 
 ### v42–v43 Summary — Accounts-tab overhaul: history columns, Priority/Stage split, favorite star, action-priority pillbox, typed filters, Excel export (entire multi-part session)
 A very long single session reworking the **Accounts Table**. Every change verified against the live DOM in a local `http-server` preview (`.claude/launch.json` → `dashboard`) before push. Commits `dd3c3fc` → `dd6b3ca`. All migrations guarded + reversible; new fields live in `ibis_local` (backed up).
