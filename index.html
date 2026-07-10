@@ -12628,49 +12628,78 @@ function _renderBackupsPanel(modal, { cloud }) {
     else cloudPart = ' · cloud offline (local layers still active)';
     topSub = `Last save ${l1AgoSimple}${cloudPart}`;
   }
+  // ── Shared bits for the clean layout ─────────────────────────────────
+  const ghConfigured = _ghConfigured();
+  const cloudAgeText = cloud == null ? 'checking…' : cloud.available ? l3Text : 'can’t reach GitHub right now';
+  const ghDot = ghConfigured ? (cloud ? (cloud.available ? l3Class : 'err') : 'pending') : 'pending';
+  const ghRowBtns = ghConfigured
+    ? `<button class="bp-action-btn" style="flex:0 0 auto;" onclick="_ghPushBackup(_buildBackupSnapshot(),{force:true}).then(r=>{showOppToast(r.ok?'✅ Pushed to GitHub':'⚠️ '+(r.error||r.skip));openBackupsPanel();});">Push now</button><button class="bp-action-btn" style="flex:0 0 auto;color:#6b7280;" onclick="disconnectGitHubBackup()">Disconnect</button>`
+    : `<button class="bp-action-btn" style="flex:0 0 auto;background:#4f46e5;color:#fff;border-color:#4f46e5;" onclick="connectGitHubBackup()">Connect</button>`;
+  // Local folder (optional bonus copy) — one honest row, no separate nag banner
+  let folderDot = 'pending', folderText, folderBtn = '';
+  if (_fsaPermission === 'unsupported') { folderText = 'Not available in this browser'; }
+  else if (_fsaPermission === 'granted' && _fsaHandle) {
+    folderDot = 'ok';
+    folderText = `Active — silent writes to ${escHtml(_fsaHandle.name)}\\ (OneDrive-synced)`;
+    folderBtn = `<button class="bp-action-btn" style="flex:0 0 auto;" onclick="fsaDisable()">Disable</button>`;
+  } else if (_fsaPermission === 'denied' || _fsaPermission === 'prompt') {
+    folderDot = 'warn';
+    folderText = 'Paused — Chrome expired the permission (optional; nothing prompts you)';
+    folderBtn = `<button class="bp-action-btn" style="flex:0 0 auto;" onclick="fsaSetupFolder()">Re-grant</button>`;
+  } else {
+    folderText = 'Not set up — an optional bonus copy on your PC';
+    folderBtn = `<button class="bp-action-btn" style="flex:0 0 auto;" onclick="fsaSetupFolder()">Set up</button>`;
+  }
+
   // ── Details (collapsed by default) ───────────────────────────────────
+  // Honest model: TWO independent systems (this browser + GitHub cloud) plus an
+  // optional local-folder copy. The old "4 layers" double-counted the folder
+  // (the "file backup" and "local mirror" were the same file).
   const detailsHTML = !_bpShowDetails ? '' : `
     <div class="bp-section">
-      <div class="bp-section-title">All 4 protection layers</div>
+      <div class="bp-section-title">Where your data is saved</div>
       <div class="bp-layer">
         <span class="bp-layer-dot ${l1Class}"></span>
         <div class="bp-layer-body">
-          <div class="bp-layer-name">1 · In-browser snapshots</div>
-          <div class="bp-layer-meta">Last save: ${l1Ago}${ring.length ? ' · ' + ring.length + ' of ' + AUTO_BACKUP_RING_SIZE + ' kept' : ' · none yet'}</div>
+          <div class="bp-layer-name">💻 This browser <span style="color:#9ca3af;font-weight:400;">· instant, every change</span></div>
+          <div class="bp-layer-meta">Last save ${l1Ago}${ring.length ? ' · ' + ring.length + ' of ' + AUTO_BACKUP_RING_SIZE + ' snapshots kept' : ''}</div>
         </div>
       </div>
       <div class="bp-layer">
-        <span class="bp-layer-dot ${l2Class}"></span>
+        <span class="bp-layer-dot ${ghDot}"></span>
         <div class="bp-layer-body">
-          <div class="bp-layer-name">2 · File backup ${meta.lastFileMethod === 'fsa' ? '(direct folder write)' : '(via Downloads)'}</div>
-          <div class="bp-layer-meta">Last file: ${l2Ago} · ${meta.lastFileMethod === 'fsa' ? 'written straight to ' + (_fsaHandle?.name || 'your folder') + ' — invisible, no notification' : 'lands in Downloads then auto-deleted when mirrored'}</div>
+          <div class="bp-layer-name">☁️ GitHub cloud <span style="color:#9ca3af;font-weight:400;">· off your machine</span></div>
+          <div class="bp-layer-meta">${ghConfigured ? cloudAgeText + ' · pushed live by the dashboard + hourly by a backup task' : 'Not on yet — an independent 2nd copy, off your machine'}</div>
         </div>
+        ${ghRowBtns}
       </div>
       <div class="bp-layer">
-        <span class="bp-layer-dot ${l3Class}"></span>
+        <span class="bp-layer-dot ${folderDot}"></span>
         <div class="bp-layer-body">
-          <div class="bp-layer-name">3 · GitHub cloud</div>
-          <div class="bp-layer-meta">Last push: ${l3Text} · hourly Windows task</div>
+          <div class="bp-layer-name">📁 Local folder <span style="color:#9ca3af;font-weight:400;">· optional, on this PC</span></div>
+          <div class="bp-layer-meta">${folderText}</div>
         </div>
+        ${folderBtn}
       </div>
-      <div class="bp-layer">
-        <span class="bp-layer-dot ok"></span>
-        <div class="bp-layer-body">
-          <div class="bp-layer-name">4 · Local mirror (Documents folder)</div>
-          <div class="bp-layer-meta">Last 30 hourly snapshots · OneDrive-synced too (4th cloud copy)</div>
-        </div>
+    </div>
+    <div class="bp-section">
+      <div class="bp-section-title">Storage in this browser</div>
+      <div class="bp-storage-bar"><div class="bp-storage-fill" style="width:${pct}%;background:${barColor};"></div></div>
+      <div class="bp-storage-meta">
+        <span><strong>${(totalKB/1024).toFixed(2)} MB</strong> used of ~${(limitKB/1024).toFixed(0)} MB</span>
+        <span>${pct}%</span>
       </div>
     </div>
     ${ring.length ? `<div class="bp-section">
-      <div class="bp-section-title">Recent in-browser snapshots</div>
+      <div class="bp-section-title">Roll back to an earlier snapshot</div>
       <div class="bp-snap-list">${ringRows}</div>
     </div>` : ''}
     <div class="bp-section">
       <div class="bp-section-title">Advanced</div>
       <div class="bp-actions">
-        <button class="bp-action-btn" onclick="forceBackupNow()">💾 Backup right now</button>
+        <button class="bp-action-btn" onclick="forceBackupNow()">💾 Back up right now</button>
         <button class="bp-action-btn" onclick="document.getElementById('local-restore-input').click()">📥 Restore from a file</button>
-        <button class="bp-action-btn" onclick="window.open('https://github.com/Dabbs4Dan/ibisworld-dashboard/tree/main/backups','_blank')">🌐 GitHub snapshots</button>
+        <button class="bp-action-btn" onclick="window.open('https://github.com/Dabbs4Dan/ibisworld-dashboard/tree/main/backups','_blank')">🌐 View on GitHub</button>
         <button class="bp-action-btn" onclick="safeFreeStorage()">🧹 Free space now</button>
       </div>
     </div>`;
@@ -12685,91 +12714,26 @@ function _renderBackupsPanel(modal, { cloud }) {
         <button class="ab-card-close" onclick="document.getElementById('autoback-modal').style.display='none'">✕</button>
       </div>
 
-      <div class="bp-section" style="display:flex;align-items:flex-start;gap:14px;">
-        <span style="font-size:28px;line-height:1;">${topIcon}</span>
-        <div style="flex:1;">
-          <div style="font-size:15px;font-weight:600;color:${topColor};">${topText}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">${topSub}</div>
-        </div>
-      </div>
-
       <div class="bp-section">
-        <div class="bp-section-title">Storage in this browser</div>
-        <div class="bp-storage-bar"><div class="bp-storage-fill" style="width:${pct}%;background:${barColor};"></div></div>
-        <div class="bp-storage-meta">
-          <span><strong>${(totalKB/1024).toFixed(2)} MB</strong> used of ~${(limitKB/1024).toFixed(0)} MB</span>
-          <span>${pct}%</span>
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <span style="font-size:28px;line-height:1;">${topIcon}</span>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:600;color:${topColor};">${topText}</div>
+            <div style="margin-top:9px;display:flex;flex-direction:column;gap:6px;">
+              <div style="font-size:12.5px;color:#374151;display:flex;align-items:center;gap:7px;"><span class="bp-layer-dot ${l1Class}" style="flex:0 0 auto;"></span>💻 <strong>This browser</strong> — saved ${l1Ago}</div>
+              <div style="font-size:12.5px;color:#374151;display:flex;align-items:center;gap:7px;"><span class="bp-layer-dot ${ghDot}" style="flex:0 0 auto;"></span>☁️ <strong>GitHub cloud</strong> — ${ghConfigured ? 'saved ' + cloudAgeText : `<span style="color:#b45309;">not on yet</span> <button class="bp-action-btn" style="padding:1px 10px;height:23px;background:#4f46e5;color:#fff;border-color:#4f46e5;" onclick="connectGitHubBackup()">Connect</button>`}</div>
+            </div>
+            <div style="font-size:11.5px;color:#9ca3af;margin-top:9px;">Two independent copies — if one is ever lost, the other still has your data.</div>
+          </div>
         </div>
       </div>
-
-      ${(() => {
-        // FSA setup section — only show CTA if FSA is supported but not set up
-        if (_fsaPermission === 'granted' && _fsaHandle) {
-          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-left:3px solid #16a34a;">
-            <span style="font-size:18px;">📁</span>
-            <div style="flex:1;font-size:12px;color:#14532d;">
-              <strong>Direct save active</strong> — writing to <code style="font-family:'DM Mono',monospace;">${escHtml(_fsaHandle.name)}\\</code>. No download notifications.
-            </div>
-            <button class="bp-action-btn" style="flex:0 0 auto;min-width:80px;" onclick="fsaDisable()">Disable</button>
-          </div>`;
-        }
-        if (_fsaPermission === 'unsupported') return '';
-        if (_fsaPermission === 'denied' || _fsaPermission === 'prompt') {
-          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#f8fafc;border-left:3px solid #94a3b8;">
-            <span style="font-size:18px;">📁</span>
-            <div style="flex:1;font-size:12px;color:#475569;">
-              <strong>Optional local-folder copy paused</strong> — Chrome expired the folder permission. Nothing downloads or prompts you; your data is still fully protected by the in-browser + GitHub layers. Re-grant only if you want the bonus disk copy back.
-            </div>
-            <button class="bp-action-btn" style="flex:0 0 auto;" onclick="fsaSetupFolder()">Re-grant</button>
-          </div>`;
-        }
-        // not set up yet — show the CTA (unless user dismissed it)
-        if (localStorage.getItem('ibis_fsa_cta_dismissed') === '1') return '';
-        return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eff6ff;border-left:3px solid #2563eb;">
-          <span style="font-size:18px;">📁</span>
-          <div style="flex:1;font-size:12px;color:#1e3a8a;line-height:1.5;">
-            <strong>Optional extra: keep a copy in a local folder too</strong><br>
-            <span style="color:#475569;">A bonus 3rd copy on your disk (OneDrive-synced). <strong>Not required</strong> — your data is already protected by the in-browser + GitHub layers, and nothing ever downloads or prompts you.</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">
-            <button class="bp-action-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;white-space:nowrap;" onclick="fsaSetupFolder()">Set it up</button>
-            <button class="bp-action-btn" style="white-space:nowrap;font-size:11px;color:#6b7280;" onclick="localStorage.setItem('ibis_fsa_cta_dismissed','1');openBackupsPanel();">Skip — don't ask again</button>
-          </div>
-        </div>`;
-      })()}
-
-      ${(() => {
-        // GitHub direct backup — independent 2nd cloud system (browser-native push)
-        if (_ghConfigured()) {
-          const mins = meta.ghLastPushTs ? Math.round((Date.now() - meta.ghLastPushTs) / 60000) : null;
-          const ago = mins == null ? 'not yet this session' : mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.round(mins/60)}h ago` : `${Math.round(mins/1440)}d ago`;
-          const errRecent = meta.ghLastError && meta.ghLastErrorTs && (Date.now() - meta.ghLastErrorTs) < 6 * 60 * 60 * 1000;
-          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-left:3px solid #16a34a;">
-            <span style="font-size:18px;">☁️</span>
-            <div style="flex:1;font-size:12px;color:#166534;line-height:1.5;">
-              <strong>GitHub direct backup: ON</strong> — the dashboard pushes to GitHub itself (independent 2nd cloud).<br>
-              <span style="color:#475569;">Last push: ${ago}.${errRecent ? ` <span style="color:#b45309;">Last attempt errored — ${meta.ghLastError}</span>` : ''}</span>
-            </div>
-            <button class="bp-action-btn" style="flex:0 0 auto;" onclick="_ghPushBackup(_buildBackupSnapshot(),{force:true}).then(r=>{showOppToast(r.ok?'✅ Pushed to GitHub':'⚠️ '+(r.error||r.skip));openBackupsPanel();});">Push now</button>
-            <button class="bp-action-btn" style="flex:0 0 auto;color:#6b7280;" onclick="disconnectGitHubBackup()">Disconnect</button>
-          </div>`;
-        }
-        return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eef2ff;border-left:3px solid #4f46e5;">
-          <span style="font-size:18px;">🛡</span>
-          <div style="flex:1;font-size:12px;color:#3730a3;line-height:1.5;">
-            <strong>Turn on a 2nd independent cloud backup</strong><br>
-            <span style="color:#475569;">Let the dashboard push to GitHub by itself — works on any machine, no Windows task or file folder needed. One-time: paste a GitHub token.</span>
-          </div>
-          <button class="bp-action-btn" style="flex:0 0 auto;background:#4f46e5;color:#fff;border-color:#4f46e5;white-space:nowrap;" onclick="connectGitHubBackup()">Connect GitHub</button>
-        </div>`;
-      })()}
 
       <div class="bp-section">
         <button class="bp-restore-btn" onclick="restoreFromCloud()">
           ☁️ Restore Everything from Cloud
         </button>
         <div class="bp-restore-sub">
-          One click pulls your most recent GitHub backup and reloads. Use this only if your data is gone or corrupted.${cloud && !cloud.available ? '<br><span style="color:#d97706;">Status check failed — the restore itself may still work. Try anyway.</span>' : ''}
+          Recovery is normally automatic. Use this only if your data looks gone or wrong — it pulls your latest GitHub backup and reloads.${cloud && !cloud.available ? '<br><span style="color:#d97706;">Cloud check failed — the restore itself may still work. Try anyway.</span>' : ''}
         </div>
       </div>
 
@@ -12777,7 +12741,7 @@ function _renderBackupsPanel(modal, { cloud }) {
 
       <div class="bp-section" style="background:#fafafa;border-top:1px solid #f3f4f6;padding-top:12px;padding-bottom:12px;">
         <button onclick="toggleBackupsDetails()" style="background:none;border:none;color:#475569;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;padding:0;">
-          ${_bpShowDetails ? '▲ Hide details' : '▼ Show details (4 layers, snapshots, advanced)'}
+          ${_bpShowDetails ? '▲ Hide details' : '▼ Show details (where it’s saved, snapshots, storage, advanced)'}
         </button>
       </div>
 
@@ -13079,6 +13043,23 @@ function _showRecoveryToast({ mode, source, ts, recovered, undoTs }) {
   if (mode === 'full') setTimeout(() => { el?.remove(); }, 9000);
 }
 
+// After an auto-recovery from a wiped browser, the GitHub token (which lives only
+// on this device and is deliberately never in a backup) is gone too. Data recovers
+// fine without it — cloud READ needs no token — but new backups can't be PUSHED
+// until reconnected. This surfaces a gentle, one-tap reconnect so that last inch
+// is guided, not something Dan has to remember.
+function _guardianShowReconnectReminder() {
+  if (document.getElementById('guardian-reconnect')) return;
+  const el = document.createElement('div');
+  el.id = 'guardian-reconnect';
+  el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10041;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:\'DM Sans\',sans-serif;font-size:13px;color:#3730a3;display:flex;align-items:center;gap:12px;max-width:560px;';
+  el.innerHTML = `<span style="font-size:16px;">🔑</span>
+    <div style="flex:1;line-height:1.45;"><strong>Reconnect GitHub cloud backup</strong><br><span style="color:#4338ca;font-size:11.5px;">Your data was restored. The GitHub key lives only on this device and was cleared in the wipe — reconnect once to resume saving new backups to the cloud. Your data is safe either way.</span></div>
+    <button class="bp-action-btn" style="flex:0 0 auto;background:#4f46e5;color:#fff;border-color:#4f46e5;" onclick="document.getElementById('guardian-reconnect')?.remove();connectGitHubBackup();">Reconnect</button>
+    <button style="flex:0 0 auto;background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px;" onclick="document.getElementById('guardian-reconnect')?.remove();" title="Later">✕</button>`;
+  document.body.appendChild(el);
+}
+
 // Undo a partial repair: restore the pre-recovery (thin) snapshot we stashed.
 async function _guardianUndo(undoTs) {
   try {
@@ -13317,6 +13298,9 @@ function disconnectGitHubBackup() {
       sessionStorage.removeItem('ibis_recover_attempt');
       const r = JSON.parse(rec);
       setTimeout(() => _showRecoveryToast({ mode: 'full', source: r.source, ts: r.ts }), 700);
+      // A full restore means the browser was wiped — the GitHub token is gone too.
+      // Guide a one-tap reconnect so cloud pushes resume (data already recovered).
+      if (!_ghConfigured()) setTimeout(_guardianShowReconnectReminder, 1800);
     }
   } catch {}
   // Partial (in-place) repair toast with Undo
