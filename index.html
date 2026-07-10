@@ -4039,6 +4039,9 @@ window.addEventListener('beforeunload', () => {
     clearTimeout(s.t);
     try { s.flush(); } catch {}
   });
+  // 1b) Kill the custom-opp debounce — its value is already in localData memory,
+  //     the wholesale persist below commits it (fixes paste-then-close data loss).
+  try { clearTimeout(saveCustomOppDebounced._t); } catch {}
   // 2) Read every editable field currently in the DOM and save whatever is
   //    visible — last-ditch safety net for cases where input handlers never
   //    fired (paste-then-close, autocomplete-then-close, etc.)
@@ -4052,9 +4055,13 @@ window.addEventListener('beforeunload', () => {
       if (notesEl) localData[acctName].actionNotes    = notesEl.innerHTML;
       if (headEl)  localData[acctName].actionHeadline = headEl.value;
       if (dateEl)  localData[acctName].actionNextDate = dateEl.value;
-      localStorage.setItem('ibis_local', JSON.stringify(localData));
     }
   } catch {}
+  // 3) Final safety net: persist the in-memory markup wholesale, regardless of
+  //    which view is open. localData is the source of truth for every
+  //    hand-entered field, so this commits anything whose own debounce hadn't
+  //    fired yet (custom opp, action fields, dropdowns).
+  try { localStorage.setItem('ibis_local', JSON.stringify(localData)); } catch {}
 });
 
 // Toggle ⚡ action from the Account page header button
@@ -7778,7 +7785,7 @@ const ALL_STORAGE_KEYS = ['ibis_accounts','ibis_local','ibis_licenses','ibis_opp
   'ibis_client_revenue',
   'ibis_rotation_accounts','ibis_rotation_licenses','ibis_rotation_opps','ibis_rotation_markup',
   'ibis_priority_legacy','ibis_prio_migrated_v41','ibis_prio_split_v42','ibis_actflags_v43',
-  'ibis_auto_backup_meta'];
+  'ibis_auto_backup_meta','ibis_health'];
   // Note: the snapshot ring lives in IndexedDB (not localStorage), so it never
   // counts against the localStorage quota and can't nest inside a snapshot.
 
@@ -9075,8 +9082,11 @@ function updateUploadDots() {
   });
 }
 
-init();
-checkStorageSize();
+// NOTE: boot() moved to the END of the SECOND <script> block. init() must run
+// AFTER the Data Guardian's autoRecoverIfNeeded() (defined in that later script)
+// so a blank/partial load can be repaired before init reads storage. Function
+// declarations don't hoist across separate <script> tags, so the orchestrator
+// lives beside the recovery code. See "DATA GUARDIAN BOOT" at end of script 2.
 
 // --- Tier filter for Accounts table ---
 function toggleTierDropdown(e) {
@@ -12237,6 +12247,18 @@ async function runAutoBackup({ forceFile = false } = {}) {
     const meta = _autoBackupLoadMeta();
     if (hash === meta.lastHash && !forceFile) { _autoBackupRunning = false; return; }
     const snap = _buildBackupSnapshot();
+    // ── SANITY GATE ── never let a suddenly-empty state overwrite good backups.
+    // If markup dropped sharply below last-known-good, freeze the backup layers
+    // and surface it, unless the user explicitly allowed it or is force-backing-up.
+    try {
+      const fp = _loadHealthFingerprint();
+      const snapMk = _countUserMarkup(typeof snap.ibis_local === 'string' ? JSON.parse(snap.ibis_local) : (snap.ibis_local || {}));
+      if (fp && _isSuspiciousShrink(fp.mk, snapMk) && !_guardianOverride && !forceFile && !_guardianRecovering) {
+        console.warn('[data-guardian] backup FROZEN — markup', fp.mk, '→', snapMk);
+        try { _guardianShowShrinkBanner(fp.mk, snapMk); } catch {}
+        _autoBackupRunning = false; return;
+      }
+    } catch {}
     const ringSize = await _autoBackupSaveToRing(snap);
     meta.lastHash = hash;
     // Only stamp an in-memory save time when a ring entry actually persisted —
@@ -12246,13 +12268,18 @@ async function runAutoBackup({ forceFile = false } = {}) {
     const now = Date.now();
     const since = now - (meta.lastFileTs || 0);
     const isFirstChangeThisSession = !meta.sessionFileDoneAt && (now - (window._autoBackupSessionStart || now)) > AUTO_BACKUP_FILE_FIRST_MIN_MS;
-    if (forceFile || isFirstChangeThisSession || since > AUTO_BACKUP_FILE_MIN_MS) {
+    const doFile = forceFile || isFirstChangeThisSession || since > AUTO_BACKUP_FILE_MIN_MS;
+    if (doFile) {
       if (await _autoBackupDownloadFile(snap)) {
         meta.lastFileTs = now;
         meta.sessionFileDoneAt = now;
       }
     }
     _autoBackupSaveMeta(meta);
+    // Native GitHub push — the independent 2nd cloud system. Same cadence as the
+    // file write; fire-and-forget so it never blocks the UI. Works on any machine
+    // with a token configured, with or without the Windows scheduled task.
+    if (doFile && typeof _ghConfigured === 'function' && _ghConfigured()) _ghPushBackup(snap, { force: forceFile });
     updateAutoBackupIndicator();
   } finally { _autoBackupRunning = false; }
 }
@@ -12372,6 +12399,9 @@ function _wh_hideCriticalBanner() {
     try {
       _origSet.call(this, k, v);
       if (!WRITE_HEALTH.inRecovery) _wh_markSuccess();
+      // Refresh the last-known-good fingerprint after any data write that could
+      // change account/markup counts (debounced; skips advancing on a bad shrink).
+      if (k === 'ibis_local' || k === 'ibis_accounts') { try { _scheduleFingerprint(); } catch {} }
       scheduleAutoBackup();
     } catch (e) {
       _wh_markFailure(k);
@@ -12721,6 +12751,32 @@ function _renderBackupsPanel(modal, { cloud }) {
         </div>`;
       })()}
 
+      ${(() => {
+        // GitHub direct backup — independent 2nd cloud system (browser-native push)
+        if (_ghConfigured()) {
+          const mins = meta.ghLastPushTs ? Math.round((Date.now() - meta.ghLastPushTs) / 60000) : null;
+          const ago = mins == null ? 'not yet this session' : mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.round(mins/60)}h ago` : `${Math.round(mins/1440)}d ago`;
+          const errRecent = meta.ghLastError && meta.ghLastErrorTs && (Date.now() - meta.ghLastErrorTs) < 6 * 60 * 60 * 1000;
+          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#f0fdf4;border-left:3px solid #16a34a;">
+            <span style="font-size:18px;">☁️</span>
+            <div style="flex:1;font-size:12px;color:#166534;line-height:1.5;">
+              <strong>GitHub direct backup: ON</strong> — the dashboard pushes to GitHub itself (independent 2nd cloud).<br>
+              <span style="color:#475569;">Last push: ${ago}.${errRecent ? ` <span style="color:#b45309;">Last attempt errored — ${meta.ghLastError}</span>` : ''}</span>
+            </div>
+            <button class="bp-action-btn" style="flex:0 0 auto;" onclick="_ghPushBackup(_buildBackupSnapshot(),{force:true}).then(r=>{showOppToast(r.ok?'✅ Pushed to GitHub':'⚠️ '+(r.error||r.skip));openBackupsPanel();});">Push now</button>
+            <button class="bp-action-btn" style="flex:0 0 auto;color:#6b7280;" onclick="disconnectGitHubBackup()">Disconnect</button>
+          </div>`;
+        }
+        return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eef2ff;border-left:3px solid #4f46e5;">
+          <span style="font-size:18px;">🛡</span>
+          <div style="flex:1;font-size:12px;color:#3730a3;line-height:1.5;">
+            <strong>Turn on a 2nd independent cloud backup</strong><br>
+            <span style="color:#475569;">Let the dashboard push to GitHub by itself — works on any machine, no Windows task or file folder needed. One-time: paste a GitHub token.</span>
+          </div>
+          <button class="bp-action-btn" style="flex:0 0 auto;background:#4f46e5;color:#fff;border-color:#4f46e5;white-space:nowrap;" onclick="connectGitHubBackup()">Connect GitHub</button>
+        </div>`;
+      })()}
+
       <div class="bp-section">
         <button class="bp-restore-btn" onclick="restoreFromCloud()">
           ☁️ Restore Everything from Cloud
@@ -12773,6 +12829,445 @@ function _applyBackupToStorage(backup) {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATA GUARDIAN (v44) — self-healing save/recovery layer
+   ───────────────────────────────────────────────────────────────────────────
+   Three jobs, all automatic, zero clicks:
+     1. FINGERPRINT   — after every markup save, record a tiny "last-known-good"
+                        count (accounts + hand-entered markup). Cheap, in-memory.
+     2. GUARDS        — refuse to let a suddenly-empty state overwrite good
+                        backups (sanity gate in runAutoBackup). The fingerprint
+                        never advances on a suspicious shrink, so the truth of
+                        "how much data SHOULD be here" survives a bad wipe.
+     3. AUTO-RECOVERY — on boot, detect blank OR partial loss, gather every
+                        backup source (IndexedDB ring / local file / GitHub),
+                        pick the FRESHEST with real data, and restore it.
+                        Smart-hybrid: silent+reload if totally blank; in-place
+                        repair + a 1-tap "Undo" toast if only markup was lost.
+   All heavy work is deferred past parse via a leading `await` so it can safely
+   reference the backup consts/functions defined elsewhere in the script.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const IBIS_HEALTH_KEY   = 'ibis_health';
+const GUARD_SHRINK_RATIO = 0.5;  // a drop below 50% of last-known-good markup = suspicious
+const GUARD_SHRINK_MIN   = 8;    // only guard once there's a meaningful amount to lose
+// Hand-entered fields that represent real, non-refetchable user work. Enrichment
+// (rev/desc/sentiment) is deliberately excluded — it's disposable + auto-refills.
+const _MARKUP_FIELDS = ['acctStatus','acctPrio','acctPriority','acctActionStage',
+  'hasAction','actFlags','actionHeadline','actionNextDate','actionNotes',
+  'actionKeyContact','accountPlan','customOpp','acctOpp','acctOppAmt','acctOppClose'];
+
+// Count accounts carrying at least one piece of real user markup.
+function _countUserMarkup(ld) {
+  if (!ld || typeof ld !== 'object') return 0;
+  let n = 0;
+  for (const name in ld) {
+    const e = ld[name]; if (!e || typeof e !== 'object') continue;
+    for (let i = 0; i < _MARKUP_FIELDS.length; i++) {
+      const v = e[_MARKUP_FIELDS[i]];
+      if (v === undefined || v === null || v === '' || v === false) continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      n++; break;
+    }
+  }
+  return n;
+}
+
+// Bypass the setItem wrapper (no backup-scheduling churn from a metadata write).
+function _guardRawSet(k, v) {
+  try { (WRITE_HEALTH._rawSet || Storage.prototype.setItem).call(localStorage, k, v); } catch {}
+}
+function _loadHealthFingerprint() {
+  try { return JSON.parse(localStorage.getItem(IBIS_HEALTH_KEY) || 'null'); } catch { return null; }
+}
+function _isSuspiciousShrink(prevMk, newMk) {
+  return prevMk >= GUARD_SHRINK_MIN && newMk < prevMk * GUARD_SHRINK_RATIO;
+}
+
+// Recompute the fingerprint from live in-memory truth (no disk re-parse). Called
+// debounced after any ibis_local / ibis_accounts write. Does NOT advance the
+// fingerprint on a suspicious shrink — that preserves the last-known-good counts
+// so the sanity gate + boot brain can still tell real data was lost.
+let _fpTimer = null;
+function _scheduleFingerprint() {
+  if (_fpTimer) return;
+  _fpTimer = setTimeout(() => {
+    _fpTimer = null;
+    try {
+      const acct = (typeof accounts !== 'undefined' && Array.isArray(accounts)) ? accounts.length : 0;
+      const mk   = (typeof localData !== 'undefined') ? _countUserMarkup(localData) : 0;
+      const prev = _loadHealthFingerprint();
+      if (prev && _isSuspiciousShrink(prev.mk, mk)) return; // keep last-known-good
+      _guardRawSet(IBIS_HEALTH_KEY, JSON.stringify({ ts: Date.now(), acct, mk }));
+    } catch {}
+  }, 1500);
+}
+
+/* ─── Recovery candidate gathering ──────────────────────────────────────────
+   Every source reports the same shape so we can pick the freshest with real
+   data by a single timestamp comparison. `_exported` (baked into every snapshot)
+   is the TRUE data time regardless of which medium it came from. */
+function _candFrom(source, snap, mediumTs) {
+  if (!snap || typeof snap !== 'object') return null;
+  let acct = 0, mk = 0;
+  try {
+    const a = typeof snap.ibis_accounts === 'string' ? JSON.parse(snap.ibis_accounts) : snap.ibis_accounts;
+    acct = Array.isArray(a) ? a.length : 0;
+  } catch {}
+  try {
+    const ld = typeof snap.ibis_local === 'string' ? JSON.parse(snap.ibis_local) : (snap.ibis_local || {});
+    mk = _countUserMarkup(ld);
+  } catch {}
+  const exportedTs = snap._exported ? Date.parse(snap._exported) : 0;
+  return { source, snap, ts: exportedTs || mediumTs || 0, acct, mk };
+}
+
+async function _gatherRecoveryCandidates({ includeCloud = true } = {}) {
+  const cands = [];
+  // 1) IndexedDB ring — freshest local copy, no network. Take the newest 2 in
+  //    case the very newest is itself a thin/pre-action snapshot.
+  try {
+    const all = await _ringAll();
+    for (const e of all.slice(0, 3)) {
+      try {
+        const snap = typeof e.snapJson === 'string' ? JSON.parse(e.snapJson) : e.snap;
+        const c = _candFrom('in-browser snapshot', snap, e.ts);
+        if (c) cands.push(c);
+      } catch {}
+    }
+  } catch {}
+  // 2) Local backup file (Documents\IBIS-Backups\latest.json via granted FSA handle)
+  try {
+    if (!_fsaHandle && _fsaSupported) { try { await _fsaBoot(); } catch {} } // handle may not be loaded yet at boot
+    if (_fsaHandle && (await _fsaCheckPermission(_fsaHandle, false)) === 'granted') {
+      const fh = await _fsaHandle.getFileHandle('latest.json', { create: false });
+      const f = await fh.getFile();
+      const snap = JSON.parse(await f.text());
+      const c = _candFrom('local backup file', snap, f.lastModified);
+      if (c) cands.push(c);
+    }
+  } catch {}
+  // 3) GitHub latest.json — public raw read, no token needed, works on any machine
+  if (includeCloud) {
+    try {
+      const r = await fetch(CLOUD_BACKUP_RAW_URL + '?cb=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) { const snap = await r.json(); const c = _candFrom('GitHub cloud', snap, 0); if (c) cands.push(c); }
+    } catch {}
+  }
+  return cands.filter(Boolean);
+}
+
+/* ─── The boot recovery brain ───────────────────────────────────────────────
+   Runs BEFORE init() reads localStorage. Returns:
+     { reloading:true }                 → a full restore is applied; page reloads
+     { toast:'partial', ... }           → markup repaired in place; init proceeds
+     null                               → nothing to do (healthy or genuinely new)
+*/
+let _guardianRecovering = false;
+async function autoRecoverIfNeeded() {
+  await Promise.resolve(); // defer past synchronous parse — all consts now safe
+  try {
+    // Current on-disk truth
+    let curAcct = 0, curMk = 0, acctBad = false, localBad = false;
+    const acctRaw  = localStorage.getItem('ibis_accounts');
+    const localRaw = localStorage.getItem('ibis_local');
+    try { const a = acctRaw ? JSON.parse(acctRaw) : []; curAcct = Array.isArray(a) ? a.length : 0; }
+    catch { acctBad = true; }
+    try { const ld = localRaw ? JSON.parse(localRaw) : {}; curMk = _countUserMarkup(ld); }
+    catch { localBad = true; }
+
+    const fp = _loadHealthFingerprint();
+    const acctMissing = acctBad || curAcct === 0;                                  // no usable accounts at all
+    const markupLost  = localBad || (!!fp && _isSuspiciousShrink(fp.mk, curMk));   // markup wiped/shrunk vs last-known-good
+
+    if (!acctMissing && !markupLost) return null; // healthy — fast path, no network, no overlay
+
+    // Loop guard — never retry a full restore more than once per tab session
+    const attempts = +(sessionStorage.getItem('ibis_recover_attempt') || 0);
+
+    _guardianRecovering = true;
+    _showRecoveryOverlay(acctMissing ? 'Restoring your data…' : 'Recovering lost changes…');
+
+    const cands = await _gatherRecoveryCandidates({ includeCloud: true });
+
+    // ── FULL restore (no usable accounts — blank or corrupted) ──
+    if (acctMissing) {
+      const best = cands.filter(c => c.acct > 0 || c.mk > 0).sort((a, b) => b.ts - a.ts)[0];
+      if (!best || attempts >= 2) {
+        _hideRecoveryOverlay();
+        _guardianRecovering = false;
+        // No backup reachable (fresh machine offline, or genuinely new user).
+        // Leave the normal empty state; it still offers the manual cloud button.
+        return null;
+      }
+      sessionStorage.setItem('ibis_recover_attempt', String(attempts + 1));
+      // Safety-snapshot whatever IS here before overwriting (reversible even now)
+      try { await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-recovery safety'); } catch {}
+      _applyBackupToStorage(best.snap);
+      sessionStorage.setItem('ibis_recovered', JSON.stringify({ source: best.source, ts: best.ts, mode: 'full' }));
+      // Overlay stays up through the reload for a seamless "restoring…" feel.
+      setTimeout(() => location.reload(), 500);
+      return { reloading: true };
+    }
+
+    // ── PARTIAL repair (accounts fine, markup lost) — heal in place, no reload ──
+    if (markupLost) {
+      const best = cands.filter(c => c.mk > curMk).sort((a, b) => b.ts - a.ts)[0];
+      if (!best) { _hideRecoveryOverlay(); _guardianRecovering = false; return null; }
+      // Reversible: stash current (thin) state so Undo can put it back
+      let undoTs = null;
+      try { undoTs = Date.now(); await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-recovery (markup)'); } catch {}
+      // Merge: prefer the recovered markup; keep any current entry that happens to
+      // be richer (survived) so a recovery never DROPS something that's still here.
+      let curLd = {}; try { curLd = localRaw ? JSON.parse(localRaw) : {}; } catch {}
+      const recLd = typeof best.snap.ibis_local === 'string' ? JSON.parse(best.snap.ibis_local) : (best.snap.ibis_local || {});
+      const merged = { ...recLd };
+      for (const name in curLd) {
+        if (!merged[name]) { merged[name] = curLd[name]; continue; }
+        // keep whichever entry carries more markup fields for this account
+        if (_countUserMarkup({ x: curLd[name] }) > _countUserMarkup({ x: merged[name] })) merged[name] = curLd[name];
+      }
+      _guardRawSet('ibis_local', JSON.stringify(merged)); // bypass wrapper; init reads it next
+      _hideRecoveryOverlay();
+      _guardianRecovering = false;
+      return { toast: 'partial', source: best.source, ts: best.ts,
+               recovered: _countUserMarkup(merged) - curMk, undoTs };
+    }
+
+    _hideRecoveryOverlay();
+    _guardianRecovering = false;
+    return null;
+  } catch (e) {
+    console.error('[data-guardian] auto-recovery failed', e);
+    _hideRecoveryOverlay();
+    _guardianRecovering = false;
+    return null;
+  }
+}
+
+/* ─── Recovery UI — overlay while working, toast + Undo after ────────────── */
+function _showRecoveryOverlay(msg) {
+  let el = document.getElementById('guardian-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'guardian-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.72);backdrop-filter:blur(2px);';
+    el.innerHTML = `<div style="background:#fff;border-radius:12px;padding:26px 32px;box-shadow:0 8px 24px rgba(0,0,0,.2);text-align:center;font-family:'DM Sans',sans-serif;max-width:380px;">
+      <div style="font-size:30px;margin-bottom:10px;">🛡</div>
+      <div id="guardian-overlay-msg" style="font-size:15px;font-weight:600;color:#111827;margin-bottom:6px;"></div>
+      <div style="font-size:12px;color:#6b7280;">Data Guardian is restoring the freshest safe copy — one moment.</div>
+    </div>`;
+    document.body.appendChild(el);
+  }
+  const m = document.getElementById('guardian-overlay-msg'); if (m) m.textContent = msg || 'Recovering…';
+  el.style.display = 'flex';
+}
+function _hideRecoveryOverlay() {
+  const el = document.getElementById('guardian-overlay'); if (el) el.style.display = 'none';
+}
+
+// Shown after a partial repair (with Undo) or after a full-restore reload (confirmation).
+function _showRecoveryToast({ mode, source, ts, recovered, undoTs }) {
+  let el = document.getElementById('guardian-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'guardian-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10040;background:#0f172a;color:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,.24);font-family:\'DM Sans\',sans-serif;font-size:13px;display:flex;align-items:center;gap:12px;max-width:560px;';
+    document.body.appendChild(el);
+  }
+  const when = ts ? new Date(ts).toLocaleString() : 'your latest backup';
+  const src  = source || 'backup';
+  let msg;
+  if (mode === 'full') {
+    msg = `<span style="font-size:16px;">🛡</span><div><strong>Data recovered automatically</strong> from ${src} (${when}). Everything's back — nothing for you to do.</div>`;
+  } else {
+    msg = `<span style="font-size:16px;">🛡</span><div><strong>Recovered ${recovered > 0 ? recovered + ' accounts of' : 'your'} markup</strong> from ${src} (${when}).</div>`;
+  }
+  const undoBtn = (mode === 'partial' && undoTs)
+    ? `<button onclick="_guardianUndo(${undoTs})" style="background:#fff;color:#0f172a;border:none;border-radius:6px;padding:7px 12px;font-weight:700;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">Undo</button>` : '';
+  el.innerHTML = msg + undoBtn +
+    `<button onclick="document.getElementById('guardian-toast').remove()" style="background:none;border:none;color:#fff;opacity:.6;cursor:pointer;font-size:16px;">✕</button>`;
+  el.style.display = 'flex';
+  if (mode === 'full') setTimeout(() => { el?.remove(); }, 9000);
+}
+
+// Undo a partial repair: restore the pre-recovery (thin) snapshot we stashed.
+async function _guardianUndo(undoTs) {
+  try {
+    const entry = (await _ringAll()).find(e => e.ts === undoTs);
+    if (!entry) { showOppToast('Undo unavailable — snapshot pruned.'); return; }
+    const snap = typeof entry.snapJson === 'string' ? JSON.parse(entry.snapJson) : entry.snap;
+    _applyBackupToStorage(snap);
+    showOppToast('↩ Recovery undone — reloading…');
+    setTimeout(() => location.reload(), 500);
+  } catch (e) { showOppToast('Undo failed: ' + e.message); }
+}
+
+/* ─── Guardian warning banner — when the sanity gate blocks a shrunken backup ─ */
+let _guardianOverride = false; // set by "back it up anyway" for the session
+function _guardianShowShrinkBanner(prevMk, newMk) {
+  let b = document.getElementById('guardian-shrink-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'guardian-shrink-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10001;background:linear-gradient(90deg,#92400e,#b45309);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:14px;font-family:\'DM Sans\',sans-serif;font-size:13px;box-shadow:0 2px 12px rgba(0,0,0,.2);';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = `<span style="font-size:18px;">🛡</span>
+    <div style="flex:1;line-height:1.4;"><strong>Backup paused — your markup dropped sharply (${prevMk} → ${newMk} accounts).</strong><br>
+    <span style="font-size:11px;opacity:.92;">Your good backups are untouched. If this was an accident, recover them. If you meant to clear data, allow the backup.</span></div>
+    <button onclick="_guardianRecoverNow()" style="background:#fff;color:#92400e;border:none;border-radius:6px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;">Recover my data</button>
+    <button onclick="_guardianAllowShrink()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:8px 14px;font-weight:600;font-size:12px;cursor:pointer;">This is correct</button>`;
+  b.style.display = 'flex';
+}
+function _guardianAllowShrink() {
+  _guardianOverride = true;
+  document.getElementById('guardian-shrink-banner')?.remove();
+  showOppToast('OK — backups resumed with the current data.');
+  try { runAutoBackup({ forceFile: true }); } catch {}
+}
+async function _guardianRecoverNow() {
+  document.getElementById('guardian-shrink-banner')?.remove();
+  _showRecoveryOverlay('Recovering your data…');
+  const cands = await _gatherRecoveryCandidates({ includeCloud: true });
+  const fp = _loadHealthFingerprint();
+  const target = fp ? fp.mk : 0;
+  const best = cands.filter(c => c.mk >= Math.max(target * GUARD_SHRINK_RATIO, 1)).sort((a, b) => b.ts - a.ts)[0]
+            || cands.sort((a, b) => b.ts - a.ts)[0];
+  if (!best) { _hideRecoveryOverlay(); showOppToast('No richer backup found to recover from.'); return; }
+  try { await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-recovery safety'); } catch {}
+  _applyBackupToStorage(best.snap);
+  showOppToast('🛡 Recovered — reloading…');
+  setTimeout(() => location.reload(), 600);
+}
+
+/* ═══ NATIVE GITHUB PUSH (v44) — independent 2nd cloud backup ════════════════
+   The dashboard writes backups/latest.json to GitHub ITSELF via the Contents
+   API, using a fine-grained personal-access token Dan pastes once. This makes
+   the cloud backup independent of the Windows scheduled task and the local file:
+   it works on any machine, real-time on the hourly cadence, and never silently
+   goes stale. The Windows task stays as a 3rd belt-and-suspenders leg.
+   SECURITY: the token lives ONLY in localStorage under a key that is NOT in
+   ALL_STORAGE_KEYS — so it is never captured in a snapshot, never written to the
+   public repo, never committed. Fine-grained + repo-scoped = tiny blast radius. */
+const GH_TOKEN_KEY   = 'ibis_gh_token';                 // deliberately NOT in ALL_STORAGE_KEYS
+const GH_REPO        = 'Dabbs4Dan/ibisworld-dashboard';
+const GH_BACKUP_PATH = 'backups/latest.json';
+const GH_API_CONTENTS = `https://api.github.com/repos/${GH_REPO}/contents/${GH_BACKUP_PATH}`;
+
+function _ghToken()      { try { return localStorage.getItem(GH_TOKEN_KEY) || ''; } catch { return ''; } }
+function _ghConfigured() { return !!_ghToken(); }
+
+// UTF-8-safe base64 (btoa alone throws on emoji / accented chars in the data).
+function _utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = ''; const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return btoa(bin);
+}
+
+async function _ghGetSha() {
+  // Current blob SHA of latest.json (needed to UPDATE). null = file absent;
+  // undefined = couldn't determine (network/auth) — caller creates without sha.
+  try {
+    const r = await fetch(GH_API_CONTENTS + '?ref=main&_=' + Date.now(),
+      { headers: { Authorization: 'Bearer ' + _ghToken(), Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+    if (r.status === 404) return null;
+    if (!r.ok) return undefined;
+    const j = await r.json();
+    return j.sha || null;
+  } catch { return undefined; }
+}
+
+let _ghPushing = false;
+async function _ghPushBackup(snap, { force = false } = {}) {
+  const token = _ghToken();
+  if (!token)     return { ok: false, skip: 'no-token' };
+  if (_ghPushing) return { ok: false, skip: 'busy' };
+  _ghPushing = true;
+  try {
+    // Same sanity gate as local backups — never push a suddenly-thin snapshot.
+    const fp = _loadHealthFingerprint();
+    const snapMk = _countUserMarkup(typeof snap.ibis_local === 'string' ? JSON.parse(snap.ibis_local) : (snap.ibis_local || {}));
+    if (fp && _isSuspiciousShrink(fp.mk, snapMk) && !_guardianOverride && !force) {
+      return { ok: false, skip: 'guarded' };
+    }
+    const json = JSON.stringify(snap);
+    const meta = _autoBackupLoadMeta();
+    let sha = meta.ghSha || await _ghGetSha();
+    const mkBody = (shaVal) => {
+      const b = { message: 'auto-backup (browser): ' + new Date().toISOString().slice(0, 16), content: _utf8ToBase64(json), branch: 'main' };
+      if (shaVal) b.sha = shaVal;
+      return JSON.stringify(b);
+    };
+    const put = (bodyStr) => fetch(GH_API_CONTENTS, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: bodyStr,
+    });
+    let r = await put(mkBody(sha));
+    if (r.status === 409 || r.status === 422) {   // sha stale (task pushed meanwhile) — refetch + retry once
+      const fresh = await _ghGetSha();
+      r = await put(mkBody(fresh || undefined));
+    }
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      throw new Error('PUT ' + r.status + ' ' + t.slice(0, 140));
+    }
+    const j = await r.json();
+    const m2 = _autoBackupLoadMeta();
+    m2.ghSha = j.content?.sha || null;
+    m2.ghLastPushTs = Date.now();
+    delete m2.ghLastError; delete m2.ghLastErrorTs;
+    _autoBackupSaveMeta(m2);
+    return { ok: true };
+  } catch (e) {
+    console.warn('[data-guardian] GitHub push failed:', e.message);
+    const m = _autoBackupLoadMeta();
+    m.ghLastError = e.message; m.ghLastErrorTs = Date.now();
+    _autoBackupSaveMeta(m);
+    return { ok: false, error: e.message };
+  } finally {
+    _ghPushing = false;
+  }
+}
+
+// One-time setup: validate a fine-grained PAT, store it locally, do a first push.
+async function connectGitHubBackup() {
+  const token = (prompt(
+    'Paste your GitHub fine-grained token (starts with github_pat_...).\n\n' +
+    'It is stored ONLY on this computer and never leaves it except to push your backup to your own repo. ' +
+    'It is never included in any backup file.'
+  ) || '').trim();
+  if (!token) return;
+  showOppToast('🔑 Validating token…');
+  try {
+    // Verify the token can read the repo (and thus write backups/)
+    const r = await fetch(`https://api.github.com/repos/${GH_REPO}`,
+      { headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+    if (!r.ok) { alert('That token could not access the repo (HTTP ' + r.status + ').\n\nMake sure it is a fine-grained token for Dabbs4Dan/ibisworld-dashboard with Contents: Read and write.'); return; }
+    const repo = await r.json();
+    if (!repo.permissions || (!repo.permissions.push && !repo.permissions.admin)) {
+      if (!confirm('This token can READ the repo but may not have write access. Save it anyway and try?\n\n(You need Contents: Read and write.)')) return;
+    }
+    try { localStorage.setItem(GH_TOKEN_KEY, token); } catch (e) { alert('Could not store token: ' + e.message); return; }
+    showOppToast('☁️ GitHub direct backup connected — pushing now…');
+    const res = await _ghPushBackup(_buildBackupSnapshot(), { force: true });
+    if (res.ok) showOppToast('✅ Cloud backup #2 is live — the dashboard now pushes to GitHub itself.');
+    else showOppToast('⚠️ Token saved, but first push failed: ' + (res.error || res.skip));
+    try { updateAutoBackupIndicator(); } catch {}
+    if (typeof openBackupsPanel === 'function') openBackupsPanel();
+  } catch (e) {
+    alert('Validation failed: ' + e.message);
+  }
+}
+function disconnectGitHubBackup() {
+  if (!confirm('Disconnect GitHub direct backup? The dashboard will stop pushing to GitHub itself (the Windows task + local file backups keep running).')) return;
+  try { localStorage.removeItem(GH_TOKEN_KEY); } catch {}
+  const m = _autoBackupLoadMeta(); delete m.ghSha; _autoBackupSaveMeta(m);
+  showOppToast('GitHub direct backup disconnected.');
+  if (typeof openBackupsPanel === 'function') openBackupsPanel();
+}
+
 // Auto-backup boot — fire after init so all data is loaded
 (function bootAutoBackup(){
   setTimeout(async () => {
@@ -12810,6 +13305,36 @@ function _applyBackupToStorage(backup) {
   // Log on init how many revenues are cached so we always know our coverage
   const cachedCount = Object.keys(clientRevCache).length;
   if (cachedCount) console.log(`[client-rev] loaded ${cachedCount} cached company revenues from ibis_client_revenue (protected from Clear Cache)`);
+})();
+
+/* ═══ DATA GUARDIAN BOOT — recovery-first startup ═══════════════════════════
+   Runs LAST, so autoRecoverIfNeeded + init + every backup fn is already defined.
+   The guardian may fully restore the freshest backup + reload BEFORE init ever
+   reads a blank/partial state; on a partial loss it repairs in place, then init
+   proceeds normally and a 1-tap "Undo" toast appears. On a healthy load it
+   returns in one microtask with zero network + zero overlay. */
+(async function boot() {
+  let recovery = null;
+  try { recovery = await autoRecoverIfNeeded(); }
+  catch (e) { console.error('[data-guardian] boot recovery error', e); }
+  if (recovery && recovery.reloading) return; // full restore applied — page is reloading
+  init();
+  checkStorageSize();
+  // Confirmation toast after a full restore reloaded us into this load
+  try {
+    const rec = sessionStorage.getItem('ibis_recovered');
+    if (rec) {
+      sessionStorage.removeItem('ibis_recovered');
+      sessionStorage.removeItem('ibis_recover_attempt');
+      const r = JSON.parse(rec);
+      setTimeout(() => _showRecoveryToast({ mode: 'full', source: r.source, ts: r.ts }), 700);
+    }
+  } catch {}
+  // Partial (in-place) repair toast with Undo
+  if (recovery && recovery.toast === 'partial') {
+    setTimeout(() => _showRecoveryToast({ mode: 'partial', source: recovery.source, ts: recovery.ts,
+      recovered: recovery.recovered, undoTs: recovery.undoTs }), 700);
+  }
 })();
 // ─────────────────────────────────────────────────────────────────────────────
 </script>
