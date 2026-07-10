@@ -12237,15 +12237,22 @@ async function runAutoBackup({ forceFile = false } = {}) {
     if (hash === meta.lastHash && !forceFile) { _autoBackupRunning = false; return; }
     const snap = _buildBackupSnapshot();
     // ── SANITY GATE ── never let a suddenly-empty state overwrite good backups.
-    // If markup dropped sharply below last-known-good, freeze the backup layers
-    // and surface it, unless the user explicitly allowed it or is force-backing-up.
+    // If ANY protected store (ibis_local markup OR Rotation/campaigns/Dead) dropped
+    // sharply below last-known-good, freeze ALL backup layers + surface it — unless
+    // the user explicitly allowed it or is force-backing-up.
     try {
       const fp = _loadHealthFingerprint();
-      const snapMk = _countUserMarkup(typeof snap.ibis_local === 'string' ? JSON.parse(snap.ibis_local) : (snap.ibis_local || {}));
-      if (fp && _isSuspiciousShrink(fp.mk, snapMk) && !_guardianOverride && !forceFile && !_guardianRecovering) {
-        console.warn('[data-guardian] backup FROZEN — markup', fp.mk, '→', snapMk);
-        try { _guardianShowShrinkBanner(fp.mk, snapMk); } catch {}
-        _autoBackupRunning = false; return;
+      if (fp && !_guardianOverride && !forceFile && !_guardianRecovering) {
+        const snapMk = _countUserMarkup(_parseKey(k => snap[k], 'ibis_local') || {});
+        const mkShrunk = fp.mk && _isSuspiciousShrink(fp.mk, snapMk);
+        const exShrunk = _extraShrunk(fp.ex, _extraCounts(k => snap[k]));
+        if (mkShrunk || exShrunk.length) {
+          const what = [mkShrunk ? `markup ${fp.mk}→${snapMk}` : null,
+                        ...exShrunk.map(k => (_KEY_LABEL[k] || k))].filter(Boolean).join(', ');
+          console.warn('[data-guardian] backup FROZEN — shrink in:', what);
+          try { _guardianShowShrinkBanner(what); } catch {}
+          _autoBackupRunning = false; return;
+        }
       }
     } catch {}
     const ringSize = await _autoBackupSaveToRing(snap);
@@ -12805,7 +12812,8 @@ const GUARD_SHRINK_MIN   = 8;    // only guard once there's a meaningful amount 
 // (rev/desc/sentiment) is deliberately excluded — it's disposable + auto-refills.
 const _MARKUP_FIELDS = ['acctStatus','acctPrio','acctPriority','acctActionStage',
   'hasAction','actFlags','actionHeadline','actionNextDate','actionNotes',
-  'actionKeyContact','accountPlan','customOpp','acctOpp','acctOppAmt','acctOppClose'];
+  'actionKeyContact','accountPlan','customOpp','acctOpp','acctOppAmt','acctOppClose',
+  'notes']; // 'notes' = legacy per-account note; no live editor but carried-forward data is real
 
 // Count accounts carrying at least one piece of real user markup.
 function _countUserMarkup(ld) {
@@ -12834,6 +12842,50 @@ function _isSuspiciousShrink(prevMk, newMk) {
   return prevMk >= GUARD_SHRINK_MIN && newMk < prevMk * GUARD_SHRINK_RATIO;
 }
 
+/* ─── Extended protection — hand-entered data BEYOND ibis_local ──────────────
+   ibis_local is the biggest store, but Dan also hand-enters Rotation markup
+   (assign/team-sell/star), per-contact edits across the 8 campaigns, and the
+   curated Dead list. Those keys ARE captured in every snapshot, but the guardian
+   must ALSO watch them so a wipe of one is (a) detected + auto-recovered, and
+   (b) frozen so the thinned state can't overwrite the good cloud copy.
+   Each: [key, countFn(parsedValue), floor]. Counts are cheap + only run debounced
+   (fingerprint) / per-backup (gate) / once-per-boot (recovery) — no hot-path cost. */
+const _PROTECTED_EXTRA = [
+  ['ibis_rotation_markup', v => v ? Object.values(v).filter(m => m && (m.assign || m.teamSell || m.star)).length : 0, 3],
+  ['ibis_dead',            v => v ? ((v.accounts && v.accounts.length || 0) + (v.licenses && v.licenses.length || 0)) : 0, 4],
+  ['ibis_opps',            v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_samples',         v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_6qa',             v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_churn',           v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_netnew',          v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_multithread',     v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_winback',         v => v ? Object.keys(v).length : 0, 5],
+  ['ibis_alumni',          v => v ? Object.keys(v).length : 0, 5],
+];
+// getVal(k) may return a raw JSON string (from localStorage) OR an already-parsed
+// value (from a snapshot object). Normalize to a parsed value.
+function _parseKey(getVal, k) {
+  try { const v = getVal(k); return typeof v === 'string' ? JSON.parse(v) : (v == null ? null : v); } catch { return null; }
+}
+function _extraCounts(getVal) {
+  const out = {};
+  for (const [k, fn] of _PROTECTED_EXTRA) { try { out[k] = fn(_parseKey(getVal, k)); } catch { out[k] = 0; } }
+  return out;
+}
+// Which extra keys suspiciously shrank from prev(counts map) to cur(counts map)?
+function _extraShrunk(prevEx, curEx) {
+  if (!prevEx) return [];
+  const shrunk = [];
+  for (const [k, , floor] of _PROTECTED_EXTRA) {
+    const p = prevEx[k] || 0, c = (curEx && curEx[k]) || 0;
+    if (p >= floor && c < p * GUARD_SHRINK_RATIO) shrunk.push(k);
+  }
+  return shrunk;
+}
+const _KEY_LABEL = { ibis_rotation_markup:'Rotation markup', ibis_dead:'Dead list', ibis_opps:'Workables contacts',
+  ibis_samples:'Old Samples contacts', ibis_6qa:'6QA contacts', ibis_churn:'Churn contacts', ibis_netnew:'Net New contacts',
+  ibis_multithread:'Multithread contacts', ibis_winback:'Winback contacts', ibis_alumni:'Alumni contacts' };
+
 // Recompute the fingerprint from live in-memory truth (no disk re-parse). Called
 // debounced after any ibis_local / ibis_accounts write. Does NOT advance the
 // fingerprint on a suspicious shrink — that preserves the last-known-good counts
@@ -12844,11 +12896,20 @@ function _scheduleFingerprint() {
   _fpTimer = setTimeout(() => {
     _fpTimer = null;
     try {
-      const acct = (typeof accounts !== 'undefined' && Array.isArray(accounts)) ? accounts.length : 0;
-      const mk   = (typeof localData !== 'undefined') ? _countUserMarkup(localData) : 0;
-      const prev = _loadHealthFingerprint();
-      if (prev && _isSuspiciousShrink(prev.mk, mk)) return; // keep last-known-good
-      _guardRawSet(IBIS_HEALTH_KEY, JSON.stringify({ ts: Date.now(), acct, mk }));
+      const prev = _loadHealthFingerprint() || {};
+      const acct  = (typeof accounts !== 'undefined' && Array.isArray(accounts)) ? accounts.length : 0;
+      const mkNow = (typeof localData !== 'undefined') ? _countUserMarkup(localData) : 0;
+      // Per-component last-known-good: never let a suspicious shrink advance a count,
+      // so the truth of "how much SHOULD be here" survives a bad wipe of any key.
+      const mk = (prev.mk && _isSuspiciousShrink(prev.mk, mkNow)) ? prev.mk : mkNow;
+      const prevEx = prev.ex || {};
+      const curEx  = _extraCounts(k => localStorage.getItem(k));
+      const ex = {};
+      for (const [k, , floor] of _PROTECTED_EXTRA) {
+        const p = prevEx[k] || 0, c = curEx[k] || 0;
+        ex[k] = (p >= floor && c < p * GUARD_SHRINK_RATIO) ? p : c;
+      }
+      _guardRawSet(IBIS_HEALTH_KEY, JSON.stringify({ ts: Date.now(), acct, mk, ex }));
     } catch {}
   }, 1500);
 }
@@ -12929,10 +12990,11 @@ async function autoRecoverIfNeeded() {
     catch { localBad = true; }
 
     const fp = _loadHealthFingerprint();
-    const acctMissing = acctBad || curAcct === 0;                                  // no usable accounts at all
-    const markupLost  = localBad || (!!fp && _isSuspiciousShrink(fp.mk, curMk));   // markup wiped/shrunk vs last-known-good
+    const acctMissing = acctBad || curAcct === 0;                                        // no usable accounts at all
+    const markupLost  = localBad || (!!fp && fp.mk && _isSuspiciousShrink(fp.mk, curMk)); // ibis_local markup wiped/shrunk
+    const exShrunk    = fp ? _extraShrunk(fp.ex, _extraCounts(k => localStorage.getItem(k))) : []; // Rotation/campaigns/Dead wiped
 
-    if (!acctMissing && !markupLost) return null; // healthy — fast path, no network, no overlay
+    if (!acctMissing && !markupLost && !exShrunk.length) return null; // healthy — fast path, no network, no overlay
 
     // Loop guard — never retry a full restore more than once per tab session
     const attempts = +(sessionStorage.getItem('ibis_recover_attempt') || 0);
@@ -12962,28 +13024,53 @@ async function autoRecoverIfNeeded() {
       return { reloading: true };
     }
 
-    // ── PARTIAL repair (accounts fine, markup lost) — heal in place, no reload ──
-    if (markupLost) {
-      const best = cands.filter(c => c.mk > curMk).sort((a, b) => b.ts - a.ts)[0];
-      if (!best) { _hideRecoveryOverlay(); _guardianRecovering = false; return null; }
+    // ── PARTIAL repair (accounts fine; ibis_local markup and/or Rotation/campaign/
+    //    Dead keys wiped) — heal each affected key IN PLACE, no reload ──
+    if (markupLost || exShrunk.length) {
       // Reversible: stash current (thin) state so Undo can put it back
       let undoTs = null;
-      try { undoTs = Date.now(); await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-recovery (markup)'); } catch {}
-      // Merge: prefer the recovered markup; keep any current entry that happens to
-      // be richer (survived) so a recovery never DROPS something that's still here.
-      let curLd = {}; try { curLd = localRaw ? JSON.parse(localRaw) : {}; } catch {}
-      const recLd = typeof best.snap.ibis_local === 'string' ? JSON.parse(best.snap.ibis_local) : (best.snap.ibis_local || {});
-      const merged = { ...recLd };
-      for (const name in curLd) {
-        if (!merged[name]) { merged[name] = curLd[name]; continue; }
-        // keep whichever entry carries more markup fields for this account
-        if (_countUserMarkup({ x: curLd[name] }) > _countUserMarkup({ x: merged[name] })) merged[name] = curLd[name];
+      try { undoTs = Date.now(); await _autoBackupSaveToRing(_buildBackupSnapshot(), 'Pre-recovery (partial)'); } catch {}
+      let recovered = 0, bestSrc = null, bestTs = 0;
+
+      // (a) ibis_local — richer-merge (prefer recovered markup, keep any richer survivor)
+      if (markupLost) {
+        const best = cands.filter(c => c.mk > curMk).sort((a, b) => b.ts - a.ts)[0];
+        if (best) {
+          let curLd = {}; try { curLd = localRaw ? JSON.parse(localRaw) : {}; } catch {}
+          const recLd = _parseKey(k => best.snap[k], 'ibis_local') || {};
+          const merged = { ...recLd };
+          for (const name in curLd) {
+            if (!merged[name]) { merged[name] = curLd[name]; continue; }
+            if (_countUserMarkup({ x: curLd[name] }) > _countUserMarkup({ x: merged[name] })) merged[name] = curLd[name];
+          }
+          _guardRawSet('ibis_local', JSON.stringify(merged));
+          recovered += Math.max(0, _countUserMarkup(merged) - curMk);
+          if (best.ts > bestTs) { bestTs = best.ts; bestSrc = best.source; }
+        }
       }
-      _guardRawSet('ibis_local', JSON.stringify(merged)); // bypass wrapper; init reads it next
+
+      // (b) each wiped extra key — restore from the freshest candidate that has a
+      //     richer copy (these keys are wholesale-keyed, so replace-when-thin is safe)
+      for (const key of exShrunk) {
+        const fn = _PROTECTED_EXTRA.find(p => p[0] === key)[1];
+        let curVal = null; try { curVal = JSON.parse(localStorage.getItem(key) || 'null'); } catch {}
+        const curCnt = fn(curVal);
+        const best = cands
+          .map(c => ({ ts: c.ts, source: c.source, v: _parseKey(k => c.snap[k], key) }))
+          .map(o => ({ ...o, cnt: fn(o.v) }))
+          .filter(o => o.cnt > curCnt)
+          .sort((a, b) => b.ts - a.ts)[0];
+        if (best) {
+          _guardRawSet(key, JSON.stringify(best.v));
+          recovered += (best.cnt - curCnt);
+          if (best.ts > bestTs) { bestTs = best.ts; bestSrc = best.source; }
+        }
+      }
+
       _hideRecoveryOverlay();
       _guardianRecovering = false;
-      return { toast: 'partial', source: best.source, ts: best.ts,
-               recovered: _countUserMarkup(merged) - curMk, undoTs };
+      if (recovered <= 0) return null; // nothing richer available anywhere — leave as-is
+      return { toast: 'partial', source: bestSrc, ts: bestTs, recovered, undoTs };
     }
 
     _hideRecoveryOverlay();
@@ -13033,7 +13120,7 @@ function _showRecoveryToast({ mode, source, ts, recovered, undoTs }) {
   if (mode === 'full') {
     msg = `<span style="font-size:16px;">🛡</span><div><strong>Data recovered automatically</strong> from ${src} (${when}). Everything's back — nothing for you to do.</div>`;
   } else {
-    msg = `<span style="font-size:16px;">🛡</span><div><strong>Recovered ${recovered > 0 ? recovered + ' accounts of' : 'your'} markup</strong> from ${src} (${when}).</div>`;
+    msg = `<span style="font-size:16px;">🛡</span><div><strong>Recovered ${recovered > 0 ? recovered + ' items of' : 'your'} data</strong> from ${src} (${when}).</div>`;
   }
   const undoBtn = (mode === 'partial' && undoTs)
     ? `<button onclick="_guardianUndo(${undoTs})" style="background:#fff;color:#0f172a;border:none;border-radius:6px;padding:7px 12px;font-weight:700;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">Undo</button>` : '';
@@ -13074,7 +13161,7 @@ async function _guardianUndo(undoTs) {
 
 /* ─── Guardian warning banner — when the sanity gate blocks a shrunken backup ─ */
 let _guardianOverride = false; // set by "back it up anyway" for the session
-function _guardianShowShrinkBanner(prevMk, newMk) {
+function _guardianShowShrinkBanner(what) {
   let b = document.getElementById('guardian-shrink-banner');
   if (!b) {
     b = document.createElement('div');
@@ -13083,7 +13170,7 @@ function _guardianShowShrinkBanner(prevMk, newMk) {
     document.body.appendChild(b);
   }
   b.innerHTML = `<span style="font-size:18px;">🛡</span>
-    <div style="flex:1;line-height:1.4;"><strong>Backup paused — your markup dropped sharply (${prevMk} → ${newMk} accounts).</strong><br>
+    <div style="flex:1;line-height:1.4;"><strong>Backup paused — your data dropped sharply${what ? ' (' + what + ')' : ''}.</strong><br>
     <span style="font-size:11px;opacity:.92;">Your good backups are untouched. If this was an accident, recover them. If you meant to clear data, allow the backup.</span></div>
     <button onclick="_guardianRecoverNow()" style="background:#fff;color:#92400e;border:none;border-radius:6px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;">Recover my data</button>
     <button onclick="_guardianAllowShrink()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:8px 14px;font-weight:600;font-size:12px;cursor:pointer;">This is correct</button>`;
