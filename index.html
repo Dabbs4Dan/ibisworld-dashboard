@@ -12206,37 +12206,26 @@ async function _fsaPruneSnapshots(keep) {
   } catch (err) { console.warn('[ibis-fsa] prune failed', err); }
 }
 
-// ─── Backup writer — tries FSA first, falls back to Downloads ──────────
+// ─── Backup file writer — SILENT direct-to-folder ONLY (no prompts ever) ──────
 async function _autoBackupDownloadFile(snap) {
-  // Preferred: write directly to the user's chosen folder via FSA. No
-  // Chrome download notification, nothing in Chrome's download history.
-  if (_fsaHandle && _fsaPermission === 'granted') {
-    if (await _fsaWriteBackup(snap)) {
+  // Writes directly to the user's granted folder via FSA — silent, no Chrome
+  // download notification, nothing in Downloads/Desktop.
+  //
+  // ⚠️ v44.1: the old `<a download>` fallback was REMOVED. When Chrome expired
+  // the folder permission, that fallback fired an actual browser download →
+  // the "save this file?" prompt Dan kept having to cancel. A backup layer must
+  // NEVER require a click. The always-on layers are the IndexedDB ring (local)
+  // and the native GitHub push (cloud); this folder file is a bonus that runs
+  // only when the permission is live. No permission → no file, no prompt.
+  if (_fsaHandle) {
+    if (await _fsaWriteBackup(snap)) {   // _fsaWriteBackup re-checks permission; false if lapsed
       const meta = _autoBackupLoadMeta();
       meta.lastFileMethod = 'fsa';
       _autoBackupSaveMeta(meta);
       return true;
     }
-    // Fall through if FSA write failed (rare — permission lapsed mid-session)
   }
-  // Fallback: traditional download trick. Used until the user grants
-  // FSA permission, or if their browser doesn't support FSA.
-  try {
-    const blob = new Blob([JSON.stringify(snap)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const ts = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
-    a.href = url;
-    a.download = `ibis-autobackup-${ts}.json`;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
-    const meta = _autoBackupLoadMeta();
-    meta.lastFileMethod = 'download';
-    _autoBackupSaveMeta(meta);
-    return true;
-  } catch(e) { console.warn('[auto-backup] download failed', e); return false; }
+  return false; // no live folder permission → skip silently (ring + GitHub cover it)
 }
 
 async function runAutoBackup({ forceFile = false } = {}) {
@@ -12726,23 +12715,21 @@ function _renderBackupsPanel(modal, { cloud }) {
         }
         if (_fsaPermission === 'unsupported') return '';
         if (_fsaPermission === 'denied' || _fsaPermission === 'prompt') {
-          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#fef3c7;border-left:3px solid #d97706;">
-            <span style="font-size:18px;">⚠️</span>
-            <div style="flex:1;font-size:12px;color:#78350f;">
-              <strong>Direct save permission lapsed</strong> — re-grant access to keep skipping Downloads.
+          return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#f8fafc;border-left:3px solid #94a3b8;">
+            <span style="font-size:18px;">📁</span>
+            <div style="flex:1;font-size:12px;color:#475569;">
+              <strong>Optional local-folder copy paused</strong> — Chrome expired the folder permission. Nothing downloads or prompts you; your data is still fully protected by the in-browser + GitHub layers. Re-grant only if you want the bonus disk copy back.
             </div>
-            <button class="bp-action-btn" style="flex:0 0 auto;background:#d97706;color:#fff;border-color:#d97706;" onclick="fsaSetupFolder()">Re-grant</button>
+            <button class="bp-action-btn" style="flex:0 0 auto;" onclick="fsaSetupFolder()">Re-grant</button>
           </div>`;
         }
         // not set up yet — show the CTA (unless user dismissed it)
         if (localStorage.getItem('ibis_fsa_cta_dismissed') === '1') return '';
         return `<div class="bp-section" style="display:flex;align-items:center;gap:12px;background:#eff6ff;border-left:3px solid #2563eb;">
-          <span style="font-size:18px;">✨</span>
+          <span style="font-size:18px;">📁</span>
           <div style="flex:1;font-size:12px;color:#1e3a8a;line-height:1.5;">
-            <strong>Optional: stop the Chrome download icon from flashing every hour</strong><br>
-            <span style="color:#475569;">Browser security requires <em>you</em> to click — I can't do this remotely. Takes ~5 seconds:<br>
-            <strong>1.</strong> Click "Set it up" → <strong>2.</strong> Double-click <strong>IBIS-Backups</strong> in the picker → <strong>3.</strong> Click <strong>Select Folder</strong> → <strong>4.</strong> Click <strong>Edit files</strong> when Chrome asks.<br>
-            <em style="color:#9ca3af;">If you skip this: your data is still 100% safe. Downloads icon will just keep flashing hourly — cosmetic only.</em></span>
+            <strong>Optional extra: keep a copy in a local folder too</strong><br>
+            <span style="color:#475569;">A bonus 3rd copy on your disk (OneDrive-synced). <strong>Not required</strong> — your data is already protected by the in-browser + GitHub layers, and nothing ever downloads or prompts you.</span>
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">
             <button class="bp-action-btn" style="background:#2563eb;color:#fff;border-color:#2563eb;white-space:nowrap;" onclick="fsaSetupFolder()">Set it up</button>
@@ -12795,7 +12782,7 @@ function _renderBackupsPanel(modal, { cloud }) {
       </div>
 
       <div class="ab-card-footer">
-        ✅ Auto-saves every 30s · auto-pushes to GitHub + local mirror hourly · auto-cleans Downloads when done. Nothing to manage.
+        ✅ Auto-saves every 30s · in-browser + GitHub backup, always on · self-recovers on a blank/partial load · never downloads or prompts. Nothing to manage.
       </div>
     </div>`;
 }
@@ -12923,11 +12910,13 @@ function _candFrom(source, snap, mediumTs) {
 
 async function _gatherRecoveryCandidates({ includeCloud = true } = {}) {
   const cands = [];
-  // 1) IndexedDB ring — freshest local copy, no network. Take the newest 2 in
-  //    case the very newest is itself a thin/pre-action snapshot.
+  // 1) IndexedDB ring — freshest local copy, no network. Scan ALL entries (the
+  //    ring is capped at 5) so a couple of thin pre-recovery/pre-upload snapshots
+  //    at the top can never hide the good full snapshot underneath them. Each is
+  //    scored by its own data content below, so the freshest WITH data wins.
   try {
     const all = await _ringAll();
-    for (const e of all.slice(0, 3)) {
+    for (const e of all) {
       try {
         const snap = typeof e.snapJson === 'string' ? JSON.parse(e.snapJson) : e.snap;
         const c = _candFrom('in-browser snapshot', snap, e.ts);
