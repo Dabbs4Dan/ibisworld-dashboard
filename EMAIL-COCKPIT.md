@@ -9,24 +9,31 @@
 ## 🚀 NEXT SESSION — START HERE
 
 **Plain-language recap (the "robots" model — keep using this with Dan, it landed well):**
-Dan's email = a big busy **post office** 🏤 (Outlook). We're building **his own mail room** 🏠 that talks to it. We built two **robot helpers** 🤖 in Power Automate:
-- 📤 **Sender Robot** — hand it a note, it mails a real letter **as Dan**.
-- 📥 **Catcher Robot** — when a new letter arrives, it drops a copy in a **shared cubby** 🗄️ (`OneDrive/IBIS-Mail`) that Dan's computer can also reach.
+Dan's email = a big busy **post office** 🏤 (Outlook). We're building **his own mail room** 🏠. Two **robot helpers** 🤖 in Power Automate move the mail; the **cockpit app** is the face he looks at.
+- 📤 **Sender Robot** — hand it a note, it mails a real letter **as Dan** (proven).
+- 📥 **Catcher Robot** — new letter arrives → drops a copy in a **shared cubby** 🗄️ (`OneDrive/IBIS-Mail/Inbox`) his computer can read (proven, but writes junk + is OFF).
 
-We **proved both work** live: sent a letter → Catcher caught it → a copy appeared in the cubby *on Dan's disk*, all in **under a minute**. The robots are the **hands** 🤲; the dashboard cockpit will be the **face** 😊. Today = hands proven. Next = make hands production-grade, then build the face.
+**As of 2026-07-11 the FACE is built.** The cockpit app is live at `/cockpit/` (open `http://localhost:8099/cockpit/` via the `dashboard` dev server, or `https://dabbs4dan.github.io/ibisworld-dashboard/cockpit/`). It's a clean multi-file ES-module + IndexedDB app (no framework/build tools). It reads Dan's **real territory** from the dashboard (177 accounts) via shared same-origin localStorage, auto-builds a **folder per account** with the **company logo**, has an **Archive** section fed by `ibis_dead` (dropped accounts keep their folder + still catch mail), a **Triage** catch-all, cross-account **buckets** (Inbound/Outreach/Churn/Active-deal), and a **thread-state copilot** (they-replied·your-move / owe / waiting / chasing / cold) + a top slice-bar. **Read-only.** All verified live, committed + pushed.
 
-**Foundation honesty — what's proven vs what's still to build:**
+⚠️ **The mail is still SAMPLE data** (~19 hand-written emails in `cockpit/sample/messages.json`). The folders are real; the emails inside are fake. **Feeding in real mail is the one remaining piece — and it's where we paused.**
+
+**Foundation honesty — what's proven/built vs what's still to build:**
 | State | Item |
 |---|---|
-| ✅ **Proven & keepable** | The architecture/approach · OneDrive folder structure · the data contract (below) · this doc |
-| 🧪 **Test-only (throwaway/upgrade)** | `Cockpit - Send Test` (mails a fixed note) · `Cockpit - Receive` (writes junk content, is OFF) — they proved the pipe, they are NOT production |
-| 🚧 **Not built yet** | Production bridge flows (real content + Outbox sender) · the local app (clean ES-module + IndexedDB) · the cockpit UI |
+| ✅ **Built & verified (2026-07-11)** | The whole cockpit app (`/cockpit/`) · territory connection · logo folders · Archive · Triage · buckets · thread-state engine · IndexedDB layer. Also fixed a `.gitignore` bug (`Data/` was hiding `cockpit/js/data/` on Windows → anchored to `/Data/`). |
+| ✅ **Proven & keepable** | The architecture · OneDrive folder structure · the data contract (below) |
+| 🧪 **Test-only (throwaway/upgrade)** | `Cockpit - Send Test` (fixed note) · `Cockpit - Receive` (junk content, OFF) — proved the pipe, NOT production |
+| 🚧 **Not built yet** | **Real-mail feed** (production Receive flow + cockpit FSA reader) · Outbox sender · send/reply UI |
 
-**Do these next, in order:**
-1. **Decide the receive sync model** (see ⚠️ Open Design Decisions) — do NOT blindly mirror all ~1,735+ inbox emails as one-file-each. Pick: *new-mail-going-forward only* + optional trigger conditions. This is a real decision, make it deliberately.
-2. **Build the production Receive flow** — write the full **Message JSON** (schema below), not static text, into `/IBIS-Mail/Inbox`. Reuse/replace `Cockpit - Receive`.
-3. **Build the Outbox Send flow** — trigger "when a file is created in `/IBIS-Mail/Outbox`" → parse **Draft JSON** (schema below) → Send email (V2) as Dan → move file to `/IBIS-Mail/Sent`. (The send *mechanism* is already proven via `Cockpit - Send Test`.)
-4. **Then** scaffold the clean local app (Level-1: real file tree + native ES modules + IndexedDB, NO build tools/framework) and start the cockpit UI + account-page integration.
+**⏸️ WHERE WE PAUSED / DO THIS NEXT — feed real mail into the cockpit (needs Dan's live browser for Power Automate):**
+1. **Sync-model decision — RECOMMENDED (Dan leaned this way):** mirror **new mail going forward** (don't backfill the ~1,735 backlog). Keep the flow dumb — don't try to filter territory in Power Automate. The **cockpit already does territory routing by domain** and drops non-matches into **Triage** (Triage IS the "scan for weaknesses" surface Dan asked for). Optionally skip obvious internal `@ibisworld.com` senders in the trigger.
+2. **Upgrade `Cockpit - Receive`** (id `4eed98b4-eafc-4153-8103-f1b4f428c27f`) — change its **Create file** content from the static junk string to the real email as **Message JSON** (schema below), using the "When a new email arrives (V3)" dynamic fields (From, To, Cc, Subject, BodyPreview, Body, receivedDateTime, internetMessageId, conversationId). Leave `account` blank (the app resolves it). Turn the flow **ON**.
+3. **Build the cockpit's live-mail READER** — swap `cockpit/js/data/source.js` `loadRawMessages()` to read the individual Message JSON files from `OneDrive/IBIS-Mail/Inbox` via the **File System Access API** (Dan picks the folder once, store the handle in IndexedDB — same pattern as the dashboard's backup folder). Everything downstream is unchanged (same Message JSON shape).
+4. Later: Outbox→send→Sent flow + send/reply UI (still read-only for now, by Dan's choice).
+
+**How to drive step 2:** Power Automate needs Dan's authenticated session. Claude-in-Chrome CAN reach his real browser (`list_connected_browsers` → `select_browser` worked 2026-07-11), but Dan cancelled the `make.powerautomate.com` navigation to pause — pick it back up there. Alt: hand Dan a click-by-click recipe to edit the flow himself.
+
+**Code map (the cockpit):** `cockpit/js/data/{source,store,dashboard}.js` (data + the swappable seam) · `engine/{routing,threadState,buckets,model}.js` (brain) · `ui/render.js` (view) · `main.js` (boot/wiring) · `sample/{accounts,messages}.json`. See `cockpit/README.md`.
 
 ---
 
@@ -130,11 +137,12 @@ The single biggest risk ("does the plumbing actually work, reliably, as him?") i
 
 ## ROADMAP (where we are)
 1. ✅ Prove send · ✅ Prove receive · ✅ Prove the OneDrive round trip — **DONE (foundation de-risked)**
-2. ⏭️ Production bridge flows (real Message JSON in + Outbox→send→Sent) — *after deciding the sync model above*
-3. ⏭️ Scaffold the clean local app (real file tree, IndexedDB, dashboard design language)
-4. ⏭️ Mail cockpit UI + account-page integration (threads on the account page + a mail view)
-5. ⏭️ Smart folders, activity tokens, re-engagement cascades, priority signals
-6. ⏭️ Migrate the rest of the dashboard onto the clean core
+2. ✅ Scaffold the clean local app (real file tree, IndexedDB, dashboard design language) — **DONE 2026-07-11 (`/cockpit/`)**
+3. ✅ Cockpit UI + territory connection — **DONE 2026-07-11**: folder-per-account w/ logos, Archive, Triage, buckets, thread-state copilot, slice-bar (read-only, sample mail)
+4. ⏭️ **← WE ARE HERE:** real-mail feed — production Receive flow (real Message JSON) + cockpit FSA reader of `OneDrive/IBIS-Mail/Inbox` (paused mid-step, needs Dan's PA session)
+5. ⏭️ Outbox→send→Sent flow + send/reply UI (Dan wants read-only until it's ironclad)
+6. ⏭️ Account-page integration (threads on each account's dashboard page), smart folders, activity tokens, re-engagement cascades, priority signals
+7. ⏭️ Migrate the rest of the dashboard onto the clean core
 
 ## SECURITY / TODO watch
 - Mail data → IndexedDB (local) + OneDrive only; **exclude from the GitHub backup path** entirely.
