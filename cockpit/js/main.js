@@ -1,0 +1,98 @@
+// main.js — boot + app state + event wiring. Ties data -> model -> UI together.
+
+import { loadAccounts, loadRawMessages } from './data/source.js';
+import { cacheMessages, readMessages } from './data/store.js';
+import { buildModel, TRIAGE, threadsForAccount, threadsForBucket, passesSlice } from './engine/model.js';
+import { renderSidebar, renderFilterbar, renderList, listTitle } from './ui/render.js';
+
+const app = {
+  model: null,
+  sel: { type: 'all' },
+  slice: 'all',
+  open: new Set()
+};
+
+const el = {
+  sidebar: () => document.getElementById('sidebar'),
+  filterbar: () => document.getElementById('filterbar'),
+  listTitle: () => document.getElementById('list-title'),
+  list: () => document.getElementById('list'),
+  status: () => document.getElementById('status')
+};
+
+async function boot() {
+  try {
+    const [accounts, raw] = await Promise.all([loadAccounts(), loadRawMessages()]);
+    // Push through the IndexedDB layer (proves the real data path); fall back to raw.
+    await cacheMessages(raw);
+    const messages = (await readMessages()) || raw;
+    app.model = buildModel(accounts, messages);
+    el.status().textContent = `${accounts.length} accounts · ${messages.length} emails · sample data`;
+    renderAll();
+  } catch (e) {
+    console.error('[cockpit] boot failed', e);
+    el.list().innerHTML = `<div class="empty">Couldn't load data: ${e.message}. Run this via the dev server (http://localhost:8099/cockpit/), not file://.</div>`;
+  }
+}
+
+function baseThreads() {
+  const t = app.model.threads;
+  switch (app.sel.type) {
+    case 'all':       return t;
+    case 'triage':    return t.filter(x => x.accountKey === TRIAGE);
+    case 'account':   return threadsForAccount(t, app.sel.name);
+    case 'subbucket': return threadsForAccount(t, app.sel.name).filter(x => x.bucket === app.sel.bucket);
+    case 'bucket':    return threadsForBucket(t, app.sel.bucket);
+    default:          return t;
+  }
+}
+
+function visibleThreads() {
+  return baseThreads().filter(t => passesSlice(t, app.slice));
+}
+
+function renderAll() {
+  el.sidebar().innerHTML = renderSidebar(app.model, app.sel);
+  el.filterbar().innerHTML = renderFilterbar(app.slice);
+  const threads = visibleThreads();
+  el.listTitle().textContent = listTitle(app.sel, threads.length);
+  el.list().innerHTML = renderList(threads, app.sel, app.open);
+}
+
+// --- events (delegation) ---------------------------------------------------
+
+document.addEventListener('click', (e) => {
+  const nav = e.target.closest('.nav-row');
+  if (nav) {
+    const s = nav.dataset.sel;
+    if (s === 'all') app.sel = { type: 'all' };
+    else if (s === 'triage') app.sel = { type: 'triage' };
+    else if (s === 'account') app.sel = { type: 'account', name: nav.dataset.name };
+    else if (s === 'subbucket') app.sel = { type: 'subbucket', name: nav.dataset.name, bucket: nav.dataset.bucket };
+    else if (s === 'bucket') app.sel = { type: 'bucket', bucket: nav.dataset.bucket };
+    app.open.clear();
+    renderAll();
+    return;
+  }
+
+  if (e.target.closest('.nav-new')) {
+    alert('Coming next: save any slice (an account, a bucket, a filter combo) as its own folder. Folders are just saved filters.');
+    return;
+  }
+
+  const chip = e.target.closest('.chip');
+  if (chip) {
+    app.slice = chip.dataset.slice;
+    renderAll();
+    return;
+  }
+
+  const head = e.target.closest('.thread-head');
+  if (head) {
+    const cid = head.dataset.cid;
+    if (app.open.has(cid)) app.open.delete(cid); else app.open.add(cid);
+    renderAll();
+  }
+});
+
+boot();
