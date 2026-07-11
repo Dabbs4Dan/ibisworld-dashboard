@@ -36,10 +36,16 @@ function navRow({ active, emoji, label, count, indent, cls, data }) {
   </div>`;
 }
 
-export function renderSidebar(model, sel) {
+export function renderSidebar(model, sel, acctFilter) {
   const { threads, accounts } = model;
   const { rows, triage } = accountCounts(threads, accounts);
   const bCounts = bucketCounts(threads);
+
+  // Folders with mail float to the top; then alphabetical. Search filters by name.
+  const filter = (acctFilter || '').toLowerCase().trim();
+  const visibleRows = rows
+    .filter(r => !filter || r.name.toLowerCase().includes(filter))
+    .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
 
   let html = '';
 
@@ -52,8 +58,8 @@ export function renderSidebar(model, sel) {
     count: triage, cls: 'nav-top nav-triage', data: { sel: 'triage' }
   });
 
-  html += `<div class="nav-heading">By account</div>`;
-  rows.forEach(r => {
+  html += `<div class="nav-heading">By account · ${rows.length}</div>`;
+  visibleRows.forEach(r => {
     const isSel = (sel.type === 'account' || sel.type === 'subbucket') && sel.name === r.name;
     html += navRow({
       active: sel.type === 'account' && sel.name === r.name,

@@ -9,25 +9,32 @@ const app = {
   model: null,
   sel: { type: 'all' },
   slice: 'all',
-  open: new Set()
+  open: new Set(),
+  acctFilter: ''
 };
 
 const el = {
-  sidebar: () => document.getElementById('sidebar'),
+  nav: () => document.getElementById('nav'),
   filterbar: () => document.getElementById('filterbar'),
   listTitle: () => document.getElementById('list-title'),
   list: () => document.getElementById('list'),
-  status: () => document.getElementById('status')
+  status: () => document.getElementById('status'),
+  acctFilterInput: () => document.getElementById('acct-filter')
 };
 
 async function boot() {
   try {
-    const [accounts, raw] = await Promise.all([loadAccounts(), loadRawMessages()]);
+    const [acctResult, raw] = await Promise.all([loadAccounts(), loadRawMessages()]);
+    const { accounts, source } = acctResult;
     // Push through the IndexedDB layer (proves the real data path); fall back to raw.
     await cacheMessages(raw);
     const messages = (await readMessages()) || raw;
     app.model = buildModel(accounts, messages);
-    el.status().textContent = `${accounts.length} accounts · ${messages.length} emails · sample data`;
+    if (source === 'dashboard') {
+      el.status().textContent = `${accounts.length} accounts (your territory) · ${messages.length} emails (sample)`;
+    } else {
+      el.status().textContent = `${accounts.length} sample accounts · open on your dashboard site to load real territory`;
+    }
     renderAll();
   } catch (e) {
     console.error('[cockpit] boot failed', e);
@@ -52,7 +59,7 @@ function visibleThreads() {
 }
 
 function renderAll() {
-  el.sidebar().innerHTML = renderSidebar(app.model, app.sel);
+  el.nav().innerHTML = renderSidebar(app.model, app.sel, app.acctFilter);
   el.filterbar().innerHTML = renderFilterbar(app.slice);
   const threads = visibleThreads();
   el.listTitle().textContent = listTitle(app.sel, threads.length);
@@ -60,6 +67,13 @@ function renderAll() {
 }
 
 // --- events (delegation) ---------------------------------------------------
+
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'acct-filter') {
+    app.acctFilter = e.target.value;
+    el.nav().innerHTML = renderSidebar(app.model, app.sel, app.acctFilter);
+  }
+});
 
 document.addEventListener('click', (e) => {
   const nav = e.target.closest('.nav-row');
