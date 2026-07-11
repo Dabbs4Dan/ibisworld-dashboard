@@ -30,10 +30,13 @@ async function boot() {
     await cacheMessages(raw);
     const messages = (await readMessages()) || raw;
     app.model = buildModel(accounts, messages);
+    const liveN = app.model.liveAccounts.length;
+    const archN = app.model.archivedAccounts.length;
     if (source === 'dashboard') {
-      el.status().textContent = `${accounts.length} accounts (your territory) · ${messages.length} emails (sample)`;
+      const arch = archN ? ` · ${archN} archived` : '';
+      el.status().textContent = `${liveN} accounts (your territory)${arch} · ${messages.length} emails (sample)`;
     } else {
-      el.status().textContent = `${accounts.length} sample accounts · open on your dashboard site to load real territory`;
+      el.status().textContent = `${liveN} sample accounts · open on your dashboard site to load real territory`;
     }
     renderAll();
   } catch (e) {

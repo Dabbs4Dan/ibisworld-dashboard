@@ -56,16 +56,7 @@ function guessDomain(name) {
   return d.length > 1 ? d + tld : null;
 }
 
-// Returns the dashboard's real territory as [{ name, domain }], or [] if the
-// dashboard has no data on this origin (fresh browser / different site).
-export function readDashboardAccounts() {
-  let raw;
-  try { raw = localStorage.getItem('ibis_accounts'); } catch { return []; }
-  if (!raw) return [];
-  let rows;
-  try { rows = JSON.parse(raw); } catch { return []; }
-  if (!Array.isArray(rows) || !rows.length) return [];
-
+function mapRows(rows, archived) {
   const out = [];
   const seen = new Set();
   rows.forEach(a => {
@@ -75,7 +66,33 @@ export function readDashboardAccounts() {
     if (seen.has(key)) return;
     seen.add(key);
     const domain = getDomainOverride(name) || getDomain(getField(a, 'Website')) || guessDomain(name);
-    out.push({ name, domain: domain || '' });
+    out.push({ name, domain: domain || '', archived: !!archived });
   });
   return out;
+}
+
+// Returns the dashboard's live territory as [{ name, domain, archived:false }], or
+// [] if the dashboard has no data on this origin (fresh browser / different site).
+export function readDashboardAccounts() {
+  let raw;
+  try { raw = localStorage.getItem('ibis_accounts'); } catch { return []; }
+  if (!raw) return [];
+  let rows;
+  try { rows = JSON.parse(raw); } catch { return []; }
+  if (!Array.isArray(rows) || !rows.length) return [];
+  return mapRows(rows, false);
+}
+
+// Returns removed/dead accounts from the dashboard's ibis_dead store as
+// [{ name, domain, archived:true }]. These become the Archive section — their
+// folders (and any mail) persist instead of vanishing when an account is dropped.
+export function readArchivedAccounts() {
+  let raw;
+  try { raw = localStorage.getItem('ibis_dead'); } catch { return []; }
+  if (!raw) return [];
+  let dead;
+  try { dead = JSON.parse(raw); } catch { return []; }
+  const rows = dead && Array.isArray(dead.accounts) ? dead.accounts : [];
+  if (!rows.length) return [];
+  return mapRows(rows, true);
 }

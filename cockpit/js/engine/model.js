@@ -9,7 +9,12 @@ import { threadBucket } from './buckets.js';
 export const TRIAGE = '__triage__';
 
 export function buildModel(accounts, messages) {
-  const domainIdx = buildDomainIndex(accounts);
+  // Archived accounts indexed first so a live account wins any domain collision.
+  const ordered = [...accounts].sort((a, b) => (a.archived ? 0 : 1) - (b.archived ? 0 : 1));
+  const domainIdx = buildDomainIndex(ordered);
+
+  const liveNames = new Set(accounts.filter(a => !a.archived).map(a => a.name));
+  const archivedNames = new Set(accounts.filter(a => a.archived && !liveNames.has(a.name)).map(a => a.name));
 
   messages.forEach(m => { m.account = resolveAccount(m, domainIdx); });
 
@@ -44,7 +49,10 @@ export function buildModel(accounts, messages) {
 
   // Newest activity first.
   threads.sort((a, b) => new Date(b.last.receivedAt) - new Date(a.last.receivedAt));
-  return { threads, accounts };
+
+  const liveAccounts = accounts.filter(a => !a.archived);
+  const archivedAccounts = accounts.filter(a => a.archived && !liveNames.has(a.name));
+  return { threads, accounts, liveAccounts, archivedAccounts, archivedNames };
 }
 
 // --- slicing / grouping helpers the UI calls -------------------------------
@@ -69,13 +77,20 @@ export function passesSlice(t, slice) {
   }
 }
 
-export function accountCounts(threads, accounts) {
-  const rows = accounts.map(a => ({
+function countRows(threads, accounts) {
+  return accounts.map(a => ({
     name: a.name,
+    domain: a.domain,
     count: threads.filter(t => t.accountKey === a.name).length
   }));
-  const triage = threads.filter(t => t.accountKey === TRIAGE).length;
-  return { rows, triage };
+}
+
+export function accountCounts(threads, model) {
+  return {
+    liveRows: countRows(threads, model.liveAccounts),
+    archivedRows: countRows(threads, model.archivedAccounts),
+    triage: threads.filter(t => t.accountKey === TRIAGE).length
+  };
 }
 
 export function bucketCounts(threads) {

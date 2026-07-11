@@ -28,24 +28,61 @@ export function stateLabel(state) {
   }
 }
 
-function navRow({ active, emoji, label, count, indent, cls, data }) {
+// Company logo cascade (mirrors the dashboard): UpLead -> DuckDuckGo -> Google -> initials.
+// window.__ckLogo caches the winning URL per domain so re-renders skip the cascade (no flicker).
+if (typeof window !== 'undefined' && !window.__ckLogo) window.__ckLogo = {};
+
+export function folderLogo(domain, name) {
+  const initials = String(name || '').split(/\s+/).map(w => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase();
+  if (!domain) return `<span class="flogo flogo-init">${escHtml(initials)}</span>`;
+  const cached = window.__ckLogo[domain];
+  if (cached === '__init__') return `<span class="flogo flogo-init">${escHtml(initials)}</span>`;
+  if (cached) return `<span class="flogo"><img src="${cached}" alt="" loading="lazy"></span>`;
+  const onerr = `if(this.src.indexOf('uplead')>-1){this.src='https://icons.duckduckgo.com/ip3/${domain}.ico'}else if(this.src.indexOf('duckduckgo')>-1){this.src='https://www.google.com/s2/favicons?domain=${domain}&sz=64'}else{window.__ckLogo['${domain}']='__init__';const p=this.parentNode;p.classList.add('flogo-init');p.textContent='${escHtml(initials)}'}`;
+  const onload = `window.__ckLogo['${domain}']=this.src`;
+  return `<span class="flogo"><img src="https://logo.uplead.com/${domain}" alt="" loading="lazy" onload="${onload}" onerror="${onerr}"></span>`;
+}
+
+function navRow({ active, emoji, logo, label, count, indent, cls, data }) {
   const attrs = Object.entries(data || {}).map(([k, v]) => `data-${k}="${escHtml(v)}"`).join(' ');
+  const icon = logo != null ? logo : (emoji ? `<span class="nav-emoji">${emoji}</span>` : '');
   return `<div class="nav-row ${active ? 'active' : ''} ${cls || ''}" ${attrs} style="padding-left:${8 + (indent || 0) * 14}px">
-    <span class="nav-label">${emoji ? `<span class="nav-emoji">${emoji}</span>` : ''}${escHtml(label)}</span>
+    <span class="nav-label">${icon}${escHtml(label)}</span>
     ${count != null ? `<span class="nav-count">${count}</span>` : ''}
   </div>`;
 }
 
+function accountRow(r, active) {
+  return navRow({
+    active, logo: folderLogo(r.domain, r.name), label: r.name, count: r.count,
+    cls: 'nav-acct', data: { sel: 'account', name: r.name }
+  });
+}
+
 export function renderSidebar(model, sel, acctFilter) {
-  const { threads, accounts } = model;
-  const { rows, triage } = accountCounts(threads, accounts);
+  const { threads } = model;
+  const { liveRows, archivedRows, triage } = accountCounts(threads, model);
   const bCounts = bucketCounts(threads);
 
-  // Folders with mail float to the top; then alphabetical. Search filters by name.
   const filter = (acctFilter || '').toLowerCase().trim();
-  const visibleRows = rows
-    .filter(r => !filter || r.name.toLowerCase().includes(filter))
-    .sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
+  const byActivity = (a, b) => (b.count - a.count) || a.name.localeCompare(b.name);
+  const filterFn = r => !filter || r.name.toLowerCase().includes(filter);
+  const visibleLive = liveRows.filter(filterFn).sort(byActivity);
+  const visibleArchived = archivedRows.filter(filterFn).sort(byActivity);
+
+  const subFor = (name) => {
+    const sub = subBucketCounts(threads, name);
+    return BUCKETS.filter(b => sub[b.key]).map(b => navRow({
+      active: sel.type === 'subbucket' && sel.name === name && sel.bucket === b.key,
+      label: b.label, count: sub[b.key], indent: 1, cls: 'nav-sub',
+      data: { sel: 'subbucket', name, bucket: b.key }
+    })).join('');
+  };
+
+  const acctBlock = (r) => {
+    const isSel = (sel.type === 'account' || sel.type === 'subbucket') && sel.name === r.name;
+    return accountRow(r, sel.type === 'account' && sel.name === r.name) + (isSel ? subFor(r.name) : '');
+  };
 
   let html = '';
 
@@ -58,26 +95,15 @@ export function renderSidebar(model, sel, acctFilter) {
     count: triage, cls: 'nav-top nav-triage', data: { sel: 'triage' }
   });
 
-  html += `<div class="nav-heading">By account · ${rows.length}</div>`;
-  visibleRows.forEach(r => {
-    const isSel = (sel.type === 'account' || sel.type === 'subbucket') && sel.name === r.name;
-    html += navRow({
-      active: sel.type === 'account' && sel.name === r.name,
-      emoji: '📁', label: r.name, count: r.count,
-      data: { sel: 'account', name: r.name }
-    });
-    if (isSel) {
-      const sub = subBucketCounts(threads, r.name);
-      BUCKETS.forEach(b => {
-        if (!sub[b.key]) return;
-        html += navRow({
-          active: sel.type === 'subbucket' && sel.bucket === b.key,
-          label: b.label, count: sub[b.key], indent: 1, cls: 'nav-sub',
-          data: { sel: 'subbucket', name: r.name, bucket: b.key }
-        });
-      });
-    }
-  });
+  if (archivedRows.length) {
+    html += `<div class="nav-heading">Archive · ${archivedRows.length} <span class="nav-heading-note">removed from dashboard</span></div>`;
+    if (visibleArchived.length) html += visibleArchived.map(acctBlock).join('');
+    else html += `<div class="nav-none">no match</div>`;
+  }
+
+  html += `<div class="nav-heading">By account · ${liveRows.length}</div>`;
+  if (visibleLive.length) html += visibleLive.map(acctBlock).join('');
+  else html += `<div class="nav-none">no match</div>`;
 
   html += `<div class="nav-heading">By bucket</div>`;
   BUCKETS.forEach(b => {

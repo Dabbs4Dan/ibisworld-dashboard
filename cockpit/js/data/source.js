@@ -8,20 +8,26 @@
 //
 // See EMAIL-COCKPIT.md "DATA CONTRACT".
 
-import { readDashboardAccounts } from './dashboard.js';
+import { readDashboardAccounts, readArchivedAccounts } from './dashboard.js';
 
 const SAMPLE_ACCOUNTS = './sample/accounts.json';
 const SAMPLE_MESSAGES = './sample/messages.json';
 
-// Real territory first: read the dashboard's account list from shared localStorage.
-// Falls back to bundled sample accounts if the dashboard has no data on this origin.
-// Returns { accounts:[{name,domain}], source:'dashboard'|'sample' }.
+// Real territory first: read the dashboard's account list (live) + dead accounts
+// (archived) from shared localStorage. Falls back to bundled sample accounts if the
+// dashboard has no data on this origin.
+// Returns { accounts:[{name,domain,archived}], source:'dashboard'|'sample' }.
 export async function loadAccounts() {
-  const real = readDashboardAccounts();
-  if (real.length) return { accounts: real, source: 'dashboard' };
+  const live = readDashboardAccounts();
+  if (live.length) {
+    const liveNames = new Set(live.map(a => a.name.toLowerCase().trim()));
+    const archived = readArchivedAccounts().filter(a => !liveNames.has(a.name.toLowerCase().trim()));
+    return { accounts: [...live, ...archived], source: 'dashboard' };
+  }
   const res = await fetch(SAMPLE_ACCOUNTS, { cache: 'no-store' });
   if (!res.ok) throw new Error('accounts fetch failed: ' + res.status);
-  return { accounts: await res.json(), source: 'sample' };
+  const sample = await res.json();
+  return { accounts: sample.map(a => ({ ...a, archived: false })), source: 'sample' };
 }
 
 // Sample rows carry `daysAgo`; we synthesize an ISO `receivedAt` at load time so
