@@ -1,6 +1,7 @@
 # Auto-sync data files — may contain account/contact PII from Salesforce
-Data/
-Data/*.json
+# (root-anchored so it only ignores /Data, NOT cockpit/js/data on case-insensitive filesystems)
+/Data/
+/Data/*.json
 
 # Local environment / OS files
 .DS_Store
