@@ -3081,6 +3081,8 @@
 (function() {
   var splash = document.getElementById('splash-overlay');
   if (!splash) return;
+  // Skip the splash when arriving via the Dashboard/Mail switch — load straight in.
+  if (/nosplash/.test(location.search + location.hash)) { splash.remove(); return; }
   var logoEl = document.getElementById('splash-logo');
   var headerLogo = document.querySelector('.ibis-logo');
   if (logoEl && headerLogo) logoEl.src = headerLogo.src;
