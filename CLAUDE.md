@@ -11,7 +11,7 @@ Built as a personal productivity tool — NOT an official IBISWorld product.
 **Repo:** github.com/Dabbs4Dan/ibisworld-dashboard (public, main branch)
 **File:** `index.html` — single self-contained file, ~11,450 lines
 
-**🆕 Companion project — EMAIL COCKPIT:** a custom email cockpit over Dan's M365 mailbox (read/triage/**send as him** via a Power Automate + OneDrive bridge, local-first — NOT forwarding). Full mission, access findings, architecture, POC status + Power Automate flow IDs live in **`EMAIL-COCKPIT.md`** — read it when working on email. As of 2026-07-10: send + receive + the OneDrive round trip are **PROVEN live**; next is the production bridge flows + scaffolding the clean local app. Also tracked in memory `project_email_cockpit.md`.
+**🆕 Companion project — EMAIL COCKPIT:** a custom email cockpit over Dan's M365 mailbox (read/triage/**send as him** via a Power Automate + OneDrive bridge, local-first — NOT forwarding). Full mission, architecture, **live flow IDs + the reproducible PA-edit method**, cockpit reader, durability + email→account/ZoomInfo plan all live in **`EMAIL-COCKPIT.md`** — read it when working on email. **As of 2026-07-16 the whole bridge is PRODUCTION-LIVE:** the cockpit app (`/cockpit/`) is built (logo folders, Archive, Triage, buckets, thread-state copilot) AND both PA flows (`Cockpit - Receive`=Inbox, `Cockpit - Send`=Sent Items) write real `@{triggerBody()}` email JSON, ingested by the cockpit's live-mail reader (FSA → IndexedDB → dedup → route → thread → delete slot) — verified end-to-end with real mail. **Only gate left:** Dan clicks 🔌 Connect live mail once (browser-security folder pick). Then: email↔account matching tune-up (domain aliases + ZoomInfo). Also tracked in memory `project_email_cockpit.md`.
 
 ---
 
