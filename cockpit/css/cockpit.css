@@ -42,6 +42,15 @@ html, body {
   background: var(--bg); border: 1px solid var(--line);
   padding: 4px 10px; border-radius: 999px;
 }
+.connect-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px; font-weight: 500; color: #fff;
+  background: var(--red); border: none;
+  padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  transition: filter 120ms ease;
+}
+.connect-btn:hover { filter: brightness(1.08); }
+.connect-btn:active { transform: scale(0.98); }
 
 /* seamless switch between dashboard + cockpit (shared look in both headers) */
 .mode-switch {
