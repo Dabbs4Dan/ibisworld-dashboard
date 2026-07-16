@@ -10,15 +10,19 @@
   <link rel="stylesheet" href="./css/cockpit.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">✈</span>
-      <span class="brand-name">IBIS mail cockpit</span>
-      <span class="brand-ver">v1 · foundation</span>
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-shine-wrap"><img class="ibis-logo" src="./assets/ibis-logo.jpg" alt="IBISWorld"></div>
+      <div class="divider"></div>
+      <span class="header-title">Mail Cockpit · Daniel Starr · US Major Markets</span>
     </div>
-    <div class="topbar-right">
+    <div class="header-right">
+      <div class="mode-switch">
+        <a class="mode-seg" href="../" title="Switch to the dashboard">📊 Dashboard</a>
+        <a class="mode-seg active">📧 Mail</a>
+      </div>
       <span id="status" class="status-pill">loading…</span>
-      <span class="ro-pill">👁 read-only · territory</span>
+      <span class="ro-pill">👁 read-only</span>
     </div>
   </header>
 

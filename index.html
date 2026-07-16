@@ -275,6 +275,13 @@
 
   .header-right { display: flex; align-items: center; gap: 10px; }
 
+  /* seamless switch between dashboard + cockpit (shared look in both headers) */
+  .mode-switch { display: inline-flex; background: #f0f2f5; border: 1px solid var(--border); border-radius: 8px; padding: 2px; gap: 2px; margin-right: 8px; }
+  .mode-seg { font-size: 12px; font-weight: 500; color: var(--text-secondary); text-decoration: none; padding: 5px 11px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transition: background 120ms ease, color 120ms ease; }
+  .mode-seg:hover { background: #fff; }
+  .mode-seg.active { background: var(--ibis-red); color: #fff; cursor: default; }
+  .mode-seg.active:hover { background: var(--ibis-red); }
+
   .upload-btn { background: var(--ibis-red); color: white; border: none; padding: 0 16px; height: 34px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: background 150ms ease, transform 150ms ease; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   .upload-btn:hover { background: #a50d24; }
   .upload-btn:active { transform: scale(0.97); }
@@ -1697,6 +1704,10 @@
     <span class="header-title">Account Dashboard · Daniel Starr · US Major Markets</span>
   </div>
     <div class="header-right">
+    <div class="mode-switch">
+      <a class="mode-seg active">📊 Dashboard</a>
+      <a class="mode-seg" href="cockpit/" title="Switch to the mail cockpit">📧 Mail</a>
+    </div>
     <button id="header-backup-icon" onclick="openBackupsPanel()" title="Backups &amp; Restore" style="background:#fff;color:#475569;border:1px solid #e5e7eb;height:34px;padding:0 12px;border-radius:6px;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-right:8px;font-family:'DM Sans',sans-serif;position:relative;transition:background 150ms ease, border-color 150ms ease;">
       <span style="font-size:14px;">🛡</span>
       <span id="header-backup-dot" style="width:7px;height:7px;border-radius:50%;background:#16a34a;display:inline-block;"></span>

@@ -21,26 +21,42 @@ html, body {
   font-size: 14px;
 }
 
-.topbar {
+.header {
   height: 52px;
   background: var(--card);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 24px;
 }
-.brand { display: flex; align-items: center; gap: 9px; }
-.brand-mark { color: var(--red); font-size: 17px; }
-.brand-name { font-weight: 700; font-size: 15px; }
-.brand-ver { font-size: 11px; color: var(--ink-3); font-family: 'DM Mono', monospace; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
-.status-pill { font-size: 11px; color: var(--ink-2); font-family: 'DM Mono', monospace; }
+.header-left { display: flex; align-items: center; gap: 16px; }
+.ibis-logo { height: 34px; width: auto; display: block; }
+.logo-shine-wrap { position: relative; display: inline-flex; align-items: center; overflow: hidden; border-radius: 6px; }
+.divider { width: 1px; height: 20px; background: var(--line); }
+.header-title { color: var(--ink-2); font-size: 13px; font-weight: 400; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.status-pill { font-size: 11px; color: var(--ink-3); font-family: 'DM Mono', monospace; }
 .ro-pill {
   font-size: 11px; font-weight: 500; color: var(--ink-2);
   background: var(--bg); border: 1px solid var(--line);
   padding: 4px 10px; border-radius: 999px;
 }
+
+/* seamless switch between dashboard + cockpit (shared look in both headers) */
+.mode-switch {
+  display: inline-flex; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px;
+}
+.mode-seg {
+  font-size: 12px; font-weight: 500; color: var(--ink-2); text-decoration: none;
+  padding: 5px 11px; border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 5px;
+  cursor: pointer; transition: background 120ms ease, color 120ms ease;
+}
+.mode-seg:hover { background: #fff; }
+.mode-seg.active { background: var(--red); color: #fff; cursor: default; }
+.mode-seg.active:hover { background: var(--red); }
 
 .cockpit {
   display: flex;
