@@ -27,10 +27,15 @@ Dan's email = a big busy **post office** 🏤 (Outlook). We're building **his ow
 | ✅ **Proven** | Architecture · OneDrive transport · data contract · the reproducible PA-edit method |
 | 🚧 **Left** | Dan's one-time folder pick · then: email↔account matching tune-up (domain aliases + ZoomInfo) · account-page thread integration · send/reply UI |
 
-**⏭️ DO THIS NEXT SESSION:**
-1. Have Dan open the cockpit + click **🔌 Connect live mail** → pick `OneDrive/IBIS-Mail/Inbox`. Watch real threads populate.
-2. **Assess email→account matching** against real Triage volume — where does domain-matching miss (subsidiaries, odd handles)? Build a **domain-alias override** + wire **ZoomInfo** golden-domain data to corroborate. (Everything unmatched lands safely in Triage — nothing lost.)
-3. Then account-page integration (threads on each dashboard account page), then send/reply.
+**⏭️ DO THIS NEXT SESSION — paused mid-"land the troops" (2026-07-16 eve):**
+Flows are LIVE + writing real JSON right now, so mail is **already accumulating** in `IBIS-Mail/Inbox` (cockpit will ingest + delete on connect). We paused just after opening the LIVE cockpit in Dan's real Chrome (`https://dabbs4dan.github.io/ibisworld-dashboard/cockpit/` via Claude-in-Chrome tab) to attempt the connect.
+1. **Land the troops = connect the folder.** The `🔌 Connect live mail` button calls `showDirectoryPicker()` → a **native OS file dialog**. Automation reconnaissance for next time:
+   - Claude-in-Chrome click *may* trigger the picker (CDP clicks are usually trusted gestures), but it **can't drive the OS dialog** (outside the DOM). `computer-use` desktop control likely **can't either** — browsers are tier "read" (clicks/typing blocked), and the file dialog is Chrome-owned. So this gesture may genuinely be Dan's one 5-sec click.
+   - **Robust zero-click ALTERNATIVE to build if we want to kill the click forever:** a tiny always-on **local HTTP server** (Windows scheduled task, like the backup task) serving `IBIS-Mail/Inbox` with `Access-Control-Allow-Origin` for `dabbs4dan.github.io` + a DELETE endpoint. The HTTPS cockpit *can* fetch `http://localhost:PORT` (localhost is an allowed secure-context exception) → swap `source.js`/`mailbox.js` to fetch+DELETE instead of FSA. No folder pick ever. Weigh vs the one-time FSA click.
+   - Simplest path: have Dan do the one click; everything after is automatic.
+2. **Assess email→account matching** on real Triage volume (needs step 1 done so real mail is ingested) — where does domain-matching miss (subsidiaries, brand/odd handles, internal `@ibisworld.com` noise)? Populate `DOMAIN_ALIASES` (in `cockpit/js/engine/routing.js`) with fixes.
+3. **ZoomInfo step** (Dan: "execute it yourself") — needs Dan's **ZoomInfo session** (auth, like PA). Pull golden domains per account → populate `DOMAIN_ALIASES`. Can't do without his logged-in ZoomInfo; set it up when his session is reachable via Claude-in-Chrome.
+4. Then account-page integration (threads on each dashboard account page), then send/reply.
 
 **Code map (the cockpit):** `cockpit/js/data/{source,store,dashboard}.js` (data + the swappable seam) · `engine/{routing,threadState,buckets,model}.js` (brain) · `ui/render.js` (view) · `main.js` (boot/wiring) · `sample/{accounts,messages}.json`. See `cockpit/README.md`.
 
