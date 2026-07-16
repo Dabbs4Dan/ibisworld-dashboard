@@ -31,8 +31,21 @@ export function otherParty(msg) {
   return (msg.to && msg.to[0]) || null;
 }
 
+// Manual domain aliases — extra email domains that belong to an account whose
+// *website* domain differs (subsidiaries, brand domains, post-merger handles).
+// This is the correction hook: populate from Triage review OR from ZoomInfo
+// golden-contact data (Dan's primary contact source) to auto-corroborate
+// account↔domain. Maps an email domain -> the exact dashboard account name.
+// e.g. { 'kohlerco.com': 'Kohler Co.', 'rbi.com': 'Burger King' }
+export const DOMAIN_ALIASES = {};
+
 export function buildDomainIndex(accounts) {
   const idx = new Map();
+  // aliases first, so a real account's own website domain wins any collision
+  for (const [dom, name] of Object.entries(DOMAIN_ALIASES)) {
+    const d = normDomain(dom);
+    if (d) idx.set(d, name);
+  }
   accounts.forEach(a => {
     const d = normDomain(a.domain);
     if (d) idx.set(d, a.name);
