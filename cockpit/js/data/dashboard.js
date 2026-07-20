@@ -56,6 +56,17 @@ function guessDomain(name) {
   return d.length > 1 ? d + tld : null;
 }
 
+// Build the cockpit account list from raw dashboard rows (used by the local-server
+// /accounts path, which reads them from the dashboard backup file).
+export function accountsFromRaw(accountsRaw, deadRaw) {
+  const live = Array.isArray(accountsRaw) ? mapRows(accountsRaw, false) : [];
+  const liveNames = new Set(live.map(a => a.name.toLowerCase().trim()));
+  const dead = Array.isArray(deadRaw)
+    ? mapRows(deadRaw, true).filter(a => !liveNames.has(a.name.toLowerCase().trim()))
+    : [];
+  return [...live, ...dead];
+}
+
 function mapRows(rows, archived) {
   const out = [];
   const seen = new Set();

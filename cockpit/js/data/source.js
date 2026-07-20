@@ -8,7 +8,7 @@
 //
 // See EMAIL-COCKPIT.md "DATA CONTRACT".
 
-import { readDashboardAccounts, readArchivedAccounts } from './dashboard.js';
+import { readDashboardAccounts, readArchivedAccounts, accountsFromRaw } from './dashboard.js';
 
 const SAMPLE_ACCOUNTS = './sample/accounts.json';
 const SAMPLE_MESSAGES = './sample/messages.json';
@@ -18,12 +18,24 @@ const SAMPLE_MESSAGES = './sample/messages.json';
 // dashboard has no data on this origin.
 // Returns { accounts:[{name,domain,archived}], source:'dashboard'|'sample' }.
 export async function loadAccounts() {
+  // 1. Same-origin dashboard localStorage (GitHub-hosted cockpit).
   const live = readDashboardAccounts();
   if (live.length) {
     const liveNames = new Set(live.map(a => a.name.toLowerCase().trim()));
     const archived = readArchivedAccounts().filter(a => !liveNames.has(a.name.toLowerCase().trim()));
     return { accounts: [...live, ...archived], source: 'dashboard' };
   }
+  // 2. Local mail-server /accounts (cockpit served from localhost) — reads the
+  //    dashboard backup file, so real territory loads with no dashboard origin.
+  try {
+    const r = await fetch('/accounts', { cache: 'no-store' });
+    if (r.ok) {
+      const { accounts: aRaw, dead: dRaw } = await r.json();
+      const combined = accountsFromRaw(aRaw, dRaw);
+      if (combined.length) return { accounts: combined, source: 'dashboard' };
+    }
+  } catch {}
+  // 3. Bundled sample.
   const res = await fetch(SAMPLE_ACCOUNTS, { cache: 'no-store' });
   if (!res.ok) throw new Error('accounts fetch failed: ' + res.status);
   const sample = await res.json();

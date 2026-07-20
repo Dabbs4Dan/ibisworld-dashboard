@@ -90,7 +90,10 @@ export async function ingest(handle) {
 // exception), so no File System Access folder-pick is needed. If the server is
 // running, mail flows automatically.
 
-const LOCAL_SERVER = 'http://127.0.0.1:8790';
+// Relative: when the cockpit is served BY the mail-server (http://localhost:8790/)
+// these are same-origin (no CORS / PNA / mixed-content gates). On the GitHub-hosted
+// cockpit they 404 harmlessly and we fall back to File System Access.
+const LOCAL_SERVER = '';
 
 export async function localServerAvailable() {
   try {
