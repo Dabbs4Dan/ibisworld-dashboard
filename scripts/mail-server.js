@@ -19,6 +19,9 @@ function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Chrome Private Network Access: a public HTTPS site (the live cockpit) calling
+  // this loopback server must be explicitly allowed, or the preflight is blocked.
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
 }
 
 const server = http.createServer((req, res) => {
