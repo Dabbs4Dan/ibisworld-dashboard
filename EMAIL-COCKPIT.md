@@ -27,6 +27,20 @@ Dan's email = a big busy **post office** 🏤 (Outlook). We're building **his ow
 | ✅ **Proven** | Architecture · OneDrive transport · data contract · the reproducible PA-edit method |
 | 🚧 **Left** | Dan's one-time folder pick · then: email↔account matching tune-up (domain aliases + ZoomInfo) · account-page thread integration · send/reply UI |
 
+**✅ TROOPS LANDED (2026-07-20) — real mail flows into the cockpit, ZERO clicks.**
+- Both PA flows write real Message JSON (verified: 57+ real emails accumulating in `IBIS-Mail/Inbox`). Real V3 schema is **camelCase** (`from`,`toRecipients`,`receivedDateTime`,`bodyPreview`,`conversationId`,`internetMessageId`), `from`/`toRecipients` are plain email strings — the defensive mapper (`cockpit/js/data/mailbox.js` `mapV3`) handles it.
+- **Transport = self-contained local server** (`scripts/mail-server.js`, node, `127.0.0.1:8790`, auto-starts via a **Startup-folder** entry `IBIS-Mail-Server.vbs` — no admin, survives reboot). It serves the WHOLE cockpit from one localhost origin: `/`=app · `/accounts`=real territory read from the dashboard backup `Documents\IBIS-Backups\latest.json` (171 accounts+63 dead) · `/list`+`/file`=mail. **Dan opens `http://localhost:8790/`** → real territory + real mail load with **no folder-pick, no Chrome PNA/mixed-content gate, no clicks.**
+  - ⚠️ Why not the GitHub-hosted cockpit: Chrome **blocks public-HTTPS → `localhost`** fetches (Private Network Access), silently. The `Access-Control-Allow-Private-Network` header did NOT unblock it. So the cockpit must be *served from* localhost. The GitHub cockpit still works but shows sample mail (loopback dead there).
+- **Noise filter** (`routing.isNoiseSender` → new **Muted** bucket): internal `ibisworld.com` + sales-tool/automated senders (Gong/Qualified/6sense/no-reply@…) route to Muted, keeping **Triage** to genuine unmatched people. Live result on 57 emails: Egis/Clearlink/Philadelphia-Insurance matched to folders, **Triage=2, Muted=35**.
+- The 2 real Triage gaps (`pgavey@goodnow.com`, `grant@brightleafgrowth.com`) = prospects not in territory / domain-mismatch → `DOMAIN_ALIASES` candidates (ZoomInfo territory).
+
+**⏭️ DO NEXT:**
+1. **Sent-mail flow** (still pending — Dan wants complete threads w/ his sent mail). Save-As `Cockpit - Receive` → change trigger **Folder to Sent Items** → same `triggerBody()` File Content. **The File Content edit method that WORKS via automation:** in the PA new designer, `document.querySelector('textarea[placeholder*="Ask a question"]')`, set value via the React native setter + dispatch `input` event, click Submit, then click Save — Copilot applies `triggerBody()` and it persists (the designer's config panel + `computer.type` both fail; this DOM-injection Copilot path is the one that works). The cockpit already tags direction by sender, so sent+received thread together.
+2. **ZoomInfo** — pull golden domains for the Triage gaps → `DOMAIN_ALIASES` (needs Dan's ZoomInfo session via Claude-in-Chrome).
+3. Account-page integration (threads on each dashboard account page); then send/reply.
+4. Enable delete-after-ingest (`ingestFromLocalServer({del:true})`) once fully trusted, so `Inbox` stays empty (dedup-by-id already makes re-reads safe).
+
+--- OLD NOTE (superseded above) ---
 **⏭️ DO THIS NEXT SESSION — paused mid-"land the troops" (2026-07-16 eve):**
 Flows are LIVE + writing real JSON right now, so mail is **already accumulating** in `IBIS-Mail/Inbox` (cockpit will ingest + delete on connect). We paused just after opening the LIVE cockpit in Dan's real Chrome (`https://dabbs4dan.github.io/ibisworld-dashboard/cockpit/` via Claude-in-Chrome tab) to attempt the connect.
 1. **Land the troops = connect the folder.** The `🔌 Connect live mail` button calls `showDirectoryPicker()` → a **native OS file dialog**. Automation reconnaissance for next time:
