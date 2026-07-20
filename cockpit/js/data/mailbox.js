@@ -85,6 +85,51 @@ export async function ingest(handle) {
   return { ingested, deleted, skipped };
 }
 
+// --- zero-click transport: the local mail-server (scripts/mail-server.js) --------
+// The HTTPS cockpit can fetch this loopback address (browser secure-context
+// exception), so no File System Access folder-pick is needed. If the server is
+// running, mail flows automatically.
+
+const LOCAL_SERVER = 'http://127.0.0.1:8790';
+
+export async function localServerAvailable() {
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 1500);
+    const r = await fetch(LOCAL_SERVER + '/ping', { signal: c.signal, cache: 'no-store' });
+    clearTimeout(t);
+    return r.ok;
+  } catch { return false; }
+}
+
+// del defaults false: dedup-by-id makes re-reads harmless, and we don't want to
+// remove real mail until the app is trusted. Flip to true once solid.
+export async function ingestFromLocalServer({ del = false } = {}) {
+  let names = [];
+  try {
+    names = await (await fetch(LOCAL_SERVER + '/list', { cache: 'no-store' })).json();
+  } catch { return { ingested: 0, total: 0, error: 'list failed' }; }
+  if (!Array.isArray(names)) return { ingested: 0, total: 0, error: 'bad list' };
+
+  const mapped = [];
+  const got = [];
+  for (const name of names) {
+    try {
+      const raw = await (await fetch(LOCAL_SERVER + '/file/' + encodeURIComponent(name), { cache: 'no-store' })).json();
+      const m = mapV3(raw);
+      if (m && m.id) { mapped.push(m); got.push(name); }
+    } catch (e) { /* skip unreadable file */ }
+  }
+  const ingested = await putMessages(mapped);
+  if (del) {
+    for (const name of got) {
+      try { await fetch(LOCAL_SERVER + '/file/' + encodeURIComponent(name), { method: 'DELETE' }); } catch {}
+    }
+  }
+  if (ingested) await kvSet('last_ingest_ts', Date.now());
+  return { ingested, total: names.length };
+}
+
 // --- mapping: raw "When a new email arrives (V3)" body -> our Message shape ----
 // Defensive about field name/casing so it works regardless of connector variant.
 

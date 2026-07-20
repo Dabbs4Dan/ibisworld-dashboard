@@ -31,6 +31,30 @@ export function otherParty(msg) {
   return (msg.to && msg.to[0]) || null;
 }
 
+// Noise = internal colleagues + sales-tool/automated senders. These flood the
+// unmatched pile; we route them to a muted bucket so Triage only surfaces genuine
+// unmatched *people* (real prospects worth a look).
+const NOISE_DOMAINS = new Set([
+  'gong.io', 'qualified.com', '6sense.com', 'teams.mail.microsoft',
+  'ticketsatwork.com', 'email.ticketsatwork.com',
+  'salesforce.com', 'linkedin.com', 'zoominfo.com', 'outreach.io',
+  'calendly.com', 'docusign.net', 'microsoft.com', 'office.com'
+]);
+// Automated role addresses (no human on the other end).
+const NOISE_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|notifications?|notify|mailer|mail-?daemon|postmaster|alerts?|updates?|newsletter|automated|auto|app|marketing|bounce|bounces)@/i;
+// ESP/bounce subdomains (email.x.com, bounce.x.com, mailer.x.com …).
+const NOISE_SUBDOMAIN = /^(email|mail|bounce|bounces|reply|mailer|notif|notifications|marketing|news|em|e)\./;
+
+export function isNoiseSender(email) {
+  if (!email) return false;
+  const dom = domainFromEmail(email);
+  if (dom === MY_DOMAIN) return true;              // internal colleague / notification
+  if (NOISE_DOMAINS.has(dom)) return true;         // known sales tools
+  if (NOISE_LOCAL.test(email)) return true;        // no-reply / app / notifications@
+  if (NOISE_SUBDOMAIN.test(dom)) return true;      // email.brand.com style
+  return false;
+}
+
 // Manual domain aliases — extra email domains that belong to an account whose
 // *website* domain differs (subsidiaries, brand domains, post-merger handles).
 // This is the correction hook: populate from Triage review OR from ZoomInfo

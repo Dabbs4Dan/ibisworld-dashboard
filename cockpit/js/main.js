@@ -2,8 +2,8 @@
 
 import { loadAccounts, loadRawMessages } from './data/source.js';
 import { getAllMessages } from './data/store.js';
-import { fsaSupported, connectInbox, getInboxHandle, isConnected, ingest } from './data/mailbox.js';
-import { buildModel, TRIAGE, threadsForAccount, threadsForBucket, passesSlice } from './engine/model.js';
+import { fsaSupported, connectInbox, getInboxHandle, isConnected, ingest, localServerAvailable, ingestFromLocalServer } from './data/mailbox.js';
+import { buildModel, TRIAGE, MUTED, threadsForAccount, threadsForBucket, passesSlice } from './engine/model.js';
 import { renderSidebar, renderFilterbar, renderList, listTitle } from './ui/render.js';
 
 const app = {
@@ -14,8 +14,9 @@ const app = {
   acctFilter: '',
   accounts: [],
   acctSource: 'sample',
-  live: false,    // connected to real mailbox folder
-  handle: null    // File System Access dir handle (null if lapsed/never connected)
+  live: false,        // showing real mail (via local server or FSA)
+  handle: null,       // File System Access dir handle (null if lapsed/never connected)
+  localServer: false  // the zero-click local mail-server is reachable
 };
 
 const el = {
@@ -33,17 +34,25 @@ async function boot() {
     app.accounts = acctResult.accounts;
     app.acctSource = acctResult.source;
 
-    // Attach to live mail if previously connected. Ingest silently if permission survives.
-    app.live = await isConnected();
-    if (app.live) {
-      app.handle = await getInboxHandle();          // null if the grant lapsed
-      if (app.handle) await ingest(app.handle);
+    // Preferred zero-click path: the local mail-server. If it's running, mail
+    // flows automatically with no folder-pick.
+    app.localServer = await localServerAvailable();
+    if (app.localServer) {
+      app.live = true;
+      await ingestFromLocalServer();
+    } else {
+      // Fallback: File System Access, if previously connected.
+      app.live = await isConnected();
+      if (app.live) {
+        app.handle = await getInboxHandle();        // null if the grant lapsed
+        if (app.handle) await ingest(app.handle);
+      }
     }
 
     await rebuild();
     updateStatus();
     updateConnectBtn();
-    if (app.handle) startPoll();
+    if (app.localServer || app.handle) startPoll();
   } catch (e) {
     console.error('[cockpit] boot failed', e);
     el.list().innerHTML = `<div class="empty">Couldn't load data: ${e.message}. Run this via the dev server (http://localhost:8099/cockpit/), not file://.</div>`;
@@ -69,7 +78,8 @@ function updateStatus() {
 function updateConnectBtn() {
   const btn = el.connectBtn();
   if (!btn) return;
-  if (!app.live) { btn.textContent = '🔌 Connect live mail'; btn.title = 'Read real mail from your OneDrive IBIS-Mail folder'; }
+  if (app.localServer) { btn.textContent = '🔄 Refresh mail'; btn.title = 'Live mail is auto-connected — check for new mail now'; }
+  else if (!app.live) { btn.textContent = '🔌 Connect live mail'; btn.title = 'Read real mail from your OneDrive IBIS-Mail folder'; }
   else if (!app.handle) { btn.textContent = '🔑 Reconnect mail'; btn.title = 'Folder permission lapsed — click to re-grant'; }
   else { btn.textContent = '🔄 Refresh mail'; btn.title = 'Check the folder for new mail now'; }
 }
@@ -78,21 +88,24 @@ let pollTimer = null;
 function startPoll() {
   if (pollTimer) return;
   pollTimer = setInterval(async () => {
-    if (!app.handle) return;
     try {
-      const r = await ingest(app.handle);
-      if (r.ingested) { await rebuild(); updateStatus(); }
+      const r = app.localServer ? await ingestFromLocalServer() : (app.handle ? await ingest(app.handle) : null);
+      if (r && r.ingested) { await rebuild(); updateStatus(); }
     } catch (e) { console.warn('[cockpit] poll ingest failed', e); }
   }, 45000);
 }
 
 async function onConnectClick() {
-  if (!fsaSupported()) {
-    alert('Live mail needs the File System Access API — use Chrome or Edge.');
-    return;
-  }
   const btn = el.connectBtn();
   try {
+    // If the local server is up, this button is just a manual refresh.
+    if (app.localServer) {
+      if (btn) btn.textContent = '… reading';
+      await ingestFromLocalServer();
+      await rebuild(); updateStatus(); updateConnectBtn();
+      return;
+    }
+    if (!fsaSupported()) { alert('Live mail needs the File System Access API — use Chrome or Edge.'); return; }
     if (!app.live || !app.handle) {
       app.handle = await connectInbox();   // one-time folder pick (or re-grant)
       app.live = true;
@@ -116,6 +129,7 @@ function baseThreads() {
   switch (app.sel.type) {
     case 'all':       return t;
     case 'triage':    return t.filter(x => x.accountKey === TRIAGE);
+    case 'muted':     return t.filter(x => x.accountKey === MUTED);
     case 'account':   return threadsForAccount(t, app.sel.name);
     case 'subbucket': return threadsForAccount(t, app.sel.name).filter(x => x.bucket === app.sel.bucket);
     case 'bucket':    return threadsForBucket(t, app.sel.bucket);
@@ -152,6 +166,7 @@ document.addEventListener('click', (e) => {
     const s = nav.dataset.sel;
     if (s === 'all') app.sel = { type: 'all' };
     else if (s === 'triage') app.sel = { type: 'triage' };
+    else if (s === 'muted') app.sel = { type: 'muted' };
     else if (s === 'account') app.sel = { type: 'account', name: nav.dataset.name };
     else if (s === 'subbucket') app.sel = { type: 'subbucket', name: nav.dataset.name, bucket: nav.dataset.bucket };
     else if (s === 'bucket') app.sel = { type: 'bucket', bucket: nav.dataset.bucket };

@@ -2,11 +2,12 @@
 // resolves each message to an account, groups messages into threads, and tags
 // each thread with its state + bucket. Everything the UI renders comes from here.
 
-import { resolveAccount, buildDomainIndex, otherParty } from './routing.js';
+import { resolveAccount, buildDomainIndex, otherParty, isNoiseSender } from './routing.js';
 import { computeThreadState } from './threadState.js';
 import { threadBucket } from './buckets.js';
 
 export const TRIAGE = '__triage__';
+export const MUTED = '__muted__';
 
 export function buildModel(accounts, messages) {
   // Archived accounts indexed first so a live account wins any domain collision.
@@ -33,9 +34,12 @@ export function buildModel(accounts, messages) {
     const state = computeThreadState(sorted);
     const bucket = threadBucket(sorted);
     const contact = otherParty(last) || sorted.map(otherParty).find(Boolean) || { name: '(unknown)', email: '' };
+    // Unmatched + noisy (internal / automated / tools) -> muted, so Triage stays clean.
+    let accountKey = account || TRIAGE;
+    if (accountKey === TRIAGE && isNoiseSender(contact.email)) accountKey = MUTED;
     threads.push({
       cid,
-      accountKey: account || TRIAGE,
+      accountKey,
       account,
       state,
       bucket,
@@ -89,7 +93,8 @@ export function accountCounts(threads, model) {
   return {
     liveRows: countRows(threads, model.liveAccounts),
     archivedRows: countRows(threads, model.archivedAccounts),
-    triage: threads.filter(t => t.accountKey === TRIAGE).length
+    triage: threads.filter(t => t.accountKey === TRIAGE).length,
+    muted: threads.filter(t => t.accountKey === MUTED).length
   };
 }
 

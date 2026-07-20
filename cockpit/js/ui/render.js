@@ -61,7 +61,7 @@ function accountRow(r, active) {
 
 export function renderSidebar(model, sel, acctFilter) {
   const { threads } = model;
-  const { liveRows, archivedRows, triage } = accountCounts(threads, model);
+  const { liveRows, archivedRows, triage, muted } = accountCounts(threads, model);
   const bCounts = bucketCounts(threads);
 
   const filter = (acctFilter || '').toLowerCase().trim();
@@ -94,6 +94,12 @@ export function renderSidebar(model, sel, acctFilter) {
     active: sel.type === 'triage', emoji: '🟡', label: 'Triage',
     count: triage, cls: 'nav-top nav-triage', data: { sel: 'triage' }
   });
+  if (muted) {
+    html += navRow({
+      active: sel.type === 'muted', emoji: '🔕', label: 'Muted',
+      count: muted, cls: 'nav-top', data: { sel: 'muted' }
+    });
+  }
 
   if (archivedRows.length) {
     html += `<div class="nav-heading">Archive · ${archivedRows.length} <span class="nav-heading-note">removed from dashboard</span></div>`;
@@ -171,6 +177,7 @@ export function renderList(threads, sel, openSet) {
 export function listTitle(sel, count) {
   let name = 'All territory';
   if (sel.type === 'triage') name = '🟡 Triage · unmatched';
+  else if (sel.type === 'muted') name = '🔕 Muted · internal + automated';
   else if (sel.type === 'account') name = sel.name;
   else if (sel.type === 'subbucket') name = sel.name + ' · ' + sel.bucket;
   else if (sel.type === 'bucket') name = sel.bucket + ' (all accounts)';
