@@ -38,7 +38,8 @@ const NOISE_DOMAINS = new Set([
   'gong.io', 'qualified.com', '6sense.com', 'teams.mail.microsoft',
   'ticketsatwork.com', 'email.ticketsatwork.com',
   'salesforce.com', 'linkedin.com', 'zoominfo.com', 'outreach.io',
-  'calendly.com', 'docusign.net', 'microsoft.com', 'office.com'
+  'calendly.com', 'docusign.net', 'microsoft.com', 'office.com',
+  'procurementiq.com'  // IBISWorld sister product — internal colleagues (Anthony/Embry/PIQ)
 ]);
 // Automated role addresses (no human on the other end).
 const NOISE_LOCAL = /^(no-?reply|do-?not-?reply|donotreply|notifications?|notify|mailer|mail-?daemon|postmaster|alerts?|updates?|newsletter|automated|auto|app|marketing|bounce|bounces)@/i;
@@ -53,6 +54,15 @@ export function isNoiseSender(email) {
   if (NOISE_LOCAL.test(email)) return true;        // no-reply / app / notifications@
   if (NOISE_SUBDOMAIN.test(dom)) return true;      // email.brand.com style
   return false;
+}
+
+// System-generated, non-conversational messages: calendar accept/decline/cancel
+// notices + out-of-office/auto-replies + bounces. These aren't real correspondence
+// and must never read as "they replied · your move".
+const NOISE_SUBJECT = /^(accepted|declined|tentative|canceled|cancelled|invitation|updated invitation|new time proposed|meeting forward notification):|^(automatic reply|autoreply|auto-reply|out of office|undeliverable|delivery has failed|read receipt|read:|not read:)/i;
+
+export function isNoiseSubject(subject) {
+  return !!subject && NOISE_SUBJECT.test(String(subject).trim());
 }
 
 // Manual domain aliases — extra email domains that belong to an account whose

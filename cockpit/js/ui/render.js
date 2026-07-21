@@ -10,6 +10,14 @@ export function escHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Strip Outlook/gateway tags that clutter subjects: [SPAM], [External], [EXT], etc.
+function cleanSubject(s) {
+  return String(s || '')
+    .replace(/\[(spam|external|ext|suspected spam|caution|bulk)\]\s*/gi, '')
+    .replace(/^(re|fw|fwd)\s*:\s*(re|fw|fwd)\s*:/i, '$1:')
+    .trim() || '(no subject)';
+}
+
 function ago(days) {
   if (days == null) return '';
   if (days >= 60) return '~' + Math.round(days / 30) + 'mo';
@@ -92,7 +100,7 @@ export function renderSidebar(model, sel, acctFilter) {
 
   html += navRow({
     active: sel.type === 'all', emoji: '📚', label: 'All territory',
-    count: threads.length, cls: 'nav-top', data: { sel: 'all' }
+    count: threads.length - muted, cls: 'nav-top', data: { sel: 'all' }
   });
   html += navRow({
     active: sel.type === 'triage', emoji: '🆕', label: 'New',
@@ -114,14 +122,17 @@ export function renderSidebar(model, sel, acctFilter) {
     html += visibleArchived.map(acctBlock).join('');
   }
 
-  html += `<div class="nav-heading">By bucket</div>`;
-  BUCKETS.forEach(b => {
-    html += navRow({
-      active: sel.type === 'bucket' && sel.bucket === b.key,
-      emoji: b.emoji, label: b.label + 's', count: bCounts[b.key] || 0,
-      data: { sel: 'bucket', bucket: b.key }
+  const liveBuckets = BUCKETS.filter(b => bCounts[b.key] > 0);
+  if (liveBuckets.length) {
+    html += `<div class="nav-heading">By bucket</div>`;
+    liveBuckets.forEach(b => {
+      html += navRow({
+        active: sel.type === 'bucket' && sel.bucket === b.key,
+        emoji: b.emoji, label: b.label + 's', count: bCounts[b.key],
+        data: { sel: 'bucket', bucket: b.key }
+      });
     });
-  });
+  }
 
   html += `<div class="nav-new" data-newfolder="1"><span class="nav-emoji">＋</span>new folder</div>`;
   return html;
@@ -149,7 +160,7 @@ function threadRow(t, open) {
         <span class="thread-name">${escHtml(c.name || c.email || '(unknown)')}</span>
         <span class="thread-age">${ago(t.daysSince)}</span>
       </div>
-      <div class="thread-subj">${escHtml(t.subject || '(no subject)')}</div>
+      <div class="thread-subj">${escHtml(cleanSubject(t.subject))}</div>
       <span class="badge ${t.state.cls}">${t.state.emoji} ${escHtml(stateLabel(t.state))}</span>
     </div>
     ${detail}

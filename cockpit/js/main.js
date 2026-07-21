@@ -127,7 +127,7 @@ async function onConnectClick() {
 function baseThreads() {
   const t = app.model.threads;
   switch (app.sel.type) {
-    case 'all':       return t;
+    case 'all':       return t.filter(x => x.accountKey !== MUTED);
     case 'triage':    return t.filter(x => x.accountKey === TRIAGE);
     case 'muted':     return t.filter(x => x.accountKey === MUTED);
     case 'account':   return threadsForAccount(t, app.sel.name);

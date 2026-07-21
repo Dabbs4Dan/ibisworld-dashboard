@@ -2,7 +2,7 @@
 // resolves each message to an account, groups messages into threads, and tags
 // each thread with its state + bucket. Everything the UI renders comes from here.
 
-import { resolveAccount, buildDomainIndex, otherParty, isNoiseSender } from './routing.js';
+import { resolveAccount, buildDomainIndex, otherParty, isNoiseSender, isNoiseSubject } from './routing.js';
 import { computeThreadState } from './threadState.js';
 import { threadBucket } from './buckets.js';
 
@@ -29,14 +29,21 @@ export function buildModel(accounts, messages) {
   const threads = [];
   threadMap.forEach((msgs, cid) => {
     const sorted = [...msgs].sort((a, b) => new Date(a.receivedAt) - new Date(b.receivedAt));
-    const last = sorted[sorted.length - 1];
+    // State + display are driven by the real conversation — calendar accepts/declines
+    // and auto-replies don't count as messages (a trailing "Accepted:" must not read
+    // as "they replied · your move"). Full thread still shown in the reader.
+    const realSorted = sorted.filter(m => !isNoiseSubject(m.subject));
+    const view = realSorted.length ? realSorted : sorted;
+    const last = view[view.length - 1];
     const account = msgs.map(m => m.account).find(Boolean) || null;
-    const state = computeThreadState(sorted);
-    const bucket = threadBucket(sorted);
-    const contact = otherParty(last) || sorted.map(otherParty).find(Boolean) || { name: '(unknown)', email: '' };
-    // Unmatched + noisy (internal / automated / tools) -> muted, so Triage stays clean.
+    const state = computeThreadState(view);
+    const bucket = threadBucket(view);
+    const contact = otherParty(last) || view.map(otherParty).find(Boolean) || { name: '(unknown)', email: '' };
     let accountKey = account || TRIAGE;
-    if (accountKey === TRIAGE && isNoiseSender(contact.email)) accountKey = MUTED;
+    // Pure system-noise threads (nothing but calendar/auto-reply) -> muted, even when matched.
+    if (realSorted.length === 0) accountKey = MUTED;
+    // Unmatched + noisy sender (internal / tools / no-reply) -> muted, keeping New clean.
+    else if (accountKey === TRIAGE && isNoiseSender(contact.email)) accountKey = MUTED;
     threads.push({
       cid,
       accountKey,
@@ -66,7 +73,7 @@ export function threadsForAccount(threads, accountName) {
 }
 
 export function threadsForBucket(threads, bucketKey) {
-  return threads.filter(t => t.bucket === bucketKey);
+  return threads.filter(t => t.bucket === bucketKey && t.accountKey !== MUTED);
 }
 
 // Top slice-bar: cross-cutting filters over whatever list is showing.
@@ -100,7 +107,7 @@ export function accountCounts(threads, model) {
 
 export function bucketCounts(threads) {
   const map = {};
-  threads.forEach(t => { map[t.bucket] = (map[t.bucket] || 0) + 1; });
+  threads.forEach(t => { if (t.accountKey !== MUTED) map[t.bucket] = (map[t.bucket] || 0) + 1; });
   return map;
 }
 
