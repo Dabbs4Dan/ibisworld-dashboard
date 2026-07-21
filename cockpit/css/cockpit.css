@@ -138,6 +138,13 @@ html, body {
 }
 .nav-heading-note { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0.8; }
 .nav-none { font-size: 11px; color: var(--ink-3); padding: 4px 10px; }
+
+/* muted = noise, filed at the bottom, visually quiet */
+.nav-muted .nav-label { color: var(--ink-3); font-weight: 400; }
+.nav-muted .nav-count { color: var(--ink-3); }
+.nav-muted:hover { background: var(--bg); }
+.nav-muted.active { background: var(--bg); color: var(--ink-2); }
+.nav-muted.active .nav-label { color: var(--ink-2); }
 .nav-new {
   display: flex; align-items: center; gap: 6px;
   padding: 8px; margin-top: 4px;

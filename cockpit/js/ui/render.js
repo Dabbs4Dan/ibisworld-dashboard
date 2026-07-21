@@ -91,50 +91,35 @@ export function renderSidebar(model, sel, acctFilter) {
     })).join('');
   };
 
-  const acctBlock = (r) => {
-    const isSel = (sel.type === 'account' || sel.type === 'subbucket') && sel.name === r.name;
-    return accountRow(r, sel.type === 'account' && sel.name === r.name) + (isSel ? subFor(r.name) : '');
-  };
+  const acctBlock = (r) => accountRow(r, sel.type === 'account' && sel.name === r.name);
 
   let html = '';
 
   html += navRow({
-    active: sel.type === 'all', emoji: '📚', label: 'All territory',
+    active: sel.type === 'all', emoji: '📥', label: 'All territory',
     count: threads.length - muted, cls: 'nav-top', data: { sel: 'all' }
   });
   html += navRow({
-    active: sel.type === 'triage', emoji: '🆕', label: 'New',
+    active: sel.type === 'triage', emoji: '🆕', label: 'New contacts',
     count: triage, cls: 'nav-top nav-triage', data: { sel: 'triage' }
   });
-  if (muted) {
-    html += navRow({
-      active: sel.type === 'muted', emoji: '🔕', label: 'Muted',
-      count: muted, cls: 'nav-top', data: { sel: 'muted' }
-    });
-  }
 
-  html += `<div class="nav-heading">Accounts <span class="nav-heading-note">active · with mail</span></div>`;
+  html += `<div class="nav-heading">Your accounts <span class="nav-heading-note">with mail</span></div>`;
   if (visibleLive.length) html += visibleLive.map(acctBlock).join('');
   else html += `<div class="nav-none">${hasFilter ? 'no match' : 'no account mail yet'}</div>`;
 
   if (visibleArchived.length) {
-    html += `<div class="nav-heading">Dropped <span class="nav-heading-note">removed from dashboard</span></div>`;
+    html += `<div class="nav-heading">Dropped accounts <span class="nav-heading-note">removed from your book</span></div>`;
     html += visibleArchived.map(acctBlock).join('');
   }
 
-  const liveBuckets = BUCKETS.filter(b => bCounts[b.key] > 0);
-  if (liveBuckets.length) {
-    html += `<div class="nav-heading">By bucket</div>`;
-    liveBuckets.forEach(b => {
-      html += navRow({
-        active: sel.type === 'bucket' && sel.bucket === b.key,
-        emoji: b.emoji, label: b.label + 's', count: bCounts[b.key],
-        data: { sel: 'bucket', bucket: b.key }
-      });
+  if (muted) {
+    html += `<div class="nav-heading">Filed away</div>`;
+    html += navRow({
+      active: sel.type === 'muted', emoji: '🔕', label: 'Muted',
+      count: muted, cls: 'nav-muted', data: { sel: 'muted' }
     });
   }
-
-  html += `<div class="nav-new" data-newfolder="1"><span class="nav-emoji">＋</span>new folder</div>`;
   return html;
 }
 
@@ -190,7 +175,7 @@ export function renderList(threads, sel, openSet) {
 
 export function listTitle(sel, count) {
   let name = 'All territory';
-  if (sel.type === 'triage') name = '🆕 New · not in your book yet';
+  if (sel.type === 'triage') name = '🆕 New contacts · not in your book yet';
   else if (sel.type === 'muted') name = '🔕 Muted · internal + automated';
   else if (sel.type === 'account') name = sel.name;
   else if (sel.type === 'subbucket') name = sel.name + ' · ' + sel.bucket;
