@@ -67,8 +67,12 @@ export function renderSidebar(model, sel, acctFilter) {
   const filter = (acctFilter || '').toLowerCase().trim();
   const byActivity = (a, b) => (b.count - a.count) || a.name.localeCompare(b.name);
   const filterFn = r => !filter || r.name.toLowerCase().includes(filter);
-  const visibleLive = liveRows.filter(filterFn).sort(byActivity);
-  const visibleArchived = archivedRows.filter(filterFn).sort(byActivity);
+  // Only surface account folders that actually have mail (the "active" accounts) —
+  // no clutter of 171 empty folders. Searching reveals all matches regardless.
+  const hasFilter = !!filter;
+  const withMail = r => hasFilter || r.count > 0;
+  const visibleLive = liveRows.filter(withMail).filter(filterFn).sort(byActivity);
+  const visibleArchived = archivedRows.filter(withMail).filter(filterFn).sort(byActivity);
 
   const subFor = (name) => {
     const sub = subBucketCounts(threads, name);
@@ -91,7 +95,7 @@ export function renderSidebar(model, sel, acctFilter) {
     count: threads.length, cls: 'nav-top', data: { sel: 'all' }
   });
   html += navRow({
-    active: sel.type === 'triage', emoji: '🟡', label: 'Triage',
+    active: sel.type === 'triage', emoji: '🆕', label: 'New',
     count: triage, cls: 'nav-top nav-triage', data: { sel: 'triage' }
   });
   if (muted) {
@@ -101,15 +105,14 @@ export function renderSidebar(model, sel, acctFilter) {
     });
   }
 
-  if (archivedRows.length) {
-    html += `<div class="nav-heading">Archive · ${archivedRows.length} <span class="nav-heading-note">removed from dashboard</span></div>`;
-    if (visibleArchived.length) html += visibleArchived.map(acctBlock).join('');
-    else html += `<div class="nav-none">no match</div>`;
-  }
-
-  html += `<div class="nav-heading">By account · ${liveRows.length}</div>`;
+  html += `<div class="nav-heading">Accounts <span class="nav-heading-note">active · with mail</span></div>`;
   if (visibleLive.length) html += visibleLive.map(acctBlock).join('');
-  else html += `<div class="nav-none">no match</div>`;
+  else html += `<div class="nav-none">${hasFilter ? 'no match' : 'no account mail yet'}</div>`;
+
+  if (visibleArchived.length) {
+    html += `<div class="nav-heading">Dropped <span class="nav-heading-note">removed from dashboard</span></div>`;
+    html += visibleArchived.map(acctBlock).join('');
+  }
 
   html += `<div class="nav-heading">By bucket</div>`;
   BUCKETS.forEach(b => {
@@ -176,7 +179,7 @@ export function renderList(threads, sel, openSet) {
 
 export function listTitle(sel, count) {
   let name = 'All territory';
-  if (sel.type === 'triage') name = '🟡 Triage · unmatched';
+  if (sel.type === 'triage') name = '🆕 New · not in your book yet';
   else if (sel.type === 'muted') name = '🔕 Muted · internal + automated';
   else if (sel.type === 'account') name = sel.name;
   else if (sel.type === 'subbucket') name = sel.name + ' · ' + sel.bucket;
