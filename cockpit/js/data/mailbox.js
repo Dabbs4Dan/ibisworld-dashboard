@@ -134,8 +134,14 @@ export async function ingestFromLocalServer({ del = false } = {}) {
   for (const name of names) {
     try {
       const raw = await (await fetch(LOCAL_SERVER + '/file/' + encodeURIComponent(name), { cache: 'no-store' })).json();
-      const m = mapV3(raw);
-      if (m && m.id && !isDropped(m)) { mapped.push(m); got.push(name); }
+      // a file can be a single email (live flow) OR an array of emails (backfill dump)
+      const items = Array.isArray(raw) ? raw : [raw];
+      let any = false;
+      for (const it of items) {
+        const m = mapV3(it);
+        if (m && m.id && !isDropped(m)) { mapped.push(m); any = true; }
+      }
+      if (any) got.push(name);
     } catch (e) { /* skip unreadable file */ }
   }
   const ingested = await putMessages(mapped);
