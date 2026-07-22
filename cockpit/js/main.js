@@ -92,8 +92,18 @@ function startPoll() {
   pollTimer = setInterval(async () => {
     try {
       const r = app.localServer ? await ingestFromLocalServer() : (app.handle ? await ingest(app.handle) : null);
-      if (r && r.ingested) { await rebuild(); updateStatus(); }
-    } catch (e) { console.warn('[cockpit] poll ingest failed', e); }
+      // also refresh deal signals (stage/priority/notes) from the dashboard backup
+      let dealsChanged = false;
+      if (app.localServer) {
+        const ar = await loadAccounts();
+        const h = JSON.stringify(ar.deals || {}).length + '|' + (ar.accounts || []).length;
+        if (h !== app._acctHash) {
+          app.accounts = ar.accounts; app.deals = ar.deals || {}; app._acctHash = h;
+          dealsChanged = true;
+        }
+      }
+      if ((r && r.ingested) || dealsChanged) { await rebuild(); updateStatus(); }
+    } catch (e) { console.warn('[cockpit] poll refresh failed', e); }
   }, 45000);
 }
 

@@ -13390,6 +13390,11 @@ function disconnectGitHubBackup() {
   if (recovery && recovery.reloading) return; // full restore applied — page is reloading
   init();
   checkStorageSize();
+  // Deep-link from the mail cockpit: ?account=<name> jumps straight to that account page.
+  try {
+    const acctParam = new URLSearchParams(location.search).get('account');
+    if (acctParam) setTimeout(() => { try { goToAccount(acctParam); } catch (e) {} }, 500);
+  } catch {}
   // Confirmation toast after a full restore reloaded us into this load
   try {
     const rec = sessionStorage.getItem('ibis_recovered');

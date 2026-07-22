@@ -230,6 +230,9 @@ function threadDetail(t) {
   const dealRow = t.deal
     ? `<div class="td-deal">${dealPills(t.deal)}${t.deal.headline ? `<span class="td-note">✎ ${escHtml(t.deal.headline)}</span>` : ''}</div>`
     : '';
+  const dashLink = t.account
+    ? `<a class="td-dash-link" href="https://dabbs4dan.github.io/ibisworld-dashboard/?account=${encodeURIComponent(t.account)}&nosplash=1" target="_blank" rel="noopener" title="Open ${escHtml(t.account)} in the dashboard">Open account ↗</a>`
+    : '';
   const header = `<div class="td-head">
     <span class="td-logo">${logo}</span>
     <div class="td-id">
@@ -237,6 +240,7 @@ function threadDetail(t) {
       <div class="td-contact">${contactLine}</div>
       ${dealRow}
     </div>
+    ${dashLink}
   </div>`;
   const msgs = t.msgs.map(msgBlock).join('');
   return `<div class="thread-detail">${header}${msgs}<div class="detail-foot">read-only · replying comes later</div></div>`;
