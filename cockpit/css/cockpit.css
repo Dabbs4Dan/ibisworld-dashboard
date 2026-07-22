@@ -137,6 +137,39 @@ html, body {
   padding: 12px 8px 5px;
 }
 .nav-heading-note { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0.8; }
+
+/* Focus = the revenue shortlist */
+.nav-focus .nav-label { font-weight: 600; }
+.nav-focus .nav-count { color: #dc2626; font-weight: 700; }
+.nav-focus.active { background: #fff1f0; }
+.nav-focus.active { background: #fff1f0; color: #b91c1c; }
+.nav-focus.active .nav-count { color: #b91c1c; }
+
+/* deal-progression pills (stage + priority from the dashboard) */
+.deal-pills { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.deal-pill {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 600; line-height: 1.4;
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+}
+.dl-green   { background: #dcfce7; color: #15803d; }
+.dl-indigo  { background: #eef2ff; color: #4338ca; }
+.dl-amber   { background: #fef3c7; color: #92400e; }
+.dl-purple  { background: #ede9fe; color: #6d28d9; }
+.dl-orange  { background: #fff7ed; color: #9a3412; }
+.dl-slate   { background: #f1f5f9; color: #475569; }
+.dl-cyan    { background: #e0f2fe; color: #0369a1; }
+.dl-grey    { background: #f3f4f6; color: #6b7280; }
+.dl-crimson { background: #C8102E; color: #fff; }
+.dl-red     { background: #fee2e2; color: #b91c1c; }
+.dl-blue    { background: #dbeafe; color: #1e40af; }
+.dl-teal    { background: #ccfbf1; color: #115e59; }
+
+/* your dashboard note ("✎ Follow up quick") shown alongside the email */
+.thread-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.thread-note { font-size: 11px; color: var(--ink-2); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-deal { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.td-note { font-size: 12px; color: var(--ink); font-style: italic; }
 .nav-none { font-size: 11px; color: var(--ink-3); padding: 4px 10px; }
 
 /* muted = noise, filed at the bottom, visually quiet */

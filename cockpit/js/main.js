@@ -3,7 +3,7 @@
 import { loadAccounts, loadRawMessages } from './data/source.js';
 import { getAllMessages } from './data/store.js';
 import { fsaSupported, connectInbox, getInboxHandle, isConnected, ingest, localServerAvailable, ingestFromLocalServer } from './data/mailbox.js';
-import { buildModel, TRIAGE, MUTED, threadsForAccount, threadsForBucket, passesSlice } from './engine/model.js';
+import { buildModel, TRIAGE, MUTED, threadsForAccount, threadsForBucket, passesSlice, focusThreads } from './engine/model.js';
 import { renderSidebar, renderFilterbar, renderList, listTitle } from './ui/render.js';
 
 const app = {
@@ -13,6 +13,7 @@ const app = {
   open: new Set(),
   acctFilter: '',
   accounts: [],
+  deals: {},
   acctSource: 'sample',
   live: false,        // showing real mail (via local server or FSA)
   handle: null,       // File System Access dir handle (null if lapsed/never connected)
@@ -32,6 +33,7 @@ async function boot() {
   try {
     const acctResult = await loadAccounts();
     app.accounts = acctResult.accounts;
+    app.deals = acctResult.deals || {};
     app.acctSource = acctResult.source;
 
     // Preferred zero-click path: the local mail-server. If it's running, mail
@@ -61,7 +63,7 @@ async function boot() {
 
 async function rebuild() {
   const messages = app.live ? await getAllMessages() : await loadRawMessages();
-  app.model = buildModel(app.accounts, messages);
+  app.model = buildModel(app.accounts, messages, app.deals);
   renderAll();
 }
 
@@ -128,6 +130,7 @@ function baseThreads() {
   const t = app.model.threads;
   switch (app.sel.type) {
     case 'all':       return t.filter(x => x.accountKey !== MUTED);
+    case 'focus':     return focusThreads(t);
     case 'triage':    return t.filter(x => x.accountKey === TRIAGE);
     case 'muted':     return t.filter(x => x.accountKey === MUTED);
     case 'account':   return threadsForAccount(t, app.sel.name);
@@ -165,6 +168,7 @@ document.addEventListener('click', (e) => {
   if (nav) {
     const s = nav.dataset.sel;
     if (s === 'all') app.sel = { type: 'all' };
+    else if (s === 'focus') app.sel = { type: 'focus' };
     else if (s === 'triage') app.sel = { type: 'triage' };
     else if (s === 'muted') app.sel = { type: 'muted' };
     else if (s === 'account') app.sel = { type: 'account', name: nav.dataset.name };

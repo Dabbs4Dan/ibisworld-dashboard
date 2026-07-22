@@ -23,23 +23,23 @@ export async function loadAccounts() {
   if (live.length) {
     const liveNames = new Set(live.map(a => a.name.toLowerCase().trim()));
     const archived = readArchivedAccounts().filter(a => !liveNames.has(a.name.toLowerCase().trim()));
-    return { accounts: [...live, ...archived], source: 'dashboard' };
+    return { accounts: [...live, ...archived], deals: {}, source: 'dashboard' };
   }
   // 2. Local mail-server /accounts (cockpit served from localhost) — reads the
   //    dashboard backup file, so real territory loads with no dashboard origin.
   try {
     const r = await fetch('/accounts', { cache: 'no-store' });
     if (r.ok) {
-      const { accounts: aRaw, dead: dRaw } = await r.json();
+      const { accounts: aRaw, dead: dRaw, deals } = await r.json();
       const combined = accountsFromRaw(aRaw, dRaw);
-      if (combined.length) return { accounts: combined, source: 'dashboard' };
+      if (combined.length) return { accounts: combined, deals: deals || {}, source: 'dashboard' };
     }
   } catch {}
   // 3. Bundled sample.
   const res = await fetch(SAMPLE_ACCOUNTS, { cache: 'no-store' });
   if (!res.ok) throw new Error('accounts fetch failed: ' + res.status);
   const sample = await res.json();
-  return { accounts: sample.map(a => ({ ...a, archived: false })), source: 'sample' };
+  return { accounts: sample.map(a => ({ ...a, archived: false })), deals: {}, source: 'sample' };
 }
 
 // Sample rows carry `daysAgo`; we synthesize an ISO `receivedAt` at load time so

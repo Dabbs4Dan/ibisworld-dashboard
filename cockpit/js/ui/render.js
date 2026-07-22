@@ -1,8 +1,20 @@
 // render.js — pure view helpers. Take the model + app state, return HTML strings.
 // No data logic here; that lives in engine/. Event wiring lives in main.js.
 
-import { TRIAGE, accountCounts, bucketCounts, subBucketCounts } from '../engine/model.js';
+import { TRIAGE, accountCounts, bucketCounts, subBucketCounts, focusThreads } from '../engine/model.js';
 import { BUCKETS } from '../engine/buckets.js';
+import { stageInfo, prioInfo } from '../engine/deals.js';
+
+// deal-progression pills (stage + priority) from the dashboard signals
+export function dealPills(deal, { compact = false } = {}) {
+  if (!deal) return '';
+  const out = [];
+  const s = stageInfo(deal.stage);
+  const p = prioInfo(deal.prio);
+  if (s) out.push(`<span class="deal-pill ${s.cls}">${s.emoji}${compact ? '' : ' ' + escHtml(s.label)}</span>`);
+  if (p) out.push(`<span class="deal-pill ${p.cls}">${p.emoji}${compact ? '' : ' ' + escHtml(p.label)}</span>`);
+  return out.length ? `<span class="deal-pills">${out.join('')}</span>` : '';
+}
 
 export function escHtml(s) {
   return String(s == null ? '' : s)
@@ -51,19 +63,20 @@ export function folderLogo(domain, name) {
   return `<span class="flogo"><img src="https://logo.uplead.com/${domain}" alt="" loading="lazy" onload="${onload}" onerror="${onerr}"></span>`;
 }
 
-function navRow({ active, emoji, logo, label, count, indent, cls, data }) {
+function navRow({ active, emoji, logo, label, count, indent, cls, data, extra }) {
   const attrs = Object.entries(data || {}).map(([k, v]) => `data-${k}="${escHtml(v)}"`).join(' ');
   const icon = logo != null ? logo : (emoji ? `<span class="nav-emoji">${emoji}</span>` : '');
   return `<div class="nav-row ${active ? 'active' : ''} ${cls || ''}" ${attrs} style="padding-left:${8 + (indent || 0) * 14}px">
-    <span class="nav-label">${icon}${escHtml(label)}</span>
+    <span class="nav-label">${icon}${escHtml(label)}${extra || ''}</span>
     ${count != null ? `<span class="nav-count">${count}</span>` : ''}
   </div>`;
 }
 
-function accountRow(r, active) {
+function accountRow(r, active, deal) {
   return navRow({
     active, logo: folderLogo(r.domain, r.name), label: r.name, count: r.count,
-    cls: 'nav-acct', data: { sel: 'account', name: r.name }
+    cls: 'nav-acct', data: { sel: 'account', name: r.name },
+    extra: dealPills(deal, { compact: true })
   });
 }
 
@@ -91,9 +104,18 @@ export function renderSidebar(model, sel, acctFilter) {
     })).join('');
   };
 
-  const acctBlock = (r) => accountRow(r, sel.type === 'account' && sel.name === r.name);
+  const deals = model.deals || {};
+  const acctBlock = (r) => accountRow(r, sel.type === 'account' && sel.name === r.name, deals[r.name]);
+  const focusCount = focusThreads(threads).length;
 
   let html = '';
+
+  if (focusCount) {
+    html += navRow({
+      active: sel.type === 'focus', emoji: '🔥', label: 'Focus',
+      count: focusCount, cls: 'nav-top nav-focus', data: { sel: 'focus' }
+    });
+  }
 
   html += navRow({
     active: sel.type === 'all', emoji: '📥', label: 'All territory',
@@ -149,9 +171,9 @@ function threadRow(t, open) {
           <span class="thread-name">${escHtml(c.name || c.email || '(unknown)')}</span>
           <span class="thread-age">${ago(t.daysSince)}</span>
         </div>
-        <div class="thread-acct">${escHtml(t.account || 'New contact')}</div>
+        <div class="thread-acct">${escHtml(t.account || 'New contact')}${dealPills(t.deal, { compact: true })}</div>
         <div class="thread-subj">${escHtml(cleanSubject(t.subject))}</div>
-        <span class="badge ${t.state.cls}">${t.state.emoji} ${escHtml(stateLabel(t.state))}</span>
+        <div class="thread-badges"><span class="badge ${t.state.cls}">${t.state.emoji} ${escHtml(stateLabel(t.state))}</span>${t.deal && t.deal.headline ? `<span class="thread-note">✎ ${escHtml(t.deal.headline)}</span>` : ''}</div>
       </div>
     </div>
     ${detail}
@@ -205,11 +227,15 @@ function threadDetail(t) {
   const logo = folderLogo(dom, t.account || c.name || c.email);
   const acct = t.account || 'New contact';
   const contactLine = c.name && c.email ? `${escHtml(c.name)} · <span class="td-email">${escHtml(c.email)}</span>` : escHtml(c.name || c.email || '');
+  const dealRow = t.deal
+    ? `<div class="td-deal">${dealPills(t.deal)}${t.deal.headline ? `<span class="td-note">✎ ${escHtml(t.deal.headline)}</span>` : ''}</div>`
+    : '';
   const header = `<div class="td-head">
     <span class="td-logo">${logo}</span>
     <div class="td-id">
       <div class="td-acct">${escHtml(acct)}</div>
       <div class="td-contact">${contactLine}</div>
+      ${dealRow}
     </div>
   </div>`;
   const msgs = t.msgs.map(msgBlock).join('');
@@ -225,7 +251,8 @@ export function renderList(threads, sel, openSet) {
 
 export function listTitle(sel, count) {
   let name = 'All territory';
-  if (sel.type === 'triage') name = '🆕 New contacts · not in your book yet';
+  if (sel.type === 'focus') name = '🔥 Focus · reply here to advance a live deal';
+  else if (sel.type === 'triage') name = '🆕 New contacts · not in your book yet';
   else if (sel.type === 'muted') name = '🔕 Muted · internal + automated';
   else if (sel.type === 'account') name = sel.name;
   else if (sel.type === 'subbucket') name = sel.name + ' · ' + sel.bucket;

@@ -66,8 +66,26 @@ const server = http.createServer((req, res) => {
     const accounts = backupVal('ibis_accounts') || [];
     const deadObj = backupVal('ibis_dead') || {};
     const dead = (deadObj && Array.isArray(deadObj.accounts)) ? deadObj.accounts : [];
+    // deal intelligence per account, from the dashboard's ibis_local markup —
+    // the same stage/priority/status/action signals Dan sets in the dashboard.
+    const local = backupVal('ibis_local') || {};
+    const deals = {};
+    for (const name of Object.keys(local)) {
+      const v = local[name];
+      if (!v || typeof v !== 'object') continue;
+      const d = {};
+      if (v.acctActionStage) d.stage = v.acctActionStage;
+      if (v.acctPrio) d.prio = v.acctPrio;
+      if (v.acctStatus) d.status = v.acctStatus;
+      if (v.actionHeadline && String(v.actionHeadline).trim()) d.headline = String(v.actionHeadline).trim();
+      if (Array.isArray(v.actFlags) && v.actFlags.length) d.flags = v.actFlags;
+      if (v.hasAction) d.hasAction = true;
+      if (v.customOpp && String(v.customOpp).trim()) d.customOpp = String(v.customOpp).trim();
+      if (v.acctOpp) d.opp = { amt: v.acctOppAmt || '', close: v.acctOppClose || '' };
+      if (Object.keys(d).length) deals[name] = d;
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ accounts, dead }));
+    return res.end(JSON.stringify({ accounts, dead, deals }));
   }
 
   if (p === '/list') {

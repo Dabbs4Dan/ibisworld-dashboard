@@ -5,11 +5,12 @@
 import { resolveAccount, buildDomainIndex, otherParty, isNoiseSender, isNoiseSubject } from './routing.js';
 import { computeThreadState } from './threadState.js';
 import { threadBucket } from './buckets.js';
+import { isFocus, focusRank } from './deals.js';
 
 export const TRIAGE = '__triage__';
 export const MUTED = '__muted__';
 
-export function buildModel(accounts, messages) {
+export function buildModel(accounts, messages, deals = {}) {
   // Archived accounts indexed first so a live account wins any domain collision.
   const ordered = [...accounts].sort((a, b) => (a.archived ? 0 : 1) - (b.archived ? 0 : 1));
   const domainIdx = buildDomainIndex(ordered);
@@ -48,6 +49,7 @@ export function buildModel(accounts, messages) {
       cid,
       accountKey,
       account,
+      deal: (account && deals[account]) || null,
       state,
       bucket,
       subject: last.subject,
@@ -70,7 +72,13 @@ export function buildModel(accounts, messages) {
 
   const liveAccounts = accounts.filter(a => !a.archived);
   const archivedAccounts = accounts.filter(a => a.archived && !liveNames.has(a.name));
-  return { threads, accounts, liveAccounts, archivedAccounts, archivedNames };
+  return { threads, accounts, liveAccounts, archivedAccounts, archivedNames, deals };
+}
+
+// The revenue-winning shortlist: respond here to advance a live/prioritized deal.
+export function focusThreads(threads) {
+  return threads.filter(t => t.accountKey !== MUTED && isFocus(t))
+    .sort((a, b) => focusRank(a) - focusRank(b));
 }
 
 // --- slicing / grouping helpers the UI calls -------------------------------
