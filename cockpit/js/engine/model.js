@@ -58,8 +58,15 @@ export function buildModel(accounts, messages) {
     });
   });
 
-  // Newest activity first.
-  threads.sort((a, b) => new Date(b.last.receivedAt) - new Date(a.last.receivedAt));
+  // Smart action ranking: tier by what needs Dan first (they replied / you owe a
+  // reply / chasing / waiting / cold), then most-recent within each tier. Keeps the
+  // "reply now" threads on top instead of burying them under fresher noise.
+  const TIER = { your_move: 0, owe: 1, chasing: 2, waiting: 3, cold: 4 };
+  threads.sort((a, b) => {
+    const ta = TIER[a.state.key] ?? 5, tb = TIER[b.state.key] ?? 5;
+    if (ta !== tb) return ta - tb;
+    return new Date(b.last.receivedAt) - new Date(a.last.receivedAt);
+  });
 
   const liveAccounts = accounts.filter(a => !a.archived);
   const archivedAccounts = accounts.filter(a => a.archived && !liveNames.has(a.name));

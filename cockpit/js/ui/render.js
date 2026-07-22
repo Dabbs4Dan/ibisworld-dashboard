@@ -138,32 +138,82 @@ export function renderFilterbar(slice) {
 
 function threadRow(t, open) {
   const c = t.contact || {};
+  const dom = emailDomain(c.email);
+  const logo = folderLogo(dom, t.account || c.name || c.email);
   const detail = open ? threadDetail(t) : '';
   return `<div class="thread ${open ? 'open' : ''}" data-cid="${escHtml(t.cid)}">
     <div class="thread-head" data-cid="${escHtml(t.cid)}">
-      <div class="thread-top">
-        <span class="thread-name">${escHtml(c.name || c.email || '(unknown)')}</span>
-        <span class="thread-age">${ago(t.daysSince)}</span>
+      <span class="thread-logo">${logo}</span>
+      <div class="thread-main">
+        <div class="thread-top">
+          <span class="thread-name">${escHtml(c.name || c.email || '(unknown)')}</span>
+          <span class="thread-age">${ago(t.daysSince)}</span>
+        </div>
+        <div class="thread-acct">${escHtml(t.account || 'New contact')}</div>
+        <div class="thread-subj">${escHtml(cleanSubject(t.subject))}</div>
+        <span class="badge ${t.state.cls}">${t.state.emoji} ${escHtml(stateLabel(t.state))}</span>
       </div>
-      <div class="thread-subj">${escHtml(cleanSubject(t.subject))}</div>
-      <span class="badge ${t.state.cls}">${t.state.emoji} ${escHtml(stateLabel(t.state))}</span>
     </div>
     ${detail}
   </div>`;
 }
 
+function emailDomain(e) { return (e || '').split('@')[1] || ''; }
+
+// strip external-sender security warnings + banners that clutter the body
+function cleanBody(text) {
+  let s = String(text || '');
+  s = s.replace(/\*{3,}[\s\S]*?\*{3,}/g, '');
+  s = s.replace(/^[^\n]*\b(this email (was sent|originated) from outside|use caution before opening)[\s\S]*/im, '');
+  s = s.replace(/^\s*(caution|warning|external)[:!][^\n]*$/gim, '');
+  return s.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// split the newest message from the quoted reply history below it
+function splitQuoted(text) {
+  const markers = [
+    /\n\s*from:\s[^\n]*\n?\s*sent:/i,
+    /\n\s*from:\s[^\n]*@[^\n]*\n/i,
+    /\n\s*on\s[^\n]{4,80}\bwrote:/i,
+    /\n-{3,}\s*original message\s*-{3,}/i,
+    /\n_{6,}/
+  ];
+  let idx = -1;
+  for (const re of markers) { const m = text.match(re); if (m && (idx === -1 || m.index < idx)) idx = m.index; }
+  if (idx > 20) return { latest: text.slice(0, idx).trim(), quoted: text.slice(idx).trim() };
+  return { latest: text.trim(), quoted: '' };
+}
+
+function msgBlock(m) {
+  const mine = m.direction === 'outbound';
+  const who = mine ? 'You' : ((m.from && m.from.name) || (m.from && m.from.email) || 'Them');
+  const date = new Date(m.receivedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const { latest, quoted } = splitQuoted(cleanBody(m.bodyText || m.preview || ''));
+  const quotedHtml = quoted
+    ? `<details class="msg-quoted"><summary>quoted history</summary><div class="msg-quoted-body">${escHtml(quoted)}</div></details>`
+    : '';
+  return `<div class="msg ${mine ? 'msg-out' : 'msg-in'}">
+    <div class="msg-meta"><span class="msg-who">${escHtml(who)}</span><span class="msg-date">${date}</span></div>
+    <div class="msg-body">${escHtml(latest) || '<span class="msg-empty">(no text)</span>'}</div>
+    ${quotedHtml}
+  </div>`;
+}
+
 function threadDetail(t) {
-  const msgs = t.msgs.map(m => {
-    const mine = m.direction === 'outbound';
-    const who = mine ? 'You' : escHtml((m.from && m.from.name) || 'Them');
-    const d = new Date(m.receivedAt);
-    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    return `<div class="msg ${mine ? 'msg-out' : 'msg-in'}">
-      <div class="msg-meta"><span class="msg-who">${who}</span><span class="msg-date">${date}</span></div>
-      <div class="msg-body">${escHtml(m.bodyText || m.preview || '')}</div>
-    </div>`;
-  }).join('');
-  return `<div class="thread-detail">${msgs}<div class="detail-foot">read-only · replying comes later</div></div>`;
+  const c = t.contact || {};
+  const dom = emailDomain(c.email);
+  const logo = folderLogo(dom, t.account || c.name || c.email);
+  const acct = t.account || 'New contact';
+  const contactLine = c.name && c.email ? `${escHtml(c.name)} · <span class="td-email">${escHtml(c.email)}</span>` : escHtml(c.name || c.email || '');
+  const header = `<div class="td-head">
+    <span class="td-logo">${logo}</span>
+    <div class="td-id">
+      <div class="td-acct">${escHtml(acct)}</div>
+      <div class="td-contact">${contactLine}</div>
+    </div>
+  </div>`;
+  const msgs = t.msgs.map(msgBlock).join('');
+  return `<div class="thread-detail">${header}${msgs}<div class="detail-foot">read-only · replying comes later</div></div>`;
 }
 
 export function renderList(threads, sel, openSet) {

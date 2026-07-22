@@ -73,6 +73,21 @@ export async function countMessages() {
   } catch { return 0; }
 }
 
+export async function deleteMessages(ids) {
+  if (!ids || !ids.length) return 0;
+  try {
+    const db = await openDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(MSG_STORE, 'readwrite');
+      const st = tx.objectStore(MSG_STORE);
+      ids.forEach(id => st.delete(id));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    return ids.length;
+  } catch (e) { console.warn('[cockpit] deleteMessages failed:', e); return 0; }
+}
+
 export async function clearMessages() {
   try {
     const db = await openDb();

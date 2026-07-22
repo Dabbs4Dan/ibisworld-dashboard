@@ -8,10 +8,25 @@
 // Security: mail content only ever lives in IndexedDB (this browser) + OneDrive
 // (Dan's disk). Nothing is uploaded; there are zero external calls here.
 
-import { putMessages, kvSet, kvGet } from './store.js';
+import { putMessages, getAllMessages, deleteMessages, kvSet, kvGet } from './store.js';
 
 const MY_EMAIL = 'daniel.starr@ibisworld.com';
 const HANDLE_KEY = 'inbox_dir_handle';
+
+// Pure-vendor-noise senders that are DROPPED at ingest — never enter the cockpit
+// at all (not even Muted). Zero sales value, high volume. (Internal colleagues +
+// calendar/auto-replies are only *muted*, not dropped — see routing.js.)
+const DROP_DOMAINS = new Set([
+  'gong.io', '6sense.com', 'ticketsatwork.com', 'email.ticketsatwork.com',
+  'darktrace.com', 'chilipiper.com'
+]);
+function domainOf(email) { return (email || '').split('@')[1] || ''; }
+function isDropped(msg) {
+  if (!msg) return true;
+  const f = domainOf(msg.from && msg.from.email);
+  const t = domainOf(msg.to && msg.to[0] && msg.to[0].email);
+  return DROP_DOMAINS.has(f) || DROP_DOMAINS.has(t);
+}
 
 // --- folder connection (File System Access) -------------------------------
 
@@ -66,7 +81,7 @@ export async function ingest(handle) {
       if (!text || text[0] !== '{') { skipped++; continue; } // legacy junk ("new email received…")
       const raw = JSON.parse(text);
       const msg = mapV3(raw);
-      if (msg && msg.id) { mapped.push(msg); goodFiles.push(name); }
+      if (msg && msg.id && !isDropped(msg)) { mapped.push(msg); goodFiles.push(name); }
       else skipped++;
     } catch (e) {
       console.warn('[cockpit] skip unreadable mail file', name, e);
@@ -120,10 +135,15 @@ export async function ingestFromLocalServer({ del = false } = {}) {
     try {
       const raw = await (await fetch(LOCAL_SERVER + '/file/' + encodeURIComponent(name), { cache: 'no-store' })).json();
       const m = mapV3(raw);
-      if (m && m.id) { mapped.push(m); got.push(name); }
+      if (m && m.id && !isDropped(m)) { mapped.push(m); got.push(name); }
     } catch (e) { /* skip unreadable file */ }
   }
   const ingested = await putMessages(mapped);
+  // purge any previously-stored dropped senders (e.g. Gong ingested before the drop rule)
+  try {
+    const dropIds = (await getAllMessages()).filter(isDropped).map(m => m.id);
+    if (dropIds.length) await deleteMessages(dropIds);
+  } catch {}
   if (del) {
     for (const name of got) {
       try { await fetch(LOCAL_SERVER + '/file/' + encodeURIComponent(name), { method: 'DELETE' }); } catch {}
@@ -150,8 +170,18 @@ function parseAddr(str) {
   }
   const m = String(str).match(/<([^>]+)>/);
   const email = (m ? m[1] : str).toString().trim().toLowerCase();
-  const name = m ? String(str).replace(/<[^>]+>/, '').replace(/"/g, '').trim() : '';
+  let name = m ? String(str).replace(/<[^>]+>/, '').replace(/"/g, '').trim() : '';
+  if (!name) name = nameFromLocal(email);
   return { name, email };
+}
+
+// derive a display name from the email local part when the header has no name:
+// blake.kozak@resideo.com -> "Blake Kozak"
+function nameFromLocal(email) {
+  const local = (email || '').split('@')[0];
+  if (!local || /^\d+$/.test(local) || local.length < 2) return '';
+  return local.split(/[._+-]+/).filter(w => w && !/^\d+$/.test(w))
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 function parseList(val) {
@@ -160,15 +190,27 @@ function parseList(val) {
   return String(val).split(/[;,]/).map(s => s.trim()).filter(Boolean).map(parseAddr).filter(a => a.email);
 }
 
-function stripHtml(html) {
+// HTML email -> readable plain text that PRESERVES paragraph/line breaks (so the
+// reader isn't a wall of text). Block/line tags become newlines.
+function htmlToText(html) {
   if (!html) return '';
-  return String(html)
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let s = String(html);
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ');
+  s = s.replace(/<\s*(br|hr)\s*\/?>/gi, '\n');
+  s = s.replace(/<\/\s*(p|div|li|tr|h[1-6]|blockquote)\s*>/gi, '\n');
+  s = s.replace(/<\s*(p|div|li|tr|h[1-6]|blockquote)\b[^>]*>/gi, '\n');
+  s = s.replace(/<[^>]+>/g, '');
+  s = s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+       .replace(/&quot;/g, '"').replace(/&#39;|&rsquo;|&#8217;/g, '’').replace(/&mdash;|&#8212;/g, '—')
+       .replace(/&ndash;|&#8211;/g, '–');
+  s = s.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n')
+       .replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
+// single-line version for list previews
+function stripHtml(html) {
+  return htmlToText(html).replace(/\s+/g, ' ').trim();
 }
 
 export function mapV3(raw) {
@@ -190,8 +232,8 @@ export function mapV3(raw) {
     to,
     cc,
     subject: pick(raw, 'Subject', 'subject') || '(no subject)',
-    preview: pick(raw, 'BodyPreview', 'bodyPreview') || stripHtml(bodyHtml).slice(0, 200),
-    bodyText: stripHtml(bodyHtml),
+    preview: (pick(raw, 'BodyPreview', 'bodyPreview') || stripHtml(bodyHtml)).slice(0, 200),
+    bodyText: htmlToText(bodyHtml),
     receivedAt,
     hasAttachments: !!pick(raw, 'HasAttachment', 'hasAttachments', 'hasAttachment'),
     folder: 'Inbox',
