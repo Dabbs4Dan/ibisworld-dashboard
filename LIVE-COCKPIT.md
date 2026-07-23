@@ -28,6 +28,9 @@ Naive same-tab REST calls I ran live returned **`INVALID_SESSION_ID`** twice (bo
 
 ---
 
+## ✅✅ TEST RESULT — PASSED (2026-07-23) — OPTION ① IS CONFIRMED LIVE
+Dan loaded `sf-api-test/`; Claude read the verdict off the dashboard banner: **`STATUS=SUCCESS`, `tasks=true meetings=true opps=true`, accounts returned.** Meaning: the org does **NOT** have API client whitelisting blocking session-REST, "API Enabled" is on, and Dan's session can **read accounts AND write Tasks/Events + update Opportunities** — full two-way. **→ Build Option ① (extension → SF REST).** No fallback needed. The throwaway `sf-api-test` extension can be removed. Next: fold `cookies` + `https://ibisworld-inc.my.salesforce.com/*` host perm + `sfQuery()`/`sfWrite()` helpers into the Outreach extension's `background.js`, push results to the dashboard via `bridge.js`, and build the combined Accounts×Opps×Contacts live table + Gong "last call" cell + write-back marks. Then agentic Loop A.
+
 ## 🧪 THE LIVE TEST — `sf-api-test/` (built 2026-07-23, in repo)
 A **temporary, isolated, read-only** MV3 extension that proves whether ① works in Dan's org, with **zero side effects** (write-capability is checked via read-only `describe` calls — it creates nothing).
 
