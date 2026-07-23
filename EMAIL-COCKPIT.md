@@ -8,6 +8,31 @@
 
 ## 🚀 NEXT SESSION — START HERE
 
+### ⭐ CURRENT STATE (2026-07-22) — it's a REVENUE COCKPIT now
+Real mail, organized by Dan's account book, **fused with deal progression**, with a 🔥 Focus list of "reply here to win." Everything below is committed + verified live.
+
+**How to open it:** **`http://localhost:8790/`** — a self-contained local server (`scripts/mail-server.js`, node, auto-starts at logon via Startup-folder entry `IBIS-Mail-Server.vbs`, no admin) serves the WHOLE cockpit from one localhost origin: `/`=app · `/accounts`=territory + **deals** from the dashboard backup `Documents\IBIS-Backups\latest.json` · `/list`+`/file`=mail from `OneDrive/IBIS-Mail/Inbox`. **Zero clicks, zero Chrome gates.** Dashboard↔cockpit switch buttons link across (dashboard Mail → localhost:8790; cockpit → github dashboard). ⚠️ Chrome silently blocks public-HTTPS→localhost (Private Network Access), so the cockpit is *served from* localhost, not the github URL (which shows sample mail).
+
+**BUILT + VERIFIED this session:**
+- **Both PA flows LIVE** writing real `@{triggerBody()}` JSON: `Cockpit - Receive` (Inbox, `4eed98b4-…`) + `Cockpit - Send` (Sent Items). Real V3 JSON is **camelCase**; `from`/`toRecipients` are plain email strings — defensive `mapV3` in `mailbox.js`.
+- **💰 Deal fusion (THE WOW):** `/accounts` serves each account's dashboard deal signals (stage/priority/status/headline/opp from `ibis_local`). Every folder + thread shows **stage+priority pills** (Egis 📋 Active Proposal, Resideo 🆘 Immediate) + Dan's own account notes inline. Engine: `cockpit/js/engine/deals.js` (STAGES/PRIOS maps mirror the dashboard, `isFocus`, `focusRank`).
+- **🔥 Focus view** = revenue shortlist: ball-in-Dan's-court AND live/prioritized deal, ranked immediate→urgent→… then stage. Verified: Resideo (immediate, "missed meeting") → Egis (active proposal) → GGFL (active opp, "follow up quick").
+- **Readable emails:** `htmlToText` preserves line breaks (no more wall of text), `splitQuoted` collapses the quoted chain into a details toggle, `[External]` warnings stripped, person names derived from email local-part (blake.kozak→Blake Kozak), reader header = logo badge + account + person + deal + note + **"Open account ↗" clickthrough** to the dashboard (`?account=<name>` deep-link handled in index.html boot).
+- **Smart folder IA:** `Your accounts` (current accounts *with mail* only), `Dropped accounts` (from ibis_dead), `New contacts` (unmatched prospects, was "Triage"), `Muted` filed at bottom.
+- **Noise:** pure vendor noise DROPPED at ingest (never enters, not even Muted) — Gong/6sense/TicketsAtWork/Darktrace/ChiliPiper (`DROP_DOMAINS` in mailbox.js). Internal + calendar/auto-replies → Muted (`isNoiseSender`/`isNoiseSubject` in routing.js). System-noise threads never read as "your move" (state uses last *real* message).
+- **Ranking:** tier by actionability (your-move→owe→chasing→waiting→cold) then recency.
+- **Data integrity:** poll (45s) re-ingests mail + refreshes deals, rebuilds only on change; mail dedups by id. **Backups by design** — all data derives from durable sources (OneDrive mail files + dashboard backup), so the cockpit self-rebuilds; nothing to lose. Delete-after-ingest is OFF (`ingestFromLocalServer({del:true})` to enable later).
+
+**⏭️ DO NEXT (Dan's asks):**
+1. **🔴 One-time backfill** ("way more accounts") — **BLOCKED via automation:** PA's NL builder ("No suggestions") + editor Copilot (mangles multi-action flows) can't assemble a Get-emails→loop→Create-file flow. A half-built `Cockpit - Backfill` (`a7eee5d0-…`) is parked **OFF/inert** — delete or finish by hand. Cockpit is READY: `ingestFromLocalServer` reads **array-dump** files (a file can be one email OR an array). Minimal flow: manual trigger → Get emails (V3, Inbox+Sent, Top ~200) → Create ONE file (content = the emails array) in IBIS-Mail/Inbox. Needs a human in the PA designer (config panels fight automation).
+2. **Richer Focus** — opp $ + close date on Focus cards (`deal.opp` already in payload); a "today's plays" daily summary.
+3. **ZoomInfo** = matching FALLBACK only (Dan clarified: tie prospects→accounts, not enrich). Matching works well; populate `DOMAIN_ALIASES` (routing.js) for gaps; needs Dan's ZoomInfo session.
+4. **Send/reply UI** (Dan wants read-only until ironclad) + account-page thread integration.
+
+**Code map:** `cockpit/js/data/{source,store,mailbox,dashboard}.js` · `engine/{routing,threadState,buckets,model,deals}.js` · `ui/render.js` · `main.js`. Server: `scripts/mail-server.js`. (Earlier layered notes below are historical.)
+
+---
+
 **Plain-language recap (the "robots" model — keep using this with Dan, it landed well):**
 Dan's email = a big busy **post office** 🏤 (Outlook). We're building **his own mail room** 🏠. Two **robot helpers** 🤖 in Power Automate move the mail; the **cockpit app** is the face he looks at.
 - 📤 **Sender Robot** — hand it a note, it mails a real letter **as Dan** (proven).
