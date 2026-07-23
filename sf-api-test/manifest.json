@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "SF API Test (temporary)",
+  "version": "1.2",
+  "description": "One-time test: can we read + write Salesforce live via your own session? Safe, read-only. Posts its result onto the dashboard so Claude can read it. Remove after testing.",
+  "permissions": ["cookies"],
+  "host_permissions": [
+    "https://ibisworld-inc.my.salesforce.com/*",
+    "https://*.salesforce.com/*",
+    "https://*.force.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://dabbs4dan.github.io/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
